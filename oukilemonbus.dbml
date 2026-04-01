@@ -1,0 +1,695 @@
+// ============================================================
+// OuKiLéMonBus — Schéma DBML v6 FINAL READY FOR MIGRATIONS
+// Base : fusion v5 consolidée pour génération IA Laravel
+// Projet : Application de réservation du bus communal — Dinant
+//
+// Objectif : servir de source unique pour générer :
+// 1) migrations Laravel
+// 2) models Eloquent
+//
+// Recommandations IA :
+// - respecter strictement les noms de tables / colonnes
+// - respecter l'ordre de migration indiqué
+// - traduire les notes "CHECK" via DB::statement() si nécessaire
+// - ajouter les foreign keys avec onDelete/onUpdate selon les Ref
+// - ne pas renommer request_id en id dans user_org_requests
+// ============================================================
+
+Project oukilemonbus {
+  database_type: "MySQL"
+  Note: "Application de réservation du bus communal — Commune de Dinant"
+}
+
+// ============================================================
+// ENUMS
+// ============================================================
+
+Enum organization_type {
+  ecole_communale
+  asbl
+  externe
+}
+
+Enum reservation_status {
+  en_attente
+  approuve
+  refuse
+  annule
+  en_conflit
+}
+
+Enum approval_type_enum {
+  auto
+  manuel
+}
+
+Enum council_decision_status {
+  approuve
+  refuse
+  en_attente
+}
+
+Enum document_type_enum {
+  feuille_route
+  attestation
+  deliberation
+  planning
+}
+
+Enum notification_type {
+  reservation_submitted
+  reservation_approved
+  reservation_refused
+  reservation_cancelled
+  reservation_conflict
+  pre_departure_reminder
+  weekly_planning
+  document_generated
+  unavailability_created
+}
+
+Enum notification_channel {
+  email
+  app
+}
+
+Enum notification_status {
+  pending
+  sent
+  failed
+}
+
+Enum request_status {
+  en_attente
+  approuve
+  refuse
+}
+
+Enum unavailability_reason_type {
+  driver
+  vehicle
+}
+
+Enum assignment_type_enum {
+  driver
+  vehicle
+}
+
+// ============================================================
+// TABLES
+// ============================================================
+
+// ─── 1. USERS ────────────────────────────────────────────────
+Table users {
+  id                bigint       [pk, increment, not null]
+  first_name        varchar(100) [not null, note: 'Prénom']
+  last_name         varchar(255) [not null, note: 'Nom de famille']
+  email             varchar(255) [not null, unique, note: 'Identifiant de connexion Laravel Auth']
+  password          varchar(255) [not null, note: 'Hash bcrypt']
+  phone             varchar(20)
+  active            boolean      [not null, default: true]
+  email_verified_at timestamp
+  created_at        timestamp    [not null]
+  updated_at        timestamp    [not null]
+
+  indexes {
+    (email)  [unique, name: 'uq_users_email']
+    (active) [name: 'idx_users_active']
+  }
+
+  Note: 'Rôles système (admin, college, chauffeur, service_jeunesse) gérés via Spatie laravel-permission'
+}
+
+// ─── 2. DRIVERS ──────────────────────────────────────────────
+Table drivers {
+  id                  bigint      [pk, increment, not null]
+  user_id             bigint      [not null, unique, note: '1 seul profil chauffeur par utilisateur']
+  licence_number      varchar(20) [not null, unique]
+  licence_expiry_date date        [not null]
+  is_active           boolean     [not null, default: true]
+  created_at          timestamp   [not null]
+  updated_at          timestamp   [not null]
+
+  indexes {
+    (user_id)             [unique, name: 'uq_drivers_user_id']
+    (licence_number)      [unique, name: 'uq_drivers_licence_number']
+    (licence_expiry_date) [name: 'idx_drivers_licence_expiry_date']
+    (is_active)           [name: 'idx_drivers_is_active']
+  }
+}
+
+// ─── 3. VEHICLES ─────────────────────────────────────────────
+Table vehicles {
+  id            bigint      [pk, increment, not null]
+  licence_plate varchar(20) [not null, unique, note: '1-VJX-649']
+  capacity      int         [not null, note: '41 places chauffeur compris']
+  is_active     boolean     [not null, default: true]
+  created_at    timestamp   [not null]
+  updated_at    timestamp   [not null]
+
+  indexes {
+    (licence_plate) [unique, name: 'uq_vehicles_licence_plate']
+    (is_active)     [name: 'idx_vehicles_is_active']
+    (capacity)      [name: 'idx_vehicles_capacity']
+  }
+}
+
+// ─── 4. LOCATIONS ────────────────────────────────────────────
+Table locations {
+  id                bigint       [pk, increment, not null]
+  formatted_address varchar(500) [not null]
+  street            varchar(255)
+  street_number     varchar(20)
+  postal_code       varchar(20)
+  city              varchar(100) [not null]
+  country           varchar(100) [not null, default: 'Belgique']
+  latitude          decimal(11,8)
+  longitude         decimal(11,8)
+  place_id          varchar(255) [note: 'ID Google Maps / ORS — cache distances : pas de nouvel appel API si déjà géocodé']
+  provider          varchar(50)  [note: 'google | openrouteservice']
+  is_verified       boolean      [not null, default: false]
+  created_at        timestamp    [not null]
+  updated_at        timestamp    [not null]
+
+  indexes {
+    (city)                    [name: 'idx_locations_city']
+    (postal_code, city)       [name: 'idx_locations_postal_city']
+    (latitude, longitude)     [name: 'idx_locations_lat_lng']
+    (place_id)                [name: 'idx_locations_place_id']
+    (provider, place_id)      [name: 'idx_locations_provider_place_id']
+    (is_verified)             [name: 'idx_locations_is_verified']
+  }
+
+  Note: 'Possibilité d’ajouter une contrainte unique métier sur (provider, place_id) si place_id est toujours fiable et non null'
+}
+
+// ─── 5. ORGANIZATIONS ────────────────────────────────────────
+Table organizations {
+  id                          bigint            [pk, increment, not null]
+  name                        varchar(50)       [not null]
+  type                        organization_type [not null]
+  email_contact               varchar(255)
+  phone_contact               varchar(20)
+  name_contact                varchar(255)
+  location_id                 bigint            [note: 'Siège social géocodé']
+  is_priority                 boolean           [not null, default: false, note: 'true si type = ecole_communale']
+  annual_quota                int               [not null, default: 5, note: 'Max réservations/an — surtout asbl/externe']
+  reservations_used_this_year int               [not null, default: 0, note: 'Cache métier — reset automatique 1er janvier par Scheduler']
+  quota_reset_year            timestamp         [not null, default: `now()`, note: 'Horodatage du dernier reset']
+  document_proof_path         varchar(500)      [note: 'Justificatif statuts ASBL...']
+  created_at                  timestamp         [not null]
+  updated_at                  timestamp         [not null]
+
+  indexes {
+    (name)                     [name: 'idx_organizations_name']
+    (type)                     [name: 'idx_organizations_type']
+    (location_id)              [name: 'idx_organizations_location_id']
+    (is_priority)              [name: 'idx_organizations_is_priority']
+    (email_contact)            [name: 'idx_organizations_email_contact']
+    (type, is_priority)        [name: 'idx_organizations_type_priority']
+    (quota_reset_year)         [name: 'idx_organizations_quota_reset_year']
+  }
+
+  Note: 'CHECK métier à faire côté app/DB : annual_quota >= 0 AND reservations_used_this_year >= 0'
+}
+
+// ─── 6. USER_ORGANIZATION ────────────────────────────────────
+Table user_organization {
+  user_id           bigint      [not null]
+  organization_id   bigint      [not null]
+  relationship_type varchar(50) [not null, note: 'prof | directeur | animateur | responsable | referent']
+  is_default        boolean     [not null, default: false, note: 'Organisation pré-sélectionnée à la connexion']
+  created_at        timestamp   [not null]
+  updated_at        timestamp   [not null]
+
+  indexes {
+    (user_id, organization_id) [pk]
+    (user_id)                  [name: 'idx_user_organization_user_id']
+    (organization_id)          [name: 'idx_user_organization_organization_id']
+    (user_id, is_default)      [name: 'idx_user_organization_user_default']
+    (organization_id, relationship_type) [name: 'idx_user_organization_org_role']
+  }
+
+  Note: 'Pivot Many-to-Many enrichi — clé composite (user_id, organization_id). CHECK métier possible : un seul is_default = true par user'
+}
+
+// ─── 7. RECURRENCES ──────────────────────────────────────────
+Table recurrences {
+  id               bigint      [pk, increment, not null]
+  frequency        varchar(50) [not null, note: 'hebdomadaire | bihebdomadaire | mensuel']
+  interval_value   int         [not null, note: 'Nombre de jours entre occurrences']
+  days_of_week     varchar(50) [note: "Ex: '1,3' pour lundi et mercredi"]
+  start_date       date        [not null]
+  end_date         date        [not null]
+  occurrence_count int         [note: 'Nb max occurrences (optionnel)']
+  is_active        boolean     [not null, default: true]
+  created_at       timestamp   [not null]
+  updated_at       timestamp   [not null]
+
+  indexes {
+    (frequency)                [name: 'idx_recurrences_frequency']
+    (start_date, end_date)     [name: 'idx_recurrences_start_end']
+    (is_active)                [name: 'idx_recurrences_is_active']
+  }
+
+  Note: 'CHECK : interval_value > 0 ; CHECK : end_date >= start_date ; CHECK : occurrence_count IS NULL OR occurrence_count > 0'
+}
+
+// ─── 8. RESERVATIONS ─────────────────────────────────────────
+Table reservations {
+  id                      bigint              [pk, increment, not null]
+  requested_by_user_id    bigint              [not null]
+  organization_id         bigint              [not null]
+  pickup_location_id      bigint              [not null]
+  destination_location_id bigint              [not null]
+  driver_id               bigint              [note: 'Assigné après validation']
+  vehicle_id              bigint              [note: 'Assigné après validation']
+  recurrence_id           bigint
+  trip_date               date                [not null]
+  departure_time          time                [not null]
+  return_time             time                [not null, note: 'Heure de retour souhaitée ≤ 17h00']
+  nb_children             int                 [not null, default: 0]
+  nb_adults               int                 [not null, note: 'Min 1 — nb_children + nb_adults + 1 chauffeur ≤ 41']
+  trip_purpose            varchar(500)        [not null, note: 'Objet du déplacement']
+  distance_km             decimal(6,2)        [note: 'Calculé via API — bloqué si > 50 km']
+  estimated_duration_min  int                 [note: 'Durée estimée API + marge configurable']
+  status                  reservation_status  [not null]
+  approval_type           approval_type_enum  [not null]
+  validated_by_user_id    bigint
+  validated_at            timestamp
+  cancelled_by_user_id    bigint
+  cancelled_at            timestamp
+  rejection_reason        text
+  cancellation_reason     text
+  created_at              timestamp           [not null]
+  updated_at              timestamp           [not null]
+
+  indexes {
+    (trip_date, status)                  [name: 'idx_reservations_date_status']
+    (organization_id, trip_date)         [name: 'idx_reservations_org_date']
+    (requested_by_user_id)               [name: 'idx_reservations_requested_by_user_id']
+    (pickup_location_id)                 [name: 'idx_reservations_pickup_location_id']
+    (destination_location_id)            [name: 'idx_reservations_destination_location_id']
+    (driver_id)                          [name: 'idx_reservations_driver_id']
+    (vehicle_id)                         [name: 'idx_reservations_vehicle_id']
+    (recurrence_id)                      [name: 'idx_reservations_recurrence_id']
+    (status, approval_type)              [name: 'idx_reservations_status_approval_type']
+    (validated_by_user_id)               [name: 'idx_reservations_validated_by_user_id']
+    (cancelled_by_user_id)               [name: 'idx_reservations_cancelled_by_user_id']
+    (trip_date, driver_id)               [name: 'idx_reservations_trip_date_driver_id']
+    (trip_date, vehicle_id)              [name: 'idx_reservations_trip_date_vehicle_id']
+    (organization_id, status, trip_date) [name: 'idx_reservations_org_status_date']
+  }
+
+  Note: '''
+  Règles métier importantes à traduire en CHECK / validation applicative :
+  - return_time > departure_time
+  - return_time <= 17:00:00
+  - nb_adults >= 1
+  - nb_children >= 0
+  - nb_children + nb_adults >= 1
+  - distance_km IS NULL OR distance_km <= 50.00
+  - estimated_duration_min IS NULL OR estimated_duration_min > 0
+  - pickup_location_id <> destination_location_id
+  - status='refuse' => rejection_reason potentiellement requis côté app
+  - status='annule' => cancellation_reason potentiellement requis côté app
+  '''
+}
+
+// ─── 9. COUNCIL_DECISIONS ────────────────────────────────────
+Table council_decisions {
+  id                  bigint                  [pk, increment, not null]
+  reservation_id      bigint                  [not null, unique, note: 'Max 1 décision par réservation']
+  decision_status     council_decision_status [not null]
+  decision_date       date                    [note: 'Date de la séance du Collège']
+  recorded_by_user_id bigint                  [not null]
+  decision_reference  varchar(100)            [note: 'Numéro officiel de délibération']
+  validated_at        timestamp
+  notes               varchar(500)
+  created_at          timestamp               [not null]
+  updated_at          timestamp               [not null]
+
+  indexes {
+    (reservation_id)      [unique, name: 'uq_council_decisions_reservation_id']
+    (decision_status)     [name: 'idx_council_decisions_status']
+    (decision_date)       [name: 'idx_council_decisions_decision_date']
+    (recorded_by_user_id) [name: 'idx_council_decisions_recorded_by_user_id']
+    (decision_reference)  [name: 'idx_council_decisions_decision_reference']
+  }
+}
+
+// ─── 10. DOCUMENTS ───────────────────────────────────────────
+Table documents {
+  id              bigint             [pk, increment, not null]
+  reservation_id  bigint
+  user_id         bigint
+  document_type   document_type_enum [not null]
+  file_name       varchar(255)       [not null]
+  file_path       varchar(500)       [not null, note: 'Chemin storage/app/private/...']
+  mime_type       varchar(100)       [not null]
+  file_size       int
+  generation_mode varchar(50)        [not null, note: 'auto | manuel']
+  generated_at    timestamp          [note: 'Horodatage effectif']
+  is_official     boolean            [not null, default: false]
+  version         int                [not null, default: 1]
+  is_available    boolean            [not null, default: true, note: 'false = expiré ou supprimé']
+  created_at      timestamp          [not null]
+  updated_at      timestamp          [not null]
+
+  indexes {
+    (reservation_id)                  [name: 'idx_documents_reservation_id']
+    (user_id)                         [name: 'idx_documents_user_id']
+    (document_type)                   [name: 'idx_documents_document_type']
+    (generated_at)                    [name: 'idx_documents_generated_at']
+    (is_official)                     [name: 'idx_documents_is_official']
+    (is_available)                    [name: 'idx_documents_is_available']
+    (reservation_id, document_type)   [name: 'idx_documents_reservation_type']
+    (document_type, is_available)     [name: 'idx_documents_type_available']
+    (mime_type)                       [name: 'idx_documents_mime_type']
+  }
+
+  Note: '''
+  CHECK métier :
+  - file_size IS NULL OR file_size >= 0
+  - version >= 1
+  Archivage recommandé : feuilles de route conservées 3 ans minimum
+  '''
+}
+
+// ─── 11. NOTIFICATIONS ───────────────────────────────────────
+Table notifications {
+  id             bigint               [pk, increment, not null]
+  user_id        bigint               [not null, note: 'Destinataire']
+  reservation_id bigint
+  document_id    bigint
+  type           notification_type    [not null]
+  channel        notification_channel [not null]
+  status         notification_status  [not null]
+  title          varchar(255)         [not null]
+  message        text                 [not null]
+  sent_at        timestamp
+  read_at        timestamp
+  error_message  text
+  created_at     timestamp            [not null]
+  updated_at     timestamp            [not null]
+
+  indexes {
+    (user_id)                    [name: 'idx_notifications_user_id']
+    (reservation_id)             [name: 'idx_notifications_reservation_id']
+    (document_id)                [name: 'idx_notifications_document_id']
+    (status)                     [name: 'idx_notifications_status']
+    (type)                       [name: 'idx_notifications_type']
+    (channel)                    [name: 'idx_notifications_channel']
+    (sent_at)                    [name: 'idx_notifications_sent_at']
+    (read_at)                    [name: 'idx_notifications_read_at']
+    (user_id, status)            [name: 'idx_notifications_user_status']
+    (user_id, read_at)           [name: 'idx_notifications_user_read_at']
+    (user_id, created_at)        [name: 'idx_notifications_user_created_at']
+  }
+
+  Note: 'Notification générique liée éventuellement à une réservation et/ou un document'
+}
+
+// ─── 12. UNAVAILABILITIES ────────────────────────────────────
+Table unavailabilities {
+  id                 bigint                     [pk, increment, not null]
+  reason_type        unavailability_reason_type [not null]
+  reason             varchar(500)
+  driver_id          bigint                     [note: 'Renseigné si reason_type = driver']
+  vehicle_id         bigint                     [note: 'Renseigné si reason_type = vehicle']
+  start_datetime     datetime                   [not null]
+  end_datetime       datetime                   [not null]
+  created_by_user_id bigint                     [not null]
+  created_at         timestamp                  [not null]
+  updated_at         timestamp                  [not null]
+
+  indexes {
+    (reason_type)                  [name: 'idx_unavailabilities_reason_type']
+    (driver_id)                    [name: 'idx_unavailabilities_driver_id']
+    (vehicle_id)                   [name: 'idx_unavailabilities_vehicle_id']
+    (created_by_user_id)           [name: 'idx_unavailabilities_created_by_user_id']
+    (start_datetime, end_datetime) [name: 'idx_unavailabilities_start_end']
+    (driver_id, start_datetime)    [name: 'idx_unavailabilities_driver_start']
+    (vehicle_id, start_datetime)   [name: 'idx_unavailabilities_vehicle_start']
+  }
+
+  Note: '''
+  CHECK à traduire en DB::statement :
+  - end_datetime > start_datetime
+  - (driver_id IS NOT NULL AND vehicle_id IS NULL AND reason_type = 'driver')
+    OR
+    (driver_id IS NULL AND vehicle_id IS NOT NULL AND reason_type = 'vehicle')
+  '''
+}
+
+// ─── 13. UNAVAILABILITIES_HISTORY ────────────────────────────
+Table unavailabilities_history {
+  id                 bigint                     [pk, increment, not null]
+  unavailability_id  bigint                     [not null]
+  old_reason_type    unavailability_reason_type
+  new_reason_type    unavailability_reason_type
+  old_start_datetime datetime
+  new_start_datetime datetime
+  old_end_datetime   datetime
+  new_end_datetime   datetime
+  old_reason         varchar(500)
+  new_reason         varchar(500)
+  changed_by_user_id bigint                     [not null]
+  change_reason      varchar(500)
+  created_at         timestamp                  [not null]
+
+  indexes {
+    (unavailability_id)             [name: 'idx_unavailabilities_history_unavailability_id']
+    (changed_by_user_id)            [name: 'idx_unavailabilities_history_changed_by_user_id']
+    (created_at)                    [name: 'idx_unavailabilities_history_created_at']
+    (unavailability_id, created_at) [name: 'idx_unavailabilities_history_unavailability_created_at']
+  }
+
+  Note: 'Table immuable — created_at seul, jamais de updated_at'
+}
+
+// ─── 14. RESERVATION_STATUS_HISTORY ──────────────────────────
+Table reservation_status_history {
+  id                 bigint             [pk, increment, not null]
+  reservation_id     bigint             [not null]
+  old_status         reservation_status [not null]
+  new_status         reservation_status [not null]
+  changed_by_user_id bigint             [not null]
+  reason             text
+  created_at         timestamp          [not null]
+
+  indexes {
+    (reservation_id)             [name: 'idx_reservation_status_history_reservation_id']
+    (changed_by_user_id)         [name: 'idx_reservation_status_history_changed_by_user_id']
+    (created_at)                 [name: 'idx_reservation_status_history_created_at']
+    (reservation_id, created_at) [name: 'idx_reservation_status_history_reservation_created_at']
+    (new_status)                 [name: 'idx_reservation_status_history_new_status']
+  }
+
+  Note: 'Table immuable — created_at seul, jamais de updated_at'
+}
+
+// ─── 15. RESERVATION_ASSIGNMENT_HISTORY ──────────────────────
+Table reservation_assignment_history {
+  id                 bigint               [pk, increment, not null]
+  reservation_id     bigint               [not null]
+  assignment_type    assignment_type_enum [not null]
+  old_driver_id      bigint
+  new_driver_id      bigint
+  old_vehicle_id     bigint
+  new_vehicle_id     bigint
+  changed_by_user_id bigint               [not null]
+  reason             text
+  created_at         timestamp            [not null]
+
+  indexes {
+    (reservation_id)             [name: 'idx_reservation_assignment_history_reservation_id']
+    (assignment_type)            [name: 'idx_reservation_assignment_history_assignment_type']
+    (changed_by_user_id)         [name: 'idx_reservation_assignment_history_changed_by_user_id']
+    (created_at)                 [name: 'idx_reservation_assignment_history_created_at']
+    (reservation_id, created_at) [name: 'idx_reservation_assignment_history_reservation_created_at']
+    (new_driver_id)              [name: 'idx_reservation_assignment_history_new_driver_id']
+    (new_vehicle_id)             [name: 'idx_reservation_assignment_history_new_vehicle_id']
+  }
+
+  Note: '''
+  Table immuable — created_at seul
+  CHECK métier :
+  - assignment_type = 'driver'  => new_driver_id ou old_driver_id renseigné, vehicle_id nulls
+  - assignment_type = 'vehicle' => new_vehicle_id ou old_vehicle_id renseigné, driver_id nulls
+  '''
+}
+
+// ─── 16. ORG_REGISTRATION_REQUESTS ───────────────────────────
+Table org_registration_requests {
+  id                  bigint            [pk, increment, not null]
+  request_by_user_id  bigint            [not null]
+  organization_name   varchar(255)      [not null]
+  organization_type   organization_type [not null]
+  enterprise_number   varchar(50)       [note: 'Numéro BCE (ASBL)']
+  official_email      varchar(255)      [not null]
+  phone               varchar(20)
+  location_id         bigint
+  contact_person_name varchar(100)
+  contact_person_role varchar(100)
+  proof_document_path varchar(500)
+  comment             text
+  status              request_status    [not null]
+  reviewed_by_user_id bigint
+  reviewed_at         timestamp
+  rejection_reason    text
+  created_at          timestamp         [not null]
+  updated_at          timestamp         [not null]
+
+  indexes {
+    (request_by_user_id)          [name: 'idx_org_registration_requests_request_by_user_id']
+    (organization_type)           [name: 'idx_org_registration_requests_organization_type']
+    (official_email)              [name: 'idx_org_registration_requests_official_email']
+    (location_id)                 [name: 'idx_org_registration_requests_location_id']
+    (status)                      [name: 'idx_org_registration_requests_status']
+    (reviewed_by_user_id)         [name: 'idx_org_registration_requests_reviewed_by_user_id']
+    (created_at)                  [name: 'idx_org_registration_requests_created_at']
+    (status, created_at)          [name: 'idx_org_registration_requests_status_created_at']
+    (enterprise_number)           [name: 'idx_org_registration_requests_enterprise_number']
+  }
+
+  Note: 'CHECK métier possible : si organization_type = asbl, enterprise_number recommandé/obligatoire côté app'
+}
+
+// ─── 17. USER_ORG_REQUESTS ───────────────────────────────────
+Table user_org_requests {
+  request_id           bigint         [pk, increment, not null]
+  organization_id      bigint         [not null]
+  requested_by_user_id bigint         [not null]
+  requested_role       varchar(50)    [not null, note: 'prof | directeur | animateur | responsable']
+  justification        text
+  proof_document_path  varchar(500)
+  status               request_status [not null]
+  confidence_note      int            [note: 'Note interne admin (optionnel)']
+  reviewed_by_user_id  bigint
+  reviewed_at          timestamp
+  rejection_reason     text
+  created_at           timestamp      [not null]
+  updated_at           timestamp      [not null]
+
+  indexes {
+    (organization_id)                 [name: 'idx_user_org_requests_organization_id']
+    (requested_by_user_id)            [name: 'idx_user_org_requests_requested_by_user_id']
+    (status)                          [name: 'idx_user_org_requests_status']
+    (reviewed_by_user_id)             [name: 'idx_user_org_requests_reviewed_by_user_id']
+    (created_at)                      [name: 'idx_user_org_requests_created_at']
+    (organization_id, status)         [name: 'idx_user_org_requests_org_status']
+    (requested_by_user_id, status)    [name: 'idx_user_org_requests_user_status']
+  }
+
+  Note: '''
+  PK = request_id (ne pas renommer en id)
+  CHECK métier possible : confidence_note IS NULL OR confidence_note BETWEEN 0 AND 100
+  '''
+}
+
+// ============================================================
+// RELATIONS / FOREIGN KEYS / ON DELETE / ON UPDATE
+// ============================================================
+
+// drivers
+Ref: drivers.user_id > users.id [delete: cascade, update: cascade]
+
+// organizations
+Ref: organizations.location_id > locations.id [delete: set null, update: cascade]
+
+// user_organization
+Ref: user_organization.user_id > users.id [delete: cascade, update: cascade]
+Ref: user_organization.organization_id > organizations.id [delete: cascade, update: cascade]
+
+// reservations
+Ref: reservations.requested_by_user_id > users.id [delete: restrict, update: cascade]
+Ref: reservations.organization_id > organizations.id [delete: restrict, update: cascade]
+Ref: reservations.pickup_location_id > locations.id [delete: restrict, update: cascade]
+Ref: reservations.destination_location_id > locations.id [delete: restrict, update: cascade]
+Ref: reservations.driver_id > drivers.id [delete: set null, update: cascade]
+Ref: reservations.vehicle_id > vehicles.id [delete: set null, update: cascade]
+Ref: reservations.recurrence_id > recurrences.id [delete: set null, update: cascade]
+Ref: reservations.validated_by_user_id > users.id [delete: set null, update: cascade]
+Ref: reservations.cancelled_by_user_id > users.id [delete: set null, update: cascade]
+
+// council_decisions
+Ref: council_decisions.reservation_id > reservations.id [delete: cascade, update: cascade]
+Ref: council_decisions.recorded_by_user_id > users.id [delete: restrict, update: cascade]
+
+// documents
+Ref: documents.reservation_id > reservations.id [delete: set null, update: cascade]
+Ref: documents.user_id > users.id [delete: set null, update: cascade]
+
+// notifications
+Ref: notifications.user_id > users.id [delete: cascade, update: cascade]
+Ref: notifications.reservation_id > reservations.id [delete: set null, update: cascade]
+Ref: notifications.document_id > documents.id [delete: set null, update: cascade]
+
+// unavailabilities
+Ref: unavailabilities.driver_id > drivers.id [delete: restrict, update: cascade]
+Ref: unavailabilities.vehicle_id > vehicles.id [delete: restrict, update: cascade]
+Ref: unavailabilities.created_by_user_id > users.id [delete: restrict, update: cascade]
+
+// unavailabilities_history
+Ref: unavailabilities_history.unavailability_id > unavailabilities.id [delete: cascade, update: cascade]
+Ref: unavailabilities_history.changed_by_user_id > users.id [delete: restrict, update: cascade]
+
+// reservation_status_history
+Ref: reservation_status_history.reservation_id > reservations.id [delete: cascade, update: cascade]
+Ref: reservation_status_history.changed_by_user_id > users.id [delete: restrict, update: cascade]
+
+// reservation_assignment_history
+Ref: reservation_assignment_history.reservation_id > reservations.id [delete: cascade, update: cascade]
+Ref: reservation_assignment_history.old_driver_id > drivers.id [delete: set null, update: cascade]
+Ref: reservation_assignment_history.new_driver_id > drivers.id [delete: set null, update: cascade]
+Ref: reservation_assignment_history.old_vehicle_id > vehicles.id [delete: set null, update: cascade]
+Ref: reservation_assignment_history.new_vehicle_id > vehicles.id [delete: set null, update: cascade]
+Ref: reservation_assignment_history.changed_by_user_id > users.id [delete: restrict, update: cascade]
+
+// org_registration_requests
+Ref: org_registration_requests.request_by_user_id > users.id [delete: restrict, update: cascade]
+Ref: org_registration_requests.location_id > locations.id [delete: set null, update: cascade]
+Ref: org_registration_requests.reviewed_by_user_id > users.id [delete: set null, update: cascade]
+
+// user_org_requests
+Ref: user_org_requests.organization_id > organizations.id [delete: restrict, update: cascade]
+Ref: user_org_requests.requested_by_user_id > users.id [delete: restrict, update: cascade]
+Ref: user_org_requests.reviewed_by_user_id > users.id [delete: set null, update: cascade]
+
+// ============================================================
+// ORDRE DE MIGRATION RECOMMANDÉ
+// ============================================================
+//
+// 1. users
+// 2. drivers
+// 3. vehicles
+// 4. locations
+// 5. organizations
+// 6. user_organization
+// 7. recurrences
+// 8. reservations
+// 9. council_decisions
+// 10. documents
+// 11. notifications
+// 12. unavailabilities
+// 13. unavailabilities_history
+// 14. reservation_status_history
+// 15. reservation_assignment_history
+// 16. org_registration_requests
+// 17. user_org_requests
+//
+// ============================================================
+// NOTES IMPORTANTES POUR L'IA QUI GÉNÈRE LES MIGRATIONS
+// ============================================================
+//
+// 1. Générer explicitement tous les indexes listés ci-dessus.
+// 2. Générer les enums MySQL/Laravel tels qu’ils sont déclarés.
+// 3. Traduire les CHECK complexes via DB::statement() si le builder Laravel
+//    ne suffit pas.
+// 4. Pour les tables d'historique : pas de updated_at.
+// 5. Pour user_org_requests : clé primaire = request_id.
+// 6. Pour user_organization : clé primaire composite (user_id, organization_id).
+// 7. Utiliser unsignedBigInteger/bigIncrements selon conventions Laravel.
+// 8. Respecter les onDelete / onUpdate définis dans les Ref.
+// ============================================================
