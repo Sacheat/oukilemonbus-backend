@@ -17,8 +17,8 @@ return new class extends Migration
             $table->string('phone', 20)->nullable();
             $table->boolean('active')->default(true);
             $table->timestamp('email_verified_at')->nullable();
-            $table->timestamp('created_at');
-            $table->timestamp('updated_at');
+            $table->rememberToken();
+            $table->timestamps();
 
             $table->unique('email', 'uq_users_email');
             $table->index('active', 'idx_users_active');
