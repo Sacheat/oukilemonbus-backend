@@ -9,6 +9,9 @@ return new class extends Migration
 {
     public function up(): void
     {
+        $prefix = DB::getTablePrefix();
+        $constraint = 'chk_'.$prefix.'user_org_requests_confidence_note';
+
         Schema::create('user_org_requests', function (Blueprint $table) {
             $table->bigIncrements('request_id');
             $table->unsignedBigInteger('organization_id');
@@ -51,8 +54,8 @@ return new class extends Migration
         });
 
         DB::statement("
-            ALTER TABLE user_org_requests
-            ADD CONSTRAINT chk_user_org_requests_confidence_note
+            ALTER TABLE {$prefix}user_org_requests
+            ADD CONSTRAINT {$constraint}
             CHECK (
                 confidence_note IS NULL
                 OR (confidence_note BETWEEN 0 AND 100)

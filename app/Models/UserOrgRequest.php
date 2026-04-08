@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\RequestStatus;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -43,6 +44,7 @@ class UserOrgRequest extends Model
     protected function casts(): array
     {
         return [
+            'status' => RequestStatus::class,
             'confidence_note' => 'integer',
             'reviewed_at' => 'datetime',
         ];

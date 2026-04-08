@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\DocumentType;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -44,6 +45,7 @@ class Document extends Model
     protected function casts(): array
     {
         return [
+            'document_type' => DocumentType::class,
             'file_size' => 'integer',
             'generated_at' => 'datetime',
             'is_official' => 'boolean',

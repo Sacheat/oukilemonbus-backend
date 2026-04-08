@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\ReservationStatus;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -29,6 +30,8 @@ class ReservationStatusHistory extends Model
     protected function casts(): array
     {
         return [
+            'old_status' => ReservationStatus::class,
+            'new_status' => ReservationStatus::class,
             'created_at' => 'datetime',
         ];
     }

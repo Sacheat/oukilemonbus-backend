@@ -9,6 +9,9 @@ return new class extends Migration
 {
     public function up(): void
     {
+        $prefix = DB::getTablePrefix();
+        $constraint = 'chk_'.$prefix.'unavailabilities_logic';
+
         Schema::create('unavailabilities', function (Blueprint $table) {
             $table->id();
             $table->enum('reason_type', ['driver', 'vehicle']);
@@ -48,8 +51,8 @@ return new class extends Migration
         });
 
         DB::statement("
-            ALTER TABLE unavailabilities
-            ADD CONSTRAINT chk_unavailabilities_logic
+            ALTER TABLE {$prefix}unavailabilities
+            ADD CONSTRAINT {$constraint}
             CHECK (
                 end_datetime > start_datetime
             )

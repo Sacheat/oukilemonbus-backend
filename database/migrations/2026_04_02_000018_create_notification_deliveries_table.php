@@ -9,6 +9,9 @@ return new class extends Migration
 {
     public function up(): void
     {
+        $prefix = DB::getTablePrefix();
+        $constraint = 'chk_'.$prefix.'notification_deliveries_timestamps';
+
         Schema::create('notification_deliveries', function (Blueprint $table) {
             $table->id();
             $table->uuid('correlation_id')->comment("UUID technique commun a toute la tentative d'envoi");
@@ -45,8 +48,8 @@ return new class extends Migration
         });
 
         DB::statement("
-            ALTER TABLE notification_deliveries
-            ADD CONSTRAINT chk_notification_deliveries_timestamps
+            ALTER TABLE {$prefix}notification_deliveries
+            ADD CONSTRAINT {$constraint}
             CHECK (
                 (sent_at IS NULL OR failed_at IS NULL)
                 AND (

@@ -9,6 +9,9 @@ return new class extends Migration
 {
     public function up(): void
     {
+        $prefix = DB::getTablePrefix();
+        $constraint = 'chk_'.$prefix.'organizations_quota';
+
         Schema::create('organizations', function (Blueprint $table) {
             $table->id();
             $table->string('name', 50);
@@ -28,7 +31,7 @@ return new class extends Migration
             $table->index('type', 'idx_organizations_type');
             $table->index('location_id', 'idx_organizations_location_id');
             $table->index('is_priority', 'idx_organizations_is_priority');
-            $table->index('email_contact', 'idx_organizations_email_contact');
+            $table->index('official_email', 'idx_organizations_official_email');
             $table->index(['type', 'is_priority'], 'idx_organizations_type_priority');
             $table->index('quota_reset_year', 'idx_organizations_quota_reset_year');
 
@@ -40,8 +43,8 @@ return new class extends Migration
         });
 
         DB::statement("
-            ALTER TABLE organizations
-            ADD CONSTRAINT chk_organizations_quota
+            ALTER TABLE {$prefix}organizations
+            ADD CONSTRAINT {$constraint}
             CHECK (
                 annual_quota >= 0
                 AND reservations_used_this_year >= 0

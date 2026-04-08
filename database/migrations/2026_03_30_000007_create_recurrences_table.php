@@ -9,6 +9,9 @@ return new class extends Migration
 {
     public function up(): void
     {
+        $prefix = DB::getTablePrefix();
+        $constraint = 'chk_'.$prefix.'recurrences_values';
+
         Schema::create('recurrences', function (Blueprint $table) {
             $table->id();
             $table->string('frequency', 50)->comment('hebdomadaire | bihebdomadaire | mensuel');
@@ -26,8 +29,8 @@ return new class extends Migration
         });
 
         DB::statement("
-            ALTER TABLE recurrences
-            ADD CONSTRAINT chk_recurrences_values
+            ALTER TABLE {$prefix}recurrences
+            ADD CONSTRAINT {$constraint}
             CHECK (
                 interval_value > 0
                 AND end_date >= start_date

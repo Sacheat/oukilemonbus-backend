@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\UnavailabilityReasonType;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -41,6 +42,8 @@ class UnavailabilityHistory extends Model
     protected function casts(): array
     {
         return [
+            'old_reason_type' => UnavailabilityReasonType::class,
+            'new_reason_type' => UnavailabilityReasonType::class,
             'old_start_datetime' => 'datetime',
             'new_start_datetime' => 'datetime',
             'old_end_datetime' => 'datetime',

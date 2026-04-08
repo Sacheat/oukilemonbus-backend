@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\AssignmentType;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -58,6 +59,7 @@ class ReservationAssignmentHistory extends Model
     protected function casts(): array
     {
         return [
+            'assignment_type' => AssignmentType::class,
             'created_at' => 'datetime',
         ];
     }

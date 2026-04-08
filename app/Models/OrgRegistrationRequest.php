@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Enums\OrganizationType;
+use App\Enums\RequestStatus;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -46,6 +48,8 @@ class OrgRegistrationRequest extends Model
     protected function casts(): array
     {
         return [
+            'organization_type' => OrganizationType::class,
+            'status' => RequestStatus::class,
             'reviewed_at' => 'datetime',
         ];
     }

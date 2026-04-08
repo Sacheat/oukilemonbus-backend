@@ -9,6 +9,9 @@ return new class extends Migration
 {
     public function up(): void
     {
+        $prefix = DB::getTablePrefix();
+        $constraint = 'chk_'.$prefix.'documents_values';
+
         Schema::create('documents', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('reservation_id')->nullable();
@@ -49,8 +52,8 @@ return new class extends Migration
         });
 
         DB::statement("
-            ALTER TABLE documents
-            ADD CONSTRAINT chk_documents_values
+            ALTER TABLE {$prefix}documents
+            ADD CONSTRAINT {$constraint}
             CHECK (
                 (file_size IS NULL OR file_size >= 0)
                 AND version >= 1

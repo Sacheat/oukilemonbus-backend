@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\OrganizationType;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -12,7 +13,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 #[Fillable([
     'name',
     'type',
-    'email_contact',
+    'official_email',
     'phone_contact',
     'name_contact',
     'location_id',
@@ -52,6 +53,7 @@ class Organization extends Model
     protected function casts(): array
     {
         return [
+            'type' => OrganizationType::class,
             'is_priority' => 'boolean',
             'annual_quota' => 'integer',
             'reservations_used_this_year' => 'integer',

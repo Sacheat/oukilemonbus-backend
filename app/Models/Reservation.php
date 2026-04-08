@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Enums\ApprovalType;
+use App\Enums\ReservationStatus;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -112,12 +114,14 @@ class Reservation extends Model
     {
         return [
             'trip_date' => 'date',
-            'departure_time' => 'string',
-            'return_time' => 'string',
+            'departure_time' => 'datetime:H:i:s',
+            'return_time' => 'datetime:H:i:s',
             'nb_children' => 'integer',
             'nb_adults' => 'integer',
             'distance_km' => 'decimal:2',
             'estimated_duration_min' => 'integer',
+            'status' => ReservationStatus::class,
+            'approval_type' => ApprovalType::class,
             'validated_at' => 'datetime',
             'cancelled_at' => 'datetime',
         ];

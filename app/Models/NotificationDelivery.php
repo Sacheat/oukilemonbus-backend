@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\DeliveryStatus;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -48,7 +49,8 @@ class NotificationDelivery extends Model
     protected function casts(): array
     {
         return [
-            'payload' => 'array',
+            'status' => DeliveryStatus::class,
+            'payload' => 'json',
             'sent_at' => 'datetime',
             'failed_at' => 'datetime',
         ];

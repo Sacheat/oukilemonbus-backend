@@ -9,6 +9,9 @@ return new class extends Migration
 {
     public function up(): void
     {
+        $prefix = DB::getTablePrefix();
+        $constraint = 'chk_'.$prefix.'reservations_business_rules';
+
         Schema::create('reservations', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('requested_by_user_id');
@@ -107,8 +110,8 @@ return new class extends Migration
         });
 
         DB::statement("
-            ALTER TABLE reservations
-            ADD CONSTRAINT chk_reservations_business_rules
+            ALTER TABLE {$prefix}reservations
+            ADD CONSTRAINT {$constraint}
             CHECK (
                 return_time > departure_time
                 AND return_time <= '17:00:00'

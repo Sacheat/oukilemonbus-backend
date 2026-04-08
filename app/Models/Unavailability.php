@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\UnavailabilityReasonType;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -44,6 +45,7 @@ class Unavailability extends Model
     protected function casts(): array
     {
         return [
+            'reason_type' => UnavailabilityReasonType::class,
             'start_datetime' => 'datetime',
             'end_datetime' => 'datetime',
         ];

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\CouncilDecisionStatus;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -33,6 +34,7 @@ class CouncilDecision extends Model
     protected function casts(): array
     {
         return [
+            'decision_status' => CouncilDecisionStatus::class,
             'decision_date' => 'date',
             'validated_at' => 'datetime',
         ];
