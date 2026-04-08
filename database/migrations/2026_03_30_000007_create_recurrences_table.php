@@ -18,8 +18,7 @@ return new class extends Migration
             $table->date('end_date');
             $table->integer('occurrence_count')->nullable()->comment('Nb max occurrences (optionnel)');
             $table->boolean('is_active')->default(true);
-            $table->timestamp('created_at');
-            $table->timestamp('updated_at');
+            $table->timestamps();
 
             $table->index('frequency', 'idx_recurrences_frequency');
             $table->index(['start_date', 'end_date'], 'idx_recurrences_start_end');

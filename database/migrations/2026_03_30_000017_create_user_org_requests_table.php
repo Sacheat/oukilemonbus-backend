@@ -21,8 +21,7 @@ return new class extends Migration
             $table->unsignedBigInteger('reviewed_by_user_id')->nullable();
             $table->timestamp('reviewed_at')->nullable();
             $table->text('rejection_reason')->nullable();
-            $table->timestamp('created_at');
-            $table->timestamp('updated_at');
+            $table->timestamps();
 
             $table->index('organization_id', 'idx_user_org_requests_organization_id');
             $table->index('requested_by_user_id', 'idx_user_org_requests_requested_by_user_id');

@@ -23,8 +23,7 @@ return new class extends Migration
             $table->boolean('is_official')->default(false);
             $table->integer('version')->default(1);
             $table->boolean('is_available')->default(true)->comment('false = expiré ou supprimé');
-            $table->timestamp('created_at');
-            $table->timestamp('updated_at');
+            $table->timestamps();
 
             $table->index('reservation_id', 'idx_documents_reservation_id');
             $table->index('user_id', 'idx_documents_user_id');

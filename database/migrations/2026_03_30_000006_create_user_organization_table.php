@@ -13,8 +13,7 @@ return new class extends Migration
             $table->unsignedBigInteger('organization_id');
             $table->string('relationship_type', 50)->comment('prof | directeur | animateur | responsable | referent');
             $table->boolean('is_default')->default(false)->comment('Organisation pré-sélectionnée à la connexion');
-            $table->timestamp('created_at');
-            $table->timestamp('updated_at');
+            $table->timestamps();
 
             $table->primary(['user_id', 'organization_id']);
             $table->index('user_id', 'idx_user_organization_user_id');

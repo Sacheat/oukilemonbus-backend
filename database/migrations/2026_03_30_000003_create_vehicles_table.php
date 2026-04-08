@@ -13,8 +13,7 @@ return new class extends Migration
             $table->string('licence_plate', 20)->comment('1-VJX-649');
             $table->integer('capacity')->comment('41 places chauffeur compris');
             $table->boolean('is_active')->default(true);
-            $table->timestamp('created_at');
-            $table->timestamp('updated_at');
+            $table->timestamps();
 
             $table->unique('licence_plate', 'uq_vehicles_licence_plate');
             $table->index('is_active', 'idx_vehicles_is_active');

@@ -34,8 +34,7 @@ return new class extends Migration
             $table->timestamp('cancelled_at')->nullable();
             $table->text('rejection_reason')->nullable();
             $table->text('cancellation_reason')->nullable();
-            $table->timestamp('created_at');
-            $table->timestamp('updated_at');
+            $table->timestamps();
 
             $table->index(['trip_date', 'status'], 'idx_reservations_date_status');
             $table->index(['organization_id', 'trip_date'], 'idx_reservations_org_date');

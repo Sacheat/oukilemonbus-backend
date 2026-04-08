@@ -18,8 +18,7 @@ return new class extends Migration
             $table->dateTime('start_datetime');
             $table->dateTime('end_datetime');
             $table->unsignedBigInteger('created_by_user_id');
-            $table->timestamp('created_at');
-            $table->timestamp('updated_at');
+            $table->timestamps();
 
             $table->index('reason_type', 'idx_unavailabilities_reason_type');
             $table->index('driver_id', 'idx_unavailabilities_driver_id');

@@ -17,8 +17,7 @@ return new class extends Migration
             $table->string('decision_reference', 100)->nullable()->comment('Numéro officiel de délibération');
             $table->timestamp('validated_at')->nullable();
             $table->string('notes', 500)->nullable();
-            $table->timestamp('created_at');
-            $table->timestamp('updated_at');
+            $table->timestamps();
 
             $table->unique('reservation_id', 'uq_council_decisions_reservation_id');
             $table->index('decision_status', 'idx_council_decisions_status');

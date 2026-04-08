@@ -13,7 +13,7 @@ return new class extends Migration
             $table->id();
             $table->string('name', 50);
             $table->enum('type', ['ecole_communale', 'asbl', 'externe']);
-            $table->string('email_contact', 255)->nullable();
+            $table->string('official_email', 255)->nullable();
             $table->string('phone_contact', 20)->nullable();
             $table->string('name_contact', 255)->nullable();
             $table->unsignedBigInteger('location_id')->nullable()->comment('Siège social géocodé');
@@ -22,8 +22,7 @@ return new class extends Migration
             $table->integer('reservations_used_this_year')->default(0)->comment('Cache métier — reset automatique 1er janvier par Scheduler');
             $table->timestamp('quota_reset_year')->useCurrent()->comment('Horodatage du dernier reset');
             $table->string('document_proof_path', 500)->nullable()->comment('Justificatif statuts ASBL...');
-            $table->timestamp('created_at');
-            $table->timestamp('updated_at');
+            $table->timestamps();
 
             $table->index('name', 'idx_organizations_name');
             $table->index('type', 'idx_organizations_type');

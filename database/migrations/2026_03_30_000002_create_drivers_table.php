@@ -14,8 +14,7 @@ return new class extends Migration
             $table->string('licence_number', 20);
             $table->date('licence_expiry_date');
             $table->boolean('is_active')->default(true);
-            $table->timestamp('created_at');
-            $table->timestamp('updated_at');
+            $table->timestamps();
 
             $table->unique('user_id', 'uq_drivers_user_id');
             $table->unique('licence_number', 'uq_drivers_licence_number');

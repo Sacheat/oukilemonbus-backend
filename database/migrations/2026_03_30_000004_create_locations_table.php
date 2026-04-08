@@ -21,8 +21,7 @@ return new class extends Migration
             $table->string('place_id', 255)->nullable()->comment('ID Google Maps / ORS — cache distances : pas de nouvel appel API si déjà géocodé');
             $table->string('provider', 50)->nullable()->comment('google | openrouteservice');
             $table->boolean('is_verified')->default(false);
-            $table->timestamp('created_at');
-            $table->timestamp('updated_at');
+            $table->timestamps();
 
             $table->index('city', 'idx_locations_city');
             $table->index(['postal_code', 'city'], 'idx_locations_postal_city');

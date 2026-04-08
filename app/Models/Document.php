@@ -1,0 +1,54 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+
+#[Fillable([
+    'reservation_id',
+    'user_id',
+    'document_type',
+    'file_name',
+    'file_path',
+    'mime_type',
+    'file_size',
+    'generation_mode',
+    'generated_at',
+    'is_official',
+    'version',
+    'is_available',
+])]
+class Document extends Model
+{
+    use HasFactory;
+
+    public function reservation(): BelongsTo
+    {
+        return $this->belongsTo(Reservation::class);
+    }
+
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
+
+    public function notificationDeliveries(): HasMany
+    {
+        return $this->hasMany(NotificationDelivery::class);
+    }
+
+    protected function casts(): array
+    {
+        return [
+            'file_size' => 'integer',
+            'generated_at' => 'datetime',
+            'is_official' => 'boolean',
+            'version' => 'integer',
+            'is_available' => 'boolean',
+        ];
+    }
+}
