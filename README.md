@@ -1,58 +1,174 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Bus Communal Backend
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Backend Laravel pour la gestion des reservations du bus communal.
 
-## About Laravel
+Le projet est actuellement centre sur le socle metier et la base de donnees:
+- modelisation du domaine
+- migrations MySQL
+- relations Eloquent
+- contraintes SQL
+- suite de tests base de donnees
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+La couche applicative HTTP est encore volontairement minimale.
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+## Domaine couvert
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+Le schema actuel couvre notamment:
+- utilisateurs et profils chauffeurs
+- organisations et rattachements utilisateur/organisation
+- reservations
+- lieux et recurrences
+- decisions du college
+- documents generes
+- notifications et traces d'envoi
+- indisponibilites
+- historiques de statut et d'affectation
+- demandes d'inscription organisation et demandes d'acces organisation
 
-## Learning Laravel
+## Stack
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+- PHP 8.4
+- Laravel 13
+- MySQL
+- PHPUnit 12
+- Vite
 
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+## Prerequis
 
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
+- PHP 8.4
+- Composer
+- MySQL
+- Node.js / npm
+- Un environnement capable d'executer Laravel, par exemple Laragon
 
-## Agentic Development
+## Installation locale
 
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
+Depuis la racine du projet:
 
-```bash
-composer require laravel/boost --dev
-
-php artisan boost:install
+```powershell
+cd C:\laragon\www\bus-communal-backend
+composer install
+npm install
+copy .env.example .env
+php artisan key:generate
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+Configurer ensuite la base principale dans `.env`, puis executer:
 
-## Contributing
+```powershell
+php artisan migrate
+```
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+Pour compiler les assets:
 
-## Code of Conduct
+```powershell
+npm run build
+```
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+Pour le mode developpement:
 
-## Security Vulnerabilities
+```powershell
+composer run dev
+```
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+## Base de donnees
 
-## License
+Le projet utilise deux bases distinctes:
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+- `bus_communal` pour le developpement local
+- `bus_communal_test` pour les tests
+
+La base de test est declaree dans `phpunit.xml`.
+
+Important:
+- ne pas lancer les tests contre la base principale
+- la suite de tests reconstruit la base de test
+
+## Tests
+
+La suite actuelle est fortement orientee base de donnees:
+- structure des migrations
+- contraintes SQL
+- relations Eloquent
+- casts
+- effets de suppression
+- unicite
+- coherence de persistance
+
+Lancer tous les tests:
+
+```powershell
+php artisan test
+```
+
+Si `php` n'est pas disponible dans le terminal:
+
+```powershell
+C:\laragon\bin\php\php-8.4.19-nts-Win32-vs17-x64\php.exe artisan test
+```
+
+Lancer un fichier precis:
+
+```powershell
+php artisan test tests/Feature/ReservationBusinessRulesTest.php
+php artisan test tests/Feature/PlanningAndHistoryDatabaseRulesTest.php
+php artisan test tests/Feature/AdditionalDatabaseIntegrityTest.php
+php artisan test tests/Unit/ModelConfigurationTest.php
+```
+
+Format plus lisible:
+
+```powershell
+php artisan test --testdox
+```
+
+## Structure utile
+
+```text
+app/
+  Enums/
+  Models/
+database/
+  migrations/
+  factories/
+  seeders/
+tests/
+  Unit/
+  Feature/
+```
+
+## Etat actuel du projet
+
+Ce qui est deja solide:
+- le schema metier
+- les relations Eloquent
+- les contraintes SQL importantes
+- la strategie de tests base de donnees
+
+Ce qui reste a construire:
+- vraie API HTTP
+- controllers metier
+- services / actions / cas d'usage
+- validation applicative
+- authentification / autorisation
+- generation metier de documents et workflows complets
+
+## Commandes utiles
+
+```powershell
+php artisan migrate
+php artisan migrate:fresh
+php artisan db:seed
+php artisan test
+composer run dev
+npm run build
+```
+
+## Notes
+
+- Les anciens fichiers `tests/Unit/ExampleTest.php` et `tests/Feature/ExampleTest.php` sont des placeholders temporaires conserves pour des raisons de workspace local.
+- La cible actuelle est d'avoir un socle base de donnees fiable avant de monter la couche applicative.
+
+## Licence
+
+Projet distribue sous licence MIT.
