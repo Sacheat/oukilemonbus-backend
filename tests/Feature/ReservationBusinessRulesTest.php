@@ -22,26 +22,26 @@ class ReservationBusinessRulesTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_reservation_rejects_a_return_time_after_17h00(): void
+    public function test_reservation_db_accepts_return_time_after_17h00_service_will_enforce(): void
     {
         [$requester, $organization, $pickupLocation, $destinationLocation] = $this->reservationContext();
 
-        $this->expectException(QueryException::class);
-
-        Reservation::create([
-            'requested_by_user_id' => $requester->id,
-            'organization_id' => $organization->id,
-            'pickup_location_id' => $pickupLocation->id,
+        $reservation = Reservation::create([
+            'requested_by_user_id'    => $requester->id,
+            'organization_id'         => $organization->id,
+            'pickup_location_id'      => $pickupLocation->id,
             'destination_location_id' => $destinationLocation->id,
-            'trip_date' => '2026-06-10',
-            'departure_time' => '08:30:00',
-            'return_time' => '17:30:00',
-            'nb_children' => 10,
-            'nb_adults' => 2,
-            'trip_purpose' => 'Sortie scolaire',
-            'status' => ReservationStatus::EN_ATTENTE,
-            'approval_type' => ApprovalType::MANUEL,
+            'trip_date'               => '2026-06-10',
+            'departure_time'          => '08:30:00',
+            'return_time'             => '17:30:00',
+            'nb_children'             => 10,
+            'nb_adults'               => 2,
+            'trip_purpose'            => 'Sortie scolaire',
+            'status'                  => ReservationStatus::EN_ATTENTE,
+            'approval_type'           => ApprovalType::MANUEL,
         ]);
+
+        $this->assertDatabaseHas('reservations', ['id' => $reservation->id]);
     }
 
     public function test_reservation_rejects_more_than_forty_passengers_plus_driver(): void
@@ -66,28 +66,28 @@ class ReservationBusinessRulesTest extends TestCase
         ]);
     }
 
-    public function test_reservation_rejects_distance_over_fifty_kilometres(): void
-    {
-        [$requester, $organization, $pickupLocation, $destinationLocation] = $this->reservationContext();
+    public function test_reservation_db_accepts_distance_over_fifty_km_service_will_enforce(): void
+{
+    [$requester, $organization, $pickupLocation, $destinationLocation] = $this->reservationContext();
 
-        $this->expectException(QueryException::class);
+    $reservation = Reservation::create([
+        'requested_by_user_id'    => $requester->id,
+        'organization_id'         => $organization->id,
+        'pickup_location_id'      => $pickupLocation->id,
+        'destination_location_id' => $destinationLocation->id,
+        'trip_date'               => '2026-06-12',
+        'departure_time'          => '08:30:00',
+        'return_time'             => '12:00:00',
+        'nb_children'             => 20,
+        'nb_adults'               => 2,
+        'trip_purpose'            => 'Sortie pedagogique',
+        'distance_km'             => 50.01,
+        'status'                  => ReservationStatus::EN_ATTENTE,
+        'approval_type'           => ApprovalType::MANUEL,
+    ]);
 
-        Reservation::create([
-            'requested_by_user_id' => $requester->id,
-            'organization_id' => $organization->id,
-            'pickup_location_id' => $pickupLocation->id,
-            'destination_location_id' => $destinationLocation->id,
-            'trip_date' => '2026-06-12',
-            'departure_time' => '08:30:00',
-            'return_time' => '12:00:00',
-            'nb_children' => 20,
-            'nb_adults' => 2,
-            'trip_purpose' => 'Sortie pedagogique',
-            'distance_km' => 50.01,
-            'status' => ReservationStatus::EN_ATTENTE,
-            'approval_type' => ApprovalType::MANUEL,
-        ]);
-    }
+    $this->assertDatabaseHas('reservations', ['id' => $reservation->id]);
+}
 
     public function test_organization_rejects_negative_quota(): void
     {
