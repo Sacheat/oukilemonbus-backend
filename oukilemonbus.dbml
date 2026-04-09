@@ -171,7 +171,7 @@ Table organizations {
   id                          bigint            [pk, increment, not null]
   name                        varchar(50)       [not null]
   type                        organization_type [not null]
-  email_contact               varchar(255)
+  official_email              varchar(255)
   phone_contact               varchar(20)
   name_contact                varchar(255)
   location_id                 bigint            [note: 'Siège social géocodé']

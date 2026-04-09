@@ -114,12 +114,10 @@ return new class extends Migration
             ADD CONSTRAINT {$constraint}
             CHECK (
                 return_time > departure_time
-                AND return_time <= '17:00:00'
                 AND nb_adults >= 1
                 AND nb_children >= 0
                 AND (nb_children + nb_adults) >= 1
                 AND (nb_children + nb_adults + 1) <= 41
-                AND (distance_km IS NULL OR distance_km <= 50.00)
                 AND (estimated_duration_min IS NULL OR estimated_duration_min > 0)
             )
         ");
