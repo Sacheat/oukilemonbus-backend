@@ -3,17 +3,43 @@
 namespace App\Services;
 
 use App\Exceptions\GeocodingException;
+use App\Models\Location;
 use Illuminate\Support\Facades\Http;
 
 class LocationService
 {
-    private string $apiKey;
-    private string $baseUrl;
+    private ?string $apiKey;
+
+    private ?string $baseUrl;
 
     public function __construct()
     {
-        $this->apiKey  = config('services.openrouteservice.key');
+        $this->apiKey = config('services.openrouteservice.key');
         $this->baseUrl = config('services.openrouteservice.base_url');
+    }
+
+    public function create(array $data): Location
+    {
+        $geocodedData = $this->geocode($data['formatted_address']);
+
+        return Location::create([
+            ...$data,
+            ...$geocodedData,
+        ]);
+    }
+
+    public function update(Location $location, array $data): Location
+    {
+        if (array_key_exists('formatted_address', $data)) {
+            $data = [
+                ...$data,
+                ...$this->geocode($data['formatted_address']),
+            ];
+        }
+
+        $location->update($data);
+
+        return $location->refresh();
     }
 
     /**
@@ -23,11 +49,13 @@ class LocationService
      */
     public function geocode(string $address): array
     {
-        $response = Http::get("{$this->baseUrl}/geocode/search", [
-            'api_key'          => $this->apiKey,
-            'text'             => $address,
+        $this->ensureConfigured();
+
+        $response = Http::timeout(10)->get("{$this->baseUrl}/geocode/search", [
+            'api_key' => $this->apiKey,
+            'text' => $address,
             'boundary.country' => 'BE',
-            'size'             => 1,
+            'size' => 1,
         ]);
 
         if ($response->failed()) {
@@ -47,10 +75,10 @@ class LocationService
         $feature = $features[0];
 
         return [
-            'latitude'  => $feature['geometry']['coordinates'][1],
+            'latitude' => $feature['geometry']['coordinates'][1],
             'longitude' => $feature['geometry']['coordinates'][0],
-            'place_id'  => $feature['properties']['id'] ?? null,
-            'provider'  => 'openrouteservice',
+            'place_id' => $feature['properties']['id'] ?? null,
+            'provider' => 'openrouteservice',
         ];
     }
 
@@ -61,12 +89,13 @@ class LocationService
      */
     public function calculateDistance(
         float $fromLat, float $fromLng,
-        float $toLat,   float $toLng
-    ): array
-    {
-        $response = Http::withHeaders([
+        float $toLat, float $toLng
+    ): array {
+        $this->ensureConfigured();
+
+        $response = Http::timeout(10)->withHeaders([
             'Authorization' => $this->apiKey,
-            'Content-Type'  => 'application/json',
+            'Content-Type' => 'application/json',
         ])->post("{$this->baseUrl}/v2/directions/driving-car", [
             'coordinates' => [
                 [$fromLng, $fromLat],
@@ -76,7 +105,7 @@ class LocationService
 
         if ($response->failed()) {
             throw new GeocodingException(
-                "Impossible de calculer la distance entre les deux points."
+                'Impossible de calculer la distance entre les deux points.'
             );
         }
 
@@ -84,13 +113,21 @@ class LocationService
 
         if (empty($summary)) {
             throw new GeocodingException(
-                "Aucun itinéraire trouvé entre les deux points."
+                'Aucun itinéraire trouvé entre les deux points.'
             );
         }
 
         return [
-            'distance_km'          => round($summary['distance'] / 1000, 2),
+            'distance_km' => round($summary['distance'] / 1000, 2),
             'estimated_duration_min' => round($summary['duration'] / 60),
         ];
+    }
+
+    /** @throws GeocodingException */
+    private function ensureConfigured(): void
+    {
+        if (blank($this->apiKey) || blank($this->baseUrl)) {
+            throw new GeocodingException('La configuration OpenRouteService est incomplete.');
+        }
     }
 }
