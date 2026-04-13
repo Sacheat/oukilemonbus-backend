@@ -8,7 +8,7 @@ use App\Http\Requests\Locations\StoreLocationRequest;
 use App\Http\Requests\Locations\UpdateLocationRequest;
 use App\Http\Resources\LocationResource;
 use App\Models\Location;
-use App\Services\LocationService;
+use App\Services\Locations\LocationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 

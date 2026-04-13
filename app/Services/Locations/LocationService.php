@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Services;
+namespace App\Services\Locations;
 
 use App\Exceptions\GeocodingException;
 use App\Models\Location;

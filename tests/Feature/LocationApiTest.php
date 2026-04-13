@@ -7,6 +7,9 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Laravel\Sanctum\Sanctum;
+use Spatie\Permission\Models\Permission;
+use Spatie\Permission\Models\Role;
+use Spatie\Permission\PermissionRegistrar;
 use Tests\TestCase;
 
 class LocationApiTest extends TestCase
@@ -21,6 +24,23 @@ class LocationApiTest extends TestCase
             'services.openrouteservice.key' => 'testing-key',
             'services.openrouteservice.base_url' => 'https://api.openrouteservice.org',
         ]);
+
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+
+        foreach ([
+            'locations.view',
+            'locations.create',
+            'locations.update',
+        ] as $permission) {
+            Permission::findOrCreate($permission, 'web');
+        }
+
+        Role::findOrCreate('admin', 'web')->givePermissionTo(Permission::all());
+        Role::findOrCreate('user', 'web')->givePermissionTo([
+            'locations.view',
+        ]);
+
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
     }
 
     public function test_guest_cannot_access_location_routes(): void
@@ -31,7 +51,10 @@ class LocationApiTest extends TestCase
 
     public function test_authenticated_user_can_list_locations(): void
     {
-        Sanctum::actingAs(User::factory()->create());
+        $user = User::factory()->create();
+        $user->assignRole('user');
+
+        Sanctum::actingAs($user);
 
         Location::create([
             'formatted_address' => 'Rue Grande 1, Dinant',
@@ -46,7 +69,10 @@ class LocationApiTest extends TestCase
 
     public function test_authenticated_user_can_create_location_with_geocoding(): void
     {
-        Sanctum::actingAs(User::factory()->create());
+        $admin = User::factory()->create();
+        $admin->assignRole('admin');
+
+        Sanctum::actingAs($admin);
 
         Http::fake([
             'api.openrouteservice.org/*' => Http::response([
@@ -82,7 +108,10 @@ class LocationApiTest extends TestCase
 
     public function test_create_location_returns_validation_error_when_geocoding_fails(): void
     {
-        Sanctum::actingAs(User::factory()->create());
+        $admin = User::factory()->create();
+        $admin->assignRole('admin');
+
+        Sanctum::actingAs($admin);
 
         Http::fake([
             'api.openrouteservice.org/*' => Http::response(['features' => []]),
@@ -96,7 +125,10 @@ class LocationApiTest extends TestCase
 
     public function test_authenticated_user_can_show_location(): void
     {
-        Sanctum::actingAs(User::factory()->create());
+        $user = User::factory()->create();
+        $user->assignRole('user');
+
+        Sanctum::actingAs($user);
 
         $location = Location::create([
             'formatted_address' => 'Rue Grande 1, Dinant',
@@ -111,7 +143,10 @@ class LocationApiTest extends TestCase
 
     public function test_authenticated_user_can_update_location_without_regeocoding(): void
     {
-        Sanctum::actingAs(User::factory()->create());
+        $admin = User::factory()->create();
+        $admin->assignRole('admin');
+
+        Sanctum::actingAs($admin);
 
         Http::fake();
 
@@ -132,7 +167,10 @@ class LocationApiTest extends TestCase
 
     public function test_authenticated_user_can_update_location_and_regeocode_address(): void
     {
-        Sanctum::actingAs(User::factory()->create());
+        $admin = User::factory()->create();
+        $admin->assignRole('admin');
+
+        Sanctum::actingAs($admin);
 
         Http::fake([
             'api.openrouteservice.org/*' => Http::response([
@@ -161,5 +199,12 @@ class LocationApiTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.formatted_address', 'Avenue Winston Churchill 1, Dinant')
             ->assertJsonPath('data.place_id', 'ors-place-2');
+    }
+
+    public function test_authenticated_user_without_location_permission_is_forbidden(): void
+    {
+        Sanctum::actingAs(User::factory()->create());
+
+        $this->getJson('/api/locations')->assertForbidden();
     }
 }
