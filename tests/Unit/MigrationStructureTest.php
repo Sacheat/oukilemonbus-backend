@@ -68,24 +68,30 @@ class MigrationStructureTest extends TestCase
         $documentsMigration = $this->migrationContents('2026_03_30_000010_create_documents_table.php');
         $deliveriesMigration = $this->migrationContents('2026_04_02_000018_create_notification_deliveries_table.php');
 
-        $this->assertStringContainsString("\$table->enum('status', ['en_attente', 'approuve', 'refuse', 'annule', 'en_conflit'])", $reservationsMigration);
+        $this->assertStringContainsString("\$table->string('status', 50)", $reservationsMigration);
+        $this->assertStringContainsString("\$table->string('approval_type', 50)", $reservationsMigration);
         $this->assertStringContainsString('ALTER TABLE {$prefix}reservations', $reservationsMigration);
         $this->assertStringContainsString("\$constraint = 'chk_'.\$prefix.'reservations_business_rules';", $reservationsMigration);
         $this->assertStringContainsString('ADD CONSTRAINT {$constraint}', $reservationsMigration);
         $this->assertStringContainsString('return_time > departure_time', $reservationsMigration);
-        $this->assertStringContainsString('(nb_children + nb_adults + 1) <= 41', $reservationsMigration);
+        $this->assertStringNotContainsString('(nb_children + nb_adults + 1) <= 41', $reservationsMigration);
 
-        $this->assertStringContainsString("\$table->enum('document_type', ['feuille_route', 'attestation', 'deliberation', 'planning'])", $documentsMigration);
+        $this->assertStringContainsString("\$table->string('document_type', 50)", $documentsMigration);
         $this->assertStringContainsString('ALTER TABLE {$prefix}documents', $documentsMigration);
         $this->assertStringContainsString("\$constraint = 'chk_'.\$prefix.'documents_values';", $documentsMigration);
         $this->assertStringContainsString('ADD CONSTRAINT {$constraint}', $documentsMigration);
         $this->assertStringContainsString('version >= 1', $documentsMigration);
 
         $this->assertStringContainsString("Schema::create('notification_deliveries'", $deliveriesMigration);
-        $this->assertStringContainsString("\$table->unique('correlation_id', 'uq_notification_deliveries_correlation_id')", $deliveriesMigration);
+        $this->assertStringContainsString("\$table->uuid('event_id')", $deliveriesMigration);
+        $this->assertStringContainsString("\$table->uuid('attempt_id')", $deliveriesMigration);
+        $this->assertStringContainsString("\$table->unsignedInteger('attempt_number')->default(1)", $deliveriesMigration);
+        $this->assertStringContainsString("\$table->unique('attempt_id', 'uq_notification_deliveries_attempt_id')", $deliveriesMigration);
+        $this->assertStringContainsString('uq_notification_deliveries_event_channel_notifiable_attempt', $deliveriesMigration);
         $this->assertStringContainsString('ALTER TABLE {$prefix}notification_deliveries', $deliveriesMigration);
-        $this->assertStringContainsString("\$constraint = 'chk_'.\$prefix.'notification_deliveries_timestamps';", $deliveriesMigration);
+        $this->assertStringContainsString("\$constraint = 'chk_'.\$prefix.'notification_deliveries_state';", $deliveriesMigration);
         $this->assertStringContainsString('ADD CONSTRAINT {$constraint}', $deliveriesMigration);
+        $this->assertStringContainsString('attempt_number >= 1', $deliveriesMigration);
         $this->assertStringContainsString("(status = 'sent' AND sent_at IS NOT NULL)", $deliveriesMigration);
     }
 
@@ -102,7 +108,7 @@ class MigrationStructureTest extends TestCase
         $this->assertStringContainsString("\$table->timestamp('created_at')", $statusHistoryMigration);
 
         $this->assertStringContainsString("Schema::create('reservation_assignment_history'", $assignmentHistoryMigration);
-        $this->assertStringContainsString("\$table->enum('assignment_type', ['driver', 'vehicle'])", $assignmentHistoryMigration);
+        $this->assertStringContainsString("\$table->string('assignment_type', 50)", $assignmentHistoryMigration);
         $this->assertStringContainsString("\$table->unsignedBigInteger('changed_by_user_id')", $assignmentHistoryMigration);
 
         $this->assertStringContainsString("Schema::create('unavailabilities_history'", $unavailabilityHistoryMigration);
@@ -116,7 +122,7 @@ class MigrationStructureTest extends TestCase
 
         $this->assertStringContainsString("Schema::create('org_registration_requests'", $orgRegistrationMigration);
         $this->assertStringContainsString("\$table->string('official_email', 255)", $orgRegistrationMigration);
-        $this->assertStringContainsString("\$table->enum('status', ['en_attente', 'approuve', 'refuse'])", $orgRegistrationMigration);
+        $this->assertStringContainsString("\$table->string('status', 50)", $orgRegistrationMigration);
     }
 
     private function migrationContents(string $filename): string

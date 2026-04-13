@@ -11,8 +11,8 @@ return new class extends Migration
         Schema::create('unavailabilities_history', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('unavailability_id');
-            $table->enum('old_reason_type', ['driver', 'vehicle'])->nullable();
-            $table->enum('new_reason_type', ['driver', 'vehicle'])->nullable();
+            $table->string('old_reason_type', 50)->nullable();
+            $table->string('new_reason_type', 50)->nullable();
             $table->dateTime('old_start_datetime')->nullable();
             $table->dateTime('new_start_datetime')->nullable();
             $table->dateTime('old_end_datetime')->nullable();

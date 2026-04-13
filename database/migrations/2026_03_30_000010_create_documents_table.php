@@ -16,7 +16,7 @@ return new class extends Migration
             $table->id();
             $table->unsignedBigInteger('reservation_id')->nullable();
             $table->unsignedBigInteger('user_id')->nullable();
-            $table->enum('document_type', ['feuille_route', 'attestation', 'deliberation', 'planning']);
+            $table->string('document_type', 50);
             $table->string('file_name', 255);
             $table->string('file_path', 500)->comment('Chemin storage/app/private/...');
             $table->string('mime_type', 100);

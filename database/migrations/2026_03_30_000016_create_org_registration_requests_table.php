@@ -12,7 +12,7 @@ return new class extends Migration
             $table->id();
             $table->unsignedBigInteger('request_by_user_id');
             $table->string('organization_name', 255);
-            $table->enum('organization_type', ['ecole_communale', 'asbl', 'externe']);
+            $table->string('organization_type', 50);
             $table->string('enterprise_number', 50)->nullable()->comment('Numéro BCE (ASBL)');
             $table->string('official_email', 255);
             $table->string('phone', 20)->nullable();
@@ -21,7 +21,7 @@ return new class extends Migration
             $table->string('contact_person_role', 100)->nullable();
             $table->string('proof_document_path', 500)->nullable();
             $table->text('comment')->nullable();
-            $table->enum('status', ['en_attente', 'approuve', 'refuse']);
+            $table->string('status', 50);
             $table->unsignedBigInteger('reviewed_by_user_id')->nullable();
             $table->timestamp('reviewed_at')->nullable();
             $table->text('rejection_reason')->nullable();

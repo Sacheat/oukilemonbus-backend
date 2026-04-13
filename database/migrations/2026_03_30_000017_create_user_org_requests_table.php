@@ -19,7 +19,7 @@ return new class extends Migration
             $table->string('requested_role', 50)->comment('prof | directeur | animateur | responsable');
             $table->text('justification')->nullable();
             $table->string('proof_document_path', 500)->nullable();
-            $table->enum('status', ['en_attente', 'approuve', 'refuse']);
+            $table->string('status', 50);
             $table->integer('confidence_note')->nullable()->comment('Note interne admin (optionnel)');
             $table->unsignedBigInteger('reviewed_by_user_id')->nullable();
             $table->timestamp('reviewed_at')->nullable();

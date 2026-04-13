@@ -10,11 +10,13 @@ return new class extends Migration
     public function up(): void
     {
         $prefix = DB::getTablePrefix();
-        $constraint = 'chk_'.$prefix.'notification_deliveries_timestamps';
+        $constraint = 'chk_'.$prefix.'notification_deliveries_state';
 
         Schema::create('notification_deliveries', function (Blueprint $table) {
             $table->id();
-            $table->uuid('correlation_id')->comment("UUID technique commun a toute la tentative d'envoi");
+            $table->uuid('event_id')->comment('UUID commun aux livraisons declenchees par le meme evenement');
+            $table->uuid('attempt_id')->comment('UUID unique de cette tentative de livraison');
+            $table->unsignedInteger('attempt_number')->default(1);
             $table->uuid('notification_id')->nullable()->comment('ID de notifications.id si le canal database est utilise');
             $table->string('notification_type')->comment('Classe de notification Laravel (FQCN)');
             $table->string('notifiable_type')->comment('Morph target, ex: App\\Models\\User');
@@ -23,7 +25,7 @@ return new class extends Migration
             $table->foreignId('document_id')->nullable()->constrained()->cascadeOnUpdate()->nullOnDelete();
             $table->string('channel', 50)->comment('mail | database | broadcast | slack | sms | custom');
             $table->string('recipient_email')->nullable();
-            $table->enum('status', ['pending', 'sent', 'failed']);
+            $table->string('status', 50);
             $table->string('provider', 50)->nullable()->comment('smtp | ses | postmark | database | broadcast | custom');
             $table->string('provider_message_id')->nullable()->comment('ID retourne par le provider ou trace technique');
             $table->json('payload')->nullable()->comment("Snapshot du contexte d'envoi : sujet, pieces jointes, metadata");
@@ -32,7 +34,12 @@ return new class extends Migration
             $table->text('error_message')->nullable();
             $table->timestamps();
 
-            $table->unique('correlation_id', 'uq_notification_deliveries_correlation_id');
+            $table->unique('attempt_id', 'uq_notification_deliveries_attempt_id');
+            $table->unique(
+                ['event_id', 'channel', 'notifiable_type', 'notifiable_id', 'attempt_number'],
+                'uq_notification_deliveries_event_channel_notifiable_attempt'
+            );
+            $table->index('event_id', 'idx_notification_deliveries_event_id');
             $table->index('notification_id', 'idx_notification_deliveries_notification_id');
             $table->index('notification_type', 'idx_notification_deliveries_notification_type');
             $table->index(['notifiable_type', 'notifiable_id'], 'idx_notification_deliveries_notifiable');
@@ -51,7 +58,8 @@ return new class extends Migration
             ALTER TABLE {$prefix}notification_deliveries
             ADD CONSTRAINT {$constraint}
             CHECK (
-                (sent_at IS NULL OR failed_at IS NULL)
+                attempt_number >= 1
+                AND (sent_at IS NULL OR failed_at IS NULL)
                 AND (
                     (status = 'pending' AND sent_at IS NULL AND failed_at IS NULL)
                     OR (status = 'sent' AND sent_at IS NOT NULL)

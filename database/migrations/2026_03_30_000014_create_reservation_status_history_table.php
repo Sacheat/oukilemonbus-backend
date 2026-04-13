@@ -11,8 +11,8 @@ return new class extends Migration
         Schema::create('reservation_status_history', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('reservation_id');
-            $table->enum('old_status', ['en_attente', 'approuve', 'refuse', 'annule', 'en_conflit']);
-            $table->enum('new_status', ['en_attente', 'approuve', 'refuse', 'annule', 'en_conflit']);
+            $table->string('old_status', 50);
+            $table->string('new_status', 50);
             $table->unsignedBigInteger('changed_by_user_id');
             $table->text('reason')->nullable();
             $table->timestamp('created_at');

@@ -11,7 +11,7 @@ return new class extends Migration
         Schema::create('council_decisions', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('reservation_id')->comment('Max 1 décision par réservation');
-            $table->enum('decision_status', ['approuve', 'refuse', 'en_attente']);
+            $table->string('decision_status', 50);
             $table->date('decision_date')->nullable()->comment('Date de la séance du Collège');
             $table->unsignedBigInteger('recorded_by_user_id');
             $table->string('decision_reference', 100)->nullable()->comment('Numéro officiel de délibération');

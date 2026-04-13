@@ -15,7 +15,7 @@ return new class extends Migration
         Schema::create('organizations', function (Blueprint $table) {
             $table->id();
             $table->string('name', 50);
-            $table->enum('type', ['ecole_communale', 'asbl', 'externe']);
+            $table->string('type', 50);
             $table->string('official_email', 255)->nullable();
             $table->string('phone_contact', 20)->nullable();
             $table->string('name_contact', 255)->nullable();

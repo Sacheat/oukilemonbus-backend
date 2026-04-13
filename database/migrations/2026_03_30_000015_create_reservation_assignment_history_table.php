@@ -11,7 +11,7 @@ return new class extends Migration
         Schema::create('reservation_assignment_history', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('reservation_id');
-            $table->enum('assignment_type', ['driver', 'vehicle']);
+            $table->string('assignment_type', 50);
             $table->unsignedBigInteger('old_driver_id')->nullable();
             $table->unsignedBigInteger('new_driver_id')->nullable();
             $table->unsignedBigInteger('old_vehicle_id')->nullable();

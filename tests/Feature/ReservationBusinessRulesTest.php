@@ -22,13 +22,11 @@ class ReservationBusinessRulesTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_reservation_rejects_a_return_time_after_17h00(): void
+    public function test_reservation_allows_a_return_time_after_17h00_at_database_level(): void
     {
         [$requester, $organization, $pickupLocation, $destinationLocation] = $this->reservationContext();
 
-        $this->expectException(QueryException::class);
-
-        Reservation::create([
+        $reservation = Reservation::create([
             'requested_by_user_id' => $requester->id,
             'organization_id' => $organization->id,
             'pickup_location_id' => $pickupLocation->id,
@@ -42,15 +40,18 @@ class ReservationBusinessRulesTest extends TestCase
             'status' => ReservationStatus::EN_ATTENTE,
             'approval_type' => ApprovalType::MANUEL,
         ]);
+
+        $this->assertDatabaseHas('reservations', [
+            'id' => $reservation->id,
+            'return_time' => '17:30:00',
+        ]);
     }
 
-    public function test_reservation_rejects_more_than_forty_passengers_plus_driver(): void
+    public function test_reservation_allows_passenger_count_above_vehicle_capacity_at_database_level(): void
     {
         [$requester, $organization, $pickupLocation, $destinationLocation] = $this->reservationContext();
 
-        $this->expectException(QueryException::class);
-
-        Reservation::create([
+        $reservation = Reservation::create([
             'requested_by_user_id' => $requester->id,
             'organization_id' => $organization->id,
             'pickup_location_id' => $pickupLocation->id,
@@ -64,15 +65,19 @@ class ReservationBusinessRulesTest extends TestCase
             'status' => ReservationStatus::EN_ATTENTE,
             'approval_type' => ApprovalType::MANUEL,
         ]);
+
+        $this->assertDatabaseHas('reservations', [
+            'id' => $reservation->id,
+            'nb_children' => 39,
+            'nb_adults' => 2,
+        ]);
     }
 
-    public function test_reservation_rejects_distance_over_fifty_kilometres(): void
+    public function test_reservation_allows_distance_over_fifty_kilometres_at_database_level(): void
     {
         [$requester, $organization, $pickupLocation, $destinationLocation] = $this->reservationContext();
 
-        $this->expectException(QueryException::class);
-
-        Reservation::create([
+        $reservation = Reservation::create([
             'requested_by_user_id' => $requester->id,
             'organization_id' => $organization->id,
             'pickup_location_id' => $pickupLocation->id,
@@ -86,6 +91,11 @@ class ReservationBusinessRulesTest extends TestCase
             'distance_km' => 50.01,
             'status' => ReservationStatus::EN_ATTENTE,
             'approval_type' => ApprovalType::MANUEL,
+        ]);
+
+        $this->assertDatabaseHas('reservations', [
+            'id' => $reservation->id,
+            'distance_km' => 50.01,
         ]);
     }
 
@@ -125,7 +135,9 @@ class ReservationBusinessRulesTest extends TestCase
         $this->expectException(QueryException::class);
 
         NotificationDelivery::create([
-            'correlation_id' => (string) Str::uuid(),
+            'event_id' => (string) Str::uuid(),
+            'attempt_id' => (string) Str::uuid(),
+            'attempt_number' => 1,
             'notification_type' => 'App\\Notifications\\ReservationPendingNotification',
             'notifiable_type' => User::class,
             'notifiable_id' => $requester->id,
@@ -134,6 +146,26 @@ class ReservationBusinessRulesTest extends TestCase
             'status' => DeliveryStatus::PENDING,
             'provider' => 'smtp',
             'sent_at' => now(),
+        ]);
+    }
+
+    public function test_notification_delivery_rejects_invalid_attempt_number(): void
+    {
+        $requester = User::factory()->create();
+
+        $this->expectException(QueryException::class);
+
+        NotificationDelivery::create([
+            'event_id' => (string) Str::uuid(),
+            'attempt_id' => (string) Str::uuid(),
+            'attempt_number' => 0,
+            'notification_type' => 'App\\Notifications\\ReservationPendingNotification',
+            'notifiable_type' => User::class,
+            'notifiable_id' => $requester->id,
+            'channel' => 'mail',
+            'recipient_email' => $requester->email,
+            'status' => DeliveryStatus::PENDING,
+            'provider' => 'smtp',
         ]);
     }
 

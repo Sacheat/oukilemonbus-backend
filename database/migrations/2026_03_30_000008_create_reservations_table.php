@@ -23,14 +23,14 @@ return new class extends Migration
             $table->unsignedBigInteger('recurrence_id')->nullable();
             $table->date('trip_date');
             $table->time('departure_time');
-            $table->time('return_time')->comment('Heure de retour souhaitée ≤ 17h00');
+            $table->time('return_time')->comment('Heure de retour souhaitée');
             $table->integer('nb_children')->default(0);
-            $table->integer('nb_adults')->comment('Min 1 — nb_children + nb_adults + 1 chauffeur ≤ 41');
+            $table->integer('nb_adults')->comment('Min 1 adulte accompagnant');
             $table->string('trip_purpose', 500)->comment('Objet du déplacement');
-            $table->decimal('distance_km', 6, 2)->nullable()->comment('Calculé via API — bloqué si > 50 km');
+            $table->decimal('distance_km', 6, 2)->nullable()->comment('Calculé via API');
             $table->integer('estimated_duration_min')->nullable()->comment('Durée estimée API + marge configurable');
-            $table->enum('status', ['en_attente', 'approuve', 'refuse', 'annule', 'en_conflit']);
-            $table->enum('approval_type', ['auto', 'manuel']);
+            $table->string('status', 50);
+            $table->string('approval_type', 50);
             $table->unsignedBigInteger('validated_by_user_id')->nullable();
             $table->timestamp('validated_at')->nullable();
             $table->unsignedBigInteger('cancelled_by_user_id')->nullable();
@@ -117,7 +117,6 @@ return new class extends Migration
                 AND nb_adults >= 1
                 AND nb_children >= 0
                 AND (nb_children + nb_adults) >= 1
-                AND (nb_children + nb_adults + 1) <= 41
                 AND (estimated_duration_min IS NULL OR estimated_duration_min > 0)
             )
         ");
