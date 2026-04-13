@@ -6,11 +6,38 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\RateLimiter;
+use Spatie\Permission\Models\Permission;
+use Spatie\Permission\Models\Role;
+use Spatie\Permission\PermissionRegistrar;
 use Tests\TestCase;
 
 class AuthUserApiTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+
+        foreach ([
+            'users.view',
+            'users.create',
+            'users.update',
+            'users.update-status',
+            'users.deactivate',
+        ] as $permission) {
+            Permission::findOrCreate($permission, 'web');
+        }
+
+        Role::findOrCreate('admin', 'web')->givePermissionTo(Permission::all());
+        Role::findOrCreate('user', 'web')->givePermissionTo([
+            'users.view',
+        ]);
+
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+    }
 
     public function test_user_can_register_and_is_authenticated(): void
     {
@@ -30,6 +57,7 @@ class AuthUserApiTest extends TestCase
             ->assertJsonMissingPath('data.remember_token');
 
         $this->assertAuthenticated();
+        $this->assertTrue(User::where('email', 'alice@example.test')->firstOrFail()->hasRole('user'));
         $this->assertDatabaseHas('users', [
             'email' => 'alice@example.test',
             'first_name' => 'Alice',
@@ -123,6 +151,7 @@ class AuthUserApiTest extends TestCase
         $user = User::factory()->create([
             'email' => 'alice@example.test',
         ]);
+        $user->assignRole('user');
 
         $this->actingAs($user)
             ->patchJson("/api/users/{$user->id}", [
@@ -144,6 +173,7 @@ class AuthUserApiTest extends TestCase
     {
         $actor = User::factory()->create();
         $other = User::factory()->create();
+        $actor->assignRole('user');
 
         $this->actingAs($actor)
             ->patchJson("/api/users/{$other->id}", [
@@ -157,6 +187,7 @@ class AuthUserApiTest extends TestCase
         $user = User::factory()->create([
             'password' => 'OldPassword123!',
         ]);
+        $user->assignRole('user');
 
         $this->actingAs($user)
             ->patchJson("/api/users/{$user->id}/password", [
@@ -169,16 +200,70 @@ class AuthUserApiTest extends TestCase
         $this->assertTrue(Hash::check('NewPassword123!', $user->fresh()->password));
     }
 
-    public function test_authenticated_user_can_be_deactivated(): void
+    public function test_admin_can_deactivate_a_user(): void
     {
+        $admin = User::factory()->create();
+        $admin->assignRole('admin');
         $user = User::factory()->create([
             'active' => true,
         ]);
 
-        $this->actingAs($user)
+        $this->actingAs($admin)
             ->patchJson("/api/users/{$user->id}/deactivate")
             ->assertNoContent();
 
         $this->assertFalse($user->fresh()->active);
+    }
+
+    public function test_user_without_permission_cannot_deactivate_a_user(): void
+    {
+        $actor = User::factory()->create();
+        $target = User::factory()->create();
+        $actor->assignRole('user');
+
+        $this->actingAs($actor)
+            ->patchJson("/api/users/{$target->id}/deactivate")
+            ->assertForbidden();
+
+        $this->assertTrue($target->fresh()->active);
+    }
+
+    public function test_admin_can_list_show_create_and_update_status_for_users(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole('admin');
+        $user = User::factory()->create([
+            'active' => true,
+        ]);
+
+        $this->actingAs($admin)
+            ->getJson('/api/users')
+            ->assertOk()
+            ->assertJsonFragment([
+                'email' => $user->email,
+            ]);
+
+        $this->actingAs($admin)
+            ->getJson("/api/users/{$user->id}")
+            ->assertOk()
+            ->assertJsonPath('data.id', $user->id);
+
+        $this->actingAs($admin)
+            ->postJson('/api/users', [
+                'first_name' => 'Created',
+                'last_name' => 'User',
+                'email' => 'created@example.test',
+                'password' => 'Password123!',
+                'password_confirmation' => 'Password123!',
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.email', 'created@example.test');
+
+        $this->actingAs($admin)
+            ->patchJson("/api/users/{$user->id}/status", [
+                'active' => false,
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.active', false);
     }
 }

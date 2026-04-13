@@ -7,6 +7,7 @@ use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
+use Spatie\Permission\Models\Role;
 
 class AuthService
 {
@@ -19,6 +20,8 @@ class AuthService
             'password',
             'phone',
         ]));
+
+        $user->assignRole(Role::findOrCreate('user', 'web'));
 
         Auth::login($user);
 

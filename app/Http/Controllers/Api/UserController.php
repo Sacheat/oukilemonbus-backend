@@ -11,7 +11,6 @@ use App\Http\Resources\UserResource;
 use App\Models\User;
 use App\Services\Users\UserService;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 class UserController extends Controller
@@ -68,10 +67,8 @@ class UserController extends Controller
         return response()->json(null, 204);
     }
 
-    public function deactivate(Request $request, User $user): JsonResponse
+    public function deactivate(User $user): JsonResponse
     {
-        abort_unless($request->user()?->is($user), 403);
-
         $this->userService->deactivate($user);
 
         return response()->json(null, 204);

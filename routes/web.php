@@ -18,8 +18,24 @@ Route::prefix('api')->name('api.')->group(function (): void {
         Route::get('/auth/me', [AuthController::class, 'me'])->name('auth.me');
         Route::post('/auth/logout', [AuthController::class, 'logout'])->name('auth.logout');
 
+        Route::middleware('permission:users.view')->group(function (): void {
+            Route::get('/users', [UserController::class, 'index'])->name('users.index');
+            Route::get('/users/{user}', [UserController::class, 'show'])->name('users.show');
+        });
+
+        Route::post('/users', [UserController::class, 'store'])
+            ->middleware('permission:users.create')
+            ->name('users.store');
+
         Route::patch('/users/{user}', [UserController::class, 'update'])->name('users.update');
         Route::patch('/users/{user}/password', [UserController::class, 'updatePassword'])->name('users.update-password');
-        Route::patch('/users/{user}/deactivate', [UserController::class, 'deactivate'])->name('users.deactivate');
+
+        Route::patch('/users/{user}/status', [UserController::class, 'updateStatus'])
+            ->middleware('permission:users.update-status')
+            ->name('users.update-status');
+
+        Route::patch('/users/{user}/deactivate', [UserController::class, 'deactivate'])
+            ->middleware('permission:users.deactivate')
+            ->name('users.deactivate');
     });
 });

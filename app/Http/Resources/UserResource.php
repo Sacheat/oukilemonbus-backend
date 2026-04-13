@@ -20,6 +20,8 @@ class UserResource extends JsonResource
             'email_verified_at' => $this->email_verified_at?->toISOString(),
             'created_at' => $this->created_at?->toISOString(),
             'updated_at' => $this->updated_at?->toISOString(),
+            'roles' => $this->whenLoaded('roles', fn () => $this->roles->pluck('name')->values()),
+            'permissions' => $this->whenLoaded('permissions', fn () => $this->permissions->pluck('name')->values()),
             'organizations' => $this->whenLoaded('organizations'),
             'driver' => $this->whenLoaded('driver'),
         ];
