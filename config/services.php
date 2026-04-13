@@ -35,4 +35,9 @@ return [
         ],
     ],
 
+    'openrouteservice' => [
+    'key'      => env('ORS_API_KEY'),
+    'base_url' => 'https://api.openrouteservice.org',
+    ],
+    
 ];
