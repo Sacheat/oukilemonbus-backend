@@ -10,7 +10,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 
 #[Fillable([
-    'correlation_id',
+    'event_id',
+    'attempt_id',
+    'attempt_number',
     'notification_id',
     'notification_type',
     'notifiable_type',
@@ -50,6 +52,7 @@ class NotificationDelivery extends Model
     {
         return [
             'status' => DeliveryStatus::class,
+            'attempt_number' => 'integer',
             'payload' => 'json',
             'sent_at' => 'datetime',
             'failed_at' => 'datetime',

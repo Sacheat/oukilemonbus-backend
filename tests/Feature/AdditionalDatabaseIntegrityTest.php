@@ -70,13 +70,16 @@ class AdditionalDatabaseIntegrityTest extends TestCase
         ]);
     }
 
-    public function test_notification_delivery_requires_unique_correlation_id(): void
+    public function test_notification_delivery_requires_unique_attempt_id(): void
     {
         [$reservation, $user] = $this->reservationAndUser();
-        $correlationId = (string) Str::uuid();
+        $eventId = (string) Str::uuid();
+        $attemptId = (string) Str::uuid();
 
         NotificationDelivery::create([
-            'correlation_id' => $correlationId,
+            'event_id' => $eventId,
+            'attempt_id' => $attemptId,
+            'attempt_number' => 1,
             'notification_type' => 'App\\Notifications\\ReservationPendingNotification',
             'notifiable_type' => User::class,
             'notifiable_id' => $user->id,
@@ -89,7 +92,9 @@ class AdditionalDatabaseIntegrityTest extends TestCase
         $this->expectException(QueryException::class);
 
         NotificationDelivery::create([
-            'correlation_id' => $correlationId,
+            'event_id' => $eventId,
+            'attempt_id' => $attemptId,
+            'attempt_number' => 2,
             'notification_type' => 'App\\Notifications\\ReservationPendingNotification',
             'notifiable_type' => User::class,
             'notifiable_id' => $user->id,
@@ -97,6 +102,67 @@ class AdditionalDatabaseIntegrityTest extends TestCase
             'channel' => 'mail',
             'recipient_email' => $user->email,
             'status' => 'pending',
+        ]);
+    }
+
+    public function test_notification_delivery_allows_same_event_on_multiple_channels(): void
+    {
+        [$reservation, $user] = $this->reservationAndUser();
+        $eventId = (string) Str::uuid();
+
+        NotificationDelivery::create([
+            'event_id' => $eventId,
+            'attempt_id' => (string) Str::uuid(),
+            'attempt_number' => 1,
+            'notification_type' => 'App\\Notifications\\ReservationPendingNotification',
+            'notifiable_type' => User::class,
+            'notifiable_id' => $user->id,
+            'reservation_id' => $reservation->id,
+            'channel' => 'mail',
+            'recipient_email' => $user->email,
+            'status' => 'pending',
+        ]);
+
+        NotificationDelivery::create([
+            'event_id' => $eventId,
+            'attempt_id' => (string) Str::uuid(),
+            'attempt_number' => 1,
+            'notification_type' => 'App\\Notifications\\ReservationPendingNotification',
+            'notifiable_type' => User::class,
+            'notifiable_id' => $user->id,
+            'reservation_id' => $reservation->id,
+            'channel' => 'database',
+            'status' => 'pending',
+        ]);
+
+        $this->assertDatabaseCount('notification_deliveries', 2);
+    }
+
+    public function test_notification_delivery_rejects_duplicate_logical_attempt(): void
+    {
+        [$reservation, $user] = $this->reservationAndUser();
+        $eventId = (string) Str::uuid();
+
+        $attributes = [
+            'event_id' => $eventId,
+            'attempt_number' => 1,
+            'notification_type' => 'App\\Notifications\\ReservationPendingNotification',
+            'notifiable_type' => User::class,
+            'notifiable_id' => $user->id,
+            'reservation_id' => $reservation->id,
+            'channel' => 'mail',
+            'recipient_email' => $user->email,
+            'status' => 'pending',
+        ];
+
+        NotificationDelivery::create($attributes + [
+            'attempt_id' => (string) Str::uuid(),
+        ]);
+
+        $this->expectException(QueryException::class);
+
+        NotificationDelivery::create($attributes + [
+            'attempt_id' => (string) Str::uuid(),
         ]);
     }
 
@@ -117,7 +183,9 @@ class AdditionalDatabaseIntegrityTest extends TestCase
         ]);
 
         $delivery = NotificationDelivery::create([
-            'correlation_id' => (string) Str::uuid(),
+            'event_id' => (string) Str::uuid(),
+            'attempt_id' => (string) Str::uuid(),
+            'attempt_number' => 1,
             'notification_type' => 'App\\Notifications\\ReservationPendingNotification',
             'notifiable_type' => User::class,
             'notifiable_id' => $user->id,

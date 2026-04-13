@@ -14,7 +14,7 @@ return new class extends Migration
 
         Schema::create('unavailabilities', function (Blueprint $table) {
             $table->id();
-            $table->enum('reason_type', ['driver', 'vehicle']);
+            $table->string('reason_type', 50);
             $table->string('reason', 500)->nullable();
             $table->unsignedBigInteger('driver_id')->nullable()->comment('Renseigné si reason_type = driver');
             $table->unsignedBigInteger('vehicle_id')->nullable()->comment('Renseigné si reason_type = vehicle');

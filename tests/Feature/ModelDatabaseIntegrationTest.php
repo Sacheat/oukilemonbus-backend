@@ -94,7 +94,9 @@ class ModelDatabaseIntegrationTest extends TestCase
         ]);
 
         $delivery = NotificationDelivery::create([
-            'correlation_id' => (string) Str::uuid(),
+            'event_id' => (string) Str::uuid(),
+            'attempt_id' => (string) Str::uuid(),
+            'attempt_number' => 1,
             'notification_type' => 'App\\Notifications\\ReservationApprovedNotification',
             'notifiable_type' => User::class,
             'notifiable_id' => $requester->id,
