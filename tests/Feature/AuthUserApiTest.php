@@ -124,16 +124,31 @@ class AuthUserApiTest extends TestCase
 
     public function test_authenticated_user_can_fetch_their_profile_and_logout(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->create([
+            'email' => 'session@example.test',
+            'password' => 'Password123!',
+            'active' => true,
+        ]);
 
-        $this->actingAs($user)
+        $this->withHeader('Referer', 'http://localhost')
+            ->postJson('/api/auth/login', [
+                'email' => 'session@example.test',
+                'password' => 'Password123!',
+            ])
+            ->assertOk();
+
+        $this->withHeader('Referer', 'http://localhost')
             ->getJson('/api/auth/me')
             ->assertOk()
             ->assertJsonPath('data.id', $user->id);
 
-        $this->postJson('/api/auth/logout')->assertNoContent();
+        $this->withHeader('Referer', 'http://localhost')
+            ->postJson('/api/auth/logout')
+            ->assertNoContent();
 
-        $this->assertGuest();
+        $this->withHeader('Referer', 'http://localhost')
+            ->getJson('/api/auth/me')
+            ->assertUnauthorized();
     }
 
     public function test_guest_cannot_access_user_endpoints(): void
