@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\LocationController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\VehicleController;
+use App\Http\Controllers\Api\DriverController;
 use Illuminate\Support\Facades\Route;
 
 Route::name('api.')->group(function (): void {
@@ -69,5 +70,24 @@ Route::name('api.')->group(function (): void {
         Route::patch('/vehicles/{vehicle}/deactivate', [VehicleController::class, 'deactivate'])
             ->middleware('permission:vehicles.deactivate')
             ->name('vehicles.deactivate');
+    });
+
+    Route::middleware('auth:sanctum')->group(function (): void {
+        Route::middleware('permission:drivers.view')->group(function (): void {
+            Route::get('/drivers', [DriverController::class, 'index'])->name('drivers.index');
+            Route::get('/drivers/{driver}', [DriverController::class, 'show'])->name('drivers.show');
+        });
+
+        Route::post('/drivers', [DriverController::class, 'store'])
+            ->middleware('permission:drivers.create')
+            ->name('drivers.store');
+
+        Route::patch('/drivers/{driver}', [DriverController::class, 'update'])
+            ->middleware('permission:drivers.update')
+            ->name('drivers.update');
+
+        Route::patch('/drivers/{driver}/deactivate', [DriverController::class, 'deactivate'])
+            ->middleware('permission:drivers.deactivate')
+            ->name('drivers.deactivate');
     });
 });
