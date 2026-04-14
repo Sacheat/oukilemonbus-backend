@@ -2,14 +2,16 @@
 
 Backend Laravel pour la gestion des reservations du bus communal.
 
-Le projet est actuellement centre sur le socle metier et la base de donnees:
+Le projet est actuellement centre sur le socle metier, la base de donnees et les premieres features API:
 - modelisation du domaine
 - migrations MySQL
 - relations Eloquent
 - contraintes SQL
-- suite de tests base de donnees
-
-La couche applicative HTTP est encore volontairement minimale.
+- authentification et gestion utilisateurs
+- gestion des lieux avec geocodage OpenRouteService
+- autorisations Spatie
+- authentification SPA avec Sanctum
+- suite de tests base de donnees et API
 
 ## Domaine couvert
 
@@ -31,6 +33,8 @@ Le schema actuel couvre notamment:
 - Laravel 13
 - MySQL
 - PHPUnit 12
+- Laravel Sanctum
+- Spatie Laravel Permission
 - Vite
 
 ## Prerequis
@@ -57,7 +61,10 @@ Configurer ensuite la base principale dans `.env`, puis executer:
 
 ```powershell
 php artisan migrate
+php artisan db:seed
 ```
+
+Pour le geocodage des lieux, renseigner aussi `ORS_API_KEY` dans `.env`.
 
 Pour compiler les assets:
 
@@ -94,6 +101,9 @@ La suite actuelle est fortement orientee base de donnees:
 - effets de suppression
 - unicite
 - coherence de persistance
+- endpoints Auth/User
+- endpoints Locations
+- permissions Spatie et acces Sanctum
 
 Lancer tous les tests:
 
@@ -127,7 +137,12 @@ php artisan test --testdox
 ```text
 app/
   Enums/
+  Http/
+    Controllers/Api/
+    Requests/{Module}/
+    Resources/
   Models/
+  Services/{Module}/
 database/
   migrations/
   factories/
@@ -137,21 +152,46 @@ tests/
   Feature/
 ```
 
+## Convention API
+
+Pour chaque nouveau module, garder la meme structure:
+
+- `app/Http/Requests/{Module}/Store...Request.php`
+- `app/Http/Requests/{Module}/Update...Request.php`
+- `app/Http/Controllers/Api/...Controller.php`
+- `app/Http/Resources/...Resource.php`
+- `app/Services/{Module}/...Service.php`
+- routes nommees dans `routes/api.php`
+- permissions Spatie au format `module.action`
+- tests feature couvrant `401`, `403`, validation, creation, lecture et modification
+
+Exemple pour un module `reservations`:
+
+- permissions: `reservations.view`, `reservations.create`, `reservations.update`, `reservations.validate`, `reservations.cancel`
+- routes: `api.reservations.index`, `api.reservations.store`, `api.reservations.show`, etc.
+- service: `App\Services\Reservations\ReservationService`
+
+Les regles purement metier restent dans les services ou actions. Les FormRequest valident l'entree HTTP et les permissions. Les contraintes SQL doivent rester reservees aux invariants de donnees qui ne dependent pas du contexte metier.
+
 ## Etat actuel du projet
 
 Ce qui est deja solide:
 - le schema metier
 - les relations Eloquent
 - les contraintes SQL importantes
-- la strategie de tests base de donnees
+- les enums PHP et casts Eloquent
+- l'authentification utilisateur
+- les roles et permissions Spatie
+- le socle Sanctum pour une SPA React separee
+- la feature Locations
+- la strategie de tests base de donnees et API
 
 Ce qui reste a construire:
-- vraie API HTTP
-- controllers metier
-- services / actions / cas d'usage
-- validation applicative
-- authentification / autorisation
+- les autres controllers metier
+- les autres services / actions / cas d'usage
+- les autres FormRequest et Resources
 - generation metier de documents et workflows complets
+- configuration de production: CORS, domaines Sanctum, cookies secure, queue, mail
 
 ## Commandes utiles
 
@@ -167,7 +207,8 @@ npm run build
 ## Notes
 
 - Les anciens fichiers `tests/Unit/ExampleTest.php` et `tests/Feature/ExampleTest.php` sont des placeholders temporaires conserves pour des raisons de workspace local.
-- La cible actuelle est d'avoir un socle base de donnees fiable avant de monter la couche applicative.
+- Les routes API sont definies dans `routes/api.php`.
+- Le frontend React doit appeler `GET /sanctum/csrf-cookie` avant les requetes d'authentification par cookie Sanctum.
 
 ## Licence
 

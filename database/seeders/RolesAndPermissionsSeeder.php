@@ -19,6 +19,9 @@ class RolesAndPermissionsSeeder extends Seeder
             'users.update',
             'users.update-status',
             'users.deactivate',
+            'locations.view',
+            'locations.create',
+            'locations.update',
         ];
 
         foreach ($permissions as $permission) {
@@ -35,10 +38,12 @@ class RolesAndPermissionsSeeder extends Seeder
 
         $user->givePermissionTo([
             'users.view',
+            'locations.view',
         ]);
 
         $chauffeur->givePermissionTo([
             'users.view',
+            'locations.view',
         ]);
 
         $agentCommunal->givePermissionTo([
@@ -46,10 +51,15 @@ class RolesAndPermissionsSeeder extends Seeder
             'users.create',
             'users.update',
             'users.update-status',
+            'locations.view',
+            'locations.create',
+            'locations.update',
         ]);
 
         $responsableOrganisation->givePermissionTo([
             'users.view',
+            'locations.view',
+            'locations.create',
         ]);
 
         app(PermissionRegistrar::class)->forgetCachedPermissions();

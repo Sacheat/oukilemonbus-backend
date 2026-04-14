@@ -15,14 +15,15 @@ class AuthController extends Controller
 {
     public function __construct(
         private readonly AuthService $authService
-    ) {
-    }
+    ) {}
 
     public function register(RegisterRequest $request): JsonResponse
     {
         $user = $this->authService->register($request->validated());
 
-        $request->session()->regenerate();
+        if ($request->hasSession()) {
+            $request->session()->regenerate();
+        }
 
         return (new UserResource($user))
             ->response()
@@ -46,7 +47,9 @@ class AuthController extends Controller
 
         $request->clearRateLimiter();
 
-        $request->session()->regenerate();
+        if ($request->hasSession()) {
+            $request->session()->regenerate();
+        }
 
         return new UserResource($user);
     }
@@ -60,8 +63,10 @@ class AuthController extends Controller
     {
         $this->authService->logout();
 
-        $request->session()->invalidate();
-        $request->session()->regenerateToken();
+        if ($request->hasSession()) {
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+        }
 
         return response()->json(null, 204);
     }

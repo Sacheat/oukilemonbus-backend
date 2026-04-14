@@ -4,7 +4,6 @@ namespace App\Exceptions;
 
 use Exception;
 
-class GeocodingException extends Exception
-{
-    //
+class GeocodingException extends Exception {
+    
 }
