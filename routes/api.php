@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\LocationController;
 use App\Http\Controllers\Api\UserController;
+use App\Http\Controllers\Api\VehicleController;
 use Illuminate\Support\Facades\Route;
 
 Route::name('api.')->group(function (): void {
@@ -49,5 +50,24 @@ Route::name('api.')->group(function (): void {
         Route::patch('/locations/{location}', [LocationController::class, 'update'])
             ->middleware('permission:locations.update')
             ->name('locations.update');
+    });
+
+    Route::middleware('auth:sanctum')->group(function (): void {
+        Route::middleware('permission:vehicles.view')->group(function (): void {
+            Route::get('/vehicles', [VehicleController::class, 'index'])->name('vehicles.index');
+            Route::get('/vehicles/{vehicle}', [VehicleController::class, 'show'])->name('vehicles.show');
+        });
+
+        Route::post('/vehicles', [VehicleController::class, 'store'])
+            ->middleware('permission:vehicles.create')
+            ->name('vehicles.store');
+
+        Route::patch('/vehicles/{vehicle}', [VehicleController::class, 'update'])
+            ->middleware('permission:vehicles.update')
+            ->name('vehicles.update');
+
+        Route::patch('/vehicles/{vehicle}/deactivate', [VehicleController::class, 'deactivate'])
+            ->middleware('permission:vehicles.deactivate')
+            ->name('vehicles.deactivate');
     });
 });

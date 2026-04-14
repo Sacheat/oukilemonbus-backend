@@ -22,6 +22,10 @@ class RolesAndPermissionsSeeder extends Seeder
             'locations.view',
             'locations.create',
             'locations.update',
+            'vehicles.view',
+            'vehicles.create',
+            'vehicles.update',
+            'vehicles.deactivate',
         ];
 
         foreach ($permissions as $permission) {
@@ -44,6 +48,7 @@ class RolesAndPermissionsSeeder extends Seeder
         $chauffeur->givePermissionTo([
             'users.view',
             'locations.view',
+            'vehicles.view',
         ]);
 
         $agentCommunal->givePermissionTo([
@@ -54,6 +59,10 @@ class RolesAndPermissionsSeeder extends Seeder
             'locations.view',
             'locations.create',
             'locations.update',
+            'vehicles.view',
+            'vehicles.create',
+            'vehicles.update',
+            'vehicles.deactivate',
         ]);
 
         $responsableOrganisation->givePermissionTo([
