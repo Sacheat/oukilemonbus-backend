@@ -2,35 +2,34 @@
 
 namespace App\Http\Requests\Drivers;
 
-use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class UpdateDriverRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return true;
+        return $this->user()?->can('drivers.update') ?? false;
     }
 
     public function rules(): array
     {
         return [
-            'licence_number'      => [
+            'licence_number' => [
                 'sometimes',
                 'string',
                 'max:20',
-                'unique:drivers,licence_number,' . $this->route('driver')?->id,
+                Rule::unique('drivers', 'licence_number')->ignore($this->route('driver')),
             ],
             'licence_expiry_date' => ['sometimes', 'date', 'after:today'],
-            'is_active'           => ['sometimes', 'boolean'],
         ];
     }
 
     public function messages(): array
     {
         return [
-            'licence_number.unique'        => "Ce numéro de permis existe déjà.",
-            'licence_expiry_date.after'    => "La date d'expiration doit être dans le futur.",
+            'licence_number.unique' => 'Ce numero de permis existe deja.',
+            'licence_expiry_date.after' => "La date d'expiration doit etre dans le futur.",
         ];
     }
 }

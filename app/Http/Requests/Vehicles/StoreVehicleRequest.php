@@ -2,22 +2,21 @@
 
 namespace App\Http\Requests\Vehicles;
 
-use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 
 class StoreVehicleRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return true;
+        return $this->user()?->can('vehicles.create') ?? false;
     }
 
     public function rules(): array
     {
         return [
             'licence_plate' => ['required', 'string', 'max:20', 'unique:vehicles,licence_plate'],
-            'capacity'      => ['required', 'integer', 'min:1', 'max:200'],
-            'is_active'     => ['sometimes', 'boolean'],
+            'capacity' => ['required', 'integer', 'min:1', 'max:200'],
+            'is_active' => ['sometimes', 'boolean'],
         ];
     }
 
@@ -25,9 +24,9 @@ class StoreVehicleRequest extends FormRequest
     {
         return [
             'licence_plate.required' => "La plaque d'immatriculation est obligatoire.",
-            'licence_plate.unique'   => "Ce véhicule existe déjà.",
-            'capacity.required'      => "La capacité est obligatoire.",
-            'capacity.min'           => "La capacité doit être au moins 1.",
+            'licence_plate.unique' => 'Ce vehicule existe deja.',
+            'capacity.required' => 'La capacite est obligatoire.',
+            'capacity.min' => 'La capacite doit etre au moins 1.',
         ];
     }
 }

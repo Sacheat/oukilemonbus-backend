@@ -1,10 +1,10 @@
 <?php
 
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\DriverController;
 use App\Http\Controllers\Api\LocationController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\VehicleController;
-use App\Http\Controllers\Api\DriverController;
 use Illuminate\Support\Facades\Route;
 
 Route::name('api.')->group(function (): void {
@@ -36,9 +36,7 @@ Route::name('api.')->group(function (): void {
         Route::patch('/users/{user}/deactivate', [UserController::class, 'deactivate'])
             ->middleware('permission:users.deactivate')
             ->name('users.deactivate');
-    });
 
-    Route::middleware('auth:sanctum')->group(function (): void {
         Route::middleware('permission:locations.view')->group(function (): void {
             Route::get('/locations', [LocationController::class, 'index'])->name('locations.index');
             Route::get('/locations/{location}', [LocationController::class, 'show'])->name('locations.show');
@@ -51,9 +49,7 @@ Route::name('api.')->group(function (): void {
         Route::patch('/locations/{location}', [LocationController::class, 'update'])
             ->middleware('permission:locations.update')
             ->name('locations.update');
-    });
 
-    Route::middleware('auth:sanctum')->group(function (): void {
         Route::middleware('permission:vehicles.view')->group(function (): void {
             Route::get('/vehicles', [VehicleController::class, 'index'])->name('vehicles.index');
             Route::get('/vehicles/{vehicle}', [VehicleController::class, 'show'])->name('vehicles.show');
@@ -70,9 +66,7 @@ Route::name('api.')->group(function (): void {
         Route::patch('/vehicles/{vehicle}/deactivate', [VehicleController::class, 'deactivate'])
             ->middleware('permission:vehicles.deactivate')
             ->name('vehicles.deactivate');
-    });
 
-    Route::middleware('auth:sanctum')->group(function (): void {
         Route::middleware('permission:drivers.view')->group(function (): void {
             Route::get('/drivers', [DriverController::class, 'index'])->name('drivers.index');
             Route::get('/drivers/{driver}', [DriverController::class, 'show'])->name('drivers.show');
