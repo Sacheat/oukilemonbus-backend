@@ -36,6 +36,8 @@ class MigrationStructureTest extends TestCase
             '2026_03_30_000016_create_org_registration_requests_table.php',
             '2026_03_30_000017_create_user_org_requests_table.php',
             '2026_04_02_000018_create_notification_deliveries_table.php',
+            '2026_04_15_000019_create_municipalities_table.php',
+            '2026_04_15_000020_create_municipality_localities_table.php',
         ];
 
         foreach ($expectedFiles as $file) {
@@ -102,6 +104,8 @@ class MigrationStructureTest extends TestCase
         $unavailabilityHistoryMigration = $this->migrationContents('2026_03_30_000013_create_unavailabilities_history_table.php');
         $userOrgRequestMigration = $this->migrationContents('2026_03_30_000017_create_user_org_requests_table.php');
         $orgRegistrationMigration = $this->migrationContents('2026_03_30_000016_create_org_registration_requests_table.php');
+        $municipalitiesMigration = $this->migrationContents('2026_04_15_000019_create_municipalities_table.php');
+        $municipalityLocalitiesMigration = $this->migrationContents('2026_04_15_000020_create_municipality_localities_table.php');
 
         $this->assertStringContainsString("Schema::create('reservation_status_history'", $statusHistoryMigration);
         $this->assertStringContainsString("\$table->unsignedBigInteger('changed_by_user_id')", $statusHistoryMigration);
@@ -126,6 +130,14 @@ class MigrationStructureTest extends TestCase
         $this->assertStringContainsString("\$table->integer('confidence_note')->nullable()", $orgRegistrationMigration);
         $this->assertStringContainsString('ALTER TABLE {$prefix}org_registration_requests', $orgRegistrationMigration);
         $this->assertStringContainsString("\$constraint = 'chk_'.\$prefix.'org_registration_requests_confidence_note';", $orgRegistrationMigration);
+
+        $this->assertStringContainsString("Schema::create('municipalities'", $municipalitiesMigration);
+        $this->assertStringContainsString("\$table->string('best_id', 500)->nullable()", $municipalitiesMigration);
+        $this->assertStringContainsString("\$table->string('nis_code', 20)->nullable()", $municipalitiesMigration);
+        $this->assertStringContainsString("\$table->boolean('is_active')->default(false)", $municipalitiesMigration);
+        $this->assertStringContainsString("Schema::create('municipality_localities'", $municipalityLocalitiesMigration);
+        $this->assertStringContainsString("\$table->string('best_id', 500)->nullable()", $municipalityLocalitiesMigration);
+        $this->assertStringContainsString("\$table->unique(['municipality_id', 'normalized_name']", $municipalityLocalitiesMigration);
     }
 
     private function migrationContents(string $filename): string

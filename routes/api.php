@@ -3,6 +3,8 @@
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\DriverController;
 use App\Http\Controllers\Api\LocationController;
+use App\Http\Controllers\Api\MunicipalityController;
+use App\Http\Controllers\Api\MunicipalityLocalityController;
 use App\Http\Controllers\Api\OrganizationController;
 use App\Http\Controllers\Api\OrgRegistrationRequestController;
 use App\Http\Controllers\Api\UserController;
@@ -52,6 +54,35 @@ Route::name('api.')->group(function (): void {
         Route::patch('/locations/{location}', [LocationController::class, 'update'])
             ->middleware('permission:locations.update')
             ->name('locations.update');
+
+        Route::middleware('permission:municipalities.view')->group(function (): void {
+            Route::get('/municipalities', [MunicipalityController::class, 'index'])->name('municipalities.index');
+            Route::get('/municipalities/{municipality}', [MunicipalityController::class, 'show'])->name('municipalities.show');
+        });
+
+        Route::post('/municipalities', [MunicipalityController::class, 'store'])
+            ->middleware('permission:municipalities.manage')
+            ->name('municipalities.store');
+
+        Route::patch('/municipalities/{municipality}', [MunicipalityController::class, 'update'])
+            ->middleware('permission:municipalities.manage')
+            ->name('municipalities.update');
+
+        Route::post('/municipalities/{municipality}/sync-localities', [MunicipalityController::class, 'syncLocalities'])
+            ->middleware('permission:municipalities.manage')
+            ->name('municipalities.sync-localities');
+
+        Route::post('/municipalities/{municipality}/localities', [MunicipalityLocalityController::class, 'store'])
+            ->middleware('permission:municipalities.manage')
+            ->name('municipality-localities.store');
+
+        Route::patch('/municipality-localities/{municipalityLocality}', [MunicipalityLocalityController::class, 'update'])
+            ->middleware('permission:municipalities.manage')
+            ->name('municipality-localities.update');
+
+        Route::patch('/municipality-localities/{municipalityLocality}/deactivate', [MunicipalityLocalityController::class, 'deactivate'])
+            ->middleware('permission:municipalities.manage')
+            ->name('municipality-localities.deactivate');
 
         Route::middleware('permission:vehicles.view')->group(function (): void {
             Route::get('/vehicles', [VehicleController::class, 'index'])->name('vehicles.index');

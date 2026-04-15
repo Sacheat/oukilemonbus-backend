@@ -40,4 +40,12 @@ return [
         'base_url' => env('ORS_BASE_URL', 'https://api.openrouteservice.org'),
     ],
 
+    'best_address' => [
+        'base_url' => env('BEST_ADDRESS_BASE_URL', 'https://public.fedservices.be/api/BeSt/v1/belgianAddress/v2'),
+        'token_url' => env('BEST_ADDRESS_TOKEN_URL', 'https://public.fedservices.be/api/oauth2/token'),
+        'client_id' => env('BEST_ADDRESS_CLIENT_ID'),
+        'client_secret' => env('BEST_ADDRESS_CLIENT_SECRET'),
+        'max_pages' => env('BEST_ADDRESS_MAX_PAGES', 25),
+    ],
+
 ];

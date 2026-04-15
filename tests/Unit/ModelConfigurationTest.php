@@ -15,6 +15,8 @@ use App\Models\CouncilDecision;
 use App\Models\Document;
 use App\Models\Driver;
 use App\Models\Location;
+use App\Models\Municipality;
+use App\Models\MunicipalityLocality;
 use App\Models\NotificationDelivery;
 use App\Models\Organization;
 use App\Models\OrgRegistrationRequest;
@@ -105,6 +107,8 @@ class ModelConfigurationTest extends TestCase
             [Driver::class, ['user_id', 'licence_number', 'licence_expiry_date', 'is_active']],
             [Vehicle::class, ['licence_plate', 'capacity', 'is_active']],
             [Location::class, ['formatted_address', 'street', 'street_number', 'postal_code', 'city', 'country', 'latitude', 'longitude', 'place_id', 'provider', 'is_verified']],
+            [Municipality::class, ['name', 'best_id', 'nis_code', 'country', 'postal_code', 'source', 'is_active', 'synced_at']],
+            [MunicipalityLocality::class, ['municipality_id', 'name', 'normalized_name', 'best_id', 'source', 'is_active']],
             [Organization::class, ['name', 'type', 'official_email', 'phone_contact', 'name_contact', 'location_id', 'is_priority', 'annual_quota', 'reservations_used_this_year', 'quota_reset_year', 'document_proof_path']],
             [UserOrganization::class, ['user_id', 'organization_id', 'relationship_type', 'is_default']],
             [Recurrence::class, ['frequency', 'interval_value', 'days_of_week', 'start_date', 'end_date', 'occurrence_count', 'is_active']],
@@ -128,6 +132,8 @@ class ModelConfigurationTest extends TestCase
             [Driver::class, ['licence_expiry_date' => 'date', 'is_active' => 'boolean']],
             [Vehicle::class, ['capacity' => 'integer', 'is_active' => 'boolean']],
             [Location::class, ['latitude' => 'decimal:8', 'longitude' => 'decimal:8', 'is_verified' => 'boolean']],
+            [Municipality::class, ['is_active' => 'boolean', 'synced_at' => 'datetime']],
+            [MunicipalityLocality::class, ['is_active' => 'boolean']],
             [Organization::class, ['type' => OrganizationType::class, 'is_priority' => 'boolean', 'annual_quota' => 'integer', 'reservations_used_this_year' => 'integer', 'quota_reset_year' => 'datetime']],
             [UserOrganization::class, ['is_default' => 'boolean']],
             [Recurrence::class, ['interval_value' => 'integer', 'start_date' => 'date', 'end_date' => 'date', 'occurrence_count' => 'integer', 'is_active' => 'boolean']],
@@ -192,6 +198,9 @@ class ModelConfigurationTest extends TestCase
             [Location::class, 'pickupReservations', HasMany::class, Reservation::class, 'pickup_location_id'],
             [Location::class, 'destinationReservations', HasMany::class, Reservation::class, 'destination_location_id'],
             [Location::class, 'orgRegistrationRequests', HasMany::class, OrgRegistrationRequest::class, 'location_id'],
+            [Municipality::class, 'localities', HasMany::class, MunicipalityLocality::class, 'municipality_id'],
+            [Municipality::class, 'activeLocalities', HasMany::class, MunicipalityLocality::class, 'municipality_id'],
+            [MunicipalityLocality::class, 'municipality', BelongsTo::class, Municipality::class, 'municipality_id'],
             [Recurrence::class, 'reservations', HasMany::class, Reservation::class, 'recurrence_id'],
             [Reservation::class, 'requestedByUser', BelongsTo::class, User::class, 'requested_by_user_id'],
             [Reservation::class, 'organization', BelongsTo::class, Organization::class, 'organization_id'],
