@@ -14,7 +14,7 @@ enum OrganizationType: string
     public function label(): string
     {
         return match ($this) {
-            self::ECOLE_COMMUNALE => 'École Communale',
+            self::ECOLE_COMMUNALE => 'Ecole communale',
             self::ASBL => 'ASBL',
             self::EXTERNE => 'Externe',
         };
@@ -34,7 +34,7 @@ enum OrganizationType: string
     public static function toArray(): array
     {
         return array_column(
-            array_map(fn($case) => [$case->value, $case->label()], self::cases()),
+            array_map(fn ($case) => [$case->value, $case->label()], self::cases()),
             1,
             0
         );

@@ -2,12 +2,16 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
     public function up(): void
     {
+        $prefix = DB::getTablePrefix();
+        $constraint = 'chk_'.$prefix.'org_registration_requests_confidence_note';
+
         Schema::create('org_registration_requests', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('request_by_user_id');
@@ -22,6 +26,7 @@ return new class extends Migration
             $table->string('proof_document_path', 500)->nullable();
             $table->text('comment')->nullable();
             $table->string('status', 50);
+            $table->integer('confidence_note')->nullable()->comment('Score de confiance calcule automatiquement');
             $table->unsignedBigInteger('reviewed_by_user_id')->nullable();
             $table->timestamp('reviewed_at')->nullable();
             $table->text('rejection_reason')->nullable();
@@ -32,6 +37,7 @@ return new class extends Migration
             $table->index('official_email', 'idx_org_registration_requests_official_email');
             $table->index('location_id', 'idx_org_registration_requests_location_id');
             $table->index('status', 'idx_org_registration_requests_status');
+            $table->index('confidence_note', 'idx_org_registration_requests_confidence_note');
             $table->index('reviewed_by_user_id', 'idx_org_registration_requests_reviewed_by_user_id');
             $table->index('created_at', 'idx_org_registration_requests_created_at');
             $table->index(['status', 'created_at'], 'idx_org_registration_requests_status_created_at');
@@ -55,6 +61,15 @@ return new class extends Migration
                 ->cascadeOnUpdate()
                 ->nullOnDelete();
         });
+
+        DB::statement("
+            ALTER TABLE {$prefix}org_registration_requests
+            ADD CONSTRAINT {$constraint}
+            CHECK (
+                confidence_note IS NULL
+                OR (confidence_note BETWEEN 0 AND 100)
+            )
+        ");
     }
 
     public function down(): void

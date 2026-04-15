@@ -3,7 +3,10 @@
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\DriverController;
 use App\Http\Controllers\Api\LocationController;
+use App\Http\Controllers\Api\OrganizationController;
+use App\Http\Controllers\Api\OrgRegistrationRequestController;
 use App\Http\Controllers\Api\UserController;
+use App\Http\Controllers\Api\UserOrgRequestController;
 use App\Http\Controllers\Api\VehicleController;
 use Illuminate\Support\Facades\Route;
 
@@ -83,5 +86,56 @@ Route::name('api.')->group(function (): void {
         Route::patch('/drivers/{driver}/deactivate', [DriverController::class, 'deactivate'])
             ->middleware('permission:drivers.deactivate')
             ->name('drivers.deactivate');
+
+        Route::middleware('permission:org-registration-requests.view')->group(function (): void {
+            Route::get('/org-registration-requests', [OrgRegistrationRequestController::class, 'index'])
+                ->name('org-registration-requests.index');
+            Route::get('/org-registration-requests/{orgRegistrationRequest}', [OrgRegistrationRequestController::class, 'show'])
+                ->name('org-registration-requests.show');
+        });
+
+        Route::post('/org-registration-requests', [OrgRegistrationRequestController::class, 'store'])
+            ->middleware('permission:org-registration-requests.create')
+            ->name('org-registration-requests.store');
+
+        Route::patch('/org-registration-requests/{orgRegistrationRequest}/approve', [OrgRegistrationRequestController::class, 'approve'])
+            ->middleware('permission:org-registration-requests.review')
+            ->name('org-registration-requests.approve');
+
+        Route::patch('/org-registration-requests/{orgRegistrationRequest}/reject', [OrgRegistrationRequestController::class, 'reject'])
+            ->middleware('permission:org-registration-requests.review')
+            ->name('org-registration-requests.reject');
+
+        Route::middleware('permission:user-org-requests.view')->group(function (): void {
+            Route::get('/user-org-requests', [UserOrgRequestController::class, 'index'])
+                ->name('user-org-requests.index');
+            Route::get('/user-org-requests/{userOrgRequest}', [UserOrgRequestController::class, 'show'])
+                ->name('user-org-requests.show');
+        });
+
+        Route::post('/user-org-requests', [UserOrgRequestController::class, 'store'])
+            ->middleware('permission:user-org-requests.create')
+            ->name('user-org-requests.store');
+
+        Route::patch('/user-org-requests/{userOrgRequest}/approve', [UserOrgRequestController::class, 'approve'])
+            ->middleware('permission:user-org-requests.review')
+            ->name('user-org-requests.approve');
+
+        Route::patch('/user-org-requests/{userOrgRequest}/reject', [UserOrgRequestController::class, 'reject'])
+            ->middleware('permission:user-org-requests.review')
+            ->name('user-org-requests.reject');
+
+        Route::middleware('permission:organizations.view')->group(function (): void {
+            Route::get('/organizations', [OrganizationController::class, 'index'])->name('organizations.index');
+            Route::get('/organizations/{organization}', [OrganizationController::class, 'show'])->name('organizations.show');
+        });
+
+        Route::post('/organizations', [OrganizationController::class, 'store'])
+            ->middleware('permission:organizations.create')
+            ->name('organizations.store');
+
+        Route::patch('/organizations/{organization}', [OrganizationController::class, 'update'])
+            ->middleware('permission:organizations.update')
+            ->name('organizations.update');
     });
 });

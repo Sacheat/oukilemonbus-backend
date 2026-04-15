@@ -42,13 +42,13 @@ class ModelConfigurationTest extends TestCase
     #[DataProvider('fillableProvider')]
     public function test_models_expose_the_expected_fillable_attributes(string $modelClass, array $expectedFillable): void
     {
-        $this->assertSame($expectedFillable, (new $modelClass())->getFillable());
+        $this->assertSame($expectedFillable, (new $modelClass)->getFillable());
     }
 
     #[DataProvider('castsProvider')]
     public function test_models_expose_the_expected_casts(string $modelClass, array $expectedCasts): void
     {
-        $casts = (new $modelClass())->getCasts();
+        $casts = (new $modelClass)->getCasts();
 
         foreach ($expectedCasts as $attribute => $cast) {
             $this->assertArrayHasKey($attribute, $casts);
@@ -64,7 +64,7 @@ class ModelConfigurationTest extends TestCase
         ?string $updatedAtColumn,
         bool $incrementing
     ): void {
-        $model = new $modelClass();
+        $model = new $modelClass;
 
         $this->assertSame($table, $model->getTable());
         $this->assertSame($primaryKey, $model->getKeyName());
@@ -81,7 +81,7 @@ class ModelConfigurationTest extends TestCase
         ?string $foreignKey = null,
         ?string $table = null
     ): void {
-        $relation = (new $modelClass())->{$method}();
+        $relation = (new $modelClass)->{$method}();
 
         $this->assertInstanceOf($relationClass, $relation);
 
@@ -116,7 +116,7 @@ class ModelConfigurationTest extends TestCase
             [UnavailabilityHistory::class, ['unavailability_id', 'old_reason_type', 'new_reason_type', 'old_start_datetime', 'new_start_datetime', 'old_end_datetime', 'new_end_datetime', 'old_reason', 'new_reason', 'changed_by_user_id', 'change_reason']],
             [ReservationStatusHistory::class, ['reservation_id', 'old_status', 'new_status', 'changed_by_user_id', 'reason']],
             [ReservationAssignmentHistory::class, ['reservation_id', 'assignment_type', 'old_driver_id', 'new_driver_id', 'old_vehicle_id', 'new_vehicle_id', 'changed_by_user_id', 'reason']],
-            [OrgRegistrationRequest::class, ['request_by_user_id', 'organization_name', 'organization_type', 'enterprise_number', 'official_email', 'phone', 'location_id', 'contact_person_name', 'contact_person_role', 'proof_document_path', 'comment', 'status', 'reviewed_by_user_id', 'reviewed_at', 'rejection_reason']],
+            [OrgRegistrationRequest::class, ['request_by_user_id', 'organization_name', 'organization_type', 'enterprise_number', 'official_email', 'phone', 'location_id', 'contact_person_name', 'contact_person_role', 'proof_document_path', 'comment', 'status', 'confidence_note', 'reviewed_by_user_id', 'reviewed_at', 'rejection_reason']],
             [UserOrgRequest::class, ['organization_id', 'requested_by_user_id', 'requested_role', 'justification', 'proof_document_path', 'status', 'confidence_note', 'reviewed_by_user_id', 'reviewed_at', 'rejection_reason']],
         ];
     }
@@ -139,7 +139,7 @@ class ModelConfigurationTest extends TestCase
             [UnavailabilityHistory::class, ['old_reason_type' => UnavailabilityReasonType::class, 'new_reason_type' => UnavailabilityReasonType::class, 'old_start_datetime' => 'datetime', 'new_start_datetime' => 'datetime', 'old_end_datetime' => 'datetime', 'new_end_datetime' => 'datetime', 'created_at' => 'datetime']],
             [ReservationStatusHistory::class, ['old_status' => ReservationStatus::class, 'new_status' => ReservationStatus::class, 'created_at' => 'datetime']],
             [ReservationAssignmentHistory::class, ['assignment_type' => AssignmentType::class, 'created_at' => 'datetime']],
-            [OrgRegistrationRequest::class, ['organization_type' => OrganizationType::class, 'status' => RequestStatus::class, 'reviewed_at' => 'datetime']],
+            [OrgRegistrationRequest::class, ['organization_type' => OrganizationType::class, 'status' => RequestStatus::class, 'confidence_note' => 'integer', 'reviewed_at' => 'datetime']],
             [UserOrgRequest::class, ['status' => RequestStatus::class, 'confidence_note' => 'integer', 'reviewed_at' => 'datetime']],
         ];
     }

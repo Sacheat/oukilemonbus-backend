@@ -123,6 +123,9 @@ class MigrationStructureTest extends TestCase
         $this->assertStringContainsString("Schema::create('org_registration_requests'", $orgRegistrationMigration);
         $this->assertStringContainsString("\$table->string('official_email', 255)", $orgRegistrationMigration);
         $this->assertStringContainsString("\$table->string('status', 50)", $orgRegistrationMigration);
+        $this->assertStringContainsString("\$table->integer('confidence_note')->nullable()", $orgRegistrationMigration);
+        $this->assertStringContainsString('ALTER TABLE {$prefix}org_registration_requests', $orgRegistrationMigration);
+        $this->assertStringContainsString("\$constraint = 'chk_'.\$prefix.'org_registration_requests_confidence_note';", $orgRegistrationMigration);
     }
 
     private function migrationContents(string $filename): string

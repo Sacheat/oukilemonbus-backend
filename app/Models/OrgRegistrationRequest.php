@@ -22,6 +22,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'proof_document_path',
     'comment',
     'status',
+    'confidence_note',
     'reviewed_by_user_id',
     'reviewed_at',
     'rejection_reason',
@@ -50,6 +51,7 @@ class OrgRegistrationRequest extends Model
         return [
             'organization_type' => OrganizationType::class,
             'status' => RequestStatus::class,
+            'confidence_note' => 'integer',
             'reviewed_at' => 'datetime',
         ];
     }

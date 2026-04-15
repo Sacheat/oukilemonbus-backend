@@ -12,8 +12,8 @@ enum RequestStatus: string
     {
         return match ($this) {
             self::EN_ATTENTE => 'En attente',
-            self::APPROUVE => 'Approuvé',
-            self::REFUSE => 'Refusé',
+            self::APPROUVE => 'Approuve',
+            self::REFUSE => 'Refuse',
         };
     }
 
@@ -34,7 +34,7 @@ enum RequestStatus: string
     public static function toArray(): array
     {
         return array_column(
-            array_map(fn($case) => [$case->value, $case->label()], self::cases()),
+            array_map(fn ($case) => [$case->value, $case->label()], self::cases()),
             1,
             0
         );
