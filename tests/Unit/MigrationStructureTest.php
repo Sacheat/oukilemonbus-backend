@@ -132,11 +132,11 @@ class MigrationStructureTest extends TestCase
         $this->assertStringContainsString("\$constraint = 'chk_'.\$prefix.'org_registration_requests_confidence_note';", $orgRegistrationMigration);
 
         $this->assertStringContainsString("Schema::create('municipalities'", $municipalitiesMigration);
-        $this->assertStringContainsString("\$table->string('best_id', 500)->nullable()", $municipalitiesMigration);
+        $this->assertStringContainsString("\$table->string('external_id', 500)->nullable()", $municipalitiesMigration);
         $this->assertStringContainsString("\$table->string('nis_code', 20)->nullable()", $municipalitiesMigration);
         $this->assertStringContainsString("\$table->boolean('is_active')->default(false)", $municipalitiesMigration);
         $this->assertStringContainsString("Schema::create('municipality_localities'", $municipalityLocalitiesMigration);
-        $this->assertStringContainsString("\$table->string('best_id', 500)->nullable()", $municipalityLocalitiesMigration);
+        $this->assertStringContainsString("\$table->string('external_id', 500)->nullable()", $municipalityLocalitiesMigration);
         $this->assertStringContainsString("\$table->unique(['municipality_id', 'normalized_name']", $municipalityLocalitiesMigration);
     }
 

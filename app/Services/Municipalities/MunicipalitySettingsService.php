@@ -11,7 +11,7 @@ use Illuminate\Validation\ValidationException;
 class MunicipalitySettingsService
 {
     public function __construct(
-        private readonly BestAddressMunicipalityProvider $bestAddressMunicipalityProvider
+        private readonly GeoNamesMunicipalityProvider $municipalityProvider
     ) {}
 
     public function create(array $data): Municipality
@@ -19,7 +19,7 @@ class MunicipalitySettingsService
         return DB::transaction(function () use ($data): Municipality {
             $municipality = Municipality::create([
                 'name' => $data['name'],
-                'best_id' => $data['best_id'] ?? null,
+                'external_id' => $data['external_id'] ?? null,
                 'nis_code' => $data['nis_code'] ?? null,
                 'country' => strtoupper($data['country'] ?? 'BE'),
                 'postal_code' => $data['postal_code'] ?? null,
@@ -51,7 +51,7 @@ class MunicipalitySettingsService
                 'country' => array_key_exists('country', $data) ? strtoupper($data['country']) : $municipality->country,
             ], [
                 'name',
-                'best_id',
+                'external_id',
                 'nis_code',
                 'country',
                 'postal_code',
@@ -74,7 +74,7 @@ class MunicipalitySettingsService
             'normalized_name' => $this->normalize($data['name']),
         ], [
             'name' => $data['name'],
-            'best_id' => $data['best_id'] ?? null,
+            'external_id' => $data['external_id'] ?? null,
             'source' => $data['source'] ?? 'manual',
             'is_active' => $data['is_active'] ?? true,
         ])->refresh();
@@ -106,7 +106,7 @@ class MunicipalitySettingsService
         ], [
             'name',
             'normalized_name',
-            'best_id',
+            'external_id',
             'source',
             'is_active',
         ]));
@@ -121,32 +121,43 @@ class MunicipalitySettingsService
         return $locality->refresh();
     }
 
-    public function syncFromBestAddress(Municipality $municipality): Municipality
+    public function syncFromExternalProvider(Municipality $municipality): Municipality
     {
         return DB::transaction(function () use ($municipality): Municipality {
-            $bestMunicipality = $this->bestAddressMunicipalityProvider->findMunicipality($municipality);
+            $providerMunicipality = $this->municipalityProvider->findMunicipality($municipality);
 
-            if ($bestMunicipality) {
+            if ($providerMunicipality) {
                 $municipality->update([
-                    'best_id' => $bestMunicipality['id'] ?? $municipality->best_id,
-                    'nis_code' => $bestMunicipality['nisCode'] ?? $municipality->nis_code,
-                    'source' => 'best_address',
+                    'external_id' => $providerMunicipality['geonameId'] ?? $municipality->external_id,
+                    'source' => 'geonames',
                     'synced_at' => now(),
                 ]);
             }
 
-            $localities = $this->bestAddressMunicipalityProvider->fetchPartOfMunicipalities($municipality->refresh());
+            $localities = $this->municipalityProvider->fetchLocalities($municipality->refresh());
+
+            $syncedLocalityNames = $localities
+                ->pluck('name')
+                ->filter()
+                ->map(fn (string $name): string => $this->normalize($name))
+                ->all();
 
             foreach ($localities as $locality) {
                 $this->addLocality($municipality, [
                     'name' => $locality['name'],
-                    'best_id' => $locality['id'] ?? null,
-                    'source' => 'best_address',
+                    'external_id' => $locality['id'] ?? null,
+                    'source' => 'geonames',
                     'is_active' => true,
                 ]);
             }
 
             if ($localities->isNotEmpty()) {
+                MunicipalityLocality::query()
+                    ->where('municipality_id', $municipality->id)
+                    ->where('source', 'geonames')
+                    ->whereNotIn('normalized_name', $syncedLocalityNames)
+                    ->update(['is_active' => false]);
+
                 $municipality->update(['synced_at' => now()]);
             }
 

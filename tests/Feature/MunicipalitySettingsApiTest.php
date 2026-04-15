@@ -9,7 +9,6 @@ use App\Models\MunicipalityLocality;
 use App\Models\User;
 use App\Services\Locations\MunicipalityService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Laravel\Sanctum\Sanctum;
 use Spatie\Permission\Models\Permission;
@@ -25,14 +24,10 @@ class MunicipalitySettingsApiTest extends TestCase
     {
         parent::setUp();
 
-        Cache::forget('best_address.oauth_token');
-
         config([
-            'services.best_address.base_url' => 'https://best.test/api/BeSt/v1/belgianAddress/v2',
-            'services.best_address.token_url' => 'https://best.test/api/oauth2/token',
-            'services.best_address.client_id' => 'client-id',
-            'services.best_address.client_secret' => 'client-secret',
-            'services.best_address.max_pages' => 5,
+            'services.geonames.base_url' => 'https://geonames.test',
+            'services.geonames.username' => 'demo',
+            'services.geonames.max_rows' => 100,
         ]);
 
         app(PermissionRegistrar::class)->forgetCachedPermissions();
@@ -82,7 +77,7 @@ class MunicipalitySettingsApiTest extends TestCase
         ])
             ->assertCreated()
             ->assertJsonPath('data.name', 'Dinant')
-            ->assertJsonPath('data.best_id', null)
+            ->assertJsonPath('data.external_id', null)
             ->assertJsonPath('data.nis_code', null)
             ->assertJsonPath('data.country', 'BE')
             ->assertJsonPath('data.is_active', true)
@@ -224,7 +219,7 @@ class MunicipalitySettingsApiTest extends TestCase
             ]);
     }
 
-    public function test_admin_can_sync_localities_from_best_address(): void
+    public function test_admin_can_sync_localities_from_geonames(): void
     {
         $admin = User::factory()->create();
         $admin->assignRole('admin');
@@ -233,71 +228,77 @@ class MunicipalitySettingsApiTest extends TestCase
         $municipality = Municipality::create([
             'name' => 'Dinant',
             'country' => 'BE',
+            'postal_code' => '5500',
+            'is_active' => true,
+        ]);
+
+        MunicipalityLocality::create([
+            'municipality_id' => $municipality->id,
+            'name' => 'Noise From Previous Sync',
+            'normalized_name' => 'noise from previous sync',
+            'source' => 'geonames',
             'is_active' => true,
         ]);
 
         Http::fake([
-            'https://best.test/api/oauth2/token' => Http::response([
-                'access_token' => 'fake-token',
-                'token_type' => 'Bearer',
-                'expires_in' => 3600,
-            ]),
-            'https://best.test/api/BeSt/v1/belgianAddress/v2/municipalities*' => Http::response([
-                'items' => [
+            'https://geonames.test/searchJSON*' => Http::response([
+                'geonames' => [
                     [
-                        'id' => 'geodata.wallonie.be/id/Municipality/91034/7',
-                        'nisCode' => '91034',
-                        'name' => ['fr' => 'Dinant'],
-                        'status' => 'current',
+                        'geonameId' => 2799366,
+                        'name' => 'Dinant',
+                        'countryCode' => 'BE',
                     ],
                 ],
             ]),
-            'https://best.test/api/BeSt/v1/belgianAddress/v2/addresses*' => Http::response([
-                'items' => [
+            'https://geonames.test/postalCodeSearchJSON*' => Http::response([
+                'postalCodes' => [
                     [
-                        'hasPartOfMunicipality' => [
-                            'id' => 'geodata.wallonie.be/id/PartOfMunicipality/1/1',
-                            'name' => ['fr' => 'Anseremme'],
-                        ],
+                        'geonameId' => 2803130,
+                        'placeName' => 'Anseremme',
+                        'postalCode' => '5500',
                     ],
                     [
-                        'hasPartOfMunicipality' => [
-                            'id' => 'geodata.wallonie.be/id/PartOfMunicipality/2/1',
-                            'name' => ['fr' => 'Bouvignes-sur-Meuse'],
-                        ],
+                        'geonameId' => 2801402,
+                        'placeName' => 'Bouvignes-sur-Meuse',
+                        'postalCode' => '5500',
                     ],
                     [
-                        'hasPartOfMunicipality' => [
-                            'id' => 'geodata.wallonie.be/id/PartOfMunicipality/1/1',
-                            'name' => ['fr' => 'Anseremme'],
-                        ],
+                        'geonameId' => 2803130,
+                        'placeName' => 'Anseremme',
+                        'postalCode' => '5500',
                     ],
                 ],
-                'totalPages' => 1,
             ]),
         ]);
 
         $this->postJson("/api/municipalities/{$municipality->id}/sync-localities")
             ->assertOk()
-            ->assertJsonPath('data.best_id', 'geodata.wallonie.be/id/Municipality/91034/7')
-            ->assertJsonPath('data.nis_code', '91034')
-            ->assertJsonPath('data.source', 'best_address')
-            ->assertJsonCount(2, 'data.localities');
+            ->assertJsonPath('data.external_id', '2799366')
+            ->assertJsonPath('data.nis_code', null)
+            ->assertJsonPath('data.source', 'geonames')
+            ->assertJsonCount(3, 'data.localities');
 
         $this->assertDatabaseHas('municipality_localities', [
             'municipality_id' => $municipality->id,
             'name' => 'Anseremme',
             'normalized_name' => 'anseremme',
-            'best_id' => 'geodata.wallonie.be/id/PartOfMunicipality/1/1',
-            'source' => 'best_address',
+            'external_id' => '2803130',
+            'source' => 'geonames',
         ]);
 
         $this->assertDatabaseHas('municipality_localities', [
             'municipality_id' => $municipality->id,
             'name' => 'Bouvignes-sur-Meuse',
             'normalized_name' => 'bouvignes-sur-meuse',
-            'best_id' => 'geodata.wallonie.be/id/PartOfMunicipality/2/1',
-            'source' => 'best_address',
+            'external_id' => '2801402',
+            'source' => 'geonames',
+        ]);
+
+        $this->assertDatabaseHas('municipality_localities', [
+            'municipality_id' => $municipality->id,
+            'normalized_name' => 'noise from previous sync',
+            'source' => 'geonames',
+            'is_active' => false,
         ]);
     }
 }

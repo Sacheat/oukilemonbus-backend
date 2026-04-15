@@ -15,7 +15,7 @@ class UpdateMunicipalityRequest extends FormRequest
     {
         return [
             'name' => ['sometimes', 'required', 'string', 'max:100'],
-            'best_id' => ['sometimes', 'nullable', 'string', 'max:500'],
+            'external_id' => ['sometimes', 'nullable', 'string', 'max:500'],
             'nis_code' => ['sometimes', 'nullable', 'string', 'max:20'],
             'country' => ['sometimes', 'string', 'size:2'],
             'postal_code' => ['sometimes', 'nullable', 'string', 'max:20'],

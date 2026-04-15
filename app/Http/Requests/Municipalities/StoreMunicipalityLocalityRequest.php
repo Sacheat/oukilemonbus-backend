@@ -15,7 +15,7 @@ class StoreMunicipalityLocalityRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:100'],
-            'best_id' => ['nullable', 'string', 'max:500'],
+            'external_id' => ['nullable', 'string', 'max:500'],
             'source' => ['nullable', 'string', 'max:50'],
             'is_active' => ['sometimes', 'boolean'],
         ];

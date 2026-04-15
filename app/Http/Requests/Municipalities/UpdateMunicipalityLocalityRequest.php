@@ -15,7 +15,7 @@ class UpdateMunicipalityLocalityRequest extends FormRequest
     {
         return [
             'name' => ['sometimes', 'required', 'string', 'max:100'],
-            'best_id' => ['sometimes', 'nullable', 'string', 'max:500'],
+            'external_id' => ['sometimes', 'nullable', 'string', 'max:500'],
             'source' => ['sometimes', 'nullable', 'string', 'max:50'],
             'is_active' => ['sometimes', 'boolean'],
         ];

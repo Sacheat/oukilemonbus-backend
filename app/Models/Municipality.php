@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable(['name', 'best_id', 'nis_code', 'country', 'postal_code', 'source', 'is_active', 'synced_at'])]
+#[Fillable(['name', 'external_id', 'nis_code', 'country', 'postal_code', 'source', 'is_active', 'synced_at'])]
 class Municipality extends Model
 {
     use HasFactory;

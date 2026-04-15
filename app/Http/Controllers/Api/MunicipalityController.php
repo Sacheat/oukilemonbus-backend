@@ -54,7 +54,7 @@ class MunicipalityController extends Controller
         SyncMunicipalityLocalitiesRequest $request,
         Municipality $municipality
     ): MunicipalityResource {
-        $municipality = $this->municipalitySettingsService->syncFromBestAddress($municipality);
+        $municipality = $this->municipalitySettingsService->syncFromExternalProvider($municipality);
 
         return new MunicipalityResource($municipality->load('localities'));
     }

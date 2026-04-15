@@ -14,7 +14,7 @@ class MunicipalityLocalityResource extends JsonResource
             'municipality_id' => $this->municipality_id,
             'name' => $this->name,
             'normalized_name' => $this->normalized_name,
-            'best_id' => $this->best_id,
+            'external_id' => $this->external_id,
             'source' => $this->source,
             'is_active' => $this->is_active,
             'created_at' => $this->created_at?->toISOString(),

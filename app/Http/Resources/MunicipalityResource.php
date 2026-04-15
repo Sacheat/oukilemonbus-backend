@@ -12,7 +12,7 @@ class MunicipalityResource extends JsonResource
         return [
             'id' => $this->id,
             'name' => $this->name,
-            'best_id' => $this->best_id,
+            'external_id' => $this->external_id,
             'nis_code' => $this->nis_code,
             'country' => $this->country,
             'postal_code' => $this->postal_code,
