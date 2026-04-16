@@ -49,7 +49,7 @@ class Unavailability extends Model
             'reason_type' => UnavailabilityReasonType::class,
             'start_datetime' => 'datetime',
             'end_datetime' => 'datetime',
-            'is_active'      => 'boolean',
+            'is_active' => 'boolean',
         ];
     }
 }

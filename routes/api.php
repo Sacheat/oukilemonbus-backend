@@ -7,10 +7,10 @@ use App\Http\Controllers\Api\MunicipalityController;
 use App\Http\Controllers\Api\MunicipalityLocalityController;
 use App\Http\Controllers\Api\OrganizationController;
 use App\Http\Controllers\Api\OrgRegistrationRequestController;
+use App\Http\Controllers\Api\UnavailabilityController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\UserOrgRequestController;
 use App\Http\Controllers\Api\VehicleController;
-use App\Http\Controllers\Api\UnavailabilityController;
 use Illuminate\Support\Facades\Route;
 
 Route::name('api.')->group(function (): void {

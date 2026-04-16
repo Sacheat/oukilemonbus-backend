@@ -16,12 +16,12 @@ class UpdateUnavailabilityRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'reason_type'    => ['sometimes', Rule::enum(UnavailabilityReasonType::class)],
-            'reason'         => ['sometimes', 'nullable', 'string', 'max:500'],
-            'driver_id'      => ['sometimes', 'nullable', 'integer', 'exists:drivers,id'],
-            'vehicle_id'     => ['sometimes', 'nullable', 'integer', 'exists:vehicles,id'],
+            'reason_type' => ['sometimes', Rule::enum(UnavailabilityReasonType::class)],
+            'reason' => ['sometimes', 'nullable', 'string', 'max:500'],
+            'driver_id' => ['sometimes', 'nullable', 'integer', 'exists:drivers,id'],
+            'vehicle_id' => ['sometimes', 'nullable', 'integer', 'exists:vehicles,id'],
             'start_datetime' => ['sometimes', 'date', 'before:end_datetime'],
-            'end_datetime'   => ['sometimes', 'date', 'after:start_datetime'],
+            'end_datetime' => ['sometimes', 'date', 'after:start_datetime'],
         ];
     }
 
@@ -29,9 +29,9 @@ class UpdateUnavailabilityRequest extends FormRequest
     {
         return [
             'start_datetime.before' => 'La date de debut doit etre avant la date de fin.',
-            'end_datetime.after'    => 'La date de fin doit etre apres la date de debut.',
-            'driver_id.exists'      => 'Ce chauffeur n\'existe pas.',
-            'vehicle_id.exists'     => 'Ce vehicule n\'existe pas.',
+            'end_datetime.after' => 'La date de fin doit etre apres la date de debut.',
+            'driver_id.exists' => 'Ce chauffeur n\'existe pas.',
+            'vehicle_id.exists' => 'Ce vehicule n\'existe pas.',
         ];
     }
 }

@@ -5,6 +5,7 @@ namespace App\Services\Unavailabilities;
 use App\Enums\UnavailabilityReasonType;
 use App\Exceptions\UnavailabilityException;
 use App\Models\Unavailability;
+use Illuminate\Support\Carbon;
 
 class UnavailabilityService
 {
@@ -46,6 +47,18 @@ class UnavailabilityService
     /**
      * @throws UnavailabilityException
      */
+    private function validateDateRange(mixed $startDatetime, mixed $endDatetime): void
+    {
+        if (Carbon::parse($endDatetime)->lessThanOrEqualTo(Carbon::parse($startDatetime))) {
+            throw new UnavailabilityException(
+                'La date de fin doit etre apres la date de debut.'
+            );
+        }
+    }
+
+    /**
+     * @throws UnavailabilityException
+     */
     public function create(array $data, int $createdByUserId): Unavailability
     {
         $reasonType = UnavailabilityReasonType::from($data['reason_type']);
@@ -55,6 +68,7 @@ class UnavailabilityService
             $data['driver_id'] ?? null,
             $data['vehicle_id'] ?? null
         );
+        $this->validateDateRange($data['start_datetime'], $data['end_datetime']);
 
         return Unavailability::create([
             ...$data,
@@ -73,17 +87,24 @@ class UnavailabilityService
             : $unavailability->reason_type;
 
         // On prend les ids de la requete ou ceux deja en base
-        $driverId  = array_key_exists('driver_id', $data)  ? $data['driver_id']  : $unavailability->driver_id;
+        $driverId = array_key_exists('driver_id', $data) ? $data['driver_id'] : $unavailability->driver_id;
         $vehicleId = array_key_exists('vehicle_id', $data) ? $data['vehicle_id'] : $unavailability->vehicle_id;
+        $startDatetime = array_key_exists('start_datetime', $data)
+            ? $data['start_datetime']
+            : $unavailability->start_datetime;
+        $endDatetime = array_key_exists('end_datetime', $data)
+            ? $data['end_datetime']
+            : $unavailability->end_datetime;
 
         $this->validateSubjectAssignment($reasonType, $driverId, $vehicleId);
+        $this->validateDateRange($startDatetime, $endDatetime);
 
         $unavailability->update($data);
 
         return $unavailability->refresh();
     }
 
-        public function cancel(Unavailability $unavailability, int $cancelledByUserId): Unavailability
+    public function cancel(Unavailability $unavailability, int $cancelledByUserId): Unavailability
     {
         $unavailability->update(['is_active' => false]);
 

@@ -47,9 +47,10 @@ class UnavailabilityApiTest extends TestCase
     private function createDriver(): Driver
     {
         $user = User::factory()->create();
+
         return Driver::create([
-            'user_id'             => $user->id,
-            'licence_number'      => 'B-123456',
+            'user_id' => $user->id,
+            'licence_number' => 'B-123456',
             'licence_expiry_date' => '2030-01-01',
         ]);
     }
@@ -58,7 +59,7 @@ class UnavailabilityApiTest extends TestCase
     {
         return Vehicle::create([
             'licence_plate' => '1-VJX-649',
-            'capacity'      => 41,
+            'capacity' => 41,
         ]);
     }
 
@@ -87,11 +88,11 @@ class UnavailabilityApiTest extends TestCase
         $driver = $this->createDriver();
 
         $this->postJson('/api/unavailabilities', [
-            'reason_type'    => 'driver',
-            'reason'         => 'Maladie',
-            'driver_id'      => $driver->id,
+            'reason_type' => 'driver',
+            'reason' => 'Maladie',
+            'driver_id' => $driver->id,
             'start_datetime' => '2026-06-10 08:00:00',
-            'end_datetime'   => '2026-06-10 18:00:00',
+            'end_datetime' => '2026-06-10 18:00:00',
         ])
             ->assertCreated()
             ->assertJsonPath('data.reason_type', 'driver')
@@ -99,7 +100,7 @@ class UnavailabilityApiTest extends TestCase
 
         $this->assertDatabaseHas('unavailabilities', [
             'reason_type' => 'driver',
-            'driver_id'   => $driver->id,
+            'driver_id' => $driver->id,
         ]);
     }
 
@@ -112,11 +113,11 @@ class UnavailabilityApiTest extends TestCase
         $vehicle = $this->createVehicle();
 
         $this->postJson('/api/unavailabilities', [
-            'reason_type'    => 'vehicle',
-            'reason'         => 'Maintenance',
-            'vehicle_id'     => $vehicle->id,
+            'reason_type' => 'vehicle',
+            'reason' => 'Maintenance',
+            'vehicle_id' => $vehicle->id,
             'start_datetime' => '2026-06-10 08:00:00',
-            'end_datetime'   => '2026-06-10 18:00:00',
+            'end_datetime' => '2026-06-10 18:00:00',
         ])
             ->assertCreated()
             ->assertJsonPath('data.reason_type', 'vehicle')
@@ -130,9 +131,9 @@ class UnavailabilityApiTest extends TestCase
         Sanctum::actingAs($agent);
 
         $this->postJson('/api/unavailabilities', [
-            'reason_type'    => 'driver',
+            'reason_type' => 'driver',
             'start_datetime' => '2026-06-10 08:00:00',
-            'end_datetime'   => '2026-06-10 18:00:00',
+            'end_datetime' => '2026-06-10 18:00:00',
         ])->assertUnprocessable();
     }
 
@@ -142,15 +143,15 @@ class UnavailabilityApiTest extends TestCase
         $agent->assignRole('agent_communal');
         Sanctum::actingAs($agent);
 
-        $driver  = $this->createDriver();
+        $driver = $this->createDriver();
         $vehicle = $this->createVehicle();
 
         $this->postJson('/api/unavailabilities', [
-            'reason_type'    => 'driver',
-            'driver_id'      => $driver->id,
-            'vehicle_id'     => $vehicle->id,
+            'reason_type' => 'driver',
+            'driver_id' => $driver->id,
+            'vehicle_id' => $vehicle->id,
             'start_datetime' => '2026-06-10 08:00:00',
-            'end_datetime'   => '2026-06-10 18:00:00',
+            'end_datetime' => '2026-06-10 18:00:00',
         ])->assertUnprocessable();
     }
 
@@ -162,10 +163,10 @@ class UnavailabilityApiTest extends TestCase
 
         $driver = $this->createDriver();
         $unavailability = Unavailability::create([
-            'reason_type'        => 'driver',
-            'driver_id'          => $driver->id,
-            'start_datetime'     => '2026-06-10 08:00:00',
-            'end_datetime'       => '2026-06-10 18:00:00',
+            'reason_type' => 'driver',
+            'driver_id' => $driver->id,
+            'start_datetime' => '2026-06-10 08:00:00',
+            'end_datetime' => '2026-06-10 18:00:00',
             'created_by_user_id' => $agent->id,
         ]);
 
@@ -176,6 +177,50 @@ class UnavailabilityApiTest extends TestCase
             ->assertJsonPath('data.is_active', true);
     }
 
+    public function test_update_rejects_partial_start_datetime_after_existing_end_datetime(): void
+    {
+        $agent = User::factory()->create();
+        $agent->assignRole('agent_communal');
+        Sanctum::actingAs($agent);
+
+        $driver = $this->createDriver();
+        $unavailability = Unavailability::create([
+            'reason_type' => 'driver',
+            'driver_id' => $driver->id,
+            'start_datetime' => '2026-06-10 08:00:00',
+            'end_datetime' => '2026-06-10 18:00:00',
+            'created_by_user_id' => $agent->id,
+        ]);
+
+        $this->patchJson("/api/unavailabilities/{$unavailability->id}", [
+            'start_datetime' => '2026-06-10 20:00:00',
+        ])
+            ->assertUnprocessable()
+            ->assertJsonPath('message', 'La date de debut doit etre avant la date de fin.');
+    }
+
+    public function test_update_rejects_partial_end_datetime_before_existing_start_datetime(): void
+    {
+        $agent = User::factory()->create();
+        $agent->assignRole('agent_communal');
+        Sanctum::actingAs($agent);
+
+        $driver = $this->createDriver();
+        $unavailability = Unavailability::create([
+            'reason_type' => 'driver',
+            'driver_id' => $driver->id,
+            'start_datetime' => '2026-06-10 08:00:00',
+            'end_datetime' => '2026-06-10 18:00:00',
+            'created_by_user_id' => $agent->id,
+        ]);
+
+        $this->patchJson("/api/unavailabilities/{$unavailability->id}", [
+            'end_datetime' => '2026-06-10 07:00:00',
+        ])
+            ->assertUnprocessable()
+            ->assertJsonPath('message', 'La date de fin doit etre apres la date de debut.');
+    }
+
     public function test_agent_can_cancel_unavailability(): void
     {
         $agent = User::factory()->create();
@@ -184,10 +229,10 @@ class UnavailabilityApiTest extends TestCase
 
         $driver = $this->createDriver();
         $unavailability = Unavailability::create([
-            'reason_type'        => 'driver',
-            'driver_id'          => $driver->id,
-            'start_datetime'     => '2026-06-10 08:00:00',
-            'end_datetime'       => '2026-06-10 18:00:00',
+            'reason_type' => 'driver',
+            'driver_id' => $driver->id,
+            'start_datetime' => '2026-06-10 08:00:00',
+            'end_datetime' => '2026-06-10 18:00:00',
             'created_by_user_id' => $agent->id,
         ]);
 
@@ -204,10 +249,10 @@ class UnavailabilityApiTest extends TestCase
 
         $driver = $this->createDriver();
         $unavailability = Unavailability::create([
-            'reason_type'        => 'driver',
-            'driver_id'          => $driver->id,
-            'start_datetime'     => '2026-06-10 08:00:00',
-            'end_datetime'       => '2026-06-10 18:00:00',
+            'reason_type' => 'driver',
+            'driver_id' => $driver->id,
+            'start_datetime' => '2026-06-10 08:00:00',
+            'end_datetime' => '2026-06-10 18:00:00',
             'created_by_user_id' => $agent->id,
         ]);
 
