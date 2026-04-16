@@ -10,15 +10,26 @@ use Illuminate\Validation\ValidationException;
 
 class UserOrgRequestService
 {
+    public function __construct(
+        private readonly UserOrgRequestConfidenceScoreService $confidenceScoreService
+    ) {}
+
     public function create(User $user, array $data): UserOrgRequest
     {
         $this->ensureUserCanRequestOrganization($user, (int) $data['organization_id']);
 
-        return UserOrgRequest::create([
+        $request = UserOrgRequest::create([
             ...$data,
             'requested_by_user_id' => $user->id,
             'status' => RequestStatus::EN_ATTENTE,
         ])->refresh();
+
+        $request->load(['organization.location', 'requestedByUser']);
+        $request->update([
+            'confidence_note' => $this->confidenceScoreService->calculate($request),
+        ]);
+
+        return $request->refresh();
     }
 
     public function approve(UserOrgRequest $request, User $reviewer, ?int $confidenceNote = null): UserOrgRequest
@@ -39,7 +50,7 @@ class UserOrgRequestService
 
             $request->update([
                 'status' => RequestStatus::APPROUVE,
-                'confidence_note' => $confidenceNote,
+                'confidence_note' => $confidenceNote ?? $request->confidence_note,
                 'reviewed_by_user_id' => $reviewer->id,
                 'reviewed_at' => now(),
                 'rejection_reason' => null,
@@ -55,7 +66,7 @@ class UserOrgRequestService
 
         $request->update([
             'status' => RequestStatus::REFUSE,
-            'confidence_note' => $confidenceNote,
+            'confidence_note' => $confidenceNote ?? $request->confidence_note,
             'reviewed_by_user_id' => $reviewer->id,
             'reviewed_at' => now(),
             'rejection_reason' => $reason,

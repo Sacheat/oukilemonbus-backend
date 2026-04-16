@@ -3,6 +3,7 @@
 namespace App\Http\Resources;
 
 use App\Enums\RequestStatus;
+use App\Services\UserOrgRequests\UserOrgRequestConfidenceScoreService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -23,6 +24,7 @@ class UserOrgRequestResource extends JsonResource
             'status' => $status?->value,
             'status_label' => $status?->label(),
             'confidence_note' => $this->confidence_note,
+            'confidence_details' => app(UserOrgRequestConfidenceScoreService::class)->explain($this->resource),
             'reviewed_by_user_id' => $this->reviewed_by_user_id,
             'reviewed_at' => $this->reviewed_at?->toISOString(),
             'rejection_reason' => $this->rejection_reason,
