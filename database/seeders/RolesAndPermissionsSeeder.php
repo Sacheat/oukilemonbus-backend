@@ -41,6 +41,10 @@ class RolesAndPermissionsSeeder extends Seeder
             'organizations.view',
             'organizations.create',
             'organizations.update',
+            'unavailabilities.view',
+            'unavailabilities.create',
+            'unavailabilities.update',
+            'unavailabilities.cancel',
         ];
 
         foreach ($permissions as $permission) {
@@ -73,6 +77,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'org-registration-requests.create',
             'user-org-requests.create',
             'organizations.view',
+            'unavailabilities.view',
         ]);
 
         $agentCommunal->givePermissionTo([
@@ -102,6 +107,10 @@ class RolesAndPermissionsSeeder extends Seeder
             'organizations.view',
             'organizations.create',
             'organizations.update',
+            'unavailabilities.view',
+            'unavailabilities.create',
+            'unavailabilities.update',
+            'unavailabilities.cancel',
         ]);
 
         $responsableOrganisation->givePermissionTo([

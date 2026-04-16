@@ -7,21 +7,35 @@ use App\Http\Controllers\Api\MunicipalityController;
 use App\Http\Controllers\Api\MunicipalityLocalityController;
 use App\Http\Controllers\Api\OrganizationController;
 use App\Http\Controllers\Api\OrgRegistrationRequestController;
+use App\Http\Controllers\Api\UnavailabilityController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\UserOrgRequestController;
 use App\Http\Controllers\Api\VehicleController;
 use Illuminate\Support\Facades\Route;
 
 Route::name('api.')->group(function (): void {
+
+    // =========================================================================
+    // Routes accessibles sans authentification
+    // =========================================================================
     Route::middleware('guest')->group(function (): void {
         Route::post('/auth/register', [AuthController::class, 'register'])->name('auth.register');
         Route::post('/auth/login', [AuthController::class, 'login'])->name('auth.login');
     });
 
+    // =========================================================================
+    // Toutes les routes suivantes nécessitent une authentification
+    // =========================================================================
     Route::middleware('auth:sanctum')->group(function (): void {
+        /**
+         * Authentication routes
+         */
         Route::get('/auth/me', [AuthController::class, 'me'])->name('auth.me');
         Route::post('/auth/logout', [AuthController::class, 'logout'])->name('auth.logout');
 
+        /**
+         * Users routes
+         */
         Route::middleware('permission:users.view')->group(function (): void {
             Route::get('/users', [UserController::class, 'index'])->name('users.index');
             Route::get('/users/{user}', [UserController::class, 'show'])->name('users.show');
@@ -42,6 +56,9 @@ Route::name('api.')->group(function (): void {
             ->middleware('permission:users.deactivate')
             ->name('users.deactivate');
 
+        /**
+         * Locations routes
+         */
         Route::middleware('permission:locations.view')->group(function (): void {
             Route::get('/locations', [LocationController::class, 'index'])->name('locations.index');
             Route::get('/locations/{location}', [LocationController::class, 'show'])->name('locations.show');
@@ -55,6 +72,9 @@ Route::name('api.')->group(function (): void {
             ->middleware('permission:locations.update')
             ->name('locations.update');
 
+        /**
+         * Municipalities and localities routes
+         */
         Route::middleware('permission:municipalities.view')->group(function (): void {
             Route::get('/municipalities', [MunicipalityController::class, 'index'])->name('municipalities.index');
             Route::get('/municipalities/{municipality}', [MunicipalityController::class, 'show'])->name('municipalities.show');
@@ -84,6 +104,9 @@ Route::name('api.')->group(function (): void {
             ->middleware('permission:municipalities.manage')
             ->name('municipality-localities.deactivate');
 
+        /**
+         * Vehicles routes
+         */
         Route::middleware('permission:vehicles.view')->group(function (): void {
             Route::get('/vehicles', [VehicleController::class, 'index'])->name('vehicles.index');
             Route::get('/vehicles/{vehicle}', [VehicleController::class, 'show'])->name('vehicles.show');
@@ -101,6 +124,9 @@ Route::name('api.')->group(function (): void {
             ->middleware('permission:vehicles.deactivate')
             ->name('vehicles.deactivate');
 
+        /**
+         * Drivers routes
+         */
         Route::middleware('permission:drivers.view')->group(function (): void {
             Route::get('/drivers', [DriverController::class, 'index'])->name('drivers.index');
             Route::get('/drivers/{driver}', [DriverController::class, 'show'])->name('drivers.show');
@@ -118,6 +144,9 @@ Route::name('api.')->group(function (): void {
             ->middleware('permission:drivers.deactivate')
             ->name('drivers.deactivate');
 
+        /**
+         * Organization and registration requests routes
+         */
         Route::middleware('permission:org-registration-requests.view')->group(function (): void {
             Route::get('/org-registration-requests', [OrgRegistrationRequestController::class, 'index'])
                 ->name('org-registration-requests.index');
@@ -137,6 +166,9 @@ Route::name('api.')->group(function (): void {
             ->middleware('permission:org-registration-requests.review')
             ->name('org-registration-requests.reject');
 
+        /**
+         * User organization requests routes
+         */
         Route::middleware('permission:user-org-requests.view')->group(function (): void {
             Route::get('/user-org-requests', [UserOrgRequestController::class, 'index'])
                 ->name('user-org-requests.index');
@@ -156,6 +188,9 @@ Route::name('api.')->group(function (): void {
             ->middleware('permission:user-org-requests.review')
             ->name('user-org-requests.reject');
 
+        /**
+         * Organizations routes
+         */
         Route::middleware('permission:organizations.view')->group(function (): void {
             Route::get('/organizations', [OrganizationController::class, 'index'])->name('organizations.index');
             Route::get('/organizations/{organization}', [OrganizationController::class, 'show'])->name('organizations.show');
@@ -168,5 +203,25 @@ Route::name('api.')->group(function (): void {
         Route::patch('/organizations/{organization}', [OrganizationController::class, 'update'])
             ->middleware('permission:organizations.update')
             ->name('organizations.update');
+
+        /**
+         * Unavailabilities routes
+         */
+        Route::middleware('permission:unavailabilities.view')->group(function (): void {
+            Route::get('/unavailabilities', [UnavailabilityController::class, 'index'])->name('unavailabilities.index');
+            Route::get('/unavailabilities/{unavailability}', [UnavailabilityController::class, 'show'])->name('unavailabilities.show');
+        });
+
+        Route::post('/unavailabilities', [UnavailabilityController::class, 'store'])
+            ->middleware('permission:unavailabilities.create')
+            ->name('unavailabilities.store');
+
+        Route::patch('/unavailabilities/{unavailability}', [UnavailabilityController::class, 'update'])
+            ->middleware('permission:unavailabilities.update')
+            ->name('unavailabilities.update');
+
+        Route::patch('/unavailabilities/{unavailability}/cancel', [UnavailabilityController::class, 'cancel'])
+            ->middleware('permission:unavailabilities.cancel')
+            ->name('unavailabilities.cancel');
     });
 });
