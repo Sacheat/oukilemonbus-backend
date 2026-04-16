@@ -17,6 +17,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'start_datetime',
     'end_datetime',
     'created_by_user_id',
+    'is_active',
 ])]
 class Unavailability extends Model
 {
@@ -48,6 +49,7 @@ class Unavailability extends Model
             'reason_type' => UnavailabilityReasonType::class,
             'start_datetime' => 'datetime',
             'end_datetime' => 'datetime',
+            'is_active'      => 'boolean',
         ];
     }
 }
