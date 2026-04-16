@@ -68,19 +68,19 @@ class UserOrgRequestApiTest extends TestCase
             ->assertJsonPath('data.requested_by_user_id', $user->id)
             ->assertJsonPath('data.requested_role', 'animateur')
             ->assertJsonPath('data.status', RequestStatus::EN_ATTENTE->value)
-            ->assertJsonPath('data.confidence_note', 75)
-            ->assertJsonPath('data.confidence_details.score', 75);
+            ->assertJsonPath('data.confidence_note', 62)
+            ->assertJsonPath('data.confidence_details.score', 62);
 
         $this->assertDatabaseHas('user_org_requests', [
             'organization_id' => $organization->id,
             'requested_by_user_id' => $user->id,
             'requested_role' => 'animateur',
             'status' => RequestStatus::EN_ATTENTE->value,
-            'confidence_note' => 75,
+            'confidence_note' => 62,
         ]);
     }
 
-    public function test_confidence_score_rewards_verified_organization_context(): void
+    public function test_confidence_score_does_not_use_organization_address(): void
     {
         config([
             'municipality.name' => 'Dinant',
@@ -110,13 +110,37 @@ class UserOrgRequestApiTest extends TestCase
             'organization_id' => $organization->id,
             'requested_role' => 'animateur',
             'justification' => 'Je suis responsable des activites hebdomadaires.',
+        ])
+            ->assertCreated()
+            ->assertJsonPath('data.confidence_note', 75)
+            ->assertJsonPath('data.confidence_details.score', 75)
+            ->assertJsonMissing([
+                'Organisation situee dans la commune de Dinant.',
+            ])
+            ->assertJsonMissing([
+                'Adresse de l organisation verifiee.',
+            ]);
+    }
+
+    public function test_complete_user_org_request_reaches_max_confidence_score(): void
+    {
+        $user = User::factory()->create(['phone' => '082000000']);
+        $user->assignRole('user');
+        Sanctum::actingAs($user);
+
+        $organization = $this->createOrganization();
+
+        $this->postJson('/api/user-org-requests', [
+            'organization_id' => $organization->id,
+            'requested_role' => 'responsable',
+            'justification' => 'Je suis responsable de la coordination des activites de cette organisation.',
             'proof_document_path' => 'proofs/rattachement.pdf',
         ])
             ->assertCreated()
             ->assertJsonPath('data.confidence_note', 100)
             ->assertJsonPath('data.confidence_details.score', 100)
             ->assertJsonFragment([
-                'Organisation situee dans la commune de Dinant.',
+                'Justification coherente avec le role demande.',
             ]);
     }
 

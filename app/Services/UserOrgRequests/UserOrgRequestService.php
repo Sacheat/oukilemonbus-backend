@@ -24,7 +24,7 @@ class UserOrgRequestService
             'status' => RequestStatus::EN_ATTENTE,
         ])->refresh();
 
-        $request->load(['organization.location', 'requestedByUser']);
+        $request->load('requestedByUser');
         $request->update([
             'confidence_note' => $this->confidenceScoreService->calculate($request),
         ]);

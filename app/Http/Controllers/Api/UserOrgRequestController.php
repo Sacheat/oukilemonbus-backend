@@ -22,7 +22,7 @@ class UserOrgRequestController extends Controller
     {
         return UserOrgRequestResource::collection(
             UserOrgRequest::query()
-                ->with(['organization.location', 'requestedByUser', 'reviewedByUser'])
+                ->with(['organization', 'requestedByUser', 'reviewedByUser'])
                 ->orderByDesc('confidence_note')
                 ->latest()
                 ->paginate()
@@ -36,7 +36,7 @@ class UserOrgRequestController extends Controller
             $request->validated()
         );
 
-        return (new UserOrgRequestResource($userOrgRequest->load(['organization.location', 'requestedByUser'])))
+        return (new UserOrgRequestResource($userOrgRequest->load(['organization', 'requestedByUser'])))
             ->response()
             ->setStatusCode(201);
     }
@@ -44,7 +44,7 @@ class UserOrgRequestController extends Controller
     public function show(UserOrgRequest $userOrgRequest): UserOrgRequestResource
     {
         return new UserOrgRequestResource(
-            $userOrgRequest->load(['organization.location', 'requestedByUser', 'reviewedByUser'])
+            $userOrgRequest->load(['organization', 'requestedByUser', 'reviewedByUser'])
         );
     }
 
@@ -57,7 +57,7 @@ class UserOrgRequestController extends Controller
         );
 
         return new UserOrgRequestResource(
-            $userOrgRequest->load(['organization.location', 'requestedByUser', 'reviewedByUser'])
+            $userOrgRequest->load(['organization', 'requestedByUser', 'reviewedByUser'])
         );
     }
 
@@ -71,7 +71,7 @@ class UserOrgRequestController extends Controller
         );
 
         return new UserOrgRequestResource(
-            $userOrgRequest->load(['organization.location', 'requestedByUser', 'reviewedByUser'])
+            $userOrgRequest->load(['organization', 'requestedByUser', 'reviewedByUser'])
         );
     }
 }

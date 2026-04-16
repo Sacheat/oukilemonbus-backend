@@ -2,17 +2,10 @@
 
 namespace App\Services\UserOrgRequests;
 
-use App\Enums\OrganizationType;
-use App\Enums\RequestStatus;
 use App\Models\UserOrgRequest;
-use App\Services\Locations\MunicipalityService;
 
 class UserOrgRequestConfidenceScoreService
 {
-    public function __construct(
-        private readonly MunicipalityService $municipalityService
-    ) {}
-
     public function calculate(UserOrgRequest $request): int
     {
         return $this->explain($request)['score'];
@@ -25,10 +18,8 @@ class UserOrgRequestConfidenceScoreService
         $warnings = [];
 
         $this->scoreCompleteness($request, $score, $reasons, $warnings);
-        $this->scoreRequester($request, $score, $reasons);
-        $this->scoreOrganization($request, $score, $reasons, $warnings);
-        $this->scoreRoleCoherence($request, $score, $reasons, $warnings);
-        $this->applyWarnings($request, $score, $warnings);
+        $this->scoreRoleJustificationCoherence($request, $score, $reasons);
+        $this->scoreRequesterSignals($request, $score, $reasons);
 
         return [
             'score' => max(0, min(100, $score)),
@@ -39,22 +30,54 @@ class UserOrgRequestConfidenceScoreService
 
     private function scoreCompleteness(UserOrgRequest $request, int &$score, array &$reasons, array &$warnings): void
     {
-        $this->addWhenFilled($request->requested_role, 10, 'Role demande renseigne.', $score, $reasons);
-        $this->addWhenFilled($request->justification, 15, 'Justification fournie.', $score, $reasons);
-        $this->addWhenFilled($request->proof_document_path, 20, 'Document justificatif fourni.', $score, $reasons);
+        $this->addWhenFilled($request->organization_id, 10, 'Organisation cible selectionnee.', $score, $reasons);
+        $this->addWhenFilled($request->requested_role, 15, 'Role demande renseigne.', $score, $reasons);
+        $this->addWhenFilled($request->justification, 20, 'Justification fournie.', $score, $reasons);
+        $this->addWhenFilled($request->proof_document_path, 25, 'Document justificatif fourni.', $score, $reasons);
 
-        if (filled($request->justification) && mb_strlen(trim($request->justification)) >= 20) {
-            $score += 5;
+        if (filled($request->justification) && mb_strlen(trim($request->justification)) >= 30) {
+            $score += 10;
             $reasons[] = 'Justification suffisamment detaillee.';
         }
 
         if (blank($request->justification) && blank($request->proof_document_path)) {
-            $score -= 10;
+            $score -= 15;
             $warnings[] = 'Demande sans justification ni justificatif.';
+        }
+
+        if (filled($request->justification) && mb_strlen(trim($request->justification)) < 15) {
+            $score -= 5;
+            $warnings[] = 'Justification trop courte.';
+        }
+
+        if ($this->requiresProof($request->requested_role) && blank($request->proof_document_path)) {
+            $score -= 5;
+            $warnings[] = 'Role sensible sans justificatif.';
         }
     }
 
-    private function scoreRequester(UserOrgRequest $request, int &$score, array &$reasons): void
+    private function scoreRoleJustificationCoherence(UserOrgRequest $request, int &$score, array &$reasons): void
+    {
+        if (blank($request->requested_role) || blank($request->justification)) {
+            return;
+        }
+
+        $keywords = match ($request->requested_role) {
+            'animateur' => ['animation', 'animateur', 'activite', 'atelier', 'enfant'],
+            'directeur' => ['direction', 'directeur', 'responsable', 'etablissement', 'ecole'],
+            'prof' => ['prof', 'professeur', 'enseignant', 'classe', 'ecole', 'eleve'],
+            'responsable' => ['responsable', 'coordination', 'gestion', 'referent', 'contact'],
+            'referent' => ['referent', 'contact', 'coordination', 'planning', 'suivi'],
+            default => [],
+        };
+
+        if ($this->containsAny($request->justification, $keywords)) {
+            $score += 10;
+            $reasons[] = 'Justification coherente avec le role demande.';
+        }
+    }
+
+    private function scoreRequesterSignals(UserOrgRequest $request, int &$score, array &$reasons): void
     {
         if (! $request->relationLoaded('requestedByUser')) {
             $request->load('requestedByUser');
@@ -65,115 +88,40 @@ class UserOrgRequestConfidenceScoreService
         }
 
         if ($request->requestedByUser->active) {
-            $score += 10;
+            $score += 3;
             $reasons[] = 'Compte demandeur actif.';
         }
 
         if ($request->requestedByUser->email_verified_at !== null) {
-            $score += 10;
+            $score += 4;
             $reasons[] = 'Email du demandeur verifie.';
         }
 
         if (filled($request->requestedByUser->phone)) {
-            $score += 5;
+            $score += 3;
             $reasons[] = 'Telephone du demandeur renseigne.';
         }
-
-        if ($request->requestedByUser->organizations()->exists()) {
-            $score += 5;
-            $reasons[] = 'Demandeur deja rattache a une organisation.';
-        }
     }
 
-    private function scoreOrganization(UserOrgRequest $request, int &$score, array &$reasons, array &$warnings): void
+    private function requiresProof(?string $role): bool
     {
-        if (! $request->relationLoaded('organization')) {
-            $request->load('organization.location');
-        } elseif (! $request->organization?->relationLoaded('location')) {
-            $request->organization?->load('location');
-        }
-
-        if (! $request->organization) {
-            $warnings[] = 'Organisation introuvable.';
-
-            return;
-        }
-
-        $score += 10;
-        $reasons[] = 'Organisation existante.';
-
-        if (filled($request->organization->official_email)) {
-            $score += 5;
-            $reasons[] = 'Email officiel de l organisation renseigne.';
-        }
-
-        if (filled($request->organization->phone_contact) || filled($request->organization->name_contact)) {
-            $score += 5;
-            $reasons[] = 'Contact de l organisation renseigne.';
-        }
-
-        if (filled($request->organization->document_proof_path)) {
-            $score += 5;
-            $reasons[] = 'Justificatif de l organisation present.';
-        }
-
-        if ($request->organization->location?->is_verified) {
-            $score += 5;
-            $reasons[] = 'Adresse de l organisation verifiee.';
-        }
-
-        if (! $request->organization->location) {
-            $warnings[] = 'Organisation sans adresse rattachee.';
-
-            return;
-        }
-
-        if ($this->municipalityService->containsLocation($request->organization->location)) {
-            $score += 10;
-            $reasons[] = "Organisation situee dans la commune de {$this->municipalityService->name()}.";
-
-            return;
-        }
-
-        $score -= 5;
-        $warnings[] = "Organisation hors commune de {$this->municipalityService->name()}.";
+        return in_array($role, ['directeur', 'responsable', 'referent'], true);
     }
 
-    private function scoreRoleCoherence(UserOrgRequest $request, int &$score, array &$reasons, array &$warnings): void
+    private function containsAny(string $value, array $keywords): bool
     {
-        if (! $request->organization) {
-            return;
+        $normalizedValue = str($value)
+            ->ascii()
+            ->lower()
+            ->toString();
+
+        foreach ($keywords as $keyword) {
+            if (str_contains($normalizedValue, $keyword)) {
+                return true;
+            }
         }
 
-        $expectedRoles = match ($request->organization->type) {
-            OrganizationType::ECOLE_COMMUNALE => ['prof', 'directeur', 'referent', 'responsable'],
-            OrganizationType::ASBL => ['animateur', 'responsable', 'referent'],
-            OrganizationType::EXTERNE => ['responsable', 'referent'],
-        };
-
-        if (in_array($request->requested_role, $expectedRoles, true)) {
-            $score += 10;
-            $reasons[] = "Role coherent avec le type d'organisation.";
-
-            return;
-        }
-
-        $score -= 5;
-        $warnings[] = "Role moins coherent avec le type d'organisation.";
-    }
-
-    private function applyWarnings(UserOrgRequest $request, int &$score, array &$warnings): void
-    {
-        $otherPendingRequests = UserOrgRequest::query()
-            ->where('requested_by_user_id', $request->requested_by_user_id)
-            ->where('status', RequestStatus::EN_ATTENTE)
-            ->whereKeyNot($request->getKey())
-            ->exists();
-
-        if ($otherPendingRequests) {
-            $score -= 5;
-            $warnings[] = 'Le demandeur a deja une autre demande de rattachement en attente.';
-        }
+        return false;
     }
 
     private function addWhenFilled(mixed $value, int $points, string $reason, int &$score, array &$reasons): void
