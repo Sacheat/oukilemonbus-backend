@@ -9,6 +9,7 @@ use App\Enums\DeliveryStatus;
 use App\Enums\DocumentType;
 use App\Enums\OrganizationType;
 use App\Enums\RequestStatus;
+use App\Enums\ReservationConflictType;
 use App\Enums\ReservationStatus;
 use App\Enums\UnavailabilityReasonType;
 use App\Models\CouncilDecision;
@@ -23,6 +24,7 @@ use App\Models\OrgRegistrationRequest;
 use App\Models\Recurrence;
 use App\Models\Reservation;
 use App\Models\ReservationAssignmentHistory;
+use App\Models\ReservationConflict;
 use App\Models\ReservationStatusHistory;
 use App\Models\Unavailability;
 use App\Models\UnavailabilityHistory;
@@ -120,6 +122,7 @@ class ModelConfigurationTest extends TestCase
             [UnavailabilityHistory::class, ['unavailability_id', 'old_reason_type', 'new_reason_type', 'old_start_datetime', 'new_start_datetime', 'old_end_datetime', 'new_end_datetime', 'old_reason', 'new_reason', 'changed_by_user_id', 'change_reason']],
             [ReservationStatusHistory::class, ['reservation_id', 'old_status', 'new_status', 'changed_by_user_id', 'reason']],
             [ReservationAssignmentHistory::class, ['reservation_id', 'assignment_type', 'old_driver_id', 'new_driver_id', 'old_vehicle_id', 'new_vehicle_id', 'changed_by_user_id', 'reason']],
+            [ReservationConflict::class, ['reservation_id', 'type', 'message', 'related_reservation_id', 'is_resolved', 'resolved_by_user_id', 'resolved_at']],
             [OrgRegistrationRequest::class, ['request_by_user_id', 'organization_name', 'organization_type', 'enterprise_number', 'official_email', 'phone', 'location_id', 'contact_person_name', 'contact_person_role', 'proof_document_path', 'comment', 'status', 'confidence_note', 'reviewed_by_user_id', 'reviewed_at', 'rejection_reason']],
             [UserOrgRequest::class, ['organization_id', 'requested_by_user_id', 'requested_role', 'justification', 'proof_document_path', 'status', 'confidence_note', 'reviewed_by_user_id', 'reviewed_at', 'rejection_reason']],
         ];
@@ -145,6 +148,7 @@ class ModelConfigurationTest extends TestCase
             [UnavailabilityHistory::class, ['old_reason_type' => UnavailabilityReasonType::class, 'new_reason_type' => UnavailabilityReasonType::class, 'old_start_datetime' => 'datetime', 'new_start_datetime' => 'datetime', 'old_end_datetime' => 'datetime', 'new_end_datetime' => 'datetime', 'created_at' => 'datetime']],
             [ReservationStatusHistory::class, ['old_status' => ReservationStatus::class, 'new_status' => ReservationStatus::class, 'created_at' => 'datetime']],
             [ReservationAssignmentHistory::class, ['assignment_type' => AssignmentType::class, 'created_at' => 'datetime']],
+            [ReservationConflict::class, ['type' => ReservationConflictType::class, 'is_resolved' => 'boolean', 'resolved_at' => 'datetime', 'created_at' => 'datetime']],
             [OrgRegistrationRequest::class, ['organization_type' => OrganizationType::class, 'status' => RequestStatus::class, 'confidence_note' => 'integer', 'reviewed_at' => 'datetime']],
             [UserOrgRequest::class, ['status' => RequestStatus::class, 'confidence_note' => 'integer', 'reviewed_at' => 'datetime']],
         ];
@@ -157,6 +161,7 @@ class ModelConfigurationTest extends TestCase
             [UserOrganization::class, 'user_organization', 'id', 'updated_at', false],
             [ReservationStatusHistory::class, 'reservation_status_history', 'id', null, true],
             [ReservationAssignmentHistory::class, 'reservation_assignment_history', 'id', null, true],
+            [ReservationConflict::class, 'reservation_conflicts', 'id', null, true],
             [UnavailabilityHistory::class, 'unavailabilities_history', 'id', null, true],
             [UserOrgRequest::class, 'user_org_requests', 'request_id', 'updated_at', true],
         ];
@@ -216,6 +221,7 @@ class ModelConfigurationTest extends TestCase
             [Reservation::class, 'statusHistory', HasMany::class, ReservationStatusHistory::class, 'reservation_id'],
             [Reservation::class, 'assignmentHistory', HasMany::class, ReservationAssignmentHistory::class, 'reservation_id'],
             [Reservation::class, 'notificationDeliveries', HasMany::class, NotificationDelivery::class, 'reservation_id'],
+            [Reservation::class, 'conflicts', HasMany::class, ReservationConflict::class, 'reservation_id'],
             [CouncilDecision::class, 'reservation', BelongsTo::class, Reservation::class, 'reservation_id'],
             [CouncilDecision::class, 'recordedByUser', BelongsTo::class, User::class, 'recorded_by_user_id'],
             [Document::class, 'reservation', BelongsTo::class, Reservation::class, 'reservation_id'],
@@ -238,6 +244,9 @@ class ModelConfigurationTest extends TestCase
             [ReservationAssignmentHistory::class, 'oldVehicle', BelongsTo::class, Vehicle::class, 'old_vehicle_id'],
             [ReservationAssignmentHistory::class, 'newVehicle', BelongsTo::class, Vehicle::class, 'new_vehicle_id'],
             [ReservationAssignmentHistory::class, 'changedByUser', BelongsTo::class, User::class, 'changed_by_user_id'],
+            [ReservationConflict::class, 'reservation', BelongsTo::class, Reservation::class, 'reservation_id'],
+            [ReservationConflict::class, 'relatedReservation', BelongsTo::class, Reservation::class, 'related_reservation_id'],
+            [ReservationConflict::class, 'resolvedByUser', BelongsTo::class, User::class, 'resolved_by_user_id'],
             [OrgRegistrationRequest::class, 'requestedByUser', BelongsTo::class, User::class, 'request_by_user_id'],
             [OrgRegistrationRequest::class, 'location', BelongsTo::class, Location::class, 'location_id'],
             [OrgRegistrationRequest::class, 'reviewedByUser', BelongsTo::class, User::class, 'reviewed_by_user_id'],

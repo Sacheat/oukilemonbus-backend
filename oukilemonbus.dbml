@@ -33,9 +33,22 @@ Enum organization_type {
 Enum reservation_status {
   en_attente
   approuve
+  confirme
   refuse
   annule
   en_conflit
+}
+
+Enum reservation_conflict_type {
+  distance_not_calculated
+  schedule_overlap
+  departure_before_08h
+  return_after_17h
+  impossible_time_window
+  quota_exceeded
+  no_driver_available
+  no_vehicle_available
+  vehicle_capacity_unavailable
 }
 
 Enum approval_type_enum {
@@ -188,7 +201,7 @@ Table organizations {
     (type)                     [name: 'idx_organizations_type']
     (location_id)              [name: 'idx_organizations_location_id']
     (is_priority)              [name: 'idx_organizations_is_priority']
-    (email_contact)            [name: 'idx_organizations_email_contact']
+    (official_email)           [name: 'idx_organizations_official_email']
     (type, is_priority)        [name: 'idx_organizations_type_priority']
     (quota_reset_year)         [name: 'idx_organizations_quota_reset_year']
   }
@@ -299,7 +312,35 @@ Table reservations {
   '''
 }
 
-// ─── 9. COUNCIL_DECISIONS ────────────────────────────────────
+// --- 9. RESERVATION_CONFLICTS ------------------------------------------------
+Table reservation_conflicts {
+  id                     bigint                    [pk, increment, not null]
+  reservation_id         bigint                    [not null]
+  type                   reservation_conflict_type [not null, note: 'Type de blocage ou point a arbitrer']
+  message                varchar(500)              [not null]
+  related_reservation_id bigint                    [note: 'Reservation qui chevauche, si applicable']
+  is_resolved            boolean                   [not null, default: false]
+  resolved_by_user_id    bigint
+  resolved_at            timestamp
+  created_at             timestamp                 [not null]
+
+  indexes {
+    (reservation_id)         [name: 'idx_reservation_conflicts_reservation_id']
+    (type)                   [name: 'idx_reservation_conflicts_type']
+    (is_resolved)            [name: 'idx_reservation_conflicts_is_resolved']
+    (related_reservation_id) [name: 'idx_reservation_conflicts_related_reservation_id']
+    (resolved_by_user_id)    [name: 'idx_reservation_conflicts_resolved_by_user_id']
+  }
+
+  Note: '''
+  Table de suivi des conflits detectes a la creation/validation d'une reservation.
+  Pas de updated_at dans la migration actuelle.
+  related_reservation_id est renseigne pour les chevauchements de planning.
+  Les conflits non resolus expliquent le statut en_conflit cote API/admin.
+  '''
+}
+
+// --- 10. COUNCIL_DECISIONS ---------------------------------------------------
 Table council_decisions {
   id                  bigint                  [pk, increment, not null]
   reservation_id      bigint                  [not null, unique, note: 'Max 1 décision par réservation']
@@ -541,6 +582,7 @@ Table org_registration_requests {
   proof_document_path varchar(500)
   comment             text
   status              request_status    [not null]
+  confidence_note     int               [note: 'Score de confiance calcule automatiquement']
   reviewed_by_user_id bigint
   reviewed_at         timestamp
   rejection_reason    text
@@ -553,6 +595,7 @@ Table org_registration_requests {
     (official_email)              [name: 'idx_org_registration_requests_official_email']
     (location_id)                 [name: 'idx_org_registration_requests_location_id']
     (status)                      [name: 'idx_org_registration_requests_status']
+    (confidence_note)             [name: 'idx_org_registration_requests_confidence_note']
     (reviewed_by_user_id)         [name: 'idx_org_registration_requests_reviewed_by_user_id']
     (created_at)                  [name: 'idx_org_registration_requests_created_at']
     (status, created_at)          [name: 'idx_org_registration_requests_status_created_at']
@@ -594,6 +637,52 @@ Table user_org_requests {
   '''
 }
 
+// --- 18. MUNICIPALITIES ------------------------------------------------------
+Table municipalities {
+  id          bigint       [pk, increment, not null]
+  name        varchar(100) [not null]
+  external_id varchar(500)
+  nis_code    varchar(20)
+  country     varchar(2)   [not null, default: 'BE']
+  postal_code varchar(20)
+  source      varchar(50)  [note: 'manual | geonames | statbel']
+  is_active   boolean      [not null, default: false]
+  synced_at   timestamp
+  created_at  timestamp    [not null]
+  updated_at  timestamp    [not null]
+
+  indexes {
+    (name)        [name: 'idx_municipalities_name']
+    (external_id) [name: 'idx_municipalities_external_id']
+    (nis_code)    [name: 'idx_municipalities_nis_code']
+    (country)     [name: 'idx_municipalities_country']
+    (is_active)   [name: 'idx_municipalities_is_active']
+  }
+
+  Note: 'Configuration dynamique de la commune active pour le scoring et la validation des localites.'
+}
+
+// --- 19. MUNICIPALITY_LOCALITIES --------------------------------------------
+Table municipality_localities {
+  id              bigint       [pk, increment, not null]
+  municipality_id bigint       [not null]
+  name            varchar(100) [not null]
+  normalized_name varchar(120) [not null]
+  external_id     varchar(500)
+  source          varchar(50)  [note: 'manual | geonames | statbel']
+  is_active       boolean      [not null, default: true]
+  created_at      timestamp    [not null]
+  updated_at      timestamp    [not null]
+
+  indexes {
+    (municipality_id)                  [name: 'idx_municipality_localities_municipality_id']
+    (normalized_name)                  [name: 'idx_municipality_localities_normalized_name']
+    (external_id)                      [name: 'idx_municipality_localities_external_id']
+    (is_active)                        [name: 'idx_municipality_localities_is_active']
+    (municipality_id, normalized_name) [unique, name: 'uq_municipality_localities_municipality_normalized_name']
+  }
+}
+
 // ============================================================
 // RELATIONS / FOREIGN KEYS / ON DELETE / ON UPDATE
 // ============================================================
@@ -618,6 +707,11 @@ Ref: reservations.vehicle_id > vehicles.id [delete: set null, update: cascade]
 Ref: reservations.recurrence_id > recurrences.id [delete: set null, update: cascade]
 Ref: reservations.validated_by_user_id > users.id [delete: set null, update: cascade]
 Ref: reservations.cancelled_by_user_id > users.id [delete: set null, update: cascade]
+
+// reservation_conflicts
+Ref: reservation_conflicts.reservation_id > reservations.id [delete: cascade, update: cascade]
+Ref: reservation_conflicts.related_reservation_id > reservations.id [delete: set null, update: cascade]
+Ref: reservation_conflicts.resolved_by_user_id > users.id [delete: set null, update: cascade]
 
 // council_decisions
 Ref: council_decisions.reservation_id > reservations.id [delete: cascade, update: cascade]
@@ -663,6 +757,9 @@ Ref: user_org_requests.organization_id > organizations.id [delete: restrict, upd
 Ref: user_org_requests.requested_by_user_id > users.id [delete: restrict, update: cascade]
 Ref: user_org_requests.reviewed_by_user_id > users.id [delete: set null, update: cascade]
 
+// municipality_localities
+Ref: municipality_localities.municipality_id > municipalities.id [delete: cascade, update: cascade]
+
 // ============================================================
 // ORDRE DE MIGRATION RECOMMANDÉ
 // ============================================================
@@ -675,16 +772,19 @@ Ref: user_org_requests.reviewed_by_user_id > users.id [delete: set null, update:
 // 6. user_organization
 // 7. recurrences
 // 8. reservations
-// 9. council_decisions
-// 10. documents
-// 11. notifications
-// 12. notification_deliveries
-// 13. unavailabilities
-// 14. unavailabilities_history
-// 15. reservation_status_history
-// 16. reservation_assignment_history
-// 17. org_registration_requests
-// 18. user_org_requests
+// 9. reservation_conflicts
+// 10. council_decisions
+// 11. documents
+// 12. notifications
+// 13. notification_deliveries
+// 14. unavailabilities
+// 15. unavailabilities_history
+// 16. reservation_status_history
+// 17. reservation_assignment_history
+// 18. org_registration_requests
+// 19. user_org_requests
+// 20. municipalities
+// 21. municipality_localities
 //
 // ============================================================
 // NOTES IMPORTANTES POUR L'IA QUI GÉNÈRE LES MIGRATIONS
@@ -700,5 +800,3 @@ Ref: user_org_requests.reviewed_by_user_id > users.id [delete: set null, update:
 // 7. Utiliser unsignedBigInteger/bigIncrements selon conventions Laravel.
 // 8. Respecter les onDelete / onUpdate définis dans les Ref.
 // ============================================================
-
-

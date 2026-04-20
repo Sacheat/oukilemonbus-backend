@@ -1,0 +1,290 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Enums\CouncilDecisionStatus;
+use App\Enums\OrganizationType;
+use App\Enums\ReservationConflictType;
+use App\Enums\ReservationStatus;
+use App\Models\Driver;
+use App\Models\Location;
+use App\Models\Organization;
+use App\Models\Reservation;
+use App\Models\User;
+use App\Models\Vehicle;
+use Database\Seeders\RolesAndPermissionsSeeder;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
+use Laravel\Sanctum\Sanctum;
+use Spatie\Permission\PermissionRegistrar;
+use Tests\TestCase;
+
+class ReservationApiTest extends TestCase
+{
+    use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+        $this->seed(RolesAndPermissionsSeeder::class);
+
+        config([
+            'services.openrouteservice.key' => 'test-key',
+            'services.openrouteservice.base_url' => 'https://ors.test',
+            'reservations.closed_dates' => ['2026-01-01'],
+        ]);
+    }
+
+    public function test_user_can_create_communal_school_reservation_and_it_is_confirmed_when_resources_are_available(): void
+    {
+        Http::fake([
+            'https://ors.test/*' => Http::response([
+                'routes' => [[
+                    'summary' => [
+                        'distance' => 12000,
+                        'duration' => 1800,
+                    ],
+                ]],
+            ]),
+        ]);
+
+        $user = User::factory()->create();
+        $user->assignRole('user');
+        $organization = $this->organization(OrganizationType::ECOLE_COMMUNALE);
+        $user->organizations()->attach($organization->id, ['relationship_type' => 'membre', 'is_default' => true]);
+        $this->driverAndVehicle();
+
+        Sanctum::actingAs($user);
+
+        $response = $this->postJson('/api/reservations', $this->payload($organization));
+
+        $response->assertCreated()
+            ->assertJsonPath('data.status', ReservationStatus::CONFIRME->value);
+
+        $this->assertDatabaseHas('reservations', [
+            'organization_id' => $organization->id,
+            'requested_by_user_id' => $user->id,
+            'status' => ReservationStatus::CONFIRME->value,
+            'approval_type' => 'auto',
+        ]);
+        $this->assertDatabaseCount('reservation_conflicts', 0);
+        $this->assertDatabaseCount('reservation_assignment_history', 2);
+    }
+
+    public function test_distance_over_limit_blocks_creation(): void
+    {
+        Http::fake([
+            'https://ors.test/*' => Http::response([
+                'routes' => [[
+                    'summary' => [
+                        'distance' => 51000,
+                        'duration' => 3600,
+                    ],
+                ]],
+            ]),
+        ]);
+
+        $user = User::factory()->create();
+        $user->assignRole('user');
+        $organization = $this->organization(OrganizationType::ECOLE_COMMUNALE);
+        $user->organizations()->attach($organization->id, ['relationship_type' => 'membre', 'is_default' => true]);
+
+        Sanctum::actingAs($user);
+
+        $this->postJson('/api/reservations', $this->payload($organization))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('destination_location_id');
+
+        $this->assertDatabaseCount('reservations', 0);
+    }
+
+    public function test_schedule_overlap_creates_reservation_in_conflict(): void
+    {
+        Http::fake([
+            'https://ors.test/*' => Http::response([
+                'routes' => [[
+                    'summary' => [
+                        'distance' => 12000,
+                        'duration' => 1800,
+                    ],
+                ]],
+            ]),
+        ]);
+
+        $user = User::factory()->create();
+        $user->assignRole('user');
+        $organization = $this->organization(OrganizationType::ECOLE_COMMUNALE);
+        $user->organizations()->attach($organization->id, ['relationship_type' => 'membre', 'is_default' => true]);
+        [$pickup, $destination] = $this->locations();
+
+        Reservation::create([
+            'requested_by_user_id' => $user->id,
+            'organization_id' => $organization->id,
+            'pickup_location_id' => $pickup->id,
+            'destination_location_id' => $destination->id,
+            'trip_date' => '2026-06-16',
+            'departure_time' => '09:00:00',
+            'return_time' => '11:00:00',
+            'nb_children' => 10,
+            'nb_adults' => 1,
+            'trip_purpose' => 'Reservation existante',
+            'estimated_duration_min' => 30,
+            'status' => ReservationStatus::CONFIRME,
+            'approval_type' => 'auto',
+        ]);
+
+        Sanctum::actingAs($user);
+
+        $this->postJson('/api/reservations', [
+            ...$this->payload($organization, $pickup, $destination),
+            'departure_time' => '10:00',
+            'return_time' => '12:00',
+        ])
+            ->assertCreated()
+            ->assertJsonPath('data.status', ReservationStatus::EN_CONFLIT->value);
+
+        $this->assertDatabaseHas('reservation_conflicts', [
+            'type' => ReservationConflictType::SCHEDULE_OVERLAP->value,
+            'is_resolved' => false,
+        ]);
+    }
+
+    public function test_user_cannot_create_for_unattached_organization(): void
+    {
+        $user = User::factory()->create();
+        $user->assignRole('user');
+        $organization = $this->organization(OrganizationType::ECOLE_COMMUNALE);
+
+        Sanctum::actingAs($user);
+
+        $this->postJson('/api/reservations', $this->payload($organization))
+            ->assertForbidden();
+    }
+
+    public function test_non_school_reservation_requires_favorable_council_decision_before_approval(): void
+    {
+        Http::fake([
+            'https://ors.test/*' => Http::response([
+                'routes' => [[
+                    'summary' => [
+                        'distance' => 12000,
+                        'duration' => 1800,
+                    ],
+                ]],
+            ]),
+        ]);
+
+        $agent = User::factory()->create();
+        $agent->assignRole('agent_communal');
+        $organization = $this->organization(OrganizationType::ASBL);
+        $this->driverAndVehicle();
+
+        Sanctum::actingAs($agent);
+
+        $reservationId = $this->postJson('/api/reservations', $this->payload($organization))
+            ->assertCreated()
+            ->assertJsonPath('data.status', ReservationStatus::EN_ATTENTE->value)
+            ->json('data.id');
+
+        $this->patchJson("/api/reservations/{$reservationId}/approve")
+            ->assertUnprocessable();
+
+        $this->postJson("/api/reservations/{$reservationId}/council-decision", [
+            'decision_status' => CouncilDecisionStatus::APPROUVE->value,
+            'decision_date' => '2026-06-01',
+            'decision_reference' => 'COL-2026-001',
+        ])->assertOk();
+
+        $this->patchJson("/api/reservations/{$reservationId}/approve")
+            ->assertOk()
+            ->assertJsonPath('data.status', ReservationStatus::CONFIRME->value);
+    }
+
+    public function test_weekend_creation_is_rejected(): void
+    {
+        $user = User::factory()->create();
+        $user->assignRole('user');
+        $organization = $this->organization(OrganizationType::ECOLE_COMMUNALE);
+        $user->organizations()->attach($organization->id, ['relationship_type' => 'membre', 'is_default' => true]);
+
+        Sanctum::actingAs($user);
+
+        $this->postJson('/api/reservations', [
+            ...$this->payload($organization),
+            'trip_date' => '2026-06-13',
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('trip_date');
+    }
+
+    private function payload(Organization $organization, ?Location $pickup = null, ?Location $destination = null): array
+    {
+        [$pickup, $destination] = $pickup && $destination ? [$pickup, $destination] : $this->locations();
+
+        return [
+            'organization_id' => $organization->id,
+            'pickup_location_id' => $pickup->id,
+            'destination_location_id' => $destination->id,
+            'trip_date' => '2026-06-16',
+            'departure_time' => '09:00',
+            'return_time' => '11:00',
+            'nb_children' => 10,
+            'nb_adults' => 1,
+            'trip_purpose' => 'Sortie educative',
+        ];
+    }
+
+    private function organization(OrganizationType $type): Organization
+    {
+        return Organization::create([
+            'name' => 'Organisation '.$type->value,
+            'type' => $type,
+            'official_email' => $type->value.'@example.test',
+            'is_priority' => $type->isPriorityByDefault(),
+            'annual_quota' => 5,
+            'reservations_used_this_year' => 0,
+            'quota_reset_year' => now(),
+        ]);
+    }
+
+    private function locations(): array
+    {
+        return [
+            Location::create([
+                'formatted_address' => 'Rue du Centre 1',
+                'city' => 'Dinant',
+                'country' => 'Belgique',
+                'latitude' => 50.260000,
+                'longitude' => 4.910000,
+                'is_verified' => true,
+            ]),
+            Location::create([
+                'formatted_address' => 'Avenue des Sports 2',
+                'city' => 'Dinant',
+                'country' => 'Belgique',
+                'latitude' => 50.270000,
+                'longitude' => 4.920000,
+                'is_verified' => true,
+            ]),
+        ];
+    }
+
+    private function driverAndVehicle(): void
+    {
+        $driverUser = User::factory()->create();
+        Driver::create([
+            'user_id' => $driverUser->id,
+            'licence_number' => 'DRV-'.$driverUser->id,
+            'licence_expiry_date' => '2030-01-01',
+            'is_active' => true,
+        ]);
+
+        Vehicle::create([
+            'licence_plate' => 'BUS-'.$driverUser->id,
+            'capacity' => 41,
+            'is_active' => true,
+        ]);
+    }
+}

@@ -100,7 +100,7 @@ class ReservationPolicy
             && ! $this->hasStatus($reservation, [
                 ReservationStatus::REFUSE->value,
                 ReservationStatus::ANNULE->value,
-                'confirme',
+                ReservationStatus::CONFIRME->value,
             ]);
     }
 
@@ -185,7 +185,7 @@ class ReservationPolicy
             ReservationStatus::EN_ATTENTE->value,
             ReservationStatus::EN_CONFLIT->value,
             ReservationStatus::APPROUVE->value,
-            'confirme',
+            ReservationStatus::CONFIRME->value,
         ]);
     }
 

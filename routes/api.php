@@ -7,6 +7,8 @@ use App\Http\Controllers\Api\MunicipalityController;
 use App\Http\Controllers\Api\MunicipalityLocalityController;
 use App\Http\Controllers\Api\OrganizationController;
 use App\Http\Controllers\Api\OrgRegistrationRequestController;
+use App\Http\Controllers\Api\ReservationConflictController;
+use App\Http\Controllers\Api\ReservationController;
 use App\Http\Controllers\Api\UnavailabilityController;
 use App\Http\Controllers\Api\UnavailabilityHistoryController;
 use App\Http\Controllers\Api\UserController;
@@ -204,6 +206,58 @@ Route::name('api.')->group(function (): void {
         Route::patch('/organizations/{organization}', [OrganizationController::class, 'update'])
             ->middleware('permission:organizations.update')
             ->name('organizations.update');
+
+        /**
+         * Reservations routes
+         */
+        Route::middleware('permission:reservations.view')->group(function (): void {
+            Route::get('/reservations', [ReservationController::class, 'index'])->name('reservations.index');
+            Route::get('/reservations/{reservation}', [ReservationController::class, 'show'])->name('reservations.show');
+        });
+
+        Route::post('/reservations/preview', [ReservationController::class, 'preview'])
+            ->middleware('permission:reservations.create')
+            ->name('reservations.preview');
+
+        Route::post('/reservations', [ReservationController::class, 'store'])
+            ->middleware('permission:reservations.create')
+            ->name('reservations.store');
+
+        Route::patch('/reservations/{reservation}', [ReservationController::class, 'update'])
+            ->middleware('permission:reservations.update')
+            ->name('reservations.update');
+
+        Route::patch('/reservations/{reservation}/approve', [ReservationController::class, 'approve'])
+            ->middleware('permission:reservations.approve')
+            ->name('reservations.approve');
+
+        Route::patch('/reservations/{reservation}/reject', [ReservationController::class, 'reject'])
+            ->middleware('permission:reservations.reject')
+            ->name('reservations.reject');
+
+        Route::patch('/reservations/{reservation}/cancel', [ReservationController::class, 'cancel'])
+            ->middleware('permission:reservations.cancel')
+            ->name('reservations.cancel');
+
+        Route::patch('/reservations/{reservation}/assign', [ReservationController::class, 'assign'])
+            ->middleware('permission:reservations.assign')
+            ->name('reservations.assign');
+
+        Route::patch('/reservations/{reservation}/confirm', [ReservationController::class, 'confirm'])
+            ->middleware('permission:reservations.confirm')
+            ->name('reservations.confirm');
+
+        Route::post('/reservations/{reservation}/council-decision', [ReservationController::class, 'councilDecision'])
+            ->middleware('permission:reservations.record-council-decision')
+            ->name('reservations.council-decision');
+
+        Route::get('/reservations/{reservation}/conflicts', [ReservationConflictController::class, 'index'])
+            ->middleware('permission:reservations.manage-conflicts')
+            ->name('reservations.conflicts.index');
+
+        Route::patch('/reservations/{reservation}/conflicts/{conflict}/resolve', [ReservationConflictController::class, 'resolve'])
+            ->middleware('permission:reservations.manage-conflicts')
+            ->name('reservations.conflicts.resolve');
 
         /**
          * Unavailabilities routes

@@ -83,6 +83,11 @@ class User extends Authenticatable
         return $this->hasMany(ReservationAssignmentHistory::class, 'changed_by_user_id');
     }
 
+    public function resolvedReservationConflicts(): HasMany
+    {
+        return $this->hasMany(ReservationConflict::class, 'resolved_by_user_id');
+    }
+
     public function orgRegistrationRequests(): HasMany
     {
         return $this->hasMany(OrgRegistrationRequest::class, 'request_by_user_id');

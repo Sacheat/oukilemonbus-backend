@@ -110,6 +110,11 @@ class Reservation extends Model
         return $this->hasMany(NotificationDelivery::class);
     }
 
+    public function conflicts(): HasMany
+    {
+        return $this->hasMany(ReservationConflict::class);
+    }
+
     protected function casts(): array
     {
         return [

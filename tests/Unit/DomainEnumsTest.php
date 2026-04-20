@@ -18,7 +18,8 @@ class DomainEnumsTest extends TestCase
     public function test_reservation_status_behaviour_matches_business_meaning(): void
     {
         $this->assertFalse(ReservationStatus::EN_ATTENTE->isFinal());
-        $this->assertTrue(ReservationStatus::APPROUVE->isFinal());
+        $this->assertFalse(ReservationStatus::APPROUVE->isFinal());
+        $this->assertTrue(ReservationStatus::CONFIRME->isFinal());
         $this->assertTrue(ReservationStatus::REFUSE->isFinal());
         $this->assertTrue(ReservationStatus::ANNULE->isFinal());
         $this->assertFalse(ReservationStatus::EN_CONFLIT->isFinal());
