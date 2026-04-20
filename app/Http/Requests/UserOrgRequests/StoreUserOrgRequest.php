@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\UserOrgRequests;
 
+use App\Models\UserOrgRequest;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -9,7 +10,7 @@ class StoreUserOrgRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()?->can('user-org-requests.create') ?? false;
+        return $this->user()?->can('create', UserOrgRequest::class) ?? false;
     }
 
     public function rules(): array

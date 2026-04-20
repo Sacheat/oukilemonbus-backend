@@ -55,7 +55,7 @@ class OrganizationApiTest extends TestCase
         $this->getJson('/api/organizations')->assertForbidden();
     }
 
-    public function test_user_with_view_permission_can_list_and_show_organizations(): void
+    public function test_user_with_view_permission_can_list_and_show_attached_organizations(): void
     {
         $user = User::factory()->create();
         $user->assignRole('user');
@@ -66,16 +66,31 @@ class OrganizationApiTest extends TestCase
             'type' => OrganizationType::ASBL,
             'annual_quota' => 10,
         ]);
+        $otherOrganization = Organization::create([
+            'name' => 'Organisation cachee',
+            'type' => OrganizationType::EXTERNE,
+            'annual_quota' => 10,
+        ]);
+        $organization->users()->attach($user->id, [
+            'relationship_type' => 'referent',
+            'is_default' => true,
+        ]);
 
         $this->getJson('/api/organizations')
             ->assertOk()
             ->assertJsonPath('data.0.name', 'ASBL Mobilite')
-            ->assertJsonPath('data.0.type', OrganizationType::ASBL->value);
+            ->assertJsonPath('data.0.type', OrganizationType::ASBL->value)
+            ->assertJsonMissing([
+                'name' => 'Organisation cachee',
+            ]);
 
         $this->getJson("/api/organizations/{$organization->id}")
             ->assertOk()
             ->assertJsonPath('data.id', $organization->id)
             ->assertJsonPath('data.type_label', 'ASBL');
+
+        $this->getJson("/api/organizations/{$otherOrganization->id}")
+            ->assertForbidden();
     }
 
     public function test_admin_can_create_organization(): void

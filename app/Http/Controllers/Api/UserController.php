@@ -12,16 +12,18 @@ use App\Models\User;
 use App\Services\Users\UserService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Support\Facades\Gate;
 
 class UserController extends Controller
 {
     public function __construct(
         private readonly UserService $userService
-    ) {
-    }
+    ) {}
 
     public function index(): AnonymousResourceCollection
     {
+        Gate::authorize('viewAny', User::class);
+
         return UserResource::collection(
             User::query()
                 ->latest()
@@ -40,6 +42,8 @@ class UserController extends Controller
 
     public function show(User $user): UserResource
     {
+        Gate::authorize('view', $user);
+
         return new UserResource($user);
     }
 
@@ -69,6 +73,8 @@ class UserController extends Controller
 
     public function deactivate(User $user): JsonResponse
     {
+        Gate::authorize('deactivate', $user);
+
         $this->userService->deactivate($user);
 
         return response()->json(null, 204);

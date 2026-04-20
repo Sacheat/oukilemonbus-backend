@@ -8,7 +8,10 @@ class RejectOrgRegistrationRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()?->can('org-registration-requests.review') ?? false;
+        $orgRegistrationRequest = $this->route('orgRegistrationRequest');
+
+        return is_object($orgRegistrationRequest)
+            && ($this->user()?->can('reject', $orgRegistrationRequest) ?? false);
     }
 
     public function rules(): array

@@ -148,6 +148,51 @@ class OrgRegistrationRequestApiTest extends TestCase
         $this->getJson('/api/org-registration-requests')->assertForbidden();
     }
 
+    public function test_user_with_view_permission_only_sees_their_own_registration_requests(): void
+    {
+        $role = Role::findOrCreate('org_request_reader', 'web');
+        $role->givePermissionTo([
+            'org-registration-requests.view',
+            'org-registration-requests.create',
+        ]);
+
+        $user = User::factory()->create();
+        $user->assignRole($role);
+        $otherUser = User::factory()->create();
+
+        $ownRequest = OrgRegistrationRequest::create([
+            'request_by_user_id' => $user->id,
+            'organization_name' => 'Ma demande',
+            'organization_type' => OrganizationType::ASBL,
+            'official_email' => 'mine@example.test',
+            'status' => RequestStatus::EN_ATTENTE,
+        ]);
+        $otherRequest = OrgRegistrationRequest::create([
+            'request_by_user_id' => $otherUser->id,
+            'organization_name' => 'Demande cachee',
+            'organization_type' => OrganizationType::ASBL,
+            'official_email' => 'other@example.test',
+            'status' => RequestStatus::EN_ATTENTE,
+        ]);
+
+        Sanctum::actingAs($user);
+
+        $this->getJson('/api/org-registration-requests')
+            ->assertOk()
+            ->assertJsonFragment([
+                'id' => $ownRequest->id,
+            ])
+            ->assertJsonMissing([
+                'id' => $otherRequest->id,
+            ]);
+
+        $this->getJson("/api/org-registration-requests/{$ownRequest->id}")
+            ->assertOk();
+
+        $this->getJson("/api/org-registration-requests/{$otherRequest->id}")
+            ->assertForbidden();
+    }
+
     public function test_agent_can_list_and_show_registration_requests(): void
     {
         $agent = User::factory()->create();

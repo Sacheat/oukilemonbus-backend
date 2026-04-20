@@ -11,6 +11,7 @@ use App\Models\UserOrgRequest;
 use App\Services\UserOrgRequests\UserOrgRequestService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Support\Facades\Gate;
 
 class UserOrgRequestController extends Controller
 {
@@ -20,9 +21,26 @@ class UserOrgRequestController extends Controller
 
     public function index(): AnonymousResourceCollection
     {
+        Gate::authorize('viewAny', UserOrgRequest::class);
+
+        $user = request()->user();
+
         return UserOrgRequestResource::collection(
             UserOrgRequest::query()
                 ->with(['organization', 'requestedByUser', 'reviewedByUser'])
+                ->when(
+                    ! $user->hasAnyRole(['admin', 'agent_communal']),
+                    fn ($query) => $query->where(function ($query) use ($user): void {
+                        $query->where('requested_by_user_id', $user->getKey())
+                            ->when(
+                                $user->hasRole('responsable_organisation'),
+                                fn ($query) => $query->orWhereHas(
+                                    'organization.users',
+                                    fn ($query) => $query->whereKey($user->getKey())
+                                )
+                            );
+                    })
+                )
                 ->orderByDesc('confidence_note')
                 ->latest()
                 ->paginate()
@@ -43,6 +61,8 @@ class UserOrgRequestController extends Controller
 
     public function show(UserOrgRequest $userOrgRequest): UserOrgRequestResource
     {
+        Gate::authorize('view', $userOrgRequest);
+
         return new UserOrgRequestResource(
             $userOrgRequest->load(['organization', 'requestedByUser', 'reviewedByUser'])
         );

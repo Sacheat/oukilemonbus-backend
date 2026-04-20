@@ -8,7 +8,10 @@ class ApproveUserOrgRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()?->can('user-org-requests.review') ?? false;
+        $userOrgRequest = $this->route('userOrgRequest');
+
+        return is_object($userOrgRequest)
+            && ($this->user()?->can('approve', $userOrgRequest) ?? false);
     }
 
     public function rules(): array

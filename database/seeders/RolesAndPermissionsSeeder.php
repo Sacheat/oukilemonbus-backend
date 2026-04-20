@@ -45,6 +45,16 @@ class RolesAndPermissionsSeeder extends Seeder
             'unavailabilities.create',
             'unavailabilities.update',
             'unavailabilities.cancel',
+            'reservations.view',
+            'reservations.create',
+            'reservations.update',
+            'reservations.approve',
+            'reservations.reject',
+            'reservations.cancel',
+            'reservations.assign',
+            'reservations.confirm',
+            'reservations.manage-conflicts',
+            'reservations.record-council-decision',
         ];
 
         foreach ($permissions as $permission) {
@@ -63,9 +73,15 @@ class RolesAndPermissionsSeeder extends Seeder
             'users.view',
             'locations.view',
             'municipalities.view',
+            'org-registration-requests.view',
             'org-registration-requests.create',
+            'user-org-requests.view',
             'user-org-requests.create',
             'organizations.view',
+            'reservations.view',
+            'reservations.create',
+            'reservations.update',
+            'reservations.cancel',
         ]);
 
         $chauffeur->givePermissionTo([
@@ -74,10 +90,13 @@ class RolesAndPermissionsSeeder extends Seeder
             'municipalities.view',
             'vehicles.view',
             'drivers.view',
+            'org-registration-requests.view',
             'org-registration-requests.create',
+            'user-org-requests.view',
             'user-org-requests.create',
             'organizations.view',
             'unavailabilities.view',
+            'reservations.view',
         ]);
 
         $agentCommunal->givePermissionTo([
@@ -111,6 +130,16 @@ class RolesAndPermissionsSeeder extends Seeder
             'unavailabilities.create',
             'unavailabilities.update',
             'unavailabilities.cancel',
+            'reservations.view',
+            'reservations.create',
+            'reservations.update',
+            'reservations.approve',
+            'reservations.reject',
+            'reservations.cancel',
+            'reservations.assign',
+            'reservations.confirm',
+            'reservations.manage-conflicts',
+            'reservations.record-council-decision',
         ]);
 
         $responsableOrganisation->givePermissionTo([
@@ -118,9 +147,15 @@ class RolesAndPermissionsSeeder extends Seeder
             'locations.view',
             'locations.create',
             'municipalities.view',
+            'org-registration-requests.view',
             'org-registration-requests.create',
+            'user-org-requests.view',
             'user-org-requests.create',
             'organizations.view',
+            'reservations.view',
+            'reservations.create',
+            'reservations.update',
+            'reservations.cancel',
         ]);
 
         app(PermissionRegistrar::class)->forgetCachedPermissions();

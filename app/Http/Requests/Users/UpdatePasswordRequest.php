@@ -11,7 +11,8 @@ class UpdatePasswordRequest extends FormRequest
     {
         $user = $this->route('user');
 
-        return is_object($user) && $this->user()?->is($user);
+        return is_object($user)
+            && ($this->user()?->can('updatePassword', $user) ?? false);
     }
 
     public function rules(): array

@@ -12,6 +12,7 @@ use App\Models\OrgRegistrationRequest;
 use App\Services\OrgRegistrationRequests\OrgRegistrationRequestService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Support\Facades\Gate;
 
 class OrgRegistrationRequestController extends Controller
 {
@@ -21,9 +22,17 @@ class OrgRegistrationRequestController extends Controller
 
     public function index(): AnonymousResourceCollection
     {
+        Gate::authorize('viewAny', OrgRegistrationRequest::class);
+
+        $user = request()->user();
+
         return OrgRegistrationRequestResource::collection(
             OrgRegistrationRequest::query()
                 ->with(['requestedByUser', 'reviewedByUser', 'location'])
+                ->when(
+                    ! $user->hasAnyRole(['admin', 'agent_communal']),
+                    fn ($query) => $query->where('request_by_user_id', $user->getKey())
+                )
                 ->orderByDesc('confidence_note')
                 ->latest()
                 ->paginate()
@@ -44,6 +53,8 @@ class OrgRegistrationRequestController extends Controller
 
     public function show(OrgRegistrationRequest $orgRegistrationRequest): OrgRegistrationRequestResource
     {
+        Gate::authorize('view', $orgRegistrationRequest);
+
         return new OrgRegistrationRequestResource(
             $orgRegistrationRequest->load(['requestedByUser', 'reviewedByUser', 'location'])
         );

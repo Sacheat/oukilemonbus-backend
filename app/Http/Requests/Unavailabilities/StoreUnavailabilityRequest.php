@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Unavailabilities;
 
 use App\Enums\UnavailabilityReasonType;
+use App\Models\Unavailability;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -10,7 +11,7 @@ class StoreUnavailabilityRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()?->can('unavailabilities.create') ?? false;
+        return $this->user()?->can('create', Unavailability::class) ?? false;
     }
 
     // Si reason_type = driver

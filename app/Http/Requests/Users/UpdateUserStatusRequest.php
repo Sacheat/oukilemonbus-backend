@@ -8,7 +8,10 @@ class UpdateUserStatusRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()?->can('users.update-status') ?? false;
+        $user = $this->route('user');
+
+        return is_object($user)
+            && ($this->user()?->can('updateStatus', $user) ?? false);
     }
 
     public function rules(): array

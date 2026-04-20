@@ -79,6 +79,64 @@ class UnavailabilityApiTest extends TestCase
         $this->postJson('/api/unavailabilities', [])->assertForbidden();
     }
 
+    public function test_chauffeur_only_sees_their_own_driver_unavailabilities(): void
+    {
+        $chauffeur = User::factory()->create();
+        $chauffeur->assignRole('chauffeur');
+        $driver = Driver::create([
+            'user_id' => $chauffeur->id,
+            'licence_number' => 'B-OWN-123',
+            'licence_expiry_date' => '2030-01-01',
+        ]);
+        $otherDriver = $this->createDriver();
+        $vehicle = $this->createVehicle();
+
+        $ownUnavailability = Unavailability::create([
+            'reason_type' => 'driver',
+            'driver_id' => $driver->id,
+            'start_datetime' => '2026-06-10 08:00:00',
+            'end_datetime' => '2026-06-10 18:00:00',
+            'created_by_user_id' => $chauffeur->id,
+        ]);
+        $otherUnavailability = Unavailability::create([
+            'reason_type' => 'driver',
+            'driver_id' => $otherDriver->id,
+            'start_datetime' => '2026-06-11 08:00:00',
+            'end_datetime' => '2026-06-11 18:00:00',
+            'created_by_user_id' => $chauffeur->id,
+        ]);
+        $vehicleUnavailability = Unavailability::create([
+            'reason_type' => 'vehicle',
+            'vehicle_id' => $vehicle->id,
+            'start_datetime' => '2026-06-12 08:00:00',
+            'end_datetime' => '2026-06-12 18:00:00',
+            'created_by_user_id' => $chauffeur->id,
+        ]);
+
+        Sanctum::actingAs($chauffeur);
+
+        $this->getJson('/api/unavailabilities')
+            ->assertOk()
+            ->assertJsonFragment([
+                'id' => $ownUnavailability->id,
+            ])
+            ->assertJsonMissing([
+                'id' => $otherUnavailability->id,
+            ])
+            ->assertJsonMissing([
+                'id' => $vehicleUnavailability->id,
+            ]);
+
+        $this->getJson("/api/unavailabilities/{$ownUnavailability->id}")
+            ->assertOk();
+
+        $this->getJson("/api/unavailabilities/{$otherUnavailability->id}")
+            ->assertForbidden();
+
+        $this->getJson("/api/unavailabilities/{$vehicleUnavailability->id}")
+            ->assertForbidden();
+    }
+
     public function test_agent_can_create_driver_unavailability(): void
     {
         $agent = User::factory()->create();

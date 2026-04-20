@@ -10,7 +10,10 @@ class UpdateUnavailabilityRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()?->can('unavailabilities.update') ?? false;
+        $unavailability = $this->route('unavailability');
+
+        return is_object($unavailability)
+            && ($this->user()?->can('update', $unavailability) ?? false);
     }
 
     public function rules(): array

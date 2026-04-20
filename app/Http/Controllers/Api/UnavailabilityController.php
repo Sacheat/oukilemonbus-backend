@@ -11,6 +11,7 @@ use App\Models\Unavailability;
 use App\Services\Unavailabilities\UnavailabilityService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Support\Facades\Gate;
 
 class UnavailabilityController extends Controller
 {
@@ -20,8 +21,16 @@ class UnavailabilityController extends Controller
 
     public function index(): AnonymousResourceCollection
     {
+        Gate::authorize('viewAny', Unavailability::class);
+
+        $user = request()->user();
+
         return UnavailabilityResource::collection(
             Unavailability::query()
+                ->when(
+                    ! $user->hasAnyRole(['admin', 'agent_communal']),
+                    fn ($query) => $query->where('driver_id', $user->driver?->getKey() ?? 0)
+                )
                 ->orderBy('start_datetime')
                 ->paginate()
         );
@@ -45,6 +54,8 @@ class UnavailabilityController extends Controller
 
     public function show(Unavailability $unavailability): UnavailabilityResource
     {
+        Gate::authorize('view', $unavailability);
+
         return new UnavailabilityResource($unavailability);
     }
 
@@ -76,6 +87,8 @@ class UnavailabilityController extends Controller
     // On rend inactives les indisponibilites pour garder un historique complet
     public function cancel(Unavailability $unavailability): UnavailabilityResource
     {
+        Gate::authorize('cancel', $unavailability);
+
         $unavailability = $this->unavailabilityService->cancel(
             $unavailability,
             request()->user()->id

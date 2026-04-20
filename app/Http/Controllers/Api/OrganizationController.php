@@ -10,6 +10,7 @@ use App\Models\Organization;
 use App\Services\Organizations\OrganizationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Support\Facades\Gate;
 
 class OrganizationController extends Controller
 {
@@ -19,9 +20,17 @@ class OrganizationController extends Controller
 
     public function index(): AnonymousResourceCollection
     {
+        Gate::authorize('viewAny', Organization::class);
+
+        $user = request()->user();
+
         return OrganizationResource::collection(
             Organization::query()
                 ->with('location')
+                ->when(
+                    ! $user->hasAnyRole(['admin', 'agent_communal']),
+                    fn ($query) => $query->whereHas('users', fn ($query) => $query->whereKey($user->getKey()))
+                )
                 ->orderBy('name')
                 ->paginate()
         );
@@ -38,6 +47,8 @@ class OrganizationController extends Controller
 
     public function show(Organization $organization): OrganizationResource
     {
+        Gate::authorize('view', $organization);
+
         return new OrganizationResource($organization->load(['location', 'users']));
     }
 

@@ -1,0 +1,82 @@
+<?php
+
+namespace App\Policies;
+
+use App\Models\User;
+
+class UserPolicy
+{
+    private const array INTERNAL_ROLES = ['admin', 'agent_communal'];
+
+    public function viewAny(User $user): bool
+    {
+        return $user->can('users.view')
+            && $this->isInternal($user);
+    }
+
+    public function view(User $user, User $targetUser): bool
+    {
+        if ($user->is($targetUser)) {
+            return true;
+        }
+
+        if (! $user->can('users.view')) {
+            return false;
+        }
+
+        if ($this->isInternal($user)) {
+            return true;
+        }
+
+        return $user->hasRole('responsable_organisation')
+            && $this->sharesOrganizationWith($user, $targetUser);
+    }
+
+    public function create(User $user): bool
+    {
+        return $user->can('users.create')
+            && $this->isInternal($user);
+    }
+
+    public function update(User $user, User $targetUser): bool
+    {
+        if ($user->is($targetUser)) {
+            return true;
+        }
+
+        return $user->can('users.update')
+            && $this->isInternal($user);
+    }
+
+    public function updatePassword(User $user, User $targetUser): bool
+    {
+        return $user->is($targetUser);
+    }
+
+    public function updateStatus(User $user, User $targetUser): bool
+    {
+        return $user->can('users.update-status')
+            && $this->isInternal($user);
+    }
+
+    public function deactivate(User $user, User $targetUser): bool
+    {
+        return $user->can('users.deactivate')
+            && $this->isInternal($user);
+    }
+
+    private function isInternal(User $user): bool
+    {
+        return $user->hasAnyRole(self::INTERNAL_ROLES);
+    }
+
+    private function sharesOrganizationWith(User $user, User $targetUser): bool
+    {
+        return $user->organizations()
+            ->whereIn(
+                'organizations.id',
+                $targetUser->organizations()->select('organizations.id')
+            )
+            ->exists();
+    }
+}

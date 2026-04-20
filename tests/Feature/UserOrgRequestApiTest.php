@@ -212,6 +212,50 @@ class UserOrgRequestApiTest extends TestCase
         $this->getJson('/api/user-org-requests')->assertForbidden();
     }
 
+    public function test_user_with_view_permission_only_sees_their_own_user_org_requests(): void
+    {
+        $role = Role::findOrCreate('user_org_request_reader', 'web');
+        $role->givePermissionTo([
+            'user-org-requests.view',
+            'user-org-requests.create',
+        ]);
+
+        $user = User::factory()->create();
+        $user->assignRole($role);
+        $otherUser = User::factory()->create();
+        $organization = $this->createOrganization();
+
+        $ownRequest = UserOrgRequest::create([
+            'organization_id' => $organization->id,
+            'requested_by_user_id' => $user->id,
+            'requested_role' => 'prof',
+            'status' => RequestStatus::EN_ATTENTE,
+        ]);
+        $otherRequest = UserOrgRequest::create([
+            'organization_id' => $organization->id,
+            'requested_by_user_id' => $otherUser->id,
+            'requested_role' => 'animateur',
+            'status' => RequestStatus::EN_ATTENTE,
+        ]);
+
+        Sanctum::actingAs($user);
+
+        $this->getJson('/api/user-org-requests')
+            ->assertOk()
+            ->assertJsonFragment([
+                'request_id' => $ownRequest->request_id,
+            ])
+            ->assertJsonMissing([
+                'request_id' => $otherRequest->request_id,
+            ]);
+
+        $this->getJson("/api/user-org-requests/{$ownRequest->request_id}")
+            ->assertOk();
+
+        $this->getJson("/api/user-org-requests/{$otherRequest->request_id}")
+            ->assertForbidden();
+    }
+
     public function test_agent_can_list_and_show_user_org_requests(): void
     {
         $agent = User::factory()->create();

@@ -10,7 +10,10 @@ class UpdateOrganizationRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()?->can('organizations.update') ?? false;
+        $organization = $this->route('organization');
+
+        return is_object($organization)
+            && ($this->user()?->can('update', $organization) ?? false);
     }
 
     public function rules(): array

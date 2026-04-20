@@ -197,6 +197,27 @@ class AuthUserApiTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_authenticated_user_cannot_list_users(): void
+    {
+        $actor = User::factory()->create();
+        $actor->assignRole('user');
+
+        $this->actingAs($actor)
+            ->getJson('/api/users')
+            ->assertForbidden();
+    }
+
+    public function test_authenticated_user_cannot_view_another_profile(): void
+    {
+        $actor = User::factory()->create();
+        $other = User::factory()->create();
+        $actor->assignRole('user');
+
+        $this->actingAs($actor)
+            ->getJson("/api/users/{$other->id}")
+            ->assertForbidden();
+    }
+
     public function test_authenticated_user_can_update_their_password(): void
     {
         $user = User::factory()->create([

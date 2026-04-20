@@ -3,6 +3,7 @@
 namespace App\Http\Requests\OrgRegistrationRequests;
 
 use App\Enums\OrganizationType;
+use App\Models\OrgRegistrationRequest;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -10,7 +11,7 @@ class StoreOrgRegistrationRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()?->can('org-registration-requests.create') ?? false;
+        return $this->user()?->can('create', OrgRegistrationRequest::class) ?? false;
     }
 
     public function rules(): array
