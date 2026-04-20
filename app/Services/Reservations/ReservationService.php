@@ -4,6 +4,7 @@ namespace App\Services\Reservations;
 
 use App\Enums\CouncilDecisionStatus;
 use App\Enums\OrganizationType;
+use App\Enums\ReservationConflictType;
 use App\Enums\ReservationStatus;
 use App\Models\CouncilDecision;
 use App\Models\Organization;
@@ -194,6 +195,10 @@ class ReservationService
             return $this->reject($reservation, $actor, $data['notes'] ?? 'Decision defavorable du college');
         }
 
+        if ($decision->decision_status === CouncilDecisionStatus::APPROUVE) {
+            $this->resolveCouncilDerogationConflicts($reservation, $actor);
+        }
+
         return $reservation->refresh()->load('councilDecision');
     }
 
@@ -219,6 +224,22 @@ class ReservationService
                 'reservation' => 'Une decision favorable du college est obligatoire avant approbation.',
             ]);
         }
+    }
+
+    private function resolveCouncilDerogationConflicts(Reservation $reservation, User $actor): void
+    {
+        $reservation->conflicts()
+            ->where('is_resolved', false)
+            ->whereIn('type', [
+                ReservationConflictType::DEPARTURE_BEFORE_ALLOWED_TIME->value,
+                ReservationConflictType::RETURN_AFTER_ALLOWED_TIME->value,
+                ReservationConflictType::DURATION_OVER_ALLOWED_LIMIT->value,
+            ])
+            ->update([
+                'is_resolved' => true,
+                'resolved_by_user_id' => $actor->id,
+                'resolved_at' => now(),
+            ]);
     }
 
     private function transition(Reservation $reservation, ReservationStatus $newStatus, User $actor, string $reason): Reservation

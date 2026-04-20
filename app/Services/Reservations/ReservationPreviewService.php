@@ -27,7 +27,9 @@ class ReservationPreviewService
         $pickup = Location::findOrFail($data['pickup_location_id']);
         $destination = Location::findOrFail($data['destination_location_id']);
 
+        $this->ensureMinimumNotice($data['trip_date']);
         $this->ensureBookableDate($data['trip_date']);
+        $this->ensureBelgianTrip($pickup, $destination);
         $this->quotaService->ensureCanCreate($organization, $data['trip_date']);
 
         $distance = $this->calculateDistance($pickup, $destination);
@@ -38,7 +40,7 @@ class ReservationPreviewService
         }
 
         $estimatedDuration = $distance['estimated_duration_min'];
-        $conflicts = $this->detectConflicts($data, $estimatedDuration);
+        $conflicts = $this->detectConflicts($data, $estimatedDuration, $organization);
 
         if ($distance['distance_km'] === null) {
             $conflicts[] = [
@@ -65,29 +67,44 @@ class ReservationPreviewService
         ];
     }
 
-    public function detectConflicts(array $data, ?int $estimatedDurationMin): array
+    public function detectConflicts(array $data, ?int $estimatedDurationMin, ?Organization $organization = null): array
     {
         $conflicts = [];
+        $organization ??= Organization::findOrFail($data['organization_id']);
         $departure = $this->dateTime($data['trip_date'], $data['departure_time']);
         $returnDeparture = $this->dateTime($data['trip_date'], $data['return_time']);
         $margin = config('reservations.duration_margin_min', 15);
         $duration = $estimatedDurationMin ?? 0;
         $end = $returnDeparture->addMinutes($duration + $margin);
 
-        if ($departure->format('H:i') < config('reservations.min_departure_time', '08:00')) {
-            $conflicts[] = [
-                'type' => ReservationConflictType::DEPARTURE_BEFORE_08H->value,
-                'message' => 'L heure de depart est avant 08h00.',
-                'related_reservation_id' => null,
-            ];
-        }
+        if ($organization->type !== OrganizationType::ECOLE_COMMUNALE) {
+            $minDepartureTime = config('reservations.non_school_min_departure_time', '07:30');
+            $maxReturnTime = config('reservations.non_school_max_return_time', '16:00');
+            $maxTotalDuration = (int) config('reservations.non_school_max_total_duration_min', 300);
 
-        if ($returnDeparture->format('H:i') > config('reservations.max_return_time', '17:00')) {
-            $conflicts[] = [
-                'type' => ReservationConflictType::RETURN_AFTER_17H->value,
-                'message' => 'L heure de retour demandee depasse 17h00.',
-                'related_reservation_id' => null,
-            ];
+            if ($departure->format('H:i') < $minDepartureTime) {
+                $conflicts[] = [
+                    'type' => ReservationConflictType::DEPARTURE_BEFORE_ALLOWED_TIME->value,
+                    'message' => "L heure de depart est avant {$minDepartureTime}. Une derogation du college est necessaire.",
+                    'related_reservation_id' => null,
+                ];
+            }
+
+            if ($returnDeparture->format('H:i') > $maxReturnTime) {
+                $conflicts[] = [
+                    'type' => ReservationConflictType::RETURN_AFTER_ALLOWED_TIME->value,
+                    'message' => "L heure de retour demandee depasse {$maxReturnTime}. Une derogation du college est necessaire.",
+                    'related_reservation_id' => null,
+                ];
+            }
+
+            if ($estimatedDurationMin !== null && $departure->diffInMinutes($end) > $maxTotalDuration) {
+                $conflicts[] = [
+                    'type' => ReservationConflictType::DURATION_OVER_ALLOWED_LIMIT->value,
+                    'message' => 'La duree totale d utilisation depasse 5 heures. Une derogation du college est necessaire.',
+                    'related_reservation_id' => null,
+                ];
+            }
         }
 
         if ($estimatedDurationMin !== null && $departure->addMinutes($duration + $margin)->greaterThan($returnDeparture)) {
@@ -135,6 +152,33 @@ class ReservationPreviewService
             throw ValidationException::withMessages([
                 'trip_date' => 'Les reservations ne sont pas autorisees a cette date.',
             ]);
+        }
+    }
+
+    private function ensureMinimumNotice(string $tripDate): void
+    {
+        $minimumDate = now()->startOfDay()->addDays((int) config('reservations.min_notice_days', 15));
+
+        if (CarbonImmutable::parse($tripDate)->startOfDay()->lessThan($minimumDate)) {
+            throw ValidationException::withMessages([
+                'trip_date' => 'La demande doit etre introduite au moins 15 jours avant la date souhaitee.',
+            ]);
+        }
+    }
+
+    private function ensureBelgianTrip(Location $pickup, Location $destination): void
+    {
+        $allowedCountries = array_map(
+            fn (string $country): string => mb_strtolower($country),
+            config('reservations.allowed_countries', ['BE', 'Belgique', 'Belgium'])
+        );
+
+        foreach ([$pickup, $destination] as $location) {
+            if (! in_array(mb_strtolower((string) $location->country), $allowedCountries, true)) {
+                throw ValidationException::withMessages([
+                    'destination_location_id' => 'Le trajet doit etre effectue sur le territoire belge uniquement.',
+                ]);
+            }
         }
     }
 

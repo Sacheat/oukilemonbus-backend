@@ -126,12 +126,18 @@ Regles a appliquer a la creation :
 - il faut au moins 1 adulte accompagnant ;
 - le nombre d'enfants ne peut pas etre negatif ;
 - la date doit respecter les jours autorises ;
+- la demande doit etre introduite au moins 15 jours avant la date souhaitee ;
+- le trajet doit rester sur le territoire belge ;
 - la distance doit etre calculee si possible ;
 - la distance maximale autorisee est 50 km ;
 - le systeme doit detecter les conflits ;
 - le statut initial depend des regles metier.
-- le retour doit être avant ou égal à 17h00 (marge non incluse) sinon en_conflit
-- le départ doit être égal ou après 08h00 (marge non incluse) sinon en_conflit
+- pour les organisations autres que les ecoles communales, le depart doit etre
+  apres ou egal a 07h30 sinon en_conflit ;
+- pour les organisations autres que les ecoles communales, le retour demande
+  doit etre avant ou egal a 16h00 sinon en_conflit ;
+- pour les organisations autres que les ecoles communales, la duree totale
+  d'utilisation ne doit pas depasser 5 heures sinon en_conflit.
 
 
 Preview avant creation
@@ -186,8 +192,11 @@ configurable ajoutee par le backend.
 Un fichier de configuration devra contenir au minimum :
 - distance maximale autorisee ;
 - marge de duree ;
-- heure minimale de depart ;
-- heure maximale preferee de retour ;
+- heure minimale de depart pour les organisations non-ecoles ;
+- heure maximale preferee de retour pour les organisations non-ecoles ;
+- duree totale maximale pour les organisations non-ecoles ;
+- delai minimum de demande ;
+- pays autorises ;
 - jours fermes / feries.
 
 Fichier propose :
@@ -214,12 +223,17 @@ return_time :
 departure_time + duree aller estimee + marge <= return_time
 
 Regles horaires :
-- depart avant 08h00 : reservation en conflit ;
-- retour apres 17h00 : reservation en conflit ;
+- pour les ecoles communales, la plage horaire reglementaire non-ecole ne
+  s'applique pas ;
+- pour les autres organisations, depart avant 07h30 : reservation en conflit ;
+- pour les autres organisations, retour apres 16h00 : reservation en conflit ;
+- pour les autres organisations, duree totale d'utilisation superieure a 5h :
+  reservation en conflit ;
 - si le trajet est impossible dans la plage horaire demandee : reservation en conflit.
 
-Ces cas ne bloquent pas forcement la creation, mais demandent une intervention
-admin / agent communal.
+Ces cas ne bloquent pas la creation. Ils demandent une decision favorable du
+college et sont resolus automatiquement par cette decision si elle accorde la
+derogation.
 
 
 Jours autorises
@@ -326,11 +340,18 @@ Types de conflits prevus :
 - schedule_overlap ;
 - departure_before_08h ;
 - return_after_17h ;
+- departure_before_allowed_time ;
+- return_after_allowed_time ;
 - impossible_time_window ;
+- duration_over_allowed_limit ;
 - quota_exceeded ;
 - no_driver_available ;
 - no_vehicle_available ;
 - vehicle_capacity_unavailable.
+
+Les types departure_before_08h et return_after_17h restent presents pour
+compatibilite, mais la regle officielle V1 utilise maintenant
+departure_before_allowed_time et return_after_allowed_time.
 
 Distance > 50 km n'est pas un conflit : c'est une erreur bloquante.
 
@@ -408,6 +429,8 @@ Approuver :
 - possible automatiquement pour une ecole communale conforme ;
 - possible manuellement par admin / agent communal ;
 - impossible pour une organisation non-ecole sans decision college favorable ;
+- une decision college favorable resout automatiquement les conflits de
+  derogation horaire/duree reglementaire ;
 - cree une entree dans reservation_status_history.
 
 Refuser :

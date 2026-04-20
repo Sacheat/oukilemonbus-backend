@@ -15,6 +15,7 @@ use App\Models\Vehicle;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Carbon;
 use Laravel\Sanctum\Sanctum;
 use Spatie\Permission\PermissionRegistrar;
 use Tests\TestCase;
@@ -29,12 +30,20 @@ class ReservationApiTest extends TestCase
 
         app(PermissionRegistrar::class)->forgetCachedPermissions();
         $this->seed(RolesAndPermissionsSeeder::class);
+        Carbon::setTestNow('2026-04-20 09:00:00');
 
         config([
             'services.openrouteservice.key' => 'test-key',
             'services.openrouteservice.base_url' => 'https://ors.test',
             'reservations.closed_dates' => ['2026-01-01'],
         ]);
+    }
+
+    protected function tearDown(): void
+    {
+        Carbon::setTestNow();
+
+        parent::tearDown();
     }
 
     public function test_user_can_create_communal_school_reservation_and_it_is_confirmed_when_resources_are_available(): void
@@ -202,6 +211,59 @@ class ReservationApiTest extends TestCase
             ->assertJsonPath('data.status', ReservationStatus::CONFIRME->value);
     }
 
+    public function test_non_school_reservation_after_allowed_return_time_creates_derogation_conflict_resolved_by_council(): void
+    {
+        Http::fake([
+            'https://ors.test/*' => Http::response([
+                'routes' => [[
+                    'summary' => [
+                        'distance' => 12000,
+                        'duration' => 1800,
+                    ],
+                ]],
+            ]),
+        ]);
+
+        $agent = User::factory()->create();
+        $agent->assignRole('agent_communal');
+        $organization = $this->organization(OrganizationType::ASBL);
+        $this->driverAndVehicle();
+
+        Sanctum::actingAs($agent);
+
+        $reservationId = $this->postJson('/api/reservations', [
+            ...$this->payload($organization),
+            'return_time' => '16:30',
+        ])
+            ->assertCreated()
+            ->assertJsonPath('data.status', ReservationStatus::EN_CONFLIT->value)
+            ->json('data.id');
+
+        $this->assertDatabaseHas('reservation_conflicts', [
+            'reservation_id' => $reservationId,
+            'type' => ReservationConflictType::RETURN_AFTER_ALLOWED_TIME->value,
+            'is_resolved' => false,
+        ]);
+
+        $this->postJson("/api/reservations/{$reservationId}/council-decision", [
+            'decision_status' => CouncilDecisionStatus::APPROUVE->value,
+            'decision_date' => '2026-06-01',
+            'decision_reference' => 'COL-2026-002',
+            'notes' => 'Derogation horaire acceptee.',
+        ])->assertOk();
+
+        $this->assertDatabaseHas('reservation_conflicts', [
+            'reservation_id' => $reservationId,
+            'type' => ReservationConflictType::RETURN_AFTER_ALLOWED_TIME->value,
+            'is_resolved' => true,
+            'resolved_by_user_id' => $agent->id,
+        ]);
+
+        $this->patchJson("/api/reservations/{$reservationId}/approve")
+            ->assertOk()
+            ->assertJsonPath('data.status', ReservationStatus::CONFIRME->value);
+    }
+
     public function test_weekend_creation_is_rejected(): void
     {
         $user = User::factory()->create();
@@ -217,6 +279,39 @@ class ReservationApiTest extends TestCase
         ])
             ->assertUnprocessable()
             ->assertJsonValidationErrors('trip_date');
+    }
+
+    public function test_reservation_requires_minimum_notice(): void
+    {
+        $user = User::factory()->create();
+        $user->assignRole('user');
+        $organization = $this->organization(OrganizationType::ECOLE_COMMUNALE);
+        $user->organizations()->attach($organization->id, ['relationship_type' => 'membre', 'is_default' => true]);
+
+        Sanctum::actingAs($user);
+
+        $this->postJson('/api/reservations', [
+            ...$this->payload($organization),
+            'trip_date' => now()->addDays(14)->toDateString(),
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('trip_date');
+    }
+
+    public function test_reservation_requires_belgian_locations(): void
+    {
+        $user = User::factory()->create();
+        $user->assignRole('user');
+        $organization = $this->organization(OrganizationType::ECOLE_COMMUNALE);
+        $user->organizations()->attach($organization->id, ['relationship_type' => 'membre', 'is_default' => true]);
+        [$pickup, $destination] = $this->locations();
+        $destination->update(['country' => 'France']);
+
+        Sanctum::actingAs($user);
+
+        $this->postJson('/api/reservations', $this->payload($organization, $pickup, $destination))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('destination_location_id');
     }
 
     private function payload(Organization $organization, ?Location $pickup = null, ?Location $destination = null): array

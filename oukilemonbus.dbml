@@ -44,7 +44,10 @@ Enum reservation_conflict_type {
   schedule_overlap
   departure_before_08h
   return_after_17h
+  departure_before_allowed_time
+  return_after_allowed_time
   impossible_time_window
+  duration_over_allowed_limit
   quota_exceeded
   no_driver_available
   no_vehicle_available

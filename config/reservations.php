@@ -3,8 +3,11 @@
 return [
     'max_distance_km' => 50,
     'duration_margin_min' => 15,
-    'min_departure_time' => '08:00',
-    'max_return_time' => '17:00',
+    'non_school_min_departure_time' => '07:30',
+    'non_school_max_return_time' => '16:00',
+    'non_school_max_total_duration_min' => 300,
+    'min_notice_days' => 15,
+    'allowed_countries' => ['BE', 'Belgique', 'Belgium'],
     'annual_quota' => 5,
     'max_active_requests' => 2,
     'max_confirmed_reservations' => 2,
