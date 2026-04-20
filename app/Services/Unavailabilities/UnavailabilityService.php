@@ -1,11 +1,12 @@
 <?php
 
 namespace App\Services\Unavailabilities;
-use App\Models\UnavailabilityHistory;
 
 use App\Enums\UnavailabilityReasonType;
 use App\Exceptions\UnavailabilityException;
 use App\Models\Unavailability;
+use App\Models\UnavailabilityHistory;
+use Illuminate\Support\Facades\DB;
 
 class UnavailabilityService
 {
@@ -65,6 +66,7 @@ class UnavailabilityService
 
     /**
      * Met à jour une indisponibilité et enregistre l'historique des modifications
+     *
      * @throws UnavailabilityException
      */
     public function update(Unavailability $unavailability, array $data, int $changedByUserId, ?string $changeReason = null): Unavailability
@@ -73,29 +75,30 @@ class UnavailabilityService
             ? UnavailabilityReasonType::from($data['reason_type'])
             : $unavailability->reason_type;
 
-        $driverId  = array_key_exists('driver_id', $data)  ? $data['driver_id']  : $unavailability->driver_id;
+        $driverId = array_key_exists('driver_id', $data) ? $data['driver_id'] : $unavailability->driver_id;
         $vehicleId = array_key_exists('vehicle_id', $data) ? $data['vehicle_id'] : $unavailability->vehicle_id;
 
         $this->validateSubjectAssignment($reasonType, $driverId, $vehicleId);
 
-        // Enregistre l'historique avant la modification
-        UnavailabilityHistory::create([
-            'unavailability_id'   => $unavailability->id,
-            'old_reason_type'     => $unavailability->reason_type,
-            'new_reason_type'     => $data['reason_type'] ?? $unavailability->reason_type,
-            'old_start_datetime'  => $unavailability->start_datetime,
-            'new_start_datetime'  => $data['start_datetime'] ?? $unavailability->start_datetime,
-            'old_end_datetime'    => $unavailability->end_datetime,
-            'new_end_datetime'    => $data['end_datetime'] ?? $unavailability->end_datetime,
-            'old_reason'          => $unavailability->reason,
-            'new_reason'          => $data['reason'] ?? $unavailability->reason,
-            'changed_by_user_id'  => $changedByUserId,
-            'change_reason'       => $changeReason,
-        ]);
+        return DB::transaction(function () use ($unavailability, $data, $changedByUserId, $changeReason): Unavailability {
+            UnavailabilityHistory::create([
+                'unavailability_id' => $unavailability->id,
+                'old_reason_type' => $unavailability->reason_type,
+                'new_reason_type' => $data['reason_type'] ?? $unavailability->reason_type,
+                'old_start_datetime' => $unavailability->start_datetime,
+                'new_start_datetime' => $data['start_datetime'] ?? $unavailability->start_datetime,
+                'old_end_datetime' => $unavailability->end_datetime,
+                'new_end_datetime' => $data['end_datetime'] ?? $unavailability->end_datetime,
+                'old_reason' => $unavailability->reason,
+                'new_reason' => $data['reason'] ?? $unavailability->reason,
+                'changed_by_user_id' => $changedByUserId,
+                'change_reason' => $changeReason,
+            ]);
 
-        $unavailability->update($data);
+            $unavailability->update($data);
 
-        return $unavailability->refresh();
+            return $unavailability->refresh();
+        });
     }
 
     /**
@@ -103,22 +106,24 @@ class UnavailabilityService
      */
     public function cancel(Unavailability $unavailability, int $cancelledByUserId): Unavailability
     {
-        UnavailabilityHistory::create([
-            'unavailability_id'   => $unavailability->id,
-            'old_reason_type'     => $unavailability->reason_type,
-            'new_reason_type'     => $unavailability->reason_type,
-            'old_start_datetime'  => $unavailability->start_datetime,
-            'new_start_datetime'  => $unavailability->start_datetime,
-            'old_end_datetime'    => $unavailability->end_datetime,
-            'new_end_datetime'    => $unavailability->end_datetime,
-            'old_reason'          => $unavailability->reason,
-            'new_reason'          => $unavailability->reason,
-            'changed_by_user_id'  => $cancelledByUserId,
-            'change_reason'       => 'Indisponibilite annulee.',
-        ]);
+        return DB::transaction(function () use ($unavailability, $cancelledByUserId): Unavailability {
+            UnavailabilityHistory::create([
+                'unavailability_id' => $unavailability->id,
+                'old_reason_type' => $unavailability->reason_type,
+                'new_reason_type' => $unavailability->reason_type,
+                'old_start_datetime' => $unavailability->start_datetime,
+                'new_start_datetime' => $unavailability->start_datetime,
+                'old_end_datetime' => $unavailability->end_datetime,
+                'new_end_datetime' => $unavailability->end_datetime,
+                'old_reason' => $unavailability->reason,
+                'new_reason' => $unavailability->reason,
+                'changed_by_user_id' => $cancelledByUserId,
+                'change_reason' => 'Indisponibilite annulee.',
+            ]);
 
-        $unavailability->update(['is_active' => false]);
+            $unavailability->update(['is_active' => false]);
 
-        return $unavailability->refresh();
+            return $unavailability->refresh();
+        });
     }
 }

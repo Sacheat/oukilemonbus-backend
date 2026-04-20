@@ -53,11 +53,16 @@ class UnavailabilityController extends Controller
      */
     public function update(UpdateUnavailabilityRequest $request, Unavailability $unavailability): JsonResponse
     {
+        $validated = $request->validated();
+        $changeReason = $validated['change_reason'] ?? null;
+        unset($validated['change_reason']);
+
         try {
             $unavailability = $this->unavailabilityService->update(
                 $unavailability,
-                $request->validated(),
-                $request->user()->id
+                $validated,
+                $request->user()->id,
+                $changeReason
             );
         } catch (UnavailabilityException $e) {
             return response()->json(['message' => $e->getMessage()], 422);
