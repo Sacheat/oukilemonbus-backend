@@ -1,0 +1,542 @@
+Feature Reservations - V1
+=========================
+
+Objectif
+--------
+
+La V1 de la feature reservations doit permettre de creer, consulter, traiter,
+approuver, refuser, annuler et confirmer des demandes de reservation du bus
+communal.
+
+Elle doit aussi poser les bases metier importantes :
+- validation automatique pour les ecoles communales quand tout est conforme ;
+- passage obligatoire par le college pour les autres organisations ;
+- detection des conflits ;
+- gestion des quotas ;
+- affectation chauffeur / vehicule ;
+- historiques de statut et d'affectation.
+
+Les documents PDF et les notifications email ne font pas partie de cette feature.
+Ils seront traites plus tard dans les features documents et notifications.
+
+
+Roles et droits
+---------------
+
+Les roles qui peuvent creer une reservation :
+- admin ;
+- agent_communal ;
+- utilisateur rattache a une organisation.
+
+Un utilisateur classique ne peut creer une reservation que pour une organisation
+a laquelle il est rattache via user_organization.
+
+Si l'utilisateur appartient a plusieurs organisations :
+- le frontend preselectionnera son organisation par defaut ;
+- il pourra choisir une autre organisation parmi celles auxquelles il est rattache ;
+- le backend devra quand meme verifier ce rattachement.
+
+Un admin ou un agent communal peut creer une reservation au nom d'une
+organisation et/ou d'un utilisateur.
+
+Les roles qui peuvent voir toutes les reservations :
+- admin ;
+- agent_communal.
+
+Un responsable d'organisation peut voir toutes les reservations de son
+organisation.
+
+Un utilisateur peut voir toutes les réservations qu'il a effectué
+
+Un chauffeur ne voit pas toutes les reservations metier. Pour la V1, il voit
+uniquement son planning, donc les reservations qui lui sont assignees.
+
+Permissions a ajouter :
+- reservations.view ;
+- reservations.create ;
+- reservations.update ;
+- reservations.validate ;
+- reservations.cancel ;
+- reservations.assign.
+
+
+Statuts de reservation
+----------------------
+
+Les statuts existants sont :
+- en_attente ;
+- approuve ;
+- refuse ;
+- annule ;
+- en_conflit.
+
+La V1 ajoute un nouveau statut :
+- confirme.
+
+Sens des statuts :
+
+en_attente
+    La demande est recue et attend un traitement.
+    Pour les organisations autres que les ecoles communales, cela signifie
+    notamment que la decision du college est attendue.
+
+en_conflit
+    La demande existe, mais un ou plusieurs problemes demandent une intervention
+    humaine.
+
+approuve
+    La demande est acceptee administrativement.
+    Elle n'est pas encore forcement planifiee definitivement.
+
+confirme
+    La reservation est reellement planifiee.
+    Elle a un chauffeur et un vehicule assignes.
+
+refuse
+    La demande est refusee.
+
+annule
+    La reservation est annulee.
+
+
+Creation d'une reservation
+--------------------------
+
+Champs principaux :
+- requested_by_user_id ;
+- organization_id ;
+- pickup_location_id ;
+- destination_location_id ;
+- trip_date ;
+- departure_time ;
+- return_time ;
+- nb_children ;
+- nb_adults ;
+- trip_purpose.
+
+Le chauffeur et le vehicule ne sont pas choisis par l'utilisateur au moment de
+la demande. Ils seront assignes automatiquement par le systeme ou manuellement
+par un admin / agent communal.
+
+Regles a appliquer a la creation :
+- l'utilisateur doit etre autorise a reserver pour l'organisation ;
+- l'organisation doit exister ;
+- les lieux doivent exister ;
+- les lieux doivent idealement etre verifies et geocodes ;
+- il faut au moins 1 adulte accompagnant ;
+- le nombre d'enfants ne peut pas etre negatif ;
+- la date doit respecter les jours autorises ;
+- la distance doit etre calculee si possible ;
+- la distance maximale autorisee est 50 km ;
+- le systeme doit detecter les conflits ;
+- le statut initial depend des regles metier.
+- le retour doit être avant ou égal à 17h00 (marge non incluse) sinon en_conflit
+- le départ doit être égal ou après 08h00 (marge non incluse) sinon en_conflit
+
+
+Preview avant creation
+----------------------
+
+Pour ameliorer l'experience utilisateur, on ajoute une route de preview avant
+l'envoi definitif du formulaire.
+
+Route proposee :
+
+POST /api/reservations/preview
+
+Cette route sert a :
+- calculer la distance ;
+- calculer la duree estimee ;
+- appliquer la marge configurable ;
+- dire si la distance depasse 50 km ;
+- detecter des conflits previsibles ;
+- indiquer le statut pressenti ;
+- retourner des messages clairs pour le formulaire.
+
+Exemple de reponse si la distance depasse la limite :
+
+{
+  "distance_km": 63.4,
+  "estimated_duration_min": 78,
+  "is_allowed": false,
+  "message": "La distance maximale autorisee est de 50 km."
+}
+
+Le frontend devra utiliser cette route pour afficher l'erreur directement dans
+le formulaire et empecher l'envoi.
+
+Le backend devra quand meme refaire les verifications lors du vrai POST
+/reservations, car on ne fait jamais confiance uniquement au frontend.
+
+
+Distance et duree
+-----------------
+
+La distance est calculee entre le lieu de depart et la destination via
+OpenRouteService.
+
+Regles :
+- si la distance est calculee et depasse 50 km : erreur 422, reservation non creee ;
+- si la distance est calculee et est inferieure ou egale a 50 km : OK ;
+- si la distance ne peut pas etre calculee : reservation creee en conflit.
+
+La duree estimee est celle retournee par OpenRouteService, avec une marge
+configurable ajoutee par le backend.
+
+Un fichier de configuration devra contenir au minimum :
+- distance maximale autorisee ;
+- marge de duree ;
+- heure minimale de depart ;
+- heure maximale preferee de retour ;
+- jours fermes / feries.
+
+Fichier propose :
+
+config/reservations.php
+
+
+Horaires
+--------
+
+departure_time represente l'heure de depart depuis le lieu de depart.
+
+return_time represente l'heure souhaitee de depart depuis la destination pour
+revenir vers le lieu de depart.
+
+La plage reelle d'occupation du bus doit donc etre calculee comme ceci :
+
+debut = trip_date + departure_time
+fin = trip_date + return_time + duree retour estimee + marge
+
+Il faut aussi verifier que le bus a le temps d'arriver a destination avant
+return_time :
+
+departure_time + duree aller estimee + marge <= return_time
+
+Regles horaires :
+- depart avant 08h00 : reservation en conflit ;
+- retour apres 17h00 : reservation en conflit ;
+- si le trajet est impossible dans la plage horaire demandee : reservation en conflit.
+
+Ces cas ne bloquent pas forcement la creation, mais demandent une intervention
+admin / agent communal.
+
+
+Jours autorises
+---------------
+
+Pour la V1 :
+- reservation interdite le week-end ;
+- reservation interdite les jours feries / jours fermes listes dans la config.
+
+On cree un fichier config/reservations.php avec une liste simple de jours fermes.
+
+Plus tard, cette liste pourra etre remplacee par un import d'un vrai calendrier
+belge officiel.
+
+Si une date tombe un week-end ou un jour ferme :
+- la creation doit etre refusee avec une erreur 422 ;
+- le formulaire doit afficher l'erreur clairement.
+
+
+Regles selon le type d'organisation
+-----------------------------------
+
+Ecole communale :
+- hors quota ;
+- validation automatique possible ;
+- si toutes les regles sont respectees et qu'il n'y a pas de conflit, la demande
+  peut etre approuvee automatiquement ;
+- si un conflit existe, la demande passe en en_conflit.
+- prioritaire sur les autres types d'organisation
+
+Autres organisations :
+- decision du college obligatoire avant approbation ;
+- quota annuel applique ;
+- limite de demandes actives appliquee ;
+- statut initial en_attente si la demande est recevable ;
+- statut initial en_conflit si un conflit est detecte.
+
+
+Decision du college
+-------------------
+
+Pour toutes les organisations autres que les ecoles communales, la decision du
+college est obligatoire avant approbation.
+
+Un admin ou un agent communal peut enregistrer la decision.
+
+La decision du college sera integree au workflow de reservation plutot qu'un
+CRUD totalement separe.
+
+Route proposee :
+
+POST /api/reservations/{reservation}/council-decision
+
+Une decision favorable permet ensuite d'approuver la reservation.
+
+Une decision defavorable doit mener au refus de la reservation, avec une raison.
+
+
+Quotas
+------
+
+Les quotas concernent toutes les organisations sauf les ecoles communales.
+
+Regles :
+- maximum 5 reservations par annee civile ;
+- maximum 2 demandes / reservations futures actives en meme temps ;
+- maximum 2 reservations confirmees futures.
+
+Statuts consideres comme actifs :
+- en_attente ;
+- en_conflit ;
+- approuve ;
+- confirme.
+
+Une reservation refusee ne consomme pas de quota.
+
+Une reservation annulee rend le quota si elle l'avait consomme.
+
+Le quota est base sur l'annee civile et doit etre reinitialise chaque 1er janvier.
+
+
+Conflits
+--------
+
+Une reservation peut etre creee en statut en_conflit.
+
+Chaque conflit doit etre stocke et explique clairement a l'admin / agent communal.
+
+On ajoute une table dediee :
+
+reservation_conflicts
+- id ;
+- reservation_id ;
+- type ;
+- message ;
+- related_reservation_id nullable ;
+- is_resolved ;
+- resolved_by_user_id nullable ;
+- resolved_at nullable ;
+- created_at.
+
+Types de conflits prevus :
+- distance_not_calculated ;
+- schedule_overlap ;
+- departure_before_08h ;
+- return_after_17h ;
+- impossible_time_window ;
+- quota_exceeded ;
+- no_driver_available ;
+- no_vehicle_available ;
+- vehicle_capacity_unavailable.
+
+Distance > 50 km n'est pas un conflit : c'est une erreur bloquante.
+
+Week-end / jour ferme n'est pas un conflit : c'est une erreur bloquante.
+
+Un admin ou un agent communal pourra resoudre les conflits manuellement.
+
+Une reservation en conflit peut etre approuvee manuellement si l'admin ou l'agent
+communal decide de l'accepter.
+
+
+Chevauchements
+--------------
+
+Un chevauchement avec une autre reservation active doit creer un conflit.
+
+Les reservations a prendre en compte pour les chevauchements :
+- en_attente ;
+- en_conflit ;
+- approuve ;
+- confirme.
+
+Les statuts refuse et annule ne doivent pas bloquer.
+
+La detection doit utiliser la plage reelle d'occupation du bus :
+- depart ;
+- trajet aller ;
+- temps sur place jusqu'a return_time ;
+- trajet retour ;
+- marge configurable.
+
+Si un chevauchement est detecte, on cree un conflit avec une reference vers la
+reservation concernee.
+
+
+Affectation chauffeur / vehicule
+--------------------------------
+
+L'utilisateur ne choisit pas le chauffeur ni le vehicule.
+
+Le systeme doit essayer d'assigner automatiquement :
+- un chauffeur actif et disponible ;
+- un vehicule actif et disponible.
+
+Pour le vehicule :
+- choisir le plus petit vehicule compatible avec la capacite demandee ;
+- capacite demandee = nb_children + nb_adults + 1 chauffeur.
+
+Pour le chauffeur :
+- pour la V1, choisir un chauffeur actif disponible ;
+- la logique doit rester isolee pour pouvoir etre amelioree plus tard.
+
+Un chauffeur indisponible via unavailability ne peut pas etre assigne.
+
+Un vehicule indisponible via unavailability ne peut pas etre assigne.
+
+Un chauffeur ou vehicule deja occupe sur une reservation active ne peut pas etre
+assigne sur une plage qui chevauche.
+
+Si aucun chauffeur ou vehicule n'est disponible :
+- la reservation peut rester approuvee ;
+- elle ne peut pas passer en confirme ;
+- un conflit no_driver_available ou no_vehicle_available doit etre cree.
+
+Un admin ou agent communal peut changer le chauffeur ou le vehicule apres
+approbation / confirmation.
+
+Chaque changement doit creer une entree dans reservation_assignment_history.
+
+
+Validation, refus, annulation, confirmation
+-------------------------------------------
+
+Approuver :
+- possible automatiquement pour une ecole communale conforme ;
+- possible manuellement par admin / agent communal ;
+- impossible pour une organisation non-ecole sans decision college favorable ;
+- cree une entree dans reservation_status_history.
+
+Refuser :
+- possible par admin / agent communal ;
+- raison obligatoire ;
+- status = refuse ;
+- rejection_reason renseignee ;
+- historique de statut cree ;
+- aucun quota consomme.
+
+Annuler :
+- possible selon les droits ;
+- raison obligatoire ;
+- status = annule ;
+- cancelled_by_user_id renseigne ;
+- cancelled_at renseigne ;
+- cancellation_reason renseignee ;
+- historique de statut cree ;
+- quota rendu si necessaire.
+
+Confirmer :
+- possible seulement si la reservation est approuvee ;
+- necessite chauffeur et vehicule assignes ;
+- necessite aucun conflit bloquant non resolu ;
+- status = confirme ;
+- historique de statut cree.
+
+
+Routes API V1
+-------------
+
+Routes proposees :
+
+GET    /api/reservations
+POST   /api/reservations/preview
+POST   /api/reservations
+GET    /api/reservations/{reservation}
+PATCH  /api/reservations/{reservation}
+PATCH  /api/reservations/{reservation}/approve
+PATCH  /api/reservations/{reservation}/reject
+PATCH  /api/reservations/{reservation}/cancel
+PATCH  /api/reservations/{reservation}/assign
+PATCH  /api/reservations/{reservation}/confirm
+POST   /api/reservations/{reservation}/council-decision
+GET    /api/reservations/{reservation}/conflicts
+PATCH  /api/reservations/{reservation}/conflicts/{conflict}/resolve
+
+
+Fichiers a creer ou modifier
+----------------------------
+
+Enums :
+- app/Enums/ReservationStatus.php
+- app/Enums/ReservationConflictType.php
+
+Models :
+- app/Models/Reservation.php
+- app/Models/ReservationConflict.php
+
+Migrations :
+- ajouter le statut confirme cote code ;
+- create_reservation_conflicts_table.
+
+Requests :
+- app/Http/Requests/Reservations/PreviewReservationRequest.php
+- app/Http/Requests/Reservations/StoreReservationRequest.php
+- app/Http/Requests/Reservations/UpdateReservationRequest.php
+- app/Http/Requests/Reservations/ApproveReservationRequest.php
+- app/Http/Requests/Reservations/RejectReservationRequest.php
+- app/Http/Requests/Reservations/CancelReservationRequest.php
+- app/Http/Requests/Reservations/AssignReservationRequest.php
+- app/Http/Requests/Reservations/ConfirmReservationRequest.php
+- app/Http/Requests/Reservations/StoreCouncilDecisionRequest.php
+
+Resources :
+- app/Http/Resources/ReservationResource.php
+- app/Http/Resources/ReservationConflictResource.php
+
+Controllers :
+- app/Http/Controllers/Api/ReservationController.php
+- app/Http/Controllers/Api/ReservationConflictController.php
+
+Services :
+- app/Services/Reservations/ReservationService.php
+- app/Services/Reservations/ReservationPreviewService.php
+- app/Services/Reservations/ReservationConflictDetector.php
+- app/Services/Reservations/ReservationAssignmentService.php
+- app/Services/Reservations/ReservationQuotaService.php
+
+Config :
+- config/reservations.php
+
+Tests :
+- tests/Feature/ReservationApiTest.php
+- tests/Feature/ReservationConflictApiTest.php
+- tests/Feature/ReservationAssignmentApiTest.php
+- tests/Feature/ReservationCouncilDecisionApiTest.php
+
+
+Hors scope V1
+-------------
+
+Ne pas inclure dans cette V1 :
+- generation de documents ;
+- notifications email ;
+- optimisation de tournee ;
+- calendrier belge officiel importe automatiquement ;
+- gestion avancee des vacances scolaires ;
+- choix intelligent du meilleur chauffeur ;
+- recurrence complexe si elle ralentit trop la V1.
+
+
+Definition of Done
+------------------
+
+La V1 est prete quand :
+- les permissions sont ajoutees au seeder ;
+- les routes sont protegees ;
+- les utilisateurs ne voient que les reservations auxquelles ils ont droit ;
+- les admins / agents voient tout ;
+- les ecoles communales conformes peuvent etre approuvees automatiquement ;
+- les autres organisations passent par decision college ;
+- les distances > 50 km sont bloquees ;
+- les distances non calculables creent un conflit ;
+- les week-ends / jours fermes sont bloques ;
+- les conflits sont explicites et consultables ;
+- les quotas sont respectes ;
+- l'assignation chauffeur / vehicule fonctionne ;
+- l'historique statut est complet ;
+- l'historique affectation est complet ;
+- les tests feature couvrent les cas principaux ;
+- toute la suite php artisan test passe.
