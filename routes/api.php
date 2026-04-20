@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\MunicipalityLocalityController;
 use App\Http\Controllers\Api\OrganizationController;
 use App\Http\Controllers\Api\OrgRegistrationRequestController;
 use App\Http\Controllers\Api\UnavailabilityController;
+use App\Http\Controllers\Api\UnavailabilityHistoryController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\UserOrgRequestController;
 use App\Http\Controllers\Api\VehicleController;
@@ -223,5 +224,16 @@ Route::name('api.')->group(function (): void {
         Route::patch('/unavailabilities/{unavailability}/cancel', [UnavailabilityController::class, 'cancel'])
             ->middleware('permission:unavailabilities.cancel')
             ->name('unavailabilities.cancel');
+
+        /**
+         * Unavailabilities history routes (lecture seule)
+         * Pas besoin d'une permission séparée pour l'historique car elle est liée à la permission de voir les indisponibilités.
+         */
+        Route::middleware('permission:unavailabilities.view')->group(function (): void {
+            Route::get('/unavailabilities/{unavailability}/history', [UnavailabilityHistoryController::class, 'index'])
+                ->name('unavailabilities.history.index');
+            Route::get('/unavailabilities/{unavailability}/history/{history}', [UnavailabilityHistoryController::class, 'show'])
+                ->name('unavailabilities.history.show');
+        });
     });
 });

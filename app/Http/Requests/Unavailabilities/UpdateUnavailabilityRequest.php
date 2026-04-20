@@ -22,6 +22,7 @@ class UpdateUnavailabilityRequest extends FormRequest
             'vehicle_id' => ['sometimes', 'nullable', 'integer', 'exists:vehicles,id'],
             'start_datetime' => ['sometimes', 'date', 'before:end_datetime'],
             'end_datetime' => ['sometimes', 'date', 'after:start_datetime'],
+            'change_reason' => ['sometimes', 'nullable', 'string', 'max:500'],
         ];
     }
 

@@ -48,12 +48,21 @@ class UnavailabilityController extends Controller
         return new UnavailabilityResource($unavailability);
     }
 
+    /** Met à jour une indisponibilité et enregistre l'historique des modifications
+     * @throws UnavailabilityException
+     */
     public function update(UpdateUnavailabilityRequest $request, Unavailability $unavailability): JsonResponse
     {
+        $validated = $request->validated();
+        $changeReason = $validated['change_reason'] ?? null;
+        unset($validated['change_reason']);
+
         try {
             $unavailability = $this->unavailabilityService->update(
                 $unavailability,
-                $request->validated()
+                $validated,
+                $request->user()->id,
+                $changeReason
             );
         } catch (UnavailabilityException $e) {
             return response()->json(['message' => $e->getMessage()], 422);

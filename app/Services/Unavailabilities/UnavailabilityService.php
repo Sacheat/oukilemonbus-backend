@@ -5,7 +5,9 @@ namespace App\Services\Unavailabilities;
 use App\Enums\UnavailabilityReasonType;
 use App\Exceptions\UnavailabilityException;
 use App\Models\Unavailability;
+use App\Models\UnavailabilityHistory;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 
 class UnavailabilityService
 {
@@ -77,16 +79,16 @@ class UnavailabilityService
     }
 
     /**
+     * Met à jour une indisponibilité et enregistre l'historique des modifications
+     *
      * @throws UnavailabilityException
      */
-    public function update(Unavailability $unavailability, array $data): Unavailability
+    public function update(Unavailability $unavailability, array $data, int $changedByUserId, ?string $changeReason = null): Unavailability
     {
-        // On prend le reason_type de la requete ou celui deja en base
         $reasonType = isset($data['reason_type'])
             ? UnavailabilityReasonType::from($data['reason_type'])
             : $unavailability->reason_type;
 
-        // On prend les ids de la requete ou ceux deja en base
         $driverId = array_key_exists('driver_id', $data) ? $data['driver_id'] : $unavailability->driver_id;
         $vehicleId = array_key_exists('vehicle_id', $data) ? $data['vehicle_id'] : $unavailability->vehicle_id;
         $startDatetime = array_key_exists('start_datetime', $data)
@@ -99,15 +101,50 @@ class UnavailabilityService
         $this->validateSubjectAssignment($reasonType, $driverId, $vehicleId);
         $this->validateDateRange($startDatetime, $endDatetime);
 
-        $unavailability->update($data);
+        return DB::transaction(function () use ($unavailability, $data, $changedByUserId, $changeReason): Unavailability {
+            UnavailabilityHistory::create([
+                'unavailability_id' => $unavailability->id,
+                'old_reason_type' => $unavailability->reason_type,
+                'new_reason_type' => $data['reason_type'] ?? $unavailability->reason_type,
+                'old_start_datetime' => $unavailability->start_datetime,
+                'new_start_datetime' => $data['start_datetime'] ?? $unavailability->start_datetime,
+                'old_end_datetime' => $unavailability->end_datetime,
+                'new_end_datetime' => $data['end_datetime'] ?? $unavailability->end_datetime,
+                'old_reason' => $unavailability->reason,
+                'new_reason' => $data['reason'] ?? $unavailability->reason,
+                'changed_by_user_id' => $changedByUserId,
+                'change_reason' => $changeReason,
+            ]);
 
-        return $unavailability->refresh();
+            $unavailability->update($data);
+
+            return $unavailability->refresh();
+        });
     }
 
+    /**
+     * Annule une indisponibilité (la rend inactive) et enregistre l'historique de cette annulation
+     */
     public function cancel(Unavailability $unavailability, int $cancelledByUserId): Unavailability
     {
-        $unavailability->update(['is_active' => false]);
+        return DB::transaction(function () use ($unavailability, $cancelledByUserId): Unavailability {
+            UnavailabilityHistory::create([
+                'unavailability_id' => $unavailability->id,
+                'old_reason_type' => $unavailability->reason_type,
+                'new_reason_type' => $unavailability->reason_type,
+                'old_start_datetime' => $unavailability->start_datetime,
+                'new_start_datetime' => $unavailability->start_datetime,
+                'old_end_datetime' => $unavailability->end_datetime,
+                'new_end_datetime' => $unavailability->end_datetime,
+                'old_reason' => $unavailability->reason,
+                'new_reason' => $unavailability->reason,
+                'changed_by_user_id' => $cancelledByUserId,
+                'change_reason' => 'Indisponibilite annulee.',
+            ]);
 
-        return $unavailability->refresh();
+            $unavailability->update(['is_active' => false]);
+
+            return $unavailability->refresh();
+        });
     }
 }
