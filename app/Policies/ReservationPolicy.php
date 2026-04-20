@@ -41,14 +41,12 @@ class ReservationPolicy
 
     public function preview(User $user): bool
     {
-        return $user->can('reservations.create')
-            && ! $user->hasRole('chauffeur');
+        return $user->can('reservations.create');
     }
 
     public function create(User $user): bool
     {
-        return $user->can('reservations.create')
-            && ! $user->hasRole('chauffeur');
+        return $user->can('reservations.create');
     }
 
     public function createForOrganization(User $user, Organization $organization): bool
