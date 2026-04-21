@@ -6,38 +6,29 @@ use App\Models\Driver;
 use App\Models\Unavailability;
 use App\Models\UnavailabilityHistory;
 use App\Models\User;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Database\Seeders\RolesAndPermissionsSeeder;
+use Database\Seeders\TestFleetSeeder;
+use Database\Seeders\TestUnavailabilitiesSeeder;
+use Database\Seeders\TestUsersSeeder;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Laravel\Sanctum\Sanctum;
-use Spatie\Permission\Models\Permission;
-use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
 use Tests\TestCase;
 
 class UnavailabilityHistoryApiTest extends TestCase
 {
-    use RefreshDatabase;
+    use DatabaseTransactions;
 
     protected function setUp(): void
     {
         parent::setUp();
 
         app(PermissionRegistrar::class)->forgetCachedPermissions();
-
-        foreach ([
-            'unavailabilities.view',
-            'unavailabilities.create',
-            'unavailabilities.update',
-            'unavailabilities.cancel',
-        ] as $permission) {
-            Permission::findOrCreate($permission, 'web');
-        }
-
-        Role::findOrCreate('admin', 'web')->givePermissionTo(Permission::all());
-        Role::findOrCreate('agent_communal', 'web')->givePermissionTo([
-            'unavailabilities.view',
-            'unavailabilities.create',
-            'unavailabilities.update',
-            'unavailabilities.cancel',
+        $this->seed([
+            RolesAndPermissionsSeeder::class,
+            TestUsersSeeder::class,
+            TestFleetSeeder::class,
+            TestUnavailabilitiesSeeder::class,
         ]);
 
         app(PermissionRegistrar::class)->forgetCachedPermissions();
@@ -68,8 +59,7 @@ class UnavailabilityHistoryApiTest extends TestCase
 
     public function test_update_creates_history_entry(): void
     {
-        $agent = User::factory()->create();
-        $agent->assignRole('agent_communal');
+        $agent = $this->seededUser('agent.test@bus-communal.local');
         Sanctum::actingAs($agent);
 
         $unavailability = $this->createUnavailability($agent);
@@ -88,8 +78,7 @@ class UnavailabilityHistoryApiTest extends TestCase
 
     public function test_update_can_store_change_reason(): void
     {
-        $agent = User::factory()->create();
-        $agent->assignRole('agent_communal');
+        $agent = $this->seededUser('agent.test@bus-communal.local');
         Sanctum::actingAs($agent);
 
         $unavailability = $this->createUnavailability($agent);
@@ -108,8 +97,7 @@ class UnavailabilityHistoryApiTest extends TestCase
 
     public function test_cancel_creates_history_entry(): void
     {
-        $agent = User::factory()->create();
-        $agent->assignRole('agent_communal');
+        $agent = $this->seededUser('agent.test@bus-communal.local');
         Sanctum::actingAs($agent);
 
         $unavailability = $this->createUnavailability($agent);
@@ -125,8 +113,7 @@ class UnavailabilityHistoryApiTest extends TestCase
 
     public function test_agent_can_list_history(): void
     {
-        $agent = User::factory()->create();
-        $agent->assignRole('agent_communal');
+        $agent = $this->seededUser('agent.test@bus-communal.local');
         Sanctum::actingAs($agent);
 
         $unavailability = $this->createUnavailability($agent);
@@ -144,8 +131,7 @@ class UnavailabilityHistoryApiTest extends TestCase
 
     public function test_agent_can_show_history_entry(): void
     {
-        $agent = User::factory()->create();
-        $agent->assignRole('agent_communal');
+        $agent = $this->seededUser('agent.test@bus-communal.local');
         Sanctum::actingAs($agent);
 
         $unavailability = $this->createUnavailability($agent);
@@ -163,8 +149,7 @@ class UnavailabilityHistoryApiTest extends TestCase
 
     public function test_agent_cannot_show_history_entry_from_another_unavailability(): void
     {
-        $agent = User::factory()->create();
-        $agent->assignRole('agent_communal');
+        $agent = $this->seededUser('agent.test@bus-communal.local');
         Sanctum::actingAs($agent);
 
         $firstUnavailability = $this->createUnavailability($agent);
@@ -178,5 +163,10 @@ class UnavailabilityHistoryApiTest extends TestCase
 
         $this->getJson("/api/unavailabilities/{$firstUnavailability->id}/history/{$history->id}")
             ->assertNotFound();
+    }
+
+    private function seededUser(string $email): User
+    {
+        return User::query()->where('email', $email)->firstOrFail();
     }
 }

@@ -14,52 +14,42 @@ use App\Models\Organization;
 use App\Models\Reservation;
 use App\Models\User;
 use App\Models\UserOrganization;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Database\Seeders\RolesAndPermissionsSeeder;
+use Database\Seeders\TestLocationsSeeder;
+use Database\Seeders\TestOrganizationsSeeder;
+use Database\Seeders\TestUsersSeeder;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class ModelDatabaseIntegrationTest extends TestCase
 {
-    use RefreshDatabase;
+    use DatabaseTransactions;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->seed([
+            RolesAndPermissionsSeeder::class,
+            TestUsersSeeder::class,
+            TestLocationsSeeder::class,
+            TestOrganizationsSeeder::class,
+        ]);
+    }
 
     public function test_models_persist_casts_and_relations_when_database_support_is_available(): void
     {
-        $requester = User::factory()->create([
-            'first_name' => 'Alice',
-            'last_name' => 'Martin',
-            'email' => 'alice@example.test',
-        ]);
+        $requester = $this->seededUser('user.test@bus-communal.local');
+        $organization = $this->seededOrganization('Ecole communale de Dinant');
 
-        $organization = Organization::create([
-            'name' => 'Ecole communale de Dinant',
-            'type' => OrganizationType::ECOLE_COMMUNALE,
-            'official_email' => 'direction@ecole.test',
-            'phone_contact' => '082000000',
-            'name_contact' => 'Direction',
-            'is_priority' => true,
-            'annual_quota' => 10,
-            'reservations_used_this_year' => 0,
-            'quota_reset_year' => now(),
-        ]);
-
-        $requester->organizations()->attach($organization->id, [
+        $requester->organizations()->syncWithoutDetaching([$organization->id => [
             'relationship_type' => 'responsable',
             'is_default' => true,
-        ]);
+        ]]);
 
-        $pickupLocation = Location::create([
-            'formatted_address' => 'Rue du Centre 1',
-            'city' => 'Dinant',
-            'country' => 'Belgique',
-            'is_verified' => true,
-        ]);
-
-        $destinationLocation = Location::create([
-            'formatted_address' => 'Avenue des Sports 2',
-            'city' => 'Dinant',
-            'country' => 'Belgique',
-            'is_verified' => true,
-        ]);
+        $pickupLocation = $this->seededLocation('seed-dinant-pickup');
+        $destinationLocation = $this->seededLocation('seed-dinant-destination');
 
         $reservation = Reservation::create([
             'requested_by_user_id' => $requester->id,
@@ -122,5 +112,20 @@ class ModelDatabaseIntegrationTest extends TestCase
         $this->assertSame(DocumentType::ATTESTATION, $document->fresh()->document_type);
         $this->assertSame(DeliveryStatus::SENT, $delivery->fresh()->status);
         $this->assertSame($requester->id, $delivery->fresh()->notifiable->id);
+    }
+
+    private function seededUser(string $email): User
+    {
+        return User::query()->where('email', $email)->firstOrFail();
+    }
+
+    private function seededOrganization(string $name): Organization
+    {
+        return Organization::query()->where('name', $name)->firstOrFail();
+    }
+
+    private function seededLocation(string $placeId): Location
+    {
+        return Location::query()->where('place_id', $placeId)->firstOrFail();
     }
 }

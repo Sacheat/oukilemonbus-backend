@@ -6,37 +6,29 @@ use App\Enums\OrganizationType;
 use App\Models\Location;
 use App\Models\Organization;
 use App\Models\User;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Database\Seeders\RolesAndPermissionsSeeder;
+use Database\Seeders\TestLocationsSeeder;
+use Database\Seeders\TestOrganizationsSeeder;
+use Database\Seeders\TestUsersSeeder;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Laravel\Sanctum\Sanctum;
-use Spatie\Permission\Models\Permission;
-use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
 use Tests\TestCase;
 
 class OrganizationApiTest extends TestCase
 {
-    use RefreshDatabase;
+    use DatabaseTransactions;
 
     protected function setUp(): void
     {
         parent::setUp();
 
         app(PermissionRegistrar::class)->forgetCachedPermissions();
-
-        foreach ([
-            'organizations.view',
-            'organizations.create',
-            'organizations.update',
-        ] as $permission) {
-            Permission::findOrCreate($permission, 'web');
-        }
-
-        Role::findOrCreate('admin', 'web')->givePermissionTo(Permission::all());
-        Role::findOrCreate('user', 'web')->givePermissionTo(['organizations.view']);
-        Role::findOrCreate('agent_communal', 'web')->givePermissionTo([
-            'organizations.view',
-            'organizations.create',
-            'organizations.update',
+        $this->seed([
+            RolesAndPermissionsSeeder::class,
+            TestUsersSeeder::class,
+            TestLocationsSeeder::class,
+            TestOrganizationsSeeder::class,
         ]);
 
         app(PermissionRegistrar::class)->forgetCachedPermissions();
@@ -95,15 +87,10 @@ class OrganizationApiTest extends TestCase
 
     public function test_admin_can_create_organization(): void
     {
-        $admin = User::factory()->create();
-        $admin->assignRole('admin');
+        $admin = $this->seededUser('admin.test@bus-communal.local');
         Sanctum::actingAs($admin);
 
-        $location = Location::create([
-            'formatted_address' => 'Rue Grande 1, Dinant',
-            'city' => 'Dinant',
-            'country' => 'Belgique',
-        ]);
+        $location = $this->seededLocation('seed-dinant-centre');
 
         $this->postJson('/api/organizations', [
             'name' => 'Ecole communale de Dinant',
@@ -131,8 +118,7 @@ class OrganizationApiTest extends TestCase
 
     public function test_create_organization_rejects_invalid_type(): void
     {
-        $admin = User::factory()->create();
-        $admin->assignRole('admin');
+        $admin = $this->seededUser('admin.test@bus-communal.local');
         Sanctum::actingAs($admin);
 
         $this->postJson('/api/organizations', [
@@ -144,8 +130,7 @@ class OrganizationApiTest extends TestCase
 
     public function test_admin_can_update_organization(): void
     {
-        $admin = User::factory()->create();
-        $admin->assignRole('admin');
+        $admin = $this->seededUser('admin.test@bus-communal.local');
         Sanctum::actingAs($admin);
 
         $organization = Organization::create([
@@ -176,8 +161,7 @@ class OrganizationApiTest extends TestCase
 
     public function test_internal_usage_counter_cannot_be_written_through_api(): void
     {
-        $admin = User::factory()->create();
-        $admin->assignRole('admin');
+        $admin = $this->seededUser('admin.test@bus-communal.local');
         Sanctum::actingAs($admin);
 
         $this->postJson('/api/organizations', [
@@ -191,5 +175,15 @@ class OrganizationApiTest extends TestCase
             'name' => 'ASBL Protegee',
             'reservations_used_this_year' => 0,
         ]);
+    }
+
+    private function seededUser(string $email): User
+    {
+        return User::query()->where('email', $email)->firstOrFail();
+    }
+
+    private function seededLocation(string $placeId): Location
+    {
+        return Location::query()->where('place_id', $placeId)->firstOrFail();
     }
 }

@@ -6,39 +6,27 @@ use App\Models\Driver;
 use App\Models\Unavailability;
 use App\Models\User;
 use App\Models\Vehicle;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Database\Seeders\RolesAndPermissionsSeeder;
+use Database\Seeders\TestFleetSeeder;
+use Database\Seeders\TestUsersSeeder;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Laravel\Sanctum\Sanctum;
-use Spatie\Permission\Models\Permission;
-use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
 use Tests\TestCase;
 
 class UnavailabilityApiTest extends TestCase
 {
-    use RefreshDatabase;
+    use DatabaseTransactions;
 
     protected function setUp(): void
     {
         parent::setUp();
 
         app(PermissionRegistrar::class)->forgetCachedPermissions();
-
-        foreach ([
-            'unavailabilities.view',
-            'unavailabilities.create',
-            'unavailabilities.update',
-            'unavailabilities.cancel',
-        ] as $permission) {
-            Permission::findOrCreate($permission, 'web');
-        }
-
-        Role::findOrCreate('admin', 'web')->givePermissionTo(Permission::all());
-        Role::findOrCreate('chauffeur', 'web')->givePermissionTo(['unavailabilities.view']);
-        Role::findOrCreate('agent_communal', 'web')->givePermissionTo([
-            'unavailabilities.view',
-            'unavailabilities.create',
-            'unavailabilities.update',
-            'unavailabilities.cancel',
+        $this->seed([
+            RolesAndPermissionsSeeder::class,
+            TestUsersSeeder::class,
+            TestFleetSeeder::class,
         ]);
 
         app(PermissionRegistrar::class)->forgetCachedPermissions();
@@ -50,7 +38,7 @@ class UnavailabilityApiTest extends TestCase
 
         return Driver::create([
             'user_id' => $user->id,
-            'licence_number' => 'B-123456',
+            'licence_number' => 'DRV-'.fake()->unique()->numerify('######'),
             'licence_expiry_date' => '2030-01-01',
         ]);
     }
@@ -58,7 +46,7 @@ class UnavailabilityApiTest extends TestCase
     private function createVehicle(): Vehicle
     {
         return Vehicle::create([
-            'licence_plate' => '1-VJX-649',
+            'licence_plate' => strtoupper(fake()->unique()->bothify('?#??###')),
             'capacity' => 41,
         ]);
     }
@@ -71,8 +59,7 @@ class UnavailabilityApiTest extends TestCase
 
     public function test_chauffeur_can_only_view_unavailabilities(): void
     {
-        $chauffeur = User::factory()->create();
-        $chauffeur->assignRole('chauffeur');
+        $chauffeur = $this->seededUser('chauffeur.test@bus-communal.local');
         Sanctum::actingAs($chauffeur);
 
         $this->getJson('/api/unavailabilities')->assertOk();
@@ -81,13 +68,8 @@ class UnavailabilityApiTest extends TestCase
 
     public function test_chauffeur_only_sees_their_own_driver_unavailabilities(): void
     {
-        $chauffeur = User::factory()->create();
-        $chauffeur->assignRole('chauffeur');
-        $driver = Driver::create([
-            'user_id' => $chauffeur->id,
-            'licence_number' => 'B-OWN-123',
-            'licence_expiry_date' => '2030-01-01',
-        ]);
+        $chauffeur = $this->seededUser('chauffeur.test@bus-communal.local');
+        $driver = $this->seededDriver($chauffeur->id);
         $otherDriver = $this->createDriver();
         $vehicle = $this->createVehicle();
 
@@ -139,8 +121,7 @@ class UnavailabilityApiTest extends TestCase
 
     public function test_agent_can_create_driver_unavailability(): void
     {
-        $agent = User::factory()->create();
-        $agent->assignRole('agent_communal');
+        $agent = $this->seededUser('agent.test@bus-communal.local');
         Sanctum::actingAs($agent);
 
         $driver = $this->createDriver();
@@ -164,8 +145,7 @@ class UnavailabilityApiTest extends TestCase
 
     public function test_agent_can_create_vehicle_unavailability(): void
     {
-        $agent = User::factory()->create();
-        $agent->assignRole('agent_communal');
+        $agent = $this->seededUser('agent.test@bus-communal.local');
         Sanctum::actingAs($agent);
 
         $vehicle = $this->createVehicle();
@@ -184,8 +164,7 @@ class UnavailabilityApiTest extends TestCase
 
     public function test_create_fails_when_driver_id_missing_for_driver_type(): void
     {
-        $agent = User::factory()->create();
-        $agent->assignRole('agent_communal');
+        $agent = $this->seededUser('agent.test@bus-communal.local');
         Sanctum::actingAs($agent);
 
         $this->postJson('/api/unavailabilities', [
@@ -197,8 +176,7 @@ class UnavailabilityApiTest extends TestCase
 
     public function test_create_fails_when_both_driver_and_vehicle_provided(): void
     {
-        $agent = User::factory()->create();
-        $agent->assignRole('agent_communal');
+        $agent = $this->seededUser('agent.test@bus-communal.local');
         Sanctum::actingAs($agent);
 
         $driver = $this->createDriver();
@@ -215,8 +193,7 @@ class UnavailabilityApiTest extends TestCase
 
     public function test_agent_can_update_unavailability(): void
     {
-        $agent = User::factory()->create();
-        $agent->assignRole('agent_communal');
+        $agent = $this->seededUser('agent.test@bus-communal.local');
         Sanctum::actingAs($agent);
 
         $driver = $this->createDriver();
@@ -237,8 +214,7 @@ class UnavailabilityApiTest extends TestCase
 
     public function test_update_rejects_partial_start_datetime_after_existing_end_datetime(): void
     {
-        $agent = User::factory()->create();
-        $agent->assignRole('agent_communal');
+        $agent = $this->seededUser('agent.test@bus-communal.local');
         Sanctum::actingAs($agent);
 
         $driver = $this->createDriver();
@@ -259,8 +235,7 @@ class UnavailabilityApiTest extends TestCase
 
     public function test_update_rejects_partial_end_datetime_before_existing_start_datetime(): void
     {
-        $agent = User::factory()->create();
-        $agent->assignRole('agent_communal');
+        $agent = $this->seededUser('agent.test@bus-communal.local');
         Sanctum::actingAs($agent);
 
         $driver = $this->createDriver();
@@ -281,8 +256,7 @@ class UnavailabilityApiTest extends TestCase
 
     public function test_agent_can_cancel_unavailability(): void
     {
-        $agent = User::factory()->create();
-        $agent->assignRole('agent_communal');
+        $agent = $this->seededUser('agent.test@bus-communal.local');
         Sanctum::actingAs($agent);
 
         $driver = $this->createDriver();
@@ -301,8 +275,7 @@ class UnavailabilityApiTest extends TestCase
 
     public function test_agent_can_show_unavailability(): void
     {
-        $agent = User::factory()->create();
-        $agent->assignRole('agent_communal');
+        $agent = $this->seededUser('agent.test@bus-communal.local');
         Sanctum::actingAs($agent);
 
         $driver = $this->createDriver();
@@ -317,5 +290,15 @@ class UnavailabilityApiTest extends TestCase
         $this->getJson("/api/unavailabilities/{$unavailability->id}")
             ->assertOk()
             ->assertJsonPath('data.id', $unavailability->id);
+    }
+
+    private function seededUser(string $email): User
+    {
+        return User::query()->where('email', $email)->firstOrFail();
+    }
+
+    private function seededDriver(int $userId): Driver
+    {
+        return Driver::query()->where('user_id', $userId)->firstOrFail();
     }
 }

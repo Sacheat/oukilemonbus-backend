@@ -8,17 +8,19 @@ use App\Models\Municipality;
 use App\Models\MunicipalityLocality;
 use App\Models\User;
 use App\Services\Locations\MunicipalityService;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Database\Seeders\RolesAndPermissionsSeeder;
+use Database\Seeders\TestLocationsSeeder;
+use Database\Seeders\TestMunicipalitySeeder;
+use Database\Seeders\TestUsersSeeder;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\Http;
 use Laravel\Sanctum\Sanctum;
-use Spatie\Permission\Models\Permission;
-use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
 use Tests\TestCase;
 
 class MunicipalitySettingsApiTest extends TestCase
 {
-    use RefreshDatabase;
+    use DatabaseTransactions;
 
     protected function setUp(): void
     {
@@ -31,17 +33,12 @@ class MunicipalitySettingsApiTest extends TestCase
         ]);
 
         app(PermissionRegistrar::class)->forgetCachedPermissions();
-
-        foreach ([
-            'municipalities.view',
-            'municipalities.manage',
-            'org-registration-requests.create',
-        ] as $permission) {
-            Permission::findOrCreate($permission, 'web');
-        }
-
-        Role::findOrCreate('admin', 'web')->givePermissionTo(Permission::all());
-        Role::findOrCreate('user', 'web')->givePermissionTo(['org-registration-requests.create']);
+        $this->seed([
+            RolesAndPermissionsSeeder::class,
+            TestUsersSeeder::class,
+            TestLocationsSeeder::class,
+            TestMunicipalitySeeder::class,
+        ]);
 
         app(PermissionRegistrar::class)->forgetCachedPermissions();
     }
@@ -64,8 +61,7 @@ class MunicipalitySettingsApiTest extends TestCase
 
     public function test_admin_can_create_active_municipality_with_localities(): void
     {
-        $admin = User::factory()->create();
-        $admin->assignRole('admin');
+        $admin = $this->seededUser('admin.test@bus-communal.local');
         Sanctum::actingAs($admin);
 
         $this->postJson('/api/municipalities', [
@@ -91,15 +87,10 @@ class MunicipalitySettingsApiTest extends TestCase
 
     public function test_only_one_municipality_is_active_at_a_time(): void
     {
-        $admin = User::factory()->create();
-        $admin->assignRole('admin');
+        $admin = $this->seededUser('admin.test@bus-communal.local');
         Sanctum::actingAs($admin);
 
-        $dinant = Municipality::create([
-            'name' => 'Dinant',
-            'country' => 'BE',
-            'is_active' => true,
-        ]);
+        $dinant = $this->activeMunicipality();
 
         $this->postJson('/api/municipalities', [
             'name' => 'Namur',
@@ -114,15 +105,10 @@ class MunicipalitySettingsApiTest extends TestCase
 
     public function test_admin_can_add_update_and_deactivate_locality(): void
     {
-        $admin = User::factory()->create();
-        $admin->assignRole('admin');
+        $admin = $this->seededUser('admin.test@bus-communal.local');
         Sanctum::actingAs($admin);
 
-        $municipality = Municipality::create([
-            'name' => 'Dinant',
-            'country' => 'BE',
-            'is_active' => true,
-        ]);
+        $municipality = $this->activeMunicipality();
 
         $response = $this->postJson("/api/municipalities/{$municipality->id}/localities", [
             'name' => 'Foy Notre Dame',
@@ -149,6 +135,8 @@ class MunicipalitySettingsApiTest extends TestCase
             'municipality.name' => 'Dinant',
             'municipality.localities' => ['Dinant'],
         ]);
+
+        $this->activeMunicipality()->update(['is_active' => false]);
 
         $municipality = Municipality::create([
             'name' => 'Yvoir',
@@ -177,6 +165,8 @@ class MunicipalitySettingsApiTest extends TestCase
 
     public function test_org_registration_scoring_uses_active_database_municipality(): void
     {
+        $this->activeMunicipality()->update(['is_active' => false]);
+
         $municipality = Municipality::create([
             'name' => 'Yvoir',
             'country' => 'BE',
@@ -197,8 +187,7 @@ class MunicipalitySettingsApiTest extends TestCase
             'is_verified' => true,
         ]);
 
-        $user = User::factory()->create();
-        $user->assignRole('user');
+        $user = $this->seededUser('user.test@bus-communal.local');
         Sanctum::actingAs($user);
 
         $this->postJson('/api/org-registration-requests', [
@@ -213,7 +202,7 @@ class MunicipalitySettingsApiTest extends TestCase
             'proof_document_path' => 'proofs/asbl-godinne.pdf',
         ])
             ->assertCreated()
-            ->assertJsonPath('data.confidence_note', 96)
+            ->assertJsonPath('data.confidence_note', 91)
             ->assertJsonFragment([
                 'Adresse situee dans la commune de Yvoir.',
             ]);
@@ -221,16 +210,10 @@ class MunicipalitySettingsApiTest extends TestCase
 
     public function test_admin_can_sync_localities_from_geonames(): void
     {
-        $admin = User::factory()->create();
-        $admin->assignRole('admin');
+        $admin = $this->seededUser('admin.test@bus-communal.local');
         Sanctum::actingAs($admin);
 
-        $municipality = Municipality::create([
-            'name' => 'Dinant',
-            'country' => 'BE',
-            'postal_code' => '5500',
-            'is_active' => true,
-        ]);
+        $municipality = $this->activeMunicipality();
 
         MunicipalityLocality::create([
             'municipality_id' => $municipality->id,
@@ -274,9 +257,9 @@ class MunicipalitySettingsApiTest extends TestCase
         $this->postJson("/api/municipalities/{$municipality->id}/sync-localities")
             ->assertOk()
             ->assertJsonPath('data.external_id', '2799366')
-            ->assertJsonPath('data.nis_code', null)
+            ->assertJsonPath('data.nis_code', '91034')
             ->assertJsonPath('data.source', 'geonames')
-            ->assertJsonCount(3, 'data.localities');
+            ->assertJsonCount(4, 'data.localities');
 
         $this->assertDatabaseHas('municipality_localities', [
             'municipality_id' => $municipality->id,
@@ -300,5 +283,15 @@ class MunicipalitySettingsApiTest extends TestCase
             'source' => 'geonames',
             'is_active' => false,
         ]);
+    }
+
+    private function seededUser(string $email): User
+    {
+        return User::query()->where('email', $email)->firstOrFail();
+    }
+
+    private function activeMunicipality(): Municipality
+    {
+        return Municipality::query()->where('is_active', true)->firstOrFail();
     }
 }

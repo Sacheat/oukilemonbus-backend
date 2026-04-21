@@ -6,14 +6,16 @@ use App\Enums\CouncilDecisionStatus;
 use App\Enums\OrganizationType;
 use App\Enums\ReservationConflictType;
 use App\Enums\ReservationStatus;
-use App\Models\Driver;
 use App\Models\Location;
 use App\Models\Organization;
 use App\Models\Reservation;
 use App\Models\User;
-use App\Models\Vehicle;
 use Database\Seeders\RolesAndPermissionsSeeder;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Database\Seeders\TestFleetSeeder;
+use Database\Seeders\TestLocationsSeeder;
+use Database\Seeders\TestOrganizationsSeeder;
+use Database\Seeders\TestUsersSeeder;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Carbon;
 use Laravel\Sanctum\Sanctum;
@@ -22,14 +24,20 @@ use Tests\TestCase;
 
 class ReservationApiTest extends TestCase
 {
-    use RefreshDatabase;
+    use DatabaseTransactions;
 
     protected function setUp(): void
     {
         parent::setUp();
 
         app(PermissionRegistrar::class)->forgetCachedPermissions();
-        $this->seed(RolesAndPermissionsSeeder::class);
+        $this->seed([
+            RolesAndPermissionsSeeder::class,
+            TestUsersSeeder::class,
+            TestLocationsSeeder::class,
+            TestOrganizationsSeeder::class,
+            TestFleetSeeder::class,
+        ]);
         Carbon::setTestNow('2026-04-20 09:00:00');
 
         config([
@@ -59,11 +67,8 @@ class ReservationApiTest extends TestCase
             ]),
         ]);
 
-        $user = User::factory()->create();
-        $user->assignRole('user');
-        $organization = $this->organization(OrganizationType::ECOLE_COMMUNALE);
-        $user->organizations()->attach($organization->id, ['relationship_type' => 'membre', 'is_default' => true]);
-        $this->driverAndVehicle();
+        $user = $this->seededUser('user.test@bus-communal.local');
+        $organization = $this->seededOrganization('Ecole communale de Dinant');
 
         Sanctum::actingAs($user);
 
@@ -95,10 +100,8 @@ class ReservationApiTest extends TestCase
             ]),
         ]);
 
-        $user = User::factory()->create();
-        $user->assignRole('user');
-        $organization = $this->organization(OrganizationType::ECOLE_COMMUNALE);
-        $user->organizations()->attach($organization->id, ['relationship_type' => 'membre', 'is_default' => true]);
+        $user = $this->seededUser('user.test@bus-communal.local');
+        $organization = $this->seededOrganization('Ecole communale de Dinant');
 
         Sanctum::actingAs($user);
 
@@ -122,11 +125,9 @@ class ReservationApiTest extends TestCase
             ]),
         ]);
 
-        $user = User::factory()->create();
-        $user->assignRole('user');
-        $organization = $this->organization(OrganizationType::ECOLE_COMMUNALE);
-        $user->organizations()->attach($organization->id, ['relationship_type' => 'membre', 'is_default' => true]);
-        [$pickup, $destination] = $this->locations();
+        $user = $this->seededUser('user.test@bus-communal.local');
+        $organization = $this->seededOrganization('Ecole communale de Dinant');
+        [$pickup, $destination] = $this->seededLocations();
 
         Reservation::create([
             'requested_by_user_id' => $user->id,
@@ -164,7 +165,7 @@ class ReservationApiTest extends TestCase
     {
         $user = User::factory()->create();
         $user->assignRole('user');
-        $organization = $this->organization(OrganizationType::ECOLE_COMMUNALE);
+        $organization = $this->seededOrganization('Ecole communale de Dinant');
 
         Sanctum::actingAs($user);
 
@@ -185,10 +186,8 @@ class ReservationApiTest extends TestCase
             ]),
         ]);
 
-        $agent = User::factory()->create();
-        $agent->assignRole('agent_communal');
-        $organization = $this->organization(OrganizationType::ASBL);
-        $this->driverAndVehicle();
+        $agent = $this->seededUser('agent.test@bus-communal.local');
+        $organization = $this->seededOrganization('ASBL Les Amis du Parc');
 
         Sanctum::actingAs($agent);
 
@@ -224,10 +223,8 @@ class ReservationApiTest extends TestCase
             ]),
         ]);
 
-        $agent = User::factory()->create();
-        $agent->assignRole('agent_communal');
-        $organization = $this->organization(OrganizationType::ASBL);
-        $this->driverAndVehicle();
+        $agent = $this->seededUser('agent.test@bus-communal.local');
+        $organization = $this->seededOrganization('ASBL Les Amis du Parc');
 
         Sanctum::actingAs($agent);
 
@@ -266,10 +263,8 @@ class ReservationApiTest extends TestCase
 
     public function test_weekend_creation_is_rejected(): void
     {
-        $user = User::factory()->create();
-        $user->assignRole('user');
-        $organization = $this->organization(OrganizationType::ECOLE_COMMUNALE);
-        $user->organizations()->attach($organization->id, ['relationship_type' => 'membre', 'is_default' => true]);
+        $user = $this->seededUser('user.test@bus-communal.local');
+        $organization = $this->seededOrganization('Ecole communale de Dinant');
 
         Sanctum::actingAs($user);
 
@@ -283,10 +278,8 @@ class ReservationApiTest extends TestCase
 
     public function test_reservation_requires_minimum_notice(): void
     {
-        $user = User::factory()->create();
-        $user->assignRole('user');
-        $organization = $this->organization(OrganizationType::ECOLE_COMMUNALE);
-        $user->organizations()->attach($organization->id, ['relationship_type' => 'membre', 'is_default' => true]);
+        $user = $this->seededUser('user.test@bus-communal.local');
+        $organization = $this->seededOrganization('Ecole communale de Dinant');
 
         Sanctum::actingAs($user);
 
@@ -300,11 +293,9 @@ class ReservationApiTest extends TestCase
 
     public function test_reservation_requires_belgian_locations(): void
     {
-        $user = User::factory()->create();
-        $user->assignRole('user');
-        $organization = $this->organization(OrganizationType::ECOLE_COMMUNALE);
-        $user->organizations()->attach($organization->id, ['relationship_type' => 'membre', 'is_default' => true]);
-        [$pickup, $destination] = $this->locations();
+        $user = $this->seededUser('user.test@bus-communal.local');
+        $organization = $this->seededOrganization('Ecole communale de Dinant');
+        [$pickup, $destination] = $this->seededLocations();
         $destination->update(['country' => 'France']);
 
         Sanctum::actingAs($user);
@@ -316,7 +307,7 @@ class ReservationApiTest extends TestCase
 
     private function payload(Organization $organization, ?Location $pickup = null, ?Location $destination = null): array
     {
-        [$pickup, $destination] = $pickup && $destination ? [$pickup, $destination] : $this->locations();
+        [$pickup, $destination] = $pickup && $destination ? [$pickup, $destination] : $this->seededLocations();
 
         return [
             'organization_id' => $organization->id,
@@ -331,55 +322,21 @@ class ReservationApiTest extends TestCase
         ];
     }
 
-    private function organization(OrganizationType $type): Organization
+    private function seededUser(string $email): User
     {
-        return Organization::create([
-            'name' => 'Organisation '.$type->value,
-            'type' => $type,
-            'official_email' => $type->value.'@example.test',
-            'is_priority' => $type->isPriorityByDefault(),
-            'annual_quota' => 5,
-            'reservations_used_this_year' => 0,
-            'quota_reset_year' => now(),
-        ]);
+        return User::query()->where('email', $email)->firstOrFail();
     }
 
-    private function locations(): array
+    private function seededOrganization(string $name): Organization
+    {
+        return Organization::query()->where('name', $name)->firstOrFail();
+    }
+
+    private function seededLocations(): array
     {
         return [
-            Location::create([
-                'formatted_address' => 'Rue du Centre 1',
-                'city' => 'Dinant',
-                'country' => 'Belgique',
-                'latitude' => 50.260000,
-                'longitude' => 4.910000,
-                'is_verified' => true,
-            ]),
-            Location::create([
-                'formatted_address' => 'Avenue des Sports 2',
-                'city' => 'Dinant',
-                'country' => 'Belgique',
-                'latitude' => 50.270000,
-                'longitude' => 4.920000,
-                'is_verified' => true,
-            ]),
+            Location::query()->where('place_id', 'seed-dinant-pickup')->firstOrFail(),
+            Location::query()->where('place_id', 'seed-dinant-destination')->firstOrFail(),
         ];
-    }
-
-    private function driverAndVehicle(): void
-    {
-        $driverUser = User::factory()->create();
-        Driver::create([
-            'user_id' => $driverUser->id,
-            'licence_number' => 'DRV-'.$driverUser->id,
-            'licence_expiry_date' => '2030-01-01',
-            'is_active' => true,
-        ]);
-
-        Vehicle::create([
-            'licence_plate' => 'BUS-'.$driverUser->id,
-            'capacity' => 41,
-            'is_active' => true,
-        ]);
     }
 }

@@ -4,17 +4,18 @@ namespace Tests\Feature;
 
 use App\Models\Location;
 use App\Models\User;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Database\Seeders\RolesAndPermissionsSeeder;
+use Database\Seeders\TestLocationsSeeder;
+use Database\Seeders\TestUsersSeeder;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\Http;
 use Laravel\Sanctum\Sanctum;
-use Spatie\Permission\Models\Permission;
-use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
 use Tests\TestCase;
 
 class LocationApiTest extends TestCase
 {
-    use RefreshDatabase;
+    use DatabaseTransactions;
 
     protected function setUp(): void
     {
@@ -26,18 +27,10 @@ class LocationApiTest extends TestCase
         ]);
 
         app(PermissionRegistrar::class)->forgetCachedPermissions();
-
-        foreach ([
-            'locations.view',
-            'locations.create',
-            'locations.update',
-        ] as $permission) {
-            Permission::findOrCreate($permission, 'web');
-        }
-
-        Role::findOrCreate('admin', 'web')->givePermissionTo(Permission::all());
-        Role::findOrCreate('user', 'web')->givePermissionTo([
-            'locations.view',
+        $this->seed([
+            RolesAndPermissionsSeeder::class,
+            TestUsersSeeder::class,
+            TestLocationsSeeder::class,
         ]);
 
         app(PermissionRegistrar::class)->forgetCachedPermissions();
@@ -51,26 +44,20 @@ class LocationApiTest extends TestCase
 
     public function test_authenticated_user_can_list_locations(): void
     {
-        $user = User::factory()->create();
-        $user->assignRole('user');
+        $user = $this->seededUser('user.test@bus-communal.local');
 
         Sanctum::actingAs($user);
 
-        Location::create([
-            'formatted_address' => 'Rue Grande 1, Dinant',
-            'city' => 'Dinant',
-            'country' => 'Belgique',
-        ]);
-
         $this->getJson('/api/locations')
             ->assertOk()
-            ->assertJsonPath('data.0.formatted_address', 'Rue Grande 1, Dinant');
+            ->assertJsonFragment([
+                'formatted_address' => 'Rue Grande 1, Dinant',
+            ]);
     }
 
     public function test_authenticated_user_can_create_location_with_geocoding(): void
     {
-        $admin = User::factory()->create();
-        $admin->assignRole('admin');
+        $admin = $this->seededUser('admin.test@bus-communal.local');
 
         Sanctum::actingAs($admin);
 
@@ -108,8 +95,7 @@ class LocationApiTest extends TestCase
 
     public function test_create_location_returns_validation_error_when_geocoding_fails(): void
     {
-        $admin = User::factory()->create();
-        $admin->assignRole('admin');
+        $admin = $this->seededUser('admin.test@bus-communal.local');
 
         Sanctum::actingAs($admin);
 
@@ -125,16 +111,10 @@ class LocationApiTest extends TestCase
 
     public function test_authenticated_user_can_show_location(): void
     {
-        $user = User::factory()->create();
-        $user->assignRole('user');
+        $user = $this->seededUser('user.test@bus-communal.local');
 
         Sanctum::actingAs($user);
-
-        $location = Location::create([
-            'formatted_address' => 'Rue Grande 1, Dinant',
-            'city' => 'Dinant',
-            'country' => 'Belgique',
-        ]);
+        $location = $this->seededLocation('seed-dinant-centre');
 
         $this->getJson("/api/locations/{$location->id}")
             ->assertOk()
@@ -143,18 +123,13 @@ class LocationApiTest extends TestCase
 
     public function test_authenticated_user_can_update_location_without_regeocoding(): void
     {
-        $admin = User::factory()->create();
-        $admin->assignRole('admin');
+        $admin = $this->seededUser('admin.test@bus-communal.local');
 
         Sanctum::actingAs($admin);
 
         Http::fake();
 
-        $location = Location::create([
-            'formatted_address' => 'Rue Grande 1, Dinant',
-            'city' => 'Dinant',
-            'country' => 'Belgique',
-        ]);
+        $location = $this->seededLocation('seed-dinant-centre');
 
         $this->patchJson("/api/locations/{$location->id}", [
             'city' => 'Anseremme',
@@ -167,8 +142,7 @@ class LocationApiTest extends TestCase
 
     public function test_authenticated_user_can_update_location_and_regeocode_address(): void
     {
-        $admin = User::factory()->create();
-        $admin->assignRole('admin');
+        $admin = $this->seededUser('admin.test@bus-communal.local');
 
         Sanctum::actingAs($admin);
 
@@ -187,11 +161,7 @@ class LocationApiTest extends TestCase
             ]),
         ]);
 
-        $location = Location::create([
-            'formatted_address' => 'Rue Grande 1, Dinant',
-            'city' => 'Dinant',
-            'country' => 'Belgique',
-        ]);
+        $location = $this->seededLocation('seed-dinant-centre');
 
         $this->patchJson("/api/locations/{$location->id}", [
             'formatted_address' => 'Avenue Winston Churchill 1, Dinant',
@@ -206,5 +176,15 @@ class LocationApiTest extends TestCase
         Sanctum::actingAs(User::factory()->create());
 
         $this->getJson('/api/locations')->assertForbidden();
+    }
+
+    private function seededUser(string $email): User
+    {
+        return User::query()->where('email', $email)->firstOrFail();
+    }
+
+    private function seededLocation(string $placeId): Location
+    {
+        return Location::query()->where('place_id', $placeId)->firstOrFail();
     }
 }

@@ -14,14 +14,30 @@ use App\Models\Recurrence;
 use App\Models\Reservation;
 use App\Models\User;
 use App\Models\UserOrgRequest;
+use Database\Seeders\RolesAndPermissionsSeeder;
+use Database\Seeders\TestLocationsSeeder;
+use Database\Seeders\TestOrganizationsSeeder;
+use Database\Seeders\TestUsersSeeder;
 use Illuminate\Database\QueryException;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class AdditionalDatabaseIntegrityTest extends TestCase
 {
-    use RefreshDatabase;
+    use DatabaseTransactions;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->seed([
+            RolesAndPermissionsSeeder::class,
+            TestUsersSeeder::class,
+            TestLocationsSeeder::class,
+            TestOrganizationsSeeder::class,
+        ]);
+    }
 
     public function test_document_rejects_invalid_version_and_negative_file_size(): void
     {
@@ -379,30 +395,10 @@ class AdditionalDatabaseIntegrityTest extends TestCase
 
     private function reservationAndUser(): array
     {
-        $user = User::factory()->create();
-        $organization = Organization::create([
-            'name' => 'Ecole communale de Dinant',
-            'type' => OrganizationType::ECOLE_COMMUNALE,
-            'official_email' => 'direction@ecole.test',
-            'phone_contact' => '082000000',
-            'name_contact' => 'Direction',
-            'is_priority' => true,
-            'annual_quota' => 10,
-            'reservations_used_this_year' => 0,
-            'quota_reset_year' => now(),
-        ]);
-        $pickup = Location::create([
-            'formatted_address' => 'Rue du Centre 1',
-            'city' => 'Dinant',
-            'country' => 'Belgique',
-            'is_verified' => true,
-        ]);
-        $destination = Location::create([
-            'formatted_address' => 'Avenue des Sports 2',
-            'city' => 'Dinant',
-            'country' => 'Belgique',
-            'is_verified' => true,
-        ]);
+        $user = $this->seededUser('user.test@bus-communal.local');
+        $organization = $this->seededOrganization('Ecole communale de Dinant');
+        $pickup = $this->seededLocation('seed-dinant-pickup');
+        $destination = $this->seededLocation('seed-dinant-destination');
 
         $reservation = Reservation::create([
             'requested_by_user_id' => $user->id,
@@ -428,14 +424,29 @@ class AdditionalDatabaseIntegrityTest extends TestCase
     {
         $user = User::factory()->create();
         $organization = Organization::create([
-            'name' => 'Association locale',
+            'name' => 'Association locale '.Str::random(6),
             'type' => OrganizationType::ASBL,
-            'official_email' => 'contact@association.test',
+            'official_email' => 'contact.'.Str::lower(Str::random(6)).'@association.test',
             'annual_quota' => 5,
             'reservations_used_this_year' => 0,
             'quota_reset_year' => now(),
         ]);
 
         return [$organization, $user];
+    }
+
+    private function seededUser(string $email): User
+    {
+        return User::query()->where('email', $email)->firstOrFail();
+    }
+
+    private function seededOrganization(string $name): Organization
+    {
+        return Organization::query()->where('name', $name)->firstOrFail();
+    }
+
+    private function seededLocation(string $placeId): Location
+    {
+        return Location::query()->where('place_id', $placeId)->firstOrFail();
     }
 }

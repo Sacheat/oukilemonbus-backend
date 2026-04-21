@@ -3,37 +3,26 @@
 namespace Tests\Feature;
 
 use App\Models\User;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Database\Seeders\RolesAndPermissionsSeeder;
+use Database\Seeders\TestUsersSeeder;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\RateLimiter;
-use Spatie\Permission\Models\Permission;
-use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
 use Tests\TestCase;
 
 class AuthUserApiTest extends TestCase
 {
-    use RefreshDatabase;
+    use DatabaseTransactions;
 
     protected function setUp(): void
     {
         parent::setUp();
 
         app(PermissionRegistrar::class)->forgetCachedPermissions();
-
-        foreach ([
-            'users.view',
-            'users.create',
-            'users.update',
-            'users.update-status',
-            'users.deactivate',
-        ] as $permission) {
-            Permission::findOrCreate($permission, 'web');
-        }
-
-        Role::findOrCreate('admin', 'web')->givePermissionTo(Permission::all());
-        Role::findOrCreate('user', 'web')->givePermissionTo([
-            'users.view',
+        $this->seed([
+            RolesAndPermissionsSeeder::class,
+            TestUsersSeeder::class,
         ]);
 
         app(PermissionRegistrar::class)->forgetCachedPermissions();
@@ -238,8 +227,7 @@ class AuthUserApiTest extends TestCase
 
     public function test_admin_can_deactivate_a_user(): void
     {
-        $admin = User::factory()->create();
-        $admin->assignRole('admin');
+        $admin = $this->seededUser('admin.test@bus-communal.local');
         $user = User::factory()->create([
             'active' => true,
         ]);
@@ -266,8 +254,7 @@ class AuthUserApiTest extends TestCase
 
     public function test_admin_can_list_show_create_and_update_status_for_users(): void
     {
-        $admin = User::factory()->create();
-        $admin->assignRole('admin');
+        $admin = $this->seededUser('admin.test@bus-communal.local');
         $user = User::factory()->create([
             'active' => true,
         ]);
@@ -301,5 +288,10 @@ class AuthUserApiTest extends TestCase
             ])
             ->assertOk()
             ->assertJsonPath('data.active', false);
+    }
+
+    private function seededUser(string $email): User
+    {
+        return User::query()->where('email', $email)->firstOrFail();
     }
 }

@@ -8,37 +8,30 @@ use App\Models\Location;
 use App\Models\Organization;
 use App\Models\User;
 use App\Models\UserOrgRequest;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Database\Seeders\RolesAndPermissionsSeeder;
+use Database\Seeders\TestLocationsSeeder;
+use Database\Seeders\TestOrganizationsSeeder;
+use Database\Seeders\TestUsersSeeder;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Laravel\Sanctum\Sanctum;
-use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
 use Tests\TestCase;
 
 class UserOrgRequestApiTest extends TestCase
 {
-    use RefreshDatabase;
+    use DatabaseTransactions;
 
     protected function setUp(): void
     {
         parent::setUp();
 
         app(PermissionRegistrar::class)->forgetCachedPermissions();
-
-        foreach ([
-            'user-org-requests.view',
-            'user-org-requests.create',
-            'user-org-requests.review',
-        ] as $permission) {
-            Permission::findOrCreate($permission, 'web');
-        }
-
-        Role::findOrCreate('admin', 'web')->givePermissionTo(Permission::all());
-        Role::findOrCreate('user', 'web')->givePermissionTo(['user-org-requests.create']);
-        Role::findOrCreate('agent_communal', 'web')->givePermissionTo([
-            'user-org-requests.view',
-            'user-org-requests.create',
-            'user-org-requests.review',
+        $this->seed([
+            RolesAndPermissionsSeeder::class,
+            TestUsersSeeder::class,
+            TestLocationsSeeder::class,
+            TestOrganizationsSeeder::class,
         ]);
 
         app(PermissionRegistrar::class)->forgetCachedPermissions();
@@ -56,7 +49,7 @@ class UserOrgRequestApiTest extends TestCase
         $user->assignRole('user');
         Sanctum::actingAs($user);
 
-        $organization = $this->createOrganization();
+        $organization = $this->seededOrganization();
 
         $this->postJson('/api/user-org-requests', [
             'organization_id' => $organization->id,
@@ -91,14 +84,8 @@ class UserOrgRequestApiTest extends TestCase
         $user->assignRole('user');
         Sanctum::actingAs($user);
 
-        $location = Location::create([
-            'formatted_address' => 'Rue Grande 1, Dinant',
-            'city' => 'Dinant',
-            'country' => 'Belgique',
-            'is_verified' => true,
-        ]);
-
-        $organization = $this->createOrganization();
+        $location = $this->seededLocation();
+        $organization = $this->seededOrganization();
         $organization->update([
             'phone_contact' => '082111111',
             'name_contact' => 'Alice Martin',
@@ -128,7 +115,7 @@ class UserOrgRequestApiTest extends TestCase
         $user->assignRole('user');
         Sanctum::actingAs($user);
 
-        $organization = $this->createOrganization();
+        $organization = $this->seededOrganization();
 
         $this->postJson('/api/user-org-requests', [
             'organization_id' => $organization->id,
@@ -150,7 +137,7 @@ class UserOrgRequestApiTest extends TestCase
         $user->assignRole('user');
         Sanctum::actingAs($user);
 
-        $organization = $this->createOrganization();
+        $organization = $this->seededOrganization();
 
         UserOrgRequest::create([
             'organization_id' => $organization->id,
@@ -173,7 +160,7 @@ class UserOrgRequestApiTest extends TestCase
         $user->assignRole('user');
         Sanctum::actingAs($user);
 
-        $organization = $this->createOrganization();
+        $organization = $this->seededOrganization();
         $organization->users()->attach($user->id, [
             'relationship_type' => 'responsable',
             'is_default' => true,
@@ -193,7 +180,7 @@ class UserOrgRequestApiTest extends TestCase
         $user->assignRole('user');
         Sanctum::actingAs($user);
 
-        $organization = $this->createOrganization();
+        $organization = $this->seededOrganization();
 
         $this->postJson('/api/user-org-requests', [
             'organization_id' => $organization->id,
@@ -206,7 +193,6 @@ class UserOrgRequestApiTest extends TestCase
     public function test_user_without_view_permission_cannot_list_user_org_requests(): void
     {
         $user = User::factory()->create();
-        $user->assignRole('user');
         Sanctum::actingAs($user);
 
         $this->getJson('/api/user-org-requests')->assertForbidden();
@@ -223,7 +209,7 @@ class UserOrgRequestApiTest extends TestCase
         $user = User::factory()->create();
         $user->assignRole($role);
         $otherUser = User::factory()->create();
-        $organization = $this->createOrganization();
+        $organization = $this->seededOrganization();
 
         $ownRequest = UserOrgRequest::create([
             'organization_id' => $organization->id,
@@ -263,7 +249,7 @@ class UserOrgRequestApiTest extends TestCase
         Sanctum::actingAs($agent);
 
         $requester = User::factory()->create();
-        $organization = $this->createOrganization();
+        $organization = $this->seededOrganization();
         $request = UserOrgRequest::create([
             'organization_id' => $organization->id,
             'requested_by_user_id' => $requester->id,
@@ -287,7 +273,7 @@ class UserOrgRequestApiTest extends TestCase
         Sanctum::actingAs($agent);
 
         $requester = User::factory()->create();
-        $organization = $this->createOrganization();
+        $organization = $this->seededOrganization();
 
         UserOrgRequest::create([
             'organization_id' => $organization->id,
@@ -318,7 +304,7 @@ class UserOrgRequestApiTest extends TestCase
         Sanctum::actingAs($agent);
 
         $requester = User::factory()->create();
-        $organization = $this->createOrganization();
+        $organization = $this->seededOrganization();
         $request = UserOrgRequest::create([
             'organization_id' => $organization->id,
             'requested_by_user_id' => $requester->id,
@@ -432,5 +418,15 @@ class UserOrgRequestApiTest extends TestCase
             'type' => OrganizationType::ASBL,
             'official_email' => fake()->unique()->safeEmail(),
         ]);
+    }
+
+    private function seededOrganization(): Organization
+    {
+        return Organization::query()->where('name', 'ASBL Les Amis du Parc')->firstOrFail();
+    }
+
+    private function seededLocation(): Location
+    {
+        return Location::query()->where('place_id', 'seed-dinant-centre')->firstOrFail();
     }
 }

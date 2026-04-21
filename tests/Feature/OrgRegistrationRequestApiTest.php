@@ -8,37 +8,28 @@ use App\Models\Location;
 use App\Models\Organization;
 use App\Models\OrgRegistrationRequest;
 use App\Models\User;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Database\Seeders\RolesAndPermissionsSeeder;
+use Database\Seeders\TestLocationsSeeder;
+use Database\Seeders\TestUsersSeeder;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Laravel\Sanctum\Sanctum;
-use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
 use Tests\TestCase;
 
 class OrgRegistrationRequestApiTest extends TestCase
 {
-    use RefreshDatabase;
+    use DatabaseTransactions;
 
     protected function setUp(): void
     {
         parent::setUp();
 
         app(PermissionRegistrar::class)->forgetCachedPermissions();
-
-        foreach ([
-            'org-registration-requests.view',
-            'org-registration-requests.create',
-            'org-registration-requests.review',
-        ] as $permission) {
-            Permission::findOrCreate($permission, 'web');
-        }
-
-        Role::findOrCreate('admin', 'web')->givePermissionTo(Permission::all());
-        Role::findOrCreate('user', 'web')->givePermissionTo(['org-registration-requests.create']);
-        Role::findOrCreate('agent_communal', 'web')->givePermissionTo([
-            'org-registration-requests.view',
-            'org-registration-requests.create',
-            'org-registration-requests.review',
+        $this->seed([
+            RolesAndPermissionsSeeder::class,
+            TestUsersSeeder::class,
+            TestLocationsSeeder::class,
         ]);
 
         app(PermissionRegistrar::class)->forgetCachedPermissions();
@@ -56,11 +47,7 @@ class OrgRegistrationRequestApiTest extends TestCase
         $user->assignRole('user');
         Sanctum::actingAs($user);
 
-        $location = Location::create([
-            'formatted_address' => 'Rue Grande 1, Dinant',
-            'city' => 'Dinant',
-            'country' => 'Belgique',
-        ]);
+        $location = $this->seededLocation();
 
         $this->postJson('/api/org-registration-requests', [
             'organization_name' => 'ASBL Les Amis du Parc',
@@ -77,14 +64,14 @@ class OrgRegistrationRequestApiTest extends TestCase
             ->assertJsonPath('data.request_by_user_id', $user->id)
             ->assertJsonPath('data.organization_name', 'ASBL Les Amis du Parc')
             ->assertJsonPath('data.status', RequestStatus::EN_ATTENTE->value)
-            ->assertJsonPath('data.confidence_note', 76)
-            ->assertJsonPath('data.confidence_details.score', 76);
+            ->assertJsonPath('data.confidence_note', 81)
+            ->assertJsonPath('data.confidence_details.score', 81);
 
         $this->assertDatabaseHas('org_registration_requests', [
             'request_by_user_id' => $user->id,
             'organization_name' => 'ASBL Les Amis du Parc',
             'status' => RequestStatus::EN_ATTENTE->value,
-            'confidence_note' => 76,
+            'confidence_note' => 81,
         ]);
     }
 
@@ -99,12 +86,7 @@ class OrgRegistrationRequestApiTest extends TestCase
         $user->assignRole('user');
         Sanctum::actingAs($user);
 
-        $location = Location::create([
-            'formatted_address' => 'Rue Grande 1, Dinant',
-            'city' => 'Dinant',
-            'country' => 'Belgique',
-            'is_verified' => true,
-        ]);
+        $location = $this->seededLocation();
 
         $this->postJson('/api/org-registration-requests', [
             'organization_name' => 'ASBL Dinant Solidaire',
@@ -142,7 +124,6 @@ class OrgRegistrationRequestApiTest extends TestCase
     public function test_user_without_view_permission_cannot_list_requests(): void
     {
         $user = User::factory()->create();
-        $user->assignRole('user');
         Sanctum::actingAs($user);
 
         $this->getJson('/api/org-registration-requests')->assertForbidden();
@@ -327,5 +308,10 @@ class OrgRegistrationRequestApiTest extends TestCase
         $this->patchJson("/api/org-registration-requests/{$registrationRequest->id}/approve")
             ->assertUnprocessable()
             ->assertJsonValidationErrors('status');
+    }
+
+    private function seededLocation(): Location
+    {
+        return Location::query()->where('place_id', 'seed-dinant-centre')->firstOrFail();
     }
 }
