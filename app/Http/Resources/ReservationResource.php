@@ -24,6 +24,7 @@ class ReservationResource extends JsonResource
             'nb_children' => $this->nb_children,
             'nb_adults' => $this->nb_adults,
             'trip_purpose' => $this->trip_purpose,
+            'activity_type' => $this->activity_type?->value ?? $this->activity_type,
             'distance_km' => $this->distance_km,
             'estimated_duration_min' => $this->estimated_duration_min,
             'status' => $this->status,

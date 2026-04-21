@@ -4,6 +4,7 @@ namespace App\Services\Reservations;
 
 use App\Enums\ApprovalType;
 use App\Enums\OrganizationType;
+use App\Enums\ReservationActivityType;
 use App\Enums\ReservationConflictType;
 use App\Enums\ReservationStatus;
 use App\Exceptions\GeocodingException;
@@ -128,9 +129,11 @@ class ReservationPreviewService
             ->first(fn (Reservation $reservation): bool => $this->overlapsReservation($reservation, $departure, $end, $margin));
 
         if ($overlappingReservation) {
+            $priorityMessage = $this->overlapPriorityMessage($data, $organization, $overlappingReservation);
+
             $conflicts[] = [
                 'type' => ReservationConflictType::SCHEDULE_OVERLAP->value,
-                'message' => 'Le creneau chevauche une autre reservation active.',
+                'message' => $priorityMessage,
                 'related_reservation_id' => $overlappingReservation->id,
             ];
         }
@@ -212,5 +215,63 @@ class ReservationPreviewService
     private function dateTime(string $date, string $time): CarbonImmutable
     {
         return CarbonImmutable::parse($date.' '.$time);
+    }
+
+    private function overlapPriorityMessage(array $data, Organization $organization, Reservation $overlappingReservation): string
+    {
+        $candidatePriority = $this->priorityTuple(
+            $organization->type,
+            $this->candidateActivityType($data),
+            $this->candidateCreatedAt($data)
+        );
+
+        $existingPriority = $this->priorityTuple(
+            $overlappingReservation->organization->type,
+            $overlappingReservation->activity_type ?? ReservationActivityType::STANDARD,
+            CarbonImmutable::instance($overlappingReservation->created_at)
+        );
+
+        if ($candidatePriority > $existingPriority) {
+            return 'Le creneau chevauche une autre reservation active, mais cette demande est prioritaire selon le reglement.';
+        }
+
+        if ($candidatePriority < $existingPriority) {
+            return 'Le creneau chevauche une reservation plus prioritaire selon le reglement.';
+        }
+
+        return 'Le creneau chevauche une autre reservation active de meme priorite. La demande introduite en premier est prioritaire.';
+    }
+
+    private function candidateActivityType(array $data): ReservationActivityType
+    {
+        return ReservationActivityType::tryFrom((string) ($data['activity_type'] ?? ReservationActivityType::STANDARD->value))
+            ?? ReservationActivityType::STANDARD;
+    }
+
+    private function candidateCreatedAt(array $data): CarbonImmutable
+    {
+        if (isset($data['ignore_reservation_id'])) {
+            $reservation = Reservation::query()->find($data['ignore_reservation_id']);
+
+            if ($reservation?->created_at) {
+                return CarbonImmutable::instance($reservation->created_at);
+            }
+        }
+
+        return CarbonImmutable::now();
+    }
+
+    private function priorityTuple(
+        OrganizationType $organizationType,
+        ReservationActivityType $activityType,
+        CarbonImmutable $createdAt
+    ): array {
+        $priorityLevel = match (true) {
+            $organizationType === OrganizationType::ECOLE_COMMUNALE && $activityType->isSchoolPriorityActivity() => 3,
+            $organizationType === OrganizationType::ECOLE_COMMUNALE => 2,
+            default => 1,
+        };
+
+        return [$priorityLevel, -$createdAt->getTimestamp()];
     }
 }

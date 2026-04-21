@@ -9,6 +9,7 @@ use App\Enums\DeliveryStatus;
 use App\Enums\DocumentType;
 use App\Enums\OrganizationType;
 use App\Enums\RequestStatus;
+use App\Enums\ReservationActivityType;
 use App\Enums\ReservationConflictType;
 use App\Enums\ReservationStatus;
 use App\Enums\UnavailabilityReasonType;
@@ -114,7 +115,7 @@ class ModelConfigurationTest extends TestCase
             [Organization::class, ['name', 'type', 'official_email', 'phone_contact', 'name_contact', 'location_id', 'is_priority', 'annual_quota', 'reservations_used_this_year', 'quota_reset_year', 'document_proof_path']],
             [UserOrganization::class, ['user_id', 'organization_id', 'relationship_type', 'is_default']],
             [Recurrence::class, ['frequency', 'interval_value', 'days_of_week', 'start_date', 'end_date', 'occurrence_count', 'is_active']],
-            [Reservation::class, ['requested_by_user_id', 'organization_id', 'pickup_location_id', 'destination_location_id', 'driver_id', 'vehicle_id', 'recurrence_id', 'trip_date', 'departure_time', 'return_time', 'nb_children', 'nb_adults', 'trip_purpose', 'distance_km', 'estimated_duration_min', 'status', 'approval_type', 'validated_by_user_id', 'validated_at', 'cancelled_by_user_id', 'cancelled_at', 'rejection_reason', 'cancellation_reason']],
+            [Reservation::class, ['requested_by_user_id', 'organization_id', 'pickup_location_id', 'destination_location_id', 'driver_id', 'vehicle_id', 'recurrence_id', 'trip_date', 'departure_time', 'return_time', 'nb_children', 'nb_adults', 'trip_purpose', 'activity_type', 'distance_km', 'estimated_duration_min', 'status', 'approval_type', 'validated_by_user_id', 'validated_at', 'cancelled_by_user_id', 'cancelled_at', 'rejection_reason', 'cancellation_reason']],
             [CouncilDecision::class, ['reservation_id', 'decision_status', 'decision_date', 'recorded_by_user_id', 'decision_reference', 'validated_at', 'notes']],
             [Document::class, ['reservation_id', 'user_id', 'document_type', 'file_name', 'file_path', 'mime_type', 'file_size', 'generation_mode', 'generated_at', 'is_official', 'version', 'is_available']],
             [NotificationDelivery::class, ['event_id', 'attempt_id', 'attempt_number', 'notification_id', 'notification_type', 'notifiable_type', 'notifiable_id', 'reservation_id', 'document_id', 'channel', 'recipient_email', 'status', 'provider', 'provider_message_id', 'payload', 'sent_at', 'failed_at', 'error_message']],
@@ -140,7 +141,7 @@ class ModelConfigurationTest extends TestCase
             [Organization::class, ['type' => OrganizationType::class, 'is_priority' => 'boolean', 'annual_quota' => 'integer', 'reservations_used_this_year' => 'integer', 'quota_reset_year' => 'datetime']],
             [UserOrganization::class, ['is_default' => 'boolean']],
             [Recurrence::class, ['interval_value' => 'integer', 'start_date' => 'date', 'end_date' => 'date', 'occurrence_count' => 'integer', 'is_active' => 'boolean']],
-            [Reservation::class, ['trip_date' => 'date', 'departure_time' => 'datetime:H:i:s', 'return_time' => 'datetime:H:i:s', 'nb_children' => 'integer', 'nb_adults' => 'integer', 'distance_km' => 'decimal:2', 'estimated_duration_min' => 'integer', 'status' => ReservationStatus::class, 'approval_type' => ApprovalType::class, 'validated_at' => 'datetime', 'cancelled_at' => 'datetime']],
+            [Reservation::class, ['trip_date' => 'date', 'departure_time' => 'datetime:H:i:s', 'return_time' => 'datetime:H:i:s', 'nb_children' => 'integer', 'nb_adults' => 'integer', 'activity_type' => ReservationActivityType::class, 'distance_km' => 'decimal:2', 'estimated_duration_min' => 'integer', 'status' => ReservationStatus::class, 'approval_type' => ApprovalType::class, 'validated_at' => 'datetime', 'cancelled_at' => 'datetime']],
             [CouncilDecision::class, ['decision_status' => CouncilDecisionStatus::class, 'decision_date' => 'date', 'validated_at' => 'datetime']],
             [Document::class, ['document_type' => DocumentType::class, 'file_size' => 'integer', 'generated_at' => 'datetime', 'is_official' => 'boolean', 'version' => 'integer', 'is_available' => 'boolean']],
             [NotificationDelivery::class, ['status' => DeliveryStatus::class, 'attempt_number' => 'integer', 'payload' => 'json', 'sent_at' => 'datetime', 'failed_at' => 'datetime']],

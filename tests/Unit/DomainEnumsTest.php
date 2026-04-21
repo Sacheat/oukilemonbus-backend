@@ -9,6 +9,7 @@ use App\Enums\DeliveryStatus;
 use App\Enums\DocumentType;
 use App\Enums\OrganizationType;
 use App\Enums\RequestStatus;
+use App\Enums\ReservationActivityType;
 use App\Enums\ReservationStatus;
 use App\Enums\UnavailabilityReasonType;
 use PHPUnit\Framework\TestCase;
@@ -56,12 +57,15 @@ class DomainEnumsTest extends TestCase
         $this->assertSame('Validation manuelle requise', ApprovalType::MANUEL->description());
         $this->assertSame('Assignation de chauffeur', AssignmentType::DRIVER->description());
         $this->assertSame('warning', CouncilDecisionStatus::EN_ATTENTE->color());
+        $this->assertTrue(ReservationActivityType::GYMNASTIQUE->isSchoolPriorityActivity());
+        $this->assertFalse(ReservationActivityType::STANDARD->isSchoolPriorityActivity());
         $this->assertStringContainsString('veh', strtolower($this->normalize(UnavailabilityReasonType::VEHICLE->description())));
     }
 
     public function test_to_array_helpers_keep_all_cases(): void
     {
         $this->assertCount(count(ReservationStatus::cases()), ReservationStatus::toArray());
+        $this->assertCount(count(ReservationActivityType::cases()), ReservationActivityType::toArray());
         $this->assertCount(count(DocumentType::cases()), DocumentType::toArray());
         $this->assertCount(count(OrganizationType::cases()), OrganizationType::toArray());
         $this->assertCount(count(RequestStatus::cases()), RequestStatus::toArray());

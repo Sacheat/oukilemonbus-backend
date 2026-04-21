@@ -27,6 +27,7 @@ return new class extends Migration
             $table->integer('nb_children')->default(0);
             $table->integer('nb_adults')->comment('Min 1 adulte accompagnant');
             $table->string('trip_purpose', 500)->comment('Objet du déplacement');
+            $table->string('activity_type', 50)->default('standard')->comment('Priorite interne entre ecoles communales');
             $table->decimal('distance_km', 6, 2)->nullable()->comment('Calculé via API');
             $table->integer('estimated_duration_min')->nullable()->comment('Durée estimée API + marge configurable');
             $table->string('status', 50);
@@ -53,6 +54,7 @@ return new class extends Migration
             $table->index(['trip_date', 'driver_id'], 'idx_reservations_trip_date_driver_id');
             $table->index(['trip_date', 'vehicle_id'], 'idx_reservations_trip_date_vehicle_id');
             $table->index(['organization_id', 'status', 'trip_date'], 'idx_reservations_org_status_date');
+            $table->index(['organization_id', 'activity_type'], 'idx_reservations_org_activity_type');
 
             $table->foreign('requested_by_user_id')
                 ->references('id')

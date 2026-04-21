@@ -54,6 +54,12 @@ Enum reservation_conflict_type {
   vehicle_capacity_unavailable
 }
 
+Enum reservation_activity_type {
+  standard
+  gymnastique
+  psychomotricite
+}
+
 Enum approval_type_enum {
   auto
   manuel
@@ -270,6 +276,7 @@ Table reservations {
   nb_children             int                 [not null, default: 0]
   nb_adults               int                 [not null, note: 'Min 1 — nb_children + nb_adults + 1 chauffeur ≤ 41']
   trip_purpose            varchar(500)        [not null, note: 'Objet du déplacement']
+  activity_type           reservation_activity_type [not null, default: 'standard', note: 'Priorite interne entre ecoles communales']
   distance_km             decimal(6,2)        [note: 'Calculé via API — bloqué si > 50 km']
   estimated_duration_min  int                 [note: 'Durée estimée API + marge configurable']
   status                  reservation_status  [not null]
@@ -298,6 +305,7 @@ Table reservations {
     (trip_date, driver_id)               [name: 'idx_reservations_trip_date_driver_id']
     (trip_date, vehicle_id)              [name: 'idx_reservations_trip_date_vehicle_id']
     (organization_id, status, trip_date) [name: 'idx_reservations_org_status_date']
+    (organization_id, activity_type)     [name: 'idx_reservations_org_activity_type']
   }
 
   Note: '''

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\ApprovalType;
+use App\Enums\ReservationActivityType;
 use App\Enums\ReservationStatus;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -25,6 +26,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
     'nb_children',
     'nb_adults',
     'trip_purpose',
+    'activity_type',
     'distance_km',
     'estimated_duration_min',
     'status',
@@ -123,6 +125,7 @@ class Reservation extends Model
             'return_time' => 'datetime:H:i:s',
             'nb_children' => 'integer',
             'nb_adults' => 'integer',
+            'activity_type' => ReservationActivityType::class,
             'distance_km' => 'decimal:2',
             'estimated_duration_min' => 'integer',
             'status' => ReservationStatus::class,

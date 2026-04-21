@@ -112,7 +112,8 @@ Champs principaux :
 - return_time ;
 - nb_children ;
 - nb_adults ;
-- trip_purpose.
+- trip_purpose ;
+- activity_type (standard | gymnastique | psychomotricite).
 
 Le chauffeur et le vehicule ne sont pas choisis par l'utilisateur au moment de
 la demande. Ils seront assignes automatiquement par le systeme ou manuellement
@@ -263,6 +264,9 @@ Ecole communale :
   peut etre approuvee automatiquement ;
 - si un conflit existe, la demande passe en en_conflit.
 - prioritaire sur les autres types d'organisation
+- entre ecoles communales, une reservation de gymnastique ou psychomotricite est
+  prioritaire sur une reservation standard ;
+- a priorite egale, la demande introduite en premier est prioritaire.
 
 Autres organisations :
 - decision du college obligatoire avant approbation ;
@@ -367,6 +371,11 @@ Chevauchements
 --------------
 
 Un chevauchement avec une autre reservation active doit creer un conflit.
+
+Lorsqu'un chevauchement est detecte, le message de conflit doit expliciter si :
+- la nouvelle demande est prioritaire selon le reglement ;
+- la reservation deja existante est prioritaire ;
+- les deux demandes ont la meme priorite et l'anteriorite decide.
 
 Les reservations a prendre en compte pour les chevauchements :
 - en_attente ;
