@@ -14,6 +14,7 @@ Pour la V1, il n'est pas necessaire de creer une policy pour chaque modele.
 Policies a creer maintenant :
 
 - `ReservationPolicy` : prioritaire, car les droits dependent du demandeur, de l'organisation, du chauffeur assigne, du statut et du workflow.
+- `CouncilDecisionPolicy` : utile, car la decision du college est une ressource metier autonome avec ses propres routes et droits.
 - `UserPolicy` : utile, car un utilisateur peut modifier son propre profil mais pas forcement celui des autres.
 - `OrganizationPolicy` : utile, car les responsables d'organisation doivent etre limites a leurs organisations.
 - `UnavailabilityPolicy` : utile, car les indisponibilites peuvent concerner un chauffeur, un vehicule ou un createur.
@@ -41,7 +42,9 @@ Permissions Spatie proposees :
 - `reservations.assign`
 - `reservations.confirm`
 - `reservations.manage-conflicts`
-- `reservations.record-council-decision`
+- `council-decisions.view`
+- `council-decisions.create`
+- `council-decisions.update`
 
 `reservations.validate` n'est pas retenu pour la V1 afin d'eviter la confusion avec la validation de formulaire. Le terme metier retenu est `approve`.
 
@@ -49,11 +52,11 @@ Permissions Spatie proposees :
 
 | Role | Permissions |
 | --- | --- |
-| `admin` | Toutes les permissions `reservations.*` |
-| `agent_communal` | Toutes les permissions `reservations.*` |
-| `responsable_organisation` | `reservations.view`, `reservations.create`, `reservations.update`, `reservations.cancel` |
-| `user` | `reservations.view`, `reservations.create`, `reservations.update`, `reservations.cancel` |
-| `chauffeur` | `reservations.view` |
+| `admin` | Toutes les permissions `reservations.*` et `council-decisions.*` |
+| `agent_communal` | Toutes les permissions `reservations.*` et `council-decisions.*` |
+| `responsable_organisation` | `reservations.view`, `reservations.create`, `reservations.update`, `reservations.cancel`, `council-decisions.view` |
+| `user` | `reservations.view`, `reservations.create`, `reservations.update`, `reservations.cancel`, `council-decisions.view` |
+| `chauffeur` | `reservations.view`, `council-decisions.view` |
 
 Important : donner `reservations.view` a un role ne signifie pas que ce role voit toutes les reservations. La policy et les filtres de requete limitent le perimetre.
 
@@ -106,7 +109,6 @@ Pour la V1, `confirme` est considere actif mais beaucoup d'actions metier seront
 - `cancel(User $user, Reservation $reservation): bool`
 - `assign(User $user, Reservation $reservation): bool`
 - `confirm(User $user, Reservation $reservation): bool`
-- `recordCouncilDecision(User $user, Reservation $reservation): bool`
 - `viewConflicts(User $user, Reservation $reservation): bool`
 - `resolveConflict(User $user, Reservation $reservation): bool`
 
@@ -189,13 +191,6 @@ Pour la V1, `confirme` est considere actif mais beaucoup d'actions metier seront
 - Autorise seulement si le statut est `approuve`.
 - Le service verifie la presence d'un chauffeur, d'un vehicule et l'absence de conflit bloquant non resolu.
 
-`recordCouncilDecision`
-
-- Requiert `reservations.record-council-decision`.
-- Autorise seulement `admin` et `agent_communal`.
-- Autorise seulement si la reservation est active.
-- Le service verifie que l'organisation necessite bien une decision du college.
-
 `viewConflicts`
 
 - Requiert `reservations.manage-conflicts`.
@@ -221,6 +216,35 @@ Regles de filtrage :
 Si un utilisateur a plusieurs roles, appliquer le perimetre le plus large autorise par ses roles.
 
 ## UserPolicy
+
+## CouncilDecisionPolicy
+
+Permissions Spatie existantes :
+
+- `council-decisions.view`
+- `council-decisions.create`
+- `council-decisions.update`
+
+| Action | Admin | Agent communal | Responsable organisation | User | Chauffeur |
+| --- | --- | --- | --- | --- | --- |
+| Voir la liste | Oui, tout | Oui, tout | Oui, si reservation visible | Oui, si reservation visible | Oui, si reservation visible |
+| Voir une decision | Oui | Oui | Oui, si reservation visible | Oui, si reservation visible | Oui, si reservation visible |
+| Creer | Oui | Oui | Non | Non | Non |
+| Modifier | Oui | Oui | Non | Non | Non |
+
+Regles recommandees :
+
+- `viewAny` : requiert `council-decisions.view`.
+- `view` : internes voient tout ; sinon, reutiliser le meme perimetre fonctionnel que la reservation liee.
+- `create` : requiert `council-decisions.create`, reserve aux roles internes, seulement pour une reservation d'organisation non `ecole_communale`.
+- `update` : requiert `council-decisions.update`, reserve aux roles internes, avec la meme contrainte de perimetre metier que la creation.
+
+Details metier :
+
+- Une reservation ne peut avoir qu'une seule `council_decision`.
+- La decision du college reste autonome cote API, mais elle peut produire des effets sur la reservation liee.
+- Une decision `approuvee` peut lever les conflits de derogation prevus par le reglement.
+- Une decision `refusee` entraine le refus de la reservation.
 
 Permissions Spatie existantes :
 

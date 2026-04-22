@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\CouncilDecisionController;
 use App\Http\Controllers\Api\DriverController;
 use App\Http\Controllers\Api\LocationController;
 use App\Http\Controllers\Api\MunicipalityController;
@@ -247,10 +248,6 @@ Route::name('api.')->group(function (): void {
             ->middleware('permission:reservations.confirm')
             ->name('reservations.confirm');
 
-        Route::post('/reservations/{reservation}/council-decision', [ReservationController::class, 'councilDecision'])
-            ->middleware('permission:reservations.record-council-decision')
-            ->name('reservations.council-decision');
-
         Route::get('/reservations/{reservation}/conflicts', [ReservationConflictController::class, 'index'])
             ->middleware('permission:reservations.manage-conflicts')
             ->name('reservations.conflicts.index');
@@ -258,6 +255,22 @@ Route::name('api.')->group(function (): void {
         Route::patch('/reservations/{reservation}/conflicts/{conflict}/resolve', [ReservationConflictController::class, 'resolve'])
             ->middleware('permission:reservations.manage-conflicts')
             ->name('reservations.conflicts.resolve');
+
+        /**
+         * Council decisions routes
+         */
+        Route::middleware('permission:council-decisions.view')->group(function (): void {
+            Route::get('/council-decisions', [CouncilDecisionController::class, 'index'])->name('council-decisions.index');
+            Route::get('/council-decisions/{councilDecision}', [CouncilDecisionController::class, 'show'])->name('council-decisions.show');
+        });
+
+        Route::post('/council-decisions', [CouncilDecisionController::class, 'store'])
+            ->middleware('permission:council-decisions.create')
+            ->name('council-decisions.store');
+
+        Route::patch('/council-decisions/{councilDecision}', [CouncilDecisionController::class, 'update'])
+            ->middleware('permission:council-decisions.update')
+            ->name('council-decisions.update');
 
         /**
          * Unavailabilities routes

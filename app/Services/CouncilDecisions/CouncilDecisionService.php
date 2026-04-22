@@ -1,0 +1,109 @@
+<?php
+
+namespace App\Services\CouncilDecisions;
+
+use App\Enums\CouncilDecisionStatus;
+use App\Enums\OrganizationType;
+use App\Enums\ReservationConflictType;
+use App\Models\CouncilDecision;
+use App\Models\Reservation;
+use App\Models\User;
+use App\Services\Reservations\ReservationService;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
+
+class CouncilDecisionService
+{
+    public function __construct(
+        private readonly ReservationService $reservationService
+    ) {}
+
+    public function create(array $data, User $actor): CouncilDecision
+    {
+        $reservation = Reservation::query()
+            ->with(['organization', 'councilDecision'])
+            ->findOrFail($data['reservation_id']);
+
+        $this->ensureCouncilDecisionRequired($reservation);
+
+        return DB::transaction(function () use ($reservation, $data, $actor): CouncilDecision {
+            $decision = CouncilDecision::create([
+                'reservation_id' => $reservation->id,
+                'decision_status' => $data['decision_status'],
+                'decision_date' => $data['decision_date'] ?? null,
+                'recorded_by_user_id' => $actor->id,
+                'decision_reference' => $data['decision_reference'] ?? null,
+                'validated_at' => now(),
+                'notes' => $data['notes'] ?? null,
+            ]);
+
+            $this->applyDecisionConsequences($decision, $reservation, $actor, $data['notes'] ?? null);
+
+            return $decision->refresh()->load(['reservation.organization', 'recordedByUser']);
+        });
+    }
+
+    public function update(CouncilDecision $councilDecision, array $data, User $actor): CouncilDecision
+    {
+        $councilDecision->loadMissing(['reservation.organization', 'recordedByUser']);
+
+        $this->ensureCouncilDecisionRequired($councilDecision->reservation);
+
+        return DB::transaction(function () use ($councilDecision, $data, $actor): CouncilDecision {
+            $councilDecision->update([
+                'decision_status' => $data['decision_status'],
+                'decision_date' => $data['decision_date'] ?? null,
+                'recorded_by_user_id' => $actor->id,
+                'decision_reference' => $data['decision_reference'] ?? null,
+                'validated_at' => now(),
+                'notes' => $data['notes'] ?? null,
+            ]);
+
+            $this->applyDecisionConsequences($councilDecision, $councilDecision->reservation, $actor, $data['notes'] ?? null);
+
+            return $councilDecision->refresh()->load(['reservation.organization', 'recordedByUser']);
+        });
+    }
+
+    private function applyDecisionConsequences(
+        CouncilDecision $decision,
+        Reservation $reservation,
+        User $actor,
+        ?string $notes
+    ): void {
+        if ($decision->decision_status === CouncilDecisionStatus::REFUSE) {
+            $this->reservationService->reject($reservation, $actor, $notes ?? 'Decision defavorable du college');
+
+            return;
+        }
+
+        if ($decision->decision_status === CouncilDecisionStatus::APPROUVE) {
+            $this->resolveCouncilDerogationConflicts($reservation, $actor);
+        }
+    }
+
+    private function ensureCouncilDecisionRequired(Reservation $reservation): void
+    {
+        if ($reservation->organization->type === OrganizationType::ECOLE_COMMUNALE) {
+            throw ValidationException::withMessages([
+                'reservation' => 'Aucune decision du college n est requise pour une ecole communale.',
+            ]);
+        }
+    }
+
+    private function resolveCouncilDerogationConflicts(Reservation $reservation, User $actor): void
+    {
+        $reservation->conflicts()
+            ->where('is_resolved', false)
+            ->whereIn('type', [
+                ReservationConflictType::DEPARTURE_BEFORE_ALLOWED_TIME->value,
+                ReservationConflictType::RETURN_AFTER_ALLOWED_TIME->value,
+                ReservationConflictType::DURATION_OVER_ALLOWED_LIMIT->value,
+            ])
+            ->update([
+                'is_resolved' => true,
+                'resolved_by_user_id' => $actor->id,
+                'resolved_at' => now(),
+            ]);
+    }
+}

@@ -1,19 +1,19 @@
 <?php
 
-namespace App\Http\Requests\Reservations;
+namespace App\Http\Requests\CouncilDecisions;
 
 use App\Enums\CouncilDecisionStatus;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
-class StoreCouncilDecisionRequest extends FormRequest
+class UpdateCouncilDecisionRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        $reservation = $this->route('reservation');
+        $councilDecision = $this->route('councilDecision');
 
-        return is_object($reservation)
-            && ($this->user()?->can('recordCouncilDecision', $reservation) ?? false);
+        return is_object($councilDecision)
+            && ($this->user()?->can('update', $councilDecision) ?? false);
     }
 
     public function rules(): array

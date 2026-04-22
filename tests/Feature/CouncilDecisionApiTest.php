@@ -1,0 +1,210 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Enums\CouncilDecisionStatus;
+use App\Enums\ReservationActivityType;
+use App\Models\CouncilDecision;
+use App\Models\Location;
+use App\Models\Organization;
+use App\Models\User;
+use Database\Seeders\RolesAndPermissionsSeeder;
+use Database\Seeders\TestLocationsSeeder;
+use Database\Seeders\TestOrganizationsSeeder;
+use Database\Seeders\TestUsersSeeder;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Http;
+use Laravel\Sanctum\Sanctum;
+use Spatie\Permission\PermissionRegistrar;
+use Tests\TestCase;
+
+class CouncilDecisionApiTest extends TestCase
+{
+    use DatabaseTransactions;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+        $this->seed([
+            RolesAndPermissionsSeeder::class,
+            TestUsersSeeder::class,
+            TestLocationsSeeder::class,
+            TestOrganizationsSeeder::class,
+        ]);
+        Carbon::setTestNow('2026-04-20 09:00:00');
+
+        config([
+            'services.openrouteservice.key' => 'test-key',
+            'services.openrouteservice.base_url' => 'https://ors.test',
+            'reservations.closed_dates' => ['2026-01-01'],
+        ]);
+    }
+
+    protected function tearDown(): void
+    {
+        Carbon::setTestNow();
+
+        parent::tearDown();
+    }
+
+    public function test_internal_user_can_list_and_show_council_decisions(): void
+    {
+        $agent = $this->seededUser('agent.test@bus-communal.local');
+        $decision = $this->createCouncilDecisionForNonSchoolReservation();
+
+        Sanctum::actingAs($agent);
+
+        $this->getJson('/api/council-decisions')
+            ->assertOk()
+            ->assertJsonFragment([
+                'id' => $decision->id,
+                'reservation_id' => $decision->reservation_id,
+            ]);
+
+        $this->getJson("/api/council-decisions/{$decision->id}")
+            ->assertOk()
+            ->assertJsonPath('data.id', $decision->id)
+            ->assertJsonPath('data.decision_status', CouncilDecisionStatus::APPROUVE->value);
+    }
+
+    public function test_user_can_view_council_decision_for_visible_reservation_only(): void
+    {
+        $user = $this->seededUser('user.test@bus-communal.local');
+        $visibleDecision = $this->createCouncilDecisionForNonSchoolReservation('ASBL Les Amis du Parc', $user);
+        $hiddenDecision = $this->createCouncilDecisionForNonSchoolReservation('ASBL Hidden');
+
+        Sanctum::actingAs($user);
+
+        $this->getJson('/api/council-decisions')
+            ->assertOk()
+            ->assertJsonFragment(['id' => $visibleDecision->id])
+            ->assertJsonMissing(['id' => $hiddenDecision->id]);
+
+        $this->getJson("/api/council-decisions/{$visibleDecision->id}")
+            ->assertOk();
+
+        $this->getJson("/api/council-decisions/{$hiddenDecision->id}")
+            ->assertForbidden();
+    }
+
+    public function test_internal_user_can_update_existing_council_decision(): void
+    {
+        $agent = $this->seededUser('agent.test@bus-communal.local');
+        $decision = $this->createCouncilDecisionForNonSchoolReservation();
+
+        Sanctum::actingAs($agent);
+
+        $this->patchJson("/api/council-decisions/{$decision->id}", [
+            'decision_status' => CouncilDecisionStatus::REFUSE->value,
+            'decision_date' => '2026-06-03',
+            'decision_reference' => 'COL-2026-099',
+            'notes' => 'Refus motive.',
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.decision_status', CouncilDecisionStatus::REFUSE->value)
+            ->assertJsonPath('data.decision_reference', 'COL-2026-099');
+
+        $this->assertDatabaseHas('council_decisions', [
+            'id' => $decision->id,
+            'decision_status' => CouncilDecisionStatus::REFUSE->value,
+            'decision_reference' => 'COL-2026-099',
+        ]);
+    }
+
+    private function createCouncilDecisionForNonSchoolReservation(
+        string $organizationName = 'ASBL Les Amis du Parc',
+        ?User $requestedByUser = null
+    ): CouncilDecision
+    {
+        Http::fake([
+            'https://ors.test/*' => Http::response([
+                'routes' => [[
+                    'summary' => [
+                        'distance' => 12000,
+                        'duration' => 1800,
+                    ],
+                ]],
+            ]),
+        ]);
+
+        $agent = $this->seededUser('agent.test@bus-communal.local');
+        $organization = $this->seededOrganization($organizationName);
+
+        if ($organization === null) {
+            $organization = Organization::create([
+                'name' => $organizationName,
+                'type' => 'asbl',
+                'annual_quota' => 10,
+            ]);
+        }
+
+        if ($requestedByUser !== null
+            && ! $organization->users()->whereKey($requestedByUser->id)->exists()) {
+            $organization->users()->attach($requestedByUser->id, [
+                'relationship_type' => 'referent',
+                'is_default' => true,
+            ]);
+        }
+
+        Sanctum::actingAs($agent);
+
+        $reservationId = $this->postJson('/api/reservations', $this->payload($organization, requestedByUser: $requestedByUser))
+            ->assertCreated()
+            ->json('data.id');
+
+        return CouncilDecision::create([
+            'reservation_id' => $reservationId,
+            'decision_status' => CouncilDecisionStatus::APPROUVE,
+            'decision_date' => '2026-06-01',
+            'recorded_by_user_id' => $agent->id,
+            'decision_reference' => 'COL-2026-050',
+            'validated_at' => now(),
+            'notes' => 'Decision test.',
+        ]);
+    }
+
+    private function payload(
+        Organization $organization,
+        ?Location $pickup = null,
+        ?Location $destination = null,
+        ?User $requestedByUser = null
+    ): array
+    {
+        [$pickup, $destination] = $pickup && $destination ? [$pickup, $destination] : $this->seededLocations();
+
+        return [
+            'organization_id' => $organization->id,
+            'pickup_location_id' => $pickup->id,
+            'destination_location_id' => $destination->id,
+            'trip_date' => '2026-06-16',
+            'departure_time' => '09:00',
+            'return_time' => '11:00',
+            'nb_children' => 10,
+            'nb_adults' => 1,
+            'trip_purpose' => 'Sortie educative',
+            'activity_type' => ReservationActivityType::STANDARD->value,
+            ...($requestedByUser ? ['requested_by_user_id' => $requestedByUser->id] : []),
+        ];
+    }
+
+    private function seededUser(string $email): User
+    {
+        return User::query()->where('email', $email)->firstOrFail();
+    }
+
+    private function seededOrganization(string $name): ?Organization
+    {
+        return Organization::query()->where('name', $name)->first();
+    }
+
+    private function seededLocations(): array
+    {
+        return [
+            Location::query()->where('place_id', 'seed-dinant-pickup')->firstOrFail(),
+            Location::query()->where('place_id', 'seed-dinant-destination')->firstOrFail(),
+        ];
+    }
+}

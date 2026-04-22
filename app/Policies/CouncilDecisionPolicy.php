@@ -1,0 +1,89 @@
+<?php
+
+namespace App\Policies;
+
+use App\Enums\OrganizationType;
+use App\Enums\ReservationStatus;
+use App\Models\CouncilDecision;
+use App\Models\Reservation;
+use App\Models\User;
+
+class CouncilDecisionPolicy
+{
+    private const array INTERNAL_ROLES = ['admin', 'agent_communal'];
+
+    public function viewAny(User $user): bool
+    {
+        return $user->can('council-decisions.view');
+    }
+
+    public function view(User $user, CouncilDecision $councilDecision): bool
+    {
+        if (! $user->can('council-decisions.view')) {
+            return false;
+        }
+
+        $reservation = $councilDecision->reservation;
+
+        if ($this->isInternal($user)) {
+            return true;
+        }
+
+        if ($reservation->requested_by_user_id === $user->getKey()) {
+            return true;
+        }
+
+        if ($user->hasRole('responsable_organisation') && $this->belongsToUserOrganization($user, $reservation->organization_id)) {
+            return true;
+        }
+
+        return $user->hasRole('chauffeur')
+            && $user->driver !== null
+            && $reservation->driver_id === $user->driver->getKey();
+    }
+
+    public function create(User $user, Reservation $reservation): bool
+    {
+        return $user->can('council-decisions.create')
+            && $this->isInternal($user)
+            && $reservation->organization->type !== OrganizationType::ECOLE_COMMUNALE
+            && $this->hasAllowedReservationStatus($reservation);
+    }
+
+    public function update(User $user, CouncilDecision $councilDecision): bool
+    {
+        return $user->can('council-decisions.update')
+            && $this->isInternal($user)
+            && $councilDecision->reservation->organization->type !== OrganizationType::ECOLE_COMMUNALE
+            && $this->hasAllowedReservationStatus($councilDecision->reservation);
+    }
+
+    private function isInternal(User $user): bool
+    {
+        return $user->hasAnyRole(self::INTERNAL_ROLES);
+    }
+
+    private function belongsToUserOrganization(User $user, mixed $organizationId): bool
+    {
+        if ($organizationId === null) {
+            return false;
+        }
+
+        return $user->organizations()
+            ->whereKey($organizationId)
+            ->exists();
+    }
+
+    private function hasAllowedReservationStatus(Reservation $reservation): bool
+    {
+        $status = $reservation->status instanceof ReservationStatus
+            ? $reservation->status->value
+            : $reservation->status;
+
+        return in_array($status, [
+            ReservationStatus::EN_ATTENTE->value,
+            ReservationStatus::EN_CONFLIT->value,
+            ReservationStatus::APPROUVE->value,
+        ], true);
+    }
+}

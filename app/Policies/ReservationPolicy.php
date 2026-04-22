@@ -135,13 +135,6 @@ class ReservationPolicy
             && $this->hasStatus($reservation, [ReservationStatus::APPROUVE->value]);
     }
 
-    public function recordCouncilDecision(User $user, Reservation $reservation): bool
-    {
-        return $user->can('reservations.record-council-decision')
-            && $this->isInternal($user)
-            && $this->isActiveStatus($reservation);
-    }
-
     public function viewConflicts(User $user, Reservation $reservation): bool
     {
         return $user->can('reservations.manage-conflicts')

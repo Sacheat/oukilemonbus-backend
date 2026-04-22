@@ -300,11 +300,14 @@ class ReservationApiTest extends TestCase
         $this->patchJson("/api/reservations/{$reservationId}/approve")
             ->assertUnprocessable();
 
-        $this->postJson("/api/reservations/{$reservationId}/council-decision", [
+        $this->postJson('/api/council-decisions', [
+            'reservation_id' => $reservationId,
             'decision_status' => CouncilDecisionStatus::APPROUVE->value,
             'decision_date' => '2026-06-01',
             'decision_reference' => 'COL-2026-001',
-        ])->assertOk();
+        ])->assertCreated()
+            ->assertJsonPath('data.decision_status', CouncilDecisionStatus::APPROUVE->value)
+            ->assertJsonPath('data.decision_reference', 'COL-2026-001');
 
         $this->patchJson("/api/reservations/{$reservationId}/approve")
             ->assertOk()
@@ -343,12 +346,13 @@ class ReservationApiTest extends TestCase
             'is_resolved' => false,
         ]);
 
-        $this->postJson("/api/reservations/{$reservationId}/council-decision", [
+        $this->postJson('/api/council-decisions', [
+            'reservation_id' => $reservationId,
             'decision_status' => CouncilDecisionStatus::APPROUVE->value,
             'decision_date' => '2026-06-01',
             'decision_reference' => 'COL-2026-002',
             'notes' => 'Derogation horaire acceptee.',
-        ])->assertOk();
+        ])->assertCreated();
 
         $this->assertDatabaseHas('reservation_conflicts', [
             'reservation_id' => $reservationId,
@@ -360,6 +364,71 @@ class ReservationApiTest extends TestCase
         $this->patchJson("/api/reservations/{$reservationId}/approve")
             ->assertOk()
             ->assertJsonPath('data.status', ReservationStatus::CONFIRME->value);
+    }
+
+    public function test_school_reservation_cannot_receive_a_council_decision(): void
+    {
+        Http::fake([
+            'https://ors.test/*' => Http::response([
+                'routes' => [[
+                    'summary' => [
+                        'distance' => 12000,
+                        'duration' => 1800,
+                    ],
+                ]],
+            ]),
+        ]);
+
+        $agent = $this->seededUser('agent.test@bus-communal.local');
+        $organization = $this->seededOrganization('Ecole communale de Dinant');
+
+        Sanctum::actingAs($agent);
+
+        $reservationId = $this->postJson('/api/reservations', $this->payload($organization))
+            ->assertCreated()
+            ->json('data.id');
+
+        $this->postJson('/api/council-decisions', [
+            'reservation_id' => $reservationId,
+            'decision_status' => CouncilDecisionStatus::APPROUVE->value,
+            'decision_date' => '2026-06-01',
+            'decision_reference' => 'COL-2026-003',
+        ])->assertForbidden();
+
+        $this->assertDatabaseMissing('council_decisions', [
+            'reservation_id' => $reservationId,
+        ]);
+    }
+
+    public function test_organization_user_cannot_record_council_decision(): void
+    {
+        Http::fake([
+            'https://ors.test/*' => Http::response([
+                'routes' => [[
+                    'summary' => [
+                        'distance' => 12000,
+                        'duration' => 1800,
+                    ],
+                ]],
+            ]),
+        ]);
+
+        $agent = $this->seededUser('agent.test@bus-communal.local');
+        $user = $this->seededUser('user.test@bus-communal.local');
+        $organization = $this->seededOrganization('ASBL Les Amis du Parc');
+
+        Sanctum::actingAs($agent);
+        $reservationId = $this->postJson('/api/reservations', $this->payload($organization))
+            ->assertCreated()
+            ->json('data.id');
+
+        Sanctum::actingAs($user);
+        $this->postJson('/api/council-decisions', [
+            'reservation_id' => $reservationId,
+            'decision_status' => CouncilDecisionStatus::APPROUVE->value,
+            'decision_date' => '2026-06-01',
+            'decision_reference' => 'COL-2026-004',
+        ])->assertForbidden();
     }
 
     public function test_weekend_creation_is_rejected(): void

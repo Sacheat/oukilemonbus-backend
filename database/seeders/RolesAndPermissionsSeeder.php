@@ -54,7 +54,9 @@ class RolesAndPermissionsSeeder extends Seeder
             'reservations.assign',
             'reservations.confirm',
             'reservations.manage-conflicts',
-            'reservations.record-council-decision',
+            'council-decisions.view',
+            'council-decisions.create',
+            'council-decisions.update',
         ];
 
         foreach ($permissions as $permission) {
@@ -78,6 +80,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'user-org-requests.view',
             'user-org-requests.create',
             'organizations.view',
+            'council-decisions.view',
             'reservations.view',
             'reservations.create',
             'reservations.update',
@@ -95,6 +98,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'user-org-requests.view',
             'user-org-requests.create',
             'organizations.view',
+            'council-decisions.view',
             'unavailabilities.view',
             'reservations.view',
         ]);
@@ -139,7 +143,9 @@ class RolesAndPermissionsSeeder extends Seeder
             'reservations.assign',
             'reservations.confirm',
             'reservations.manage-conflicts',
-            'reservations.record-council-decision',
+            'council-decisions.view',
+            'council-decisions.create',
+            'council-decisions.update',
         ]);
 
         $responsableOrganisation->givePermissionTo([
@@ -152,6 +158,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'user-org-requests.view',
             'user-org-requests.create',
             'organizations.view',
+            'council-decisions.view',
             'reservations.view',
             'reservations.create',
             'reservations.update',

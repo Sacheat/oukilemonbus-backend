@@ -9,7 +9,6 @@ use App\Http\Requests\Reservations\CancelReservationRequest;
 use App\Http\Requests\Reservations\ConfirmReservationRequest;
 use App\Http\Requests\Reservations\PreviewReservationRequest;
 use App\Http\Requests\Reservations\RejectReservationRequest;
-use App\Http\Requests\Reservations\StoreCouncilDecisionRequest;
 use App\Http\Requests\Reservations\StoreReservationRequest;
 use App\Http\Requests\Reservations\UpdateReservationRequest;
 use App\Http\Resources\ReservationResource;
@@ -126,12 +125,5 @@ class ReservationController extends Controller
         $reservation = $this->reservationService->confirm($reservation, $request->user());
 
         return new ReservationResource($reservation->load(['organization', 'pickupLocation', 'destinationLocation', 'driver', 'vehicle', 'conflicts']));
-    }
-
-    public function councilDecision(StoreCouncilDecisionRequest $request, Reservation $reservation): ReservationResource
-    {
-        $reservation = $this->reservationService->recordCouncilDecision($reservation, $request->validated(), $request->user());
-
-        return new ReservationResource($reservation->load(['organization', 'pickupLocation', 'destinationLocation', 'driver', 'vehicle', 'conflicts', 'councilDecision']));
     }
 }

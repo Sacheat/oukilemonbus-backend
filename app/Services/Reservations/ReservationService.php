@@ -4,9 +4,7 @@ namespace App\Services\Reservations;
 
 use App\Enums\CouncilDecisionStatus;
 use App\Enums\OrganizationType;
-use App\Enums\ReservationConflictType;
 use App\Enums\ReservationStatus;
-use App\Models\CouncilDecision;
 use App\Models\Organization;
 use App\Models\Reservation;
 use App\Models\ReservationConflict;
@@ -180,30 +178,6 @@ class ReservationService
         return $this->transition($reservation, ReservationStatus::CONFIRME, $actor, 'Confirmation');
     }
 
-    public function recordCouncilDecision(Reservation $reservation, array $data, User $actor): Reservation
-    {
-        $decision = CouncilDecision::updateOrCreate([
-            'reservation_id' => $reservation->id,
-        ], [
-            'decision_status' => $data['decision_status'],
-            'decision_date' => $data['decision_date'] ?? null,
-            'recorded_by_user_id' => $actor->id,
-            'decision_reference' => $data['decision_reference'] ?? null,
-            'validated_at' => now(),
-            'notes' => $data['notes'] ?? null,
-        ]);
-
-        if ($decision->decision_status === CouncilDecisionStatus::REFUSE) {
-            return $this->reject($reservation, $actor, $data['notes'] ?? 'Decision defavorable du college');
-        }
-
-        if ($decision->decision_status === CouncilDecisionStatus::APPROUVE) {
-            $this->resolveCouncilDerogationConflicts($reservation, $actor);
-        }
-
-        return $reservation->refresh()->load('councilDecision');
-    }
-
     public function resolveConflict(ReservationConflict $conflict, User $actor): ReservationConflict
     {
         $conflict->update([
@@ -226,22 +200,6 @@ class ReservationService
                 'reservation' => 'Une decision favorable du college est obligatoire avant approbation.',
             ]);
         }
-    }
-
-    private function resolveCouncilDerogationConflicts(Reservation $reservation, User $actor): void
-    {
-        $reservation->conflicts()
-            ->where('is_resolved', false)
-            ->whereIn('type', [
-                ReservationConflictType::DEPARTURE_BEFORE_ALLOWED_TIME->value,
-                ReservationConflictType::RETURN_AFTER_ALLOWED_TIME->value,
-                ReservationConflictType::DURATION_OVER_ALLOWED_LIMIT->value,
-            ])
-            ->update([
-                'is_resolved' => true,
-                'resolved_by_user_id' => $actor->id,
-                'resolved_at' => now(),
-            ]);
     }
 
     private function transition(Reservation $reservation, ReservationStatus $newStatus, User $actor, string $reason): Reservation
