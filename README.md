@@ -11,6 +11,8 @@ Le projet est actuellement centre sur le socle metier, la base de donnees et les
 - gestion des lieux avec geocodage OpenRouteService
 - autorisations Spatie
 - authentification SPA avec Sanctum
+- policies Laravel sur les ressources metier principales
+- services metier par module
 - suite de tests base de donnees et API
 
 ## Domaine couvert
@@ -103,6 +105,12 @@ La suite actuelle est fortement orientee base de donnees:
 - coherence de persistance
 - endpoints Auth/User
 - endpoints Locations
+- endpoints Organizations
+- endpoints Reservations
+- endpoints Council Decisions
+- endpoints Unavailabilities
+- endpoints Org Registration Requests
+- endpoints User Org Requests
 - permissions Spatie et acces Sanctum
 
 Lancer tous les tests:
@@ -167,7 +175,7 @@ Pour chaque nouveau module, garder la meme structure:
 
 Exemple pour un module `reservations`:
 
-- permissions: `reservations.view`, `reservations.create`, `reservations.update`, `reservations.validate`, `reservations.cancel`
+- permissions: `reservations.view`, `reservations.create`, `reservations.update`, `reservations.approve`, `reservations.cancel`
 - routes: `api.reservations.index`, `api.reservations.store`, `api.reservations.show`, etc.
 - service: `App\Services\Reservations\ReservationService`
 
@@ -183,15 +191,35 @@ Ce qui est deja solide:
 - l'authentification utilisateur
 - les roles et permissions Spatie
 - le socle Sanctum pour une SPA React separee
-- la feature Locations
+- les features Auth / Users
+- les features Locations / Municipalities
+- les features Organizations / OrgRegistrationRequests / UserOrgRequests
+- la feature Reservations
+- la feature Council Decisions
+- les features Unavailabilities et historiques
 - la strategie de tests base de donnees et API
 
 Ce qui reste a construire:
-- les autres controllers metier
-- les autres services / actions / cas d'usage
-- les autres FormRequest et Resources
 - generation metier de documents et workflows complets
 - configuration de production: CORS, domaines Sanctum, cookies secure, queue, mail
+- notifications metier applicatives
+- synchronisation continue de la documentation technique (`README`, `DBML`, matrices de droits)
+
+## Modules API disponibles
+
+- `auth`
+- `users`
+- `locations`
+- `municipalities` et `municipality-localities`
+- `vehicles`
+- `drivers`
+- `organizations`
+- `org-registration-requests`
+- `user-org-requests`
+- `reservations`
+- `council-decisions`
+- `unavailabilities`
+- `unavailabilities history`
 
 ## Commandes utiles
 

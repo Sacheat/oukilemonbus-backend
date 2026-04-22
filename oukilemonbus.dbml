@@ -122,7 +122,7 @@ Table users {
     (email)  [unique, name: 'uq_users_email']
     (active) [name: 'idx_users_active']
   }
-  Note: 'Authentification Laravel/Breeze sur email + mot de passe. Roles systeme (admin, college, chauffeur, service_jeunesse) geres via Spatie laravel-permission.'
+  Note: 'Authentification Laravel sur email + mot de passe. Roles systeme actuels (admin, agent_communal, responsable_organisation, user, chauffeur) geres via Spatie laravel-permission.'
 }
 
 // ─── 2. DRIVERS ──────────────────────────────────────────────
@@ -311,7 +311,7 @@ Table reservations {
   Note: '''
   Règles métier importantes à traduire en CHECK / validation applicative :
   - return_time > departure_time
-  - return_time <= 17:00:00
+  - return_time <= 17:00:00 pour les cas standards ; des derogations existent pour certaines reservations non scolaires via decision du college
   - nb_adults >= 1
   - nb_children >= 0
   - nb_children + nb_adults >= 1
@@ -430,7 +430,9 @@ Table notifications {
 
 Table notification_deliveries {
   id                  bigint          [pk, increment, not null]
-  correlation_id      uuid            [not null, note: 'UUID technique commun a toute la tentative d''envoi']
+  event_id            uuid            [not null, note: 'UUID commun aux livraisons declenchees par le meme evenement']
+  attempt_id          uuid            [not null, note: 'UUID unique de cette tentative de livraison']
+  attempt_number      int             [not null, default: 1]
   notification_id     uuid            [note: 'ID de notifications.id si le canal database est utilise']
   notification_type   varchar(255)    [not null, note: 'Classe de notification Laravel (FQCN)']
   notifiable_type     varchar(255)    [not null, note: 'Morph target, ex: App\\Models\\User']
@@ -450,7 +452,9 @@ Table notification_deliveries {
   updated_at          timestamp       [not null]
 
   indexes {
-    (correlation_id)                 [unique, name: 'uq_notification_deliveries_correlation_id']
+    (attempt_id)                     [unique, name: 'uq_notification_deliveries_attempt_id']
+    (event_id, channel, notifiable_type, notifiable_id, attempt_number) [unique, name: 'uq_notification_deliveries_event_channel_notifiable_attempt']
+    (event_id)                       [name: 'idx_notification_deliveries_event_id']
     (notification_id)                 [name: 'idx_notification_deliveries_notification_id']
     (notification_type)               [name: 'idx_notification_deliveries_notification_type']
     (notifiable_type, notifiable_id)  [name: 'idx_notification_deliveries_notifiable']
@@ -477,6 +481,7 @@ Table unavailabilities {
   vehicle_id         bigint                     [note: 'Renseigné si reason_type = vehicle']
   start_datetime     datetime                   [not null]
   end_datetime       datetime                   [not null]
+  is_active          boolean                    [not null, default: true]
   created_by_user_id bigint                     [not null]
   created_at         timestamp                  [not null]
   updated_at         timestamp                  [not null]
@@ -485,6 +490,7 @@ Table unavailabilities {
     (reason_type)                  [name: 'idx_unavailabilities_reason_type']
     (driver_id)                    [name: 'idx_unavailabilities_driver_id']
     (vehicle_id)                   [name: 'idx_unavailabilities_vehicle_id']
+    (is_active)                    [name: 'idx_unavailabilities_is_active']
     (created_by_user_id)           [name: 'idx_unavailabilities_created_by_user_id']
     (start_datetime, end_datetime) [name: 'idx_unavailabilities_start_end']
     (driver_id, start_datetime)    [name: 'idx_unavailabilities_driver_start']

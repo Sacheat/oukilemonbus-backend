@@ -55,7 +55,7 @@ Permissions a ajouter :
 - reservations.view ;
 - reservations.create ;
 - reservations.update ;
-- reservations.validate ;
+- reservations.approve ;
 - reservations.cancel ;
 - reservations.assign.
 
@@ -284,12 +284,12 @@ college est obligatoire avant approbation.
 
 Un admin ou un agent communal peut enregistrer la decision.
 
-La decision du college sera integree au workflow de reservation plutot qu'un
-CRUD totalement separe.
+La decision du college est desormais geree comme une feature autonome avec sa
+propre ressource, ses propres routes, son propre service et sa propre policy.
 
 Route proposee :
 
-POST /api/reservations/{reservation}/council-decision
+POST /api/council-decisions
 
 Une decision favorable permet ensuite d'approuver la reservation.
 
