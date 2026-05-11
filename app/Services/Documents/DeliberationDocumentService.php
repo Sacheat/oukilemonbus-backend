@@ -7,6 +7,7 @@ use App\Models\CouncilDecision;
 use App\Models\Document;
 use App\Services\Documents\ContextBuilders\DeliberationContextBuilder;
 use App\Services\Documents\Generators\DeliberationGenerator;
+use InvalidArgumentException;
 
 /**
  * Service responsable de créer le document officiel de délibération
@@ -32,6 +33,12 @@ class DeliberationDocumentService
 
     public function generateFor(CouncilDecision $councilDecision): Document
     {
+        if (! $this->canGenerateFor($councilDecision)) {
+            throw new InvalidArgumentException(
+                'La délibération ne peut être générée que pour une décision approuvée.'
+            );
+        }
+
         $context = $this->contextBuilder->build($councilDecision);
 
         $pdfContent = $this->generator->generatePdf($context);
@@ -58,6 +65,11 @@ class DeliberationDocumentService
         );
     }
 
+    public function canGenerateFor(CouncilDecision $councilDecision): bool
+    {
+        return $this->decisionStatusValue($councilDecision) === 'approuve';
+    }
+    
     private function directoryFor(CouncilDecision $councilDecision): string
     {
         return self::DIRECTORY_PREFIX.'/'.$councilDecision->getKey();
@@ -75,5 +87,14 @@ class DeliberationDocumentService
             ->max('version');
 
         return ((int) $lastVersion) + 1;
+    }
+
+    private function decisionStatusValue(CouncilDecision $councilDecision): ?string
+    {
+        $status = $councilDecision->decision_status;
+
+        return $status instanceof \BackedEnum
+            ? $status->value
+            : $status;
     }
 }

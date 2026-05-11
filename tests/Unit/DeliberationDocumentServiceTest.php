@@ -12,6 +12,7 @@ use App\Services\Documents\Generators\DeliberationGenerator;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Carbon;
 use Tests\TestCase;
+use InvalidArgumentException;
 
 class DeliberationDocumentServiceTest extends TestCase
 {
@@ -27,6 +28,7 @@ class DeliberationDocumentServiceTest extends TestCase
             'reservation_id' => 42,
             'recorded_by_user_id' => 7,
             'decision_reference' => 'COLL-2026-001',
+            'decision_status' => 'approuve',
         ]);
 
         $context = [
@@ -105,5 +107,35 @@ class DeliberationDocumentServiceTest extends TestCase
         $this->assertSame($createdDocument, $document);
 
         Carbon::setTestNow();
+    }
+
+    public function test_it_refuses_to_generate_document_when_decision_is_not_approved(): void
+    {
+        $councilDecision = new CouncilDecision();
+        $councilDecision->forceFill([
+            'id' => 12,
+            'reservation_id' => 42,
+            'recorded_by_user_id' => 7,
+            'decision_status' => 'en_attente',
+        ]);
+
+        $contextBuilder = $this->createMock(DeliberationContextBuilder::class);
+        $generator = $this->createMock(DeliberationGenerator::class);
+        $documentService = $this->createMock(DocumentService::class);
+
+        $contextBuilder->expects($this->never())->method('build');
+        $generator->expects($this->never())->method('generatePdf');
+        $documentService->expects($this->never())->method('registerGeneratedDocument');
+
+        $service = new DeliberationDocumentService(
+            contextBuilder: $contextBuilder,
+            generator: $generator,
+            documentService: $documentService
+        );
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('La délibération ne peut être générée que pour une décision approuvée.');
+
+        $service->generateFor($councilDecision);
     }
 }
