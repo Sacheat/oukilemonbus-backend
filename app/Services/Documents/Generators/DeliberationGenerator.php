@@ -2,6 +2,8 @@
 
 namespace App\Services\Documents\Generators;
 
+use Barryvdh\DomPDF\Facade\Pdf;
+
 /**
  * Génère le rendu HTML d'une délibération à partir d'un contexte préparé.
  *
@@ -43,5 +45,24 @@ class DeliberationGenerator
         $fileName = preg_replace('/-+/', '-', $fileName);
 
         return trim($fileName, '-');
+    }
+
+    public function defaultPdfFileName(array $context): string
+    {
+        $reservationId = data_get($context, 'reservation.id', 'reservation');
+        $decisionReference = data_get($context, 'decision.reference', 'decision');
+
+        return $this->safeFileName(
+            'deliberation-'.$decisionReference.'-'.$reservationId.'.pdf'
+        );
+    }
+
+    public function generatePdf(array $context): string
+    {
+        $html = $this->generateHtml($context);
+
+        return Pdf::loadHTML($html)
+            ->setPaper('a4', 'portrait')
+            ->output();
     }
 }
