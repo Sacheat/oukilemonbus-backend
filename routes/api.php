@@ -273,6 +273,11 @@ Route::name('api.')->group(function (): void {
             ->middleware('permission:council-decisions.update')
             ->name('council-decisions.update');
 
+
+        Route::post('/council-decisions/{councilDecision}/generate-document', [CouncilDecisionController::class, 'generateDocument'])
+            ->middleware('permission:documents.generate')
+            ->name('council-decisions.generate-document');
+
         /**
          * Documents routes
          */

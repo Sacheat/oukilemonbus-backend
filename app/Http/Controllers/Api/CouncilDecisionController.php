@@ -11,6 +11,10 @@ use App\Services\CouncilDecisions\CouncilDecisionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\Gate;
+use App\Http\Resources\DocumentResource;
+use App\Models\Document;
+use App\Services\Documents\DeliberationDocumentService;
+use InvalidArgumentException;
 
 class CouncilDecisionController extends Controller
 {
@@ -67,5 +71,20 @@ class CouncilDecisionController extends Controller
         $councilDecision = $this->councilDecisionService->update($councilDecision, $request->validated(), $request->user());
 
         return new CouncilDecisionResource($councilDecision);
+    }
+
+    public function generateDocument(
+        CouncilDecision $councilDecision,
+        DeliberationDocumentService $deliberationDocumentService
+    ): DocumentResource {
+        Gate::authorize('generate', Document::class);
+
+        try {
+            $document = $deliberationDocumentService->generateFor($councilDecision);
+        } catch (InvalidArgumentException $exception) {
+            abort(422, $exception->getMessage());
+        }
+
+        return new DocumentResource($document);
     }
 }
