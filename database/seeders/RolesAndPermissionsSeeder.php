@@ -57,6 +57,10 @@ class RolesAndPermissionsSeeder extends Seeder
             'council-decisions.view',
             'council-decisions.create',
             'council-decisions.update',
+            'documents.view',
+            'documents.download',
+            'documents.generate',
+            'documents.update',
         ];
 
         foreach ($permissions as $permission) {
@@ -85,6 +89,8 @@ class RolesAndPermissionsSeeder extends Seeder
             'reservations.create',
             'reservations.update',
             'reservations.cancel',
+            'documents.view',
+            'documents.download',
         ]);
 
         $chauffeur->givePermissionTo([
@@ -101,6 +107,8 @@ class RolesAndPermissionsSeeder extends Seeder
             'council-decisions.view',
             'unavailabilities.view',
             'reservations.view',
+            'documents.view',
+            'documents.download',
         ]);
 
         $agentCommunal->givePermissionTo([
@@ -146,6 +154,10 @@ class RolesAndPermissionsSeeder extends Seeder
             'council-decisions.view',
             'council-decisions.create',
             'council-decisions.update',
+            'documents.view',
+            'documents.download',
+            'documents.generate',
+            'documents.update',
         ]);
 
         $responsableOrganisation->givePermissionTo([
@@ -163,6 +175,8 @@ class RolesAndPermissionsSeeder extends Seeder
             'reservations.create',
             'reservations.update',
             'reservations.cancel',
+            'documents.view',
+            'documents.download',
         ]);
 
         app(PermissionRegistrar::class)->forgetCachedPermissions();

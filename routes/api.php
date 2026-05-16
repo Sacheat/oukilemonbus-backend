@@ -16,6 +16,7 @@ use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\UserOrgRequestController;
 use App\Http\Controllers\Api\VehicleController;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Api\DocumentController;
 
 Route::name('api.')->group(function (): void {
 
@@ -271,6 +272,26 @@ Route::name('api.')->group(function (): void {
         Route::patch('/council-decisions/{councilDecision}', [CouncilDecisionController::class, 'update'])
             ->middleware('permission:council-decisions.update')
             ->name('council-decisions.update');
+
+
+        Route::post('/council-decisions/{councilDecision}/generate-document', [CouncilDecisionController::class, 'generateDocument'])
+            ->middleware('permission:documents.generate')
+            ->name('council-decisions.generate-document');
+
+        /**
+         * Documents routes
+         */
+        Route::middleware('permission:documents.view')->group(function (): void {
+            Route::get('/documents', [DocumentController::class, 'index'])->name('documents.index');
+        });
+
+        Route::get('/documents/{document}/download', [DocumentController::class, 'download'])
+            ->middleware('permission:documents.download')
+            ->name('documents.download');
+
+        Route::get('/documents/{document}', [DocumentController::class, 'show'])
+            ->middleware('permission:documents.view')
+            ->name('documents.show');
 
         /**
          * Unavailabilities routes
