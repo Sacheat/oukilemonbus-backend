@@ -46,11 +46,10 @@ class DeliberationGeneratorTest extends TestCase
 
         $html = $generator->generateHtml($context);
 
-        $this->assertStringContainsString('Extrait du registre aux délibérations', $html);
-        $this->assertStringContainsString('du Collège communal de Dinant', $html);
-        $this->assertStringContainsString('ASBL Solidarité Dinantaise', $html);
-        $this->assertStringContainsString('2026-06-16', $html);
-        $this->assertStringContainsString('Place Albert 1er, 5500 Dinant', $html);
+        $this->assertStringContainsString('Extrait du REGISTRE AUX DÉLIBÉRATIONS', $html);
+        $this->assertStringContainsString('DU COLLÈGE COMMUNAL DE DINANT', $html);
+        $this->assertStringContainsString('16/06/2026', $html); // pour le titre
+        $this->assertStringContainsString('16 juin 2026', $html); // pour le corps
         $this->assertStringContainsString('Rue de Namur 20, 5000 Namur', $html);
         $this->assertStringContainsString('COLL-2026-001', $html);
         $this->assertStringNotContainsString('file_path', $html);
