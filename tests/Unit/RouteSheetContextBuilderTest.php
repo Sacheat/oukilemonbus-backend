@@ -13,6 +13,7 @@ use App\Models\Location;
 use App\Models\Organization;
 use App\Models\Reservation;
 use App\Models\User;
+use App\Enums\DocumentType;
 
 class RouteSheetContextBuilderTest extends TestCase
 {
@@ -30,7 +31,8 @@ class RouteSheetContextBuilderTest extends TestCase
         $this->assertArrayHasKey('period', $context);
         $this->assertArrayHasKey('rows', $context);
 
-        $this->assertSame('route_sheet', $context['document']['type']);
+        $this->assertSame(DocumentType::FEUILLE_ROUTE->value, $context['document']['type']);
+        $this->assertSame(DocumentType::FEUILLE_ROUTE->label(), $context['document']['label']);
         $this->assertSame('route_sheets.weekly', $context['document']['template_key']);
         $this->assertSame('1.0', $context['document']['template_version']);
         $this->assertArrayHasKey('generated_at', $context['document']);

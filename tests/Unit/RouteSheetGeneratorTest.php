@@ -4,6 +4,7 @@ namespace Tests\Unit;
 
 use App\Services\Documents\Generators\RouteSheetGenerator;
 use Tests\TestCase;
+use App\Enums\DocumentType;
 
 class RouteSheetGeneratorTest extends TestCase
 {
@@ -11,7 +12,8 @@ class RouteSheetGeneratorTest extends TestCase
     {
         $context = [
             'document' => [
-                'type' => 'route_sheet',
+                'type' => DocumentType::FEUILLE_ROUTE->value,
+                'label' => DocumentType::FEUILLE_ROUTE->label(),
                 'template_key' => 'route_sheets.weekly',
                 'template_version' => '1.0',
             ],

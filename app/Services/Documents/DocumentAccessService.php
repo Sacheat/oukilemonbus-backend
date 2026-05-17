@@ -18,6 +18,10 @@ class DocumentAccessService
 {
     private const INTERNAL_ROLES = ['admin', 'agent_communal'];
 
+    /**
+     * @param User $user L'utilisateur pour lequel on souhaite construire la requête de documents visibles
+     * @return Builder La requête Eloquent de documents filtrée selon les règles d'accès pour l'utilisateur donné
+     */
     public function visibleQueryFor(User $user): Builder
     {
         $query = Document::query();
@@ -54,6 +58,13 @@ class DocumentAccessService
             });
     }
 
+    /**
+     * Vérifie si un utilisateur donné a le droit de voir un document précis, en appliquant les règles d'accès définies pour la visibilité des documents
+     *
+     * @param User $user L'utilisateur pour lequel on souhaite vérifier le droit de voir le document
+     * @param Document $document Le document pour lequel on souhaite vérifier le droit de visibilité
+     * @return bool true si l'utilisateur a le droit de voir le document, false sinon
+     */
     public function canViewAny(User $user): bool
     {
         return $user->can('documents.view');
@@ -99,6 +110,13 @@ class DocumentAccessService
             && $reservation->driver_id === $user->driver->getKey();
     }
 
+    /**
+     * Vérifie si un utilisateur donné a le droit de télécharger un document précis, en appliquant les règles d'accès définies pour le téléchargement des documents
+     *
+     * @param User $user L'utilisateur pour lequel on souhaite vérifier le droit de télécharger le document
+     * @param Document $document Le document pour lequel on souhaite vérifier le droit de téléchargement
+     * @return bool true si l'utilisateur a le droit de télécharger le document, false sinon
+     */
     public function canDownload(User $user, Document $document): bool
     {
         return $user->can('documents.download')

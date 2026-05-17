@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 #[Fillable([
     'requested_by_user_id',
@@ -115,6 +116,13 @@ class Reservation extends Model
     public function conflicts(): HasMany
     {
         return $this->hasMany(ReservationConflict::class);
+    }
+
+    public function routeSheetDocuments(): BelongsToMany
+    {
+        return $this->belongsToMany(Document::class, 'document_reservation')
+            ->withPivot('position')
+            ->withTimestamps();
     }
 
     protected function casts(): array

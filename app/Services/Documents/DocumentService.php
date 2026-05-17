@@ -25,6 +25,12 @@ class DocumentService
     ) {
     }
 
+    /**
+     * Retourne la liste des documents visibles par un utilisateur donné, en appliquant les règles d'accès définies dans DocumentAccessService
+     *
+     * @param User $user L'utilisateur pour lequel on souhaite récupérer les documents visibles
+     * @return Collection La collection de documents visibles par l'utilisateur, triée par date de génération décroissante
+     */
     public function listVisibleForUser(User $user): Collection
     {
         return $this->documentAccessService

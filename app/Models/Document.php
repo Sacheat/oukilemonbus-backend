@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 #[Fillable([
     'reservation_id',
@@ -44,6 +45,19 @@ class Document extends Model
     public function notificationDeliveries(): HasMany
     {
         return $this->hasMany(NotificationDelivery::class);
+    }
+
+    /* Relation utilisée pour les feuilles de route hebdomadaires
+     *permettant d'associer plusieurs réservations à un même document de feuille de route
+     * et de gérer l'ordre des réservations associées à une même feuille de route via la colonne position de la table pivot document_reservation
+     *Reservation::class est utilisée comme modèle lié pour pouvoir accéder aux données de la réservation depuis le contexte de génération du document de feuille de route
+    */
+    public function routeSheetReservations(): BelongsToMany
+    {
+        return $this->belongsToMany(Reservation::class, 'document_reservation')
+            ->withPivot('position')
+            ->withTimestamps()
+            ->orderByPivot('position');
     }
 
     protected function casts(): array

@@ -7,6 +7,7 @@ use App\Models\Location;
 use App\Models\Reservation;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
+use App\Enums\DocumentType;
 
 class RouteSheetContextBuilder
 {
@@ -39,7 +40,8 @@ class RouteSheetContextBuilder
 
         return [
             'document' => [
-                'type' => 'route_sheet',
+                'type' => DocumentType::FEUILLE_ROUTE->value,
+                'label' => DocumentType::FEUILLE_ROUTE->label(),
                 'template_key' => self::TEMPLATE_KEY,
                 'template_version' => self::TEMPLATE_VERSION,
                 'generated_at' => now()->toISOString(),
