@@ -24,7 +24,11 @@ class RouteSheetDocumentService
 
         $pdfContent = $this->generator->generatePdf($context);
 
-        $fileName = $this->generator->defaultPdfFileName($context);
+        $baseFileName = $this->generator->defaultPdfFileName($context);
+
+        $version = $this->nextVersionForPeriod($startDate, $endDate);
+
+        $fileName = $this->versionedFileName($baseFileName, $version);
 
         $document = $this->documentService->registerGeneratedDocument(
             documentType: DocumentType::FEUILLE_ROUTE,
@@ -40,7 +44,7 @@ class RouteSheetDocumentService
                 'template_version' => data_get($context, 'document.template_version'),
                 'generated_at' => now(),
                 'is_official' => false,
-                'version' => 1,
+                'version' => $version,
                 'is_available' => true,
             ]
         );
@@ -72,5 +76,27 @@ class RouteSheetDocumentService
         }
 
         $document->routeSheetReservations()->sync($syncData);
+    }
+
+    private function nextVersionForPeriod(string $startDate, string $endDate): int
+    {
+        $maxVersion = Document::query()
+            ->where('document_type', DocumentType::FEUILLE_ROUTE->value)
+            ->where('file_path', 'like', $this->directoryForPeriod($startDate, $endDate).'/%')
+            ->max('version');
+
+        return ((int) $maxVersion) + 1;
+    }
+
+    private function versionedFileName(string $fileName, int $version): string
+    {
+        $baseName = pathinfo($fileName, PATHINFO_FILENAME);
+        $extension = pathinfo($fileName, PATHINFO_EXTENSION);
+
+        if ($extension === '') {
+            return sprintf('%s-v%03d', $baseName, $version);
+        }
+
+        return sprintf('%s-v%03d.%s', $baseName, $version, $extension);
     }
 }

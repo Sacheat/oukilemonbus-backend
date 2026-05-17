@@ -20,6 +20,7 @@ use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Support\Facades\Storage;
 
+
 class RouteSheetDocumentServiceTest extends TestCase
 {
     use RefreshDatabase;
@@ -148,8 +149,8 @@ class RouteSheetDocumentServiceTest extends TestCase
             'reservation_id' => null,
             'user_id' => null,
             'document_type' => DocumentType::FEUILLE_ROUTE,
-            'file_name' => 'route-sheet-2026-03-02-2026-03-06.pdf',
-            'file_path' => 'documents/route-sheets/2026-03-02-2026-03-06/route-sheet-2026-03-02-2026-03-06.pdf',
+            'file_name' => 'mock-route-sheet.pdf',
+            'file_path' => 'documents/test-placeholders/mock-route-sheet.pdf',
             'mime_type' => 'application/pdf',
             'file_size' => strlen($pdfContent),
             'checksum' => hash('sha256', $pdfContent),
@@ -187,7 +188,7 @@ class RouteSheetDocumentServiceTest extends TestCase
             ->with(
                 DocumentType::FEUILLE_ROUTE,
                 'documents/route-sheets/2026-03-02-2026-03-06',
-                'route-sheet-2026-03-02-2026-03-06.pdf',
+                'route-sheet-2026-03-02-2026-03-06-v001.pdf',
                 $pdfContent,
                 $this->callback(function (array $data) use ($context): bool {
                     $this->assertNull($data['reservation_id']);
@@ -248,8 +249,8 @@ class RouteSheetDocumentServiceTest extends TestCase
             'reservation_id' => null,
             'user_id' => null,
             'document_type' => DocumentType::FEUILLE_ROUTE,
-            'file_name' => 'route-sheet-2026-03-02-2026-03-06.pdf',
-            'file_path' => 'documents/route-sheets/2026-03-02-2026-03-06/route-sheet-2026-03-02-2026-03-06.pdf',
+            'file_name' => 'mock-route-sheet.pdf',
+            'file_path' => 'documents/test-placeholders/mock-route-sheet.pdf',
             'mime_type' => 'application/pdf',
             'file_size' => strlen($pdfContent),
             'checksum' => hash('sha256', $pdfContent),
@@ -287,7 +288,7 @@ class RouteSheetDocumentServiceTest extends TestCase
             ->with(
                 DocumentType::FEUILLE_ROUTE,
                 'documents/route-sheets/2026-03-02-2026-03-06',
-                'route-sheet-2026-03-02-2026-03-06.pdf',
+                'route-sheet-2026-03-02-2026-03-06-v001.pdf',
                 $pdfContent,
                 $this->callback(function (array $data) use ($context): bool {
                     $this->assertNull($data['reservation_id']);
@@ -425,7 +426,7 @@ class RouteSheetDocumentServiceTest extends TestCase
             'id' => $document->id,
             'reservation_id' => null,
             'document_type' => DocumentType::FEUILLE_ROUTE->value,
-            'file_name' => 'route-sheet-2026-03-02-2026-03-06.pdf',
+            'file_name' => 'route-sheet-2026-03-02-2026-03-06-v001.pdf',
             'mime_type' => 'application/pdf',
             'generation_mode' => 'auto',
             'template_key' => 'route_sheets.weekly',
@@ -475,6 +476,50 @@ class RouteSheetDocumentServiceTest extends TestCase
             'document_id' => $document->id,
             'reservation_id' => $secondReservation->id,
             'position' => 2,
+        ]);
+
+        $this->assertSame(1, $document->version);
+        $this->assertSame(
+            'route-sheet-2026-03-02-2026-03-06-v001.pdf',
+            $document->file_name
+        );
+    }
+
+    public function test_it_creates_a_new_version_when_generating_the_same_route_sheet_twice(): void
+    {
+        Storage::fake('local');
+
+        $service = app(RouteSheetDocumentService::class);
+
+        $firstDocument = $service->generateForPeriod('2026-03-02', '2026-03-06');
+        $secondDocument = $service->generateForPeriod('2026-03-02', '2026-03-06');
+
+        $firstDocument->refresh();
+        $secondDocument->refresh();
+
+        $this->assertSame(1, $firstDocument->version);
+        $this->assertSame(2, $secondDocument->version);
+
+        $this->assertNotSame($firstDocument->id, $secondDocument->id);
+        $this->assertNotSame($firstDocument->file_path, $secondDocument->file_path);
+        $this->assertNotSame($firstDocument->file_name, $secondDocument->file_name);
+
+        $this->assertStringEndsWith('-v001.pdf', $firstDocument->file_name);
+        $this->assertStringEndsWith('-v002.pdf', $secondDocument->file_name);
+
+        Storage::disk('local')->assertExists($firstDocument->file_path);
+        Storage::disk('local')->assertExists($secondDocument->file_path);
+
+        $this->assertDatabaseHas('documents', [
+            'id' => $firstDocument->id,
+            'document_type' => DocumentType::FEUILLE_ROUTE->value,
+            'version' => 1,
+        ]);
+
+        $this->assertDatabaseHas('documents', [
+            'id' => $secondDocument->id,
+            'document_type' => DocumentType::FEUILLE_ROUTE->value,
+            'version' => 2,
         ]);
     }
 }
