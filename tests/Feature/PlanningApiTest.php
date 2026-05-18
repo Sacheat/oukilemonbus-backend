@@ -5,11 +5,13 @@ namespace Tests\Feature;
 use App\Enums\ApprovalType;
 use App\Enums\OrganizationType;
 use App\Enums\ReservationActivityType;
+use App\Enums\ReservationConflictType;
 use App\Enums\ReservationStatus;
 use App\Models\Driver;
 use App\Models\Location;
 use App\Models\Organization;
 use App\Models\Reservation;
+use App\Models\ReservationConflict;
 use App\Models\User;
 use App\Models\Vehicle;
 use Database\Seeders\RolesAndPermissionsSeeder;
@@ -174,6 +176,79 @@ class PlanningApiTest extends TestCase
 
         $response->assertOk();
         $this->assertArrayNotHasKey('availability', $response->json('data.0'));
+    }
+
+
+    public function test_agent_can_filter_planning_by_status(): void
+    {
+        $agent = $this->userWithRole('agent_communal');
+        $organization = $this->organization();
+        [$pickup, $destination] = $this->locations();
+
+        $confirmedReservation = $this->reservation([
+            'organization_id' => $organization->id,
+            'pickup_location_id' => $pickup->id,
+            'destination_location_id' => $destination->id,
+            'trip_date' => '2026-06-16',
+            'departure_time' => '09:00:00',
+            'return_time' => '10:00:00',
+            'status' => ReservationStatus::CONFIRME,
+        ]);
+
+        $this->reservation([
+            'organization_id' => $organization->id,
+            'pickup_location_id' => $pickup->id,
+            'destination_location_id' => $destination->id,
+            'trip_date' => '2026-06-16',
+            'departure_time' => '11:00:00',
+            'return_time' => '12:00:00',
+            'status' => ReservationStatus::APPROUVE,
+        ]);
+
+        Sanctum::actingAs($agent);
+
+        $response = $this->getJson('/api/planning?start_date=2026-06-16&end_date=2026-06-16&statuses[]=confirme');
+
+        $response->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.reservation_id', $confirmedReservation->id)
+            ->assertJsonPath('data.0.status', ReservationStatus::CONFIRME->value);
+    }
+
+    public function test_agent_can_view_conflicts_in_planning(): void
+    {
+        $agent = $this->userWithRole('agent_communal');
+        $organization = $this->organization();
+        [$pickup, $destination] = $this->locations();
+
+        $reservation = $this->reservation([
+            'organization_id' => $organization->id,
+            'pickup_location_id' => $pickup->id,
+            'destination_location_id' => $destination->id,
+            'trip_date' => '2026-06-16',
+            'departure_time' => '09:00:00',
+            'return_time' => '10:00:00',
+            'status' => ReservationStatus::EN_CONFLIT,
+        ]);
+
+        ReservationConflict::create([
+            'reservation_id' => $reservation->id,
+            'type' => ReservationConflictType::SCHEDULE_OVERLAP,
+            'message' => 'Chevauchement avec une autre reservation.',
+            'is_resolved' => false,
+            'created_at' => now(),
+        ]);
+
+        Sanctum::actingAs($agent);
+
+        $response = $this->getJson('/api/planning?start_date=2026-06-16&end_date=2026-06-16');
+
+        $response->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.reservation_id', $reservation->id)
+            ->assertJsonPath('data.0.conflicts.0.type', ReservationConflictType::SCHEDULE_OVERLAP->value)
+            ->assertJsonPath('data.0.conflicts.0.message', 'Chevauchement avec une autre reservation.')
+            ->assertJsonPath('data.0.conflicts.0.is_resolved', false);
     }
 
     private function userWithRole(string $role): User
