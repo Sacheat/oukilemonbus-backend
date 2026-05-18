@@ -5,6 +5,10 @@ namespace Tests\Unit;
 use App\Enums\DocumentType;
 use App\Models\CouncilDecision;
 use App\Models\Document;
+use App\Models\Location;
+use App\Models\Organization;
+use App\Models\Reservation;
+use App\Models\User;
 use App\Services\Documents\ContextBuilders\DeliberationContextBuilder;
 use App\Services\Documents\DeliberationDocumentService;
 use App\Services\Documents\DocumentService;
@@ -51,7 +55,7 @@ class DeliberationDocumentServiceTest extends TestCase
         $createdDocument->forceFill([
             'id' => 99,
             'document_type' => DocumentType::DELIBERATION,
-            'file_name' => 'deliberation-coll-2026-001-42.pdf',
+            'file_name' => 'deliberation-coll-2026-001-42-v001.pdf',
         ]);
 
         $contextBuilder = $this->createMock(DeliberationContextBuilder::class);
@@ -78,7 +82,7 @@ class DeliberationDocumentServiceTest extends TestCase
             ->with(
                 DocumentType::DELIBERATION,
                 'documents/council-decisions/12',
-                'deliberation-coll-2026-001-42.pdf',
+                'deliberation-coll-2026-001-42-v001.pdf',
                 $pdfContent,
                 $this->callback(function (array $data) use ($context): bool {
                     $this->assertSame(42, $data['reservation_id']);
@@ -137,5 +141,150 @@ class DeliberationDocumentServiceTest extends TestCase
         $this->expectExceptionMessage('La délibération ne peut être générée que pour une décision approuvée.');
 
         $service->generateFor($councilDecision);
+    }
+
+    public function test_it_creates_a_new_file_name_version_for_an_existing_deliberation(): void
+    {
+        Carbon::setTestNow('2026-04-20 09:00:00');
+
+        $user = User::factory()->create();
+
+        $pickupLocation = Location::create([
+            'formatted_address' => 'Place Albert 1er, 5500 Dinant',
+            'street' => 'Place Albert 1er',
+            'street_number' => '1',
+            'postal_code' => '5500',
+            'city' => 'Dinant',
+            'country' => 'BE',
+            'latitude' => 50.260000,
+            'longitude' => 4.910000,
+            'provider' => 'test',
+            'is_verified' => true,
+        ]);
+
+        $destinationLocation = Location::create([
+            'formatted_address' => 'Rue de Namur 20, 5000 Namur',
+            'street' => 'Rue de Namur',
+            'street_number' => '20',
+            'postal_code' => '5000',
+            'city' => 'Namur',
+            'country' => 'BE',
+            'latitude' => 50.460000,
+            'longitude' => 4.860000,
+            'provider' => 'test',
+            'is_verified' => true,
+        ]);
+
+        $organization = Organization::create([
+            'name' => 'ASBL Test',
+            'type' => 'asbl',
+            'official_email' => 'asbl@example.test',
+            'phone_contact' => '081000000',
+            'name_contact' => 'Contact',
+            'location_id' => $pickupLocation->id,
+            'is_priority' => false,
+            'annual_quota' => 5,
+            'reservations_used_this_year' => 0,
+            'quota_reset_year' => now()->startOfYear(),
+        ]);
+
+        $reservation = Reservation::create([
+            'requested_by_user_id' => $user->id,
+            'organization_id' => $organization->id,
+            'pickup_location_id' => $pickupLocation->id,
+            'destination_location_id' => $destinationLocation->id,
+            'trip_date' => '2026-06-16',
+            'departure_time' => '09:00:00',
+            'return_time' => '11:00:00',
+            'nb_children' => 10,
+            'nb_adults' => 2,
+            'trip_purpose' => 'Sortie educative',
+            'activity_type' => 'standard',
+            'distance_km' => 12,
+            'estimated_duration_min' => 30,
+            'status' => 'en_attente',
+            'approval_type' => 'manuel',
+        ]);
+
+        Document::query()->create([
+            'reservation_id' => $reservation->id,
+            'user_id' => $user->id,
+            'document_type' => DocumentType::DELIBERATION,
+            'file_name' => 'deliberation-coll-2026-001-42-v001.pdf',
+            'file_path' => 'documents/council-decisions/12/deliberation-coll-2026-001-42-v001.pdf',
+            'mime_type' => 'application/pdf',
+            'file_size' => 123,
+            'checksum' => hash('sha256', 'v1'),
+            'generation_mode' => 'auto',
+            'generation_context' => [],
+            'template_key' => 'deliberations.external',
+            'template_version' => '1.0',
+            'generated_at' => now(),
+            'is_official' => true,
+            'version' => 1,
+            'is_available' => true,
+        ]);
+
+        $councilDecision = new CouncilDecision();
+        $councilDecision->forceFill([
+            'id' => 12,
+            'reservation_id' => $reservation->id,
+            'recorded_by_user_id' => $user->id,
+            'decision_reference' => 'COLL-2026-001',
+            'decision_status' => 'approuve',
+        ]);
+
+        $context = [
+            'document' => [
+                'template_key' => 'deliberations.external',
+                'template_version' => '1.0',
+            ],
+            'reservation' => [
+                'id' => 42,
+            ],
+        ];
+
+        $createdDocument = new Document();
+        $createdDocument->forceFill([
+            'id' => 100,
+            'document_type' => DocumentType::DELIBERATION,
+            'file_name' => 'deliberation-coll-2026-001-42-v002.pdf',
+        ]);
+
+        $contextBuilder = $this->createMock(DeliberationContextBuilder::class);
+        $generator = $this->createMock(DeliberationGenerator::class);
+        $documentService = $this->createMock(DocumentService::class);
+
+        $contextBuilder->method('build')->willReturn($context);
+        $generator->method('generatePdf')->willReturn('%PDF fake deliberation content v2');
+        $generator->method('defaultPdfFileName')->willReturn('deliberation-coll-2026-001-42.pdf');
+
+        $documentService->expects($this->once())
+            ->method('registerGeneratedDocument')
+            ->with(
+                DocumentType::DELIBERATION,
+                'documents/council-decisions/12',
+                'deliberation-coll-2026-001-42-v002.pdf',
+                '%PDF fake deliberation content v2',
+                $this->callback(function (array $data) use ($context): bool {
+                    $this->assertSame(2, $data['version']);
+                    $this->assertSame($context, $data['generation_context']);
+
+                    return true;
+                })
+            )
+            ->willReturn($createdDocument);
+
+        $service = new DeliberationDocumentService(
+            contextBuilder: $contextBuilder,
+            generator: $generator,
+            documentService: $documentService
+        );
+
+        $document = $service->generateFor($councilDecision);
+
+        $this->assertSame('deliberation-coll-2026-001-42-v002.pdf', $document->file_name);
+
+        Carbon::setTestNow();
     }
 }

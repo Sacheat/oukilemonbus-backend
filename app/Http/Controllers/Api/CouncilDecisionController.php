@@ -76,7 +76,7 @@ class CouncilDecisionController extends Controller
     public function generateDocument(
         CouncilDecision $councilDecision,
         DeliberationDocumentService $deliberationDocumentService
-    ): DocumentResource {
+    ): JsonResponse {
         Gate::authorize('generate', Document::class);
 
         try {
@@ -85,6 +85,8 @@ class CouncilDecisionController extends Controller
             abort(422, $exception->getMessage());
         }
 
-        return new DocumentResource($document);
+        return (new DocumentResource($document))
+            ->response()
+            ->setStatusCode(201);
     }
 }

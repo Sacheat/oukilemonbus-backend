@@ -3,6 +3,7 @@
 namespace App\Services\Documents;
 
 use App\Models\Document;
+use App\Models\Reservation;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 
@@ -39,21 +40,10 @@ class DocumentAccessService
             ->where(function (Builder $query) use ($user): void {
                 $query->where('user_id', $user->getKey())
                     ->orWhereHas('reservation', function (Builder $reservationQuery) use ($user): void {
-                        $reservationQuery->where('requested_by_user_id', $user->getKey());
-
-                        if ($user->hasRole('responsable_organisation')) {
-                            $organizationIds = $user->organizations()
-                                ->pluck('organizations.id')
-                                ->all();
-
-                            if ($organizationIds !== []) {
-                                $reservationQuery->orWhereIn('organization_id', $organizationIds);
-                            }
-                        }
-
-                        if ($user->hasRole('chauffeur') && $user->driver !== null) {
-                            $reservationQuery->orWhere('driver_id', $user->driver->getKey());
-                        }
+                        $this->applyReservationAccessRules($reservationQuery, $user);
+                    })
+                    ->orWhereHas('routeSheetReservations', function (Builder $reservationQuery) use ($user): void {
+                        $this->applyReservationAccessRules($reservationQuery, $user);
                     });
             });
     }
@@ -90,24 +80,15 @@ class DocumentAccessService
 
         $reservation = $document->reservation;
 
-        if ($reservation === null) {
-            return false;
-        }
-
-        if ($reservation->requested_by_user_id === $user->getKey()) {
+        if ($reservation !== null && $this->canAccessReservation($user, $reservation)) {
             return true;
         }
 
-        if (
-            $user->hasRole('responsable_organisation')
-            && $this->belongsToUserOrganization($user, $reservation->organization_id)
-        ) {
-            return true;
-        }
-
-        return $user->hasRole('chauffeur')
-            && $user->driver !== null
-            && $reservation->driver_id === $user->driver->getKey();
+        return $document->routeSheetReservations()
+            ->where(function (Builder $query) use ($user): void {
+                $this->applyReservationAccessRules($query, $user);
+            })
+            ->exists();
     }
 
     /**
@@ -149,5 +130,42 @@ class DocumentAccessService
         return $user->organizations()
             ->whereKey($organizationId)
             ->exists();
+    }
+
+    private function applyReservationAccessRules(Builder $query, User $user): void
+    {
+        $query->where('requested_by_user_id', $user->getKey());
+
+        if ($user->hasRole('responsable_organisation')) {
+            $organizationIds = $user->organizations()
+                ->pluck('organizations.id')
+                ->all();
+
+            if ($organizationIds !== []) {
+                $query->orWhereIn('organization_id', $organizationIds);
+            }
+        }
+
+        if ($user->hasRole('chauffeur') && $user->driver !== null) {
+            $query->orWhere('driver_id', $user->driver->getKey());
+        }
+    }
+
+    private function canAccessReservation(User $user, Reservation $reservation): bool
+    {
+        if ($reservation->requested_by_user_id === $user->getKey()) {
+            return true;
+        }
+
+        if (
+            $user->hasRole('responsable_organisation')
+            && $this->belongsToUserOrganization($user, $reservation->organization_id)
+        ) {
+            return true;
+        }
+
+        return $user->hasRole('chauffeur')
+            && $user->driver !== null
+            && $reservation->driver_id === $user->driver->getKey();
     }
 }

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Documents\GenerateRouteSheetRequest;
+use App\Http\Resources\DocumentResource;
 use App\Models\Document;
 use App\Services\Documents\RouteSheetDocumentService;
 use Illuminate\Http\JsonResponse;
@@ -29,17 +30,11 @@ class RouteSheetDocumentController extends Controller
             abort(422, $exception->getMessage());
         }
 
-        return response()->json([
-            'message' => 'Feuille de route générée avec succès.',
-            'document' => [
-                'id' => $document->id,
-                'document_type' => $document->document_type instanceof \BackedEnum
-                    ? $document->document_type->value
-                    : $document->document_type,
-                'file_name' => $document->file_name,
-                'file_path' => $document->file_path,
-                'version' => $document->version,
-            ],
-        ], 201);
+        return (new DocumentResource($document))
+            ->additional([
+                'message' => 'Feuille de route generee avec succes.',
+            ])
+            ->response()
+            ->setStatusCode(201);
     }
 }

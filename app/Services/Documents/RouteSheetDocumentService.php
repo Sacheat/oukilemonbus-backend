@@ -6,6 +6,8 @@ use App\Enums\DocumentType;
 use App\Models\Document;
 use App\Services\Documents\ContextBuilders\RouteSheetContextBuilder;
 use App\Services\Documents\Generators\RouteSheetGenerator;
+use Carbon\CarbonImmutable;
+use InvalidArgumentException;
 
 class RouteSheetDocumentService
 {
@@ -20,6 +22,8 @@ class RouteSheetDocumentService
 
     public function generateForPeriod(string $startDate, string $endDate): Document
     {
+        [$startDate, $endDate] = $this->normalizePeriod($startDate, $endDate);
+
         $context = $this->contextBuilder->buildForPeriod($startDate, $endDate);
 
         $pdfContent = $this->generator->generatePdf($context);
@@ -98,5 +102,28 @@ class RouteSheetDocumentService
         }
 
         return sprintf('%s-v%03d.%s', $baseName, $version, $extension);
+    }
+
+    private function normalizePeriod(string $startDate, string $endDate): array
+    {
+        try {
+            $start = CarbonImmutable::parse($startDate)->startOfDay();
+            $end = CarbonImmutable::parse($endDate)->startOfDay();
+        } catch (\Throwable) {
+            throw new InvalidArgumentException(
+                'Les dates doivent etre valides.'
+            );
+        }
+
+        if ($end->lessThan($start)) {
+            throw new InvalidArgumentException(
+                'La date de fin doit etre egale ou posterieure a la date de debut.'
+            );
+        }
+
+        return [
+            $start->toDateString(),
+            $end->toDateString(),
+        ];
     }
 }

@@ -70,11 +70,13 @@ class RouteSheetDocumentApiTest extends TestCase
 
         $response->assertCreated();
 
-        $response->assertJsonPath('message', 'Feuille de route générée avec succès.');
-        $response->assertJsonPath('document.id', $document->id);
-        $response->assertJsonPath('document.document_type', DocumentType::FEUILLE_ROUTE->value);
-        $response->assertJsonPath('document.file_name', 'route-sheet-2026-03-02-2026-03-06-v001.pdf');
-        $response->assertJsonPath('document.version', 1);
+        $response->assertJsonPath('message', 'Feuille de route generee avec succes.');
+        $response->assertJsonPath('data.id', $document->id);
+        $response->assertJsonPath('data.document_type', DocumentType::FEUILLE_ROUTE->value);
+        $response->assertJsonPath('data.file_name', 'route-sheet-2026-03-02-2026-03-06-v001.pdf');
+        $response->assertJsonPath('data.version', 1);
+
+        $this->assertArrayNotHasKey('file_path', $response->json('data'));
     }
 
     public function test_start_date_is_required_to_generate_route_sheet_document(): void

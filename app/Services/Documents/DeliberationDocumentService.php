@@ -43,7 +43,12 @@ class DeliberationDocumentService
 
         $pdfContent = $this->generator->generatePdf($context);
 
-        $fileName = $this->generator->defaultPdfFileName($context);
+        $version = $this->nextVersionFor($councilDecision);
+
+        $fileName = $this->versionedFileName(
+            $this->generator->defaultPdfFileName($context),
+            $version
+        );
 
         return $this->documentService->registerGeneratedDocument(
             documentType: DocumentType::DELIBERATION,
@@ -59,7 +64,7 @@ class DeliberationDocumentService
                 'template_version' => data_get($context, 'document.template_version'),
                 'generated_at' => now(),
                 'is_official' => true,
-                'version' => $this->nextVersionFor($councilDecision),
+                'version' => $version,
                 'is_available' => true,
             ]
         );
@@ -96,5 +101,17 @@ class DeliberationDocumentService
         return $status instanceof \BackedEnum
             ? $status->value
             : $status;
+    }
+
+    private function versionedFileName(string $fileName, int $version): string
+    {
+        $baseName = pathinfo($fileName, PATHINFO_FILENAME);
+        $extension = pathinfo($fileName, PATHINFO_EXTENSION);
+
+        if ($extension === '') {
+            return sprintf('%s-v%03d', $baseName, $version);
+        }
+
+        return sprintf('%s-v%03d.%s', $baseName, $version, $extension);
     }
 }

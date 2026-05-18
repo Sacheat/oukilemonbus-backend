@@ -33,7 +33,10 @@ class DocumentResource extends JsonResource
             'checksum' => $this->checksum,
 
             'generation_mode' => $this->generation_mode,
-            'generation_context' => $this->generation_context,
+            'generation_context' => $this->when(
+                $request->user()?->hasAnyRole(['admin', 'agent_communal']) === true,
+                $this->generation_context
+            ),
 
             'template_key' => $this->template_key,
             'template_version' => $this->template_version,

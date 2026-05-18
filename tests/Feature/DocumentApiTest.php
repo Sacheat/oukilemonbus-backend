@@ -4,6 +4,9 @@ namespace Tests\Feature;
 
 use App\Enums\DocumentType;
 use App\Models\Document;
+use App\Models\Location;
+use App\Models\Organization;
+use App\Models\Reservation;
 use App\Models\User;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
@@ -58,7 +61,8 @@ class DocumentApiTest extends TestCase
         $response->assertOk()
             ->assertJsonPath('data.0.id', $document->id)
             ->assertJsonPath('data.0.document_type', DocumentType::FEUILLE_ROUTE->value)
-            ->assertJsonPath('data.0.document_type_label', DocumentType::FEUILLE_ROUTE->label());
+            ->assertJsonPath('data.0.document_type_label', DocumentType::FEUILLE_ROUTE->label())
+            ->assertJsonPath('data.0.generation_context.source', 'test');
 
         $this->assertArrayNotHasKey('file_path', $response->json('data.0'));
     }
@@ -79,6 +83,7 @@ class DocumentApiTest extends TestCase
             ->assertJsonPath('data.template_key', 'route_sheets.default');
 
         $this->assertArrayNotHasKey('file_path', $response->json('data'));
+        $this->assertArrayNotHasKey('generation_context', $response->json('data'));
     }
 
     public function test_unrelated_user_cannot_show_document(): void
@@ -182,6 +187,28 @@ class DocumentApiTest extends TestCase
             ->assertJsonPath('data.0.id', $visibleDocument->id);
     }
 
+    public function test_user_can_show_route_sheet_document_linked_through_reservations(): void
+    {
+        $user = $this->userWithRole('user');
+        $reservation = $this->createReservationForUser($user);
+        $document = $this->createRouteSheetDocument();
+
+        $document->routeSheetReservations()->attach($reservation->id, [
+            'position' => 1,
+        ]);
+
+        Sanctum::actingAs($user);
+
+        $response = $this->getJson("/api/documents/{$document->id}");
+
+        $response->assertOk()
+            ->assertJsonPath('data.id', $document->id)
+            ->assertJsonPath('data.document_type', DocumentType::FEUILLE_ROUTE->value);
+
+        $this->assertArrayNotHasKey('generation_context', $response->json('data'));
+        $this->assertArrayNotHasKey('file_path', $response->json('data'));
+    }
+
     private function userWithRole(string $role): User
     {
         $user = User::factory()->create();
@@ -216,6 +243,83 @@ class DocumentApiTest extends TestCase
             'is_official' => true,
             'version' => 1,
             'is_available' => $isAvailable,
+        ]);
+    }
+
+    private function createRouteSheetDocument(): Document
+    {
+        return Document::create([
+            'user_id' => null,
+            'reservation_id' => null,
+            'document_type' => DocumentType::FEUILLE_ROUTE,
+            'file_name' => 'route-sheet-test-v001.pdf',
+            'file_path' => 'documents/route-sheets/test/route-sheet-test-v001.pdf',
+            'mime_type' => 'application/pdf',
+            'file_size' => 123,
+            'checksum' => hash('sha256', 'route-sheet'),
+            'generation_mode' => 'auto',
+            'generation_context' => [
+                'source' => 'route_sheet_test',
+            ],
+            'template_key' => 'route_sheets.weekly',
+            'template_version' => '1.0',
+            'generated_at' => now(),
+            'is_official' => false,
+            'version' => 1,
+            'is_available' => true,
+        ]);
+    }
+
+    private function createReservationForUser(User $user): Reservation
+    {
+        $pickupLocation = $this->createLocation('Place Albert 1er, 5500 Dinant');
+        $destinationLocation = $this->createLocation('Rue de Namur 20, 5000 Namur');
+
+        $organization = Organization::create([
+            'name' => 'ASBL Test',
+            'type' => 'asbl',
+            'official_email' => 'asbl@example.test',
+            'phone_contact' => '081000000',
+            'name_contact' => 'Contact',
+            'location_id' => $pickupLocation->id,
+            'is_priority' => false,
+            'annual_quota' => 5,
+            'reservations_used_this_year' => 0,
+            'quota_reset_year' => now()->startOfYear(),
+        ]);
+
+        return Reservation::create([
+            'requested_by_user_id' => $user->id,
+            'organization_id' => $organization->id,
+            'pickup_location_id' => $pickupLocation->id,
+            'destination_location_id' => $destinationLocation->id,
+            'trip_date' => '2026-06-16',
+            'departure_time' => '09:00:00',
+            'return_time' => '11:00:00',
+            'nb_children' => 10,
+            'nb_adults' => 2,
+            'trip_purpose' => 'Sortie educative',
+            'activity_type' => 'standard',
+            'distance_km' => 12,
+            'estimated_duration_min' => 30,
+            'status' => 'confirme',
+            'approval_type' => 'manuel',
+        ]);
+    }
+
+    private function createLocation(string $formattedAddress): Location
+    {
+        return Location::create([
+            'formatted_address' => $formattedAddress,
+            'street' => 'Rue test',
+            'street_number' => '1',
+            'postal_code' => '5500',
+            'city' => 'Dinant',
+            'country' => 'BE',
+            'latitude' => 50.260000,
+            'longitude' => 4.910000,
+            'provider' => 'test',
+            'is_verified' => true,
         ]);
     }
 }
