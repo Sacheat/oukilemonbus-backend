@@ -17,6 +17,7 @@ use App\Http\Controllers\Api\UserOrgRequestController;
 use App\Http\Controllers\Api\VehicleController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\DocumentController;
+use App\Http\Controllers\Api\RouteSheetDocumentController;
 
 Route::name('api.')->group(function (): void {
 
@@ -277,6 +278,10 @@ Route::name('api.')->group(function (): void {
         Route::post('/council-decisions/{councilDecision}/generate-document', [CouncilDecisionController::class, 'generateDocument'])
             ->middleware('permission:documents.generate')
             ->name('council-decisions.generate-document');
+
+        Route::post('/documents/route-sheets/generate', [RouteSheetDocumentController::class, 'generate'])
+            ->middleware('permission:documents.generate')
+            ->name('documents.route-sheets.generate');
 
         /**
          * Documents routes
