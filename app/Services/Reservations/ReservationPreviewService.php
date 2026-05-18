@@ -12,6 +12,7 @@ use App\Models\Location;
 use App\Models\Organization;
 use App\Models\Reservation;
 use App\Services\Locations\LocationService;
+use App\Services\Planning\ReservationTimeWindowService;
 use Carbon\CarbonImmutable;
 use Illuminate\Validation\ValidationException;
 
@@ -19,7 +20,8 @@ class ReservationPreviewService
 {
     public function __construct(
         private readonly LocationService $locationService,
-        private readonly ReservationQuotaService $quotaService
+        private readonly ReservationQuotaService $quotaService,
+        private readonly ReservationTimeWindowService $timeWindowService
     ) {}
 
     public function preview(array $data): array
@@ -72,11 +74,11 @@ class ReservationPreviewService
     {
         $conflicts = [];
         $organization ??= Organization::findOrFail($data['organization_id']);
-        $departure = $this->dateTime($data['trip_date'], $data['departure_time']);
-        $returnDeparture = $this->dateTime($data['trip_date'], $data['return_time']);
+        $departure = $this->timeWindowService->departureFromData($data['trip_date'], $data['departure_time']);
+        $returnDeparture = $this->timeWindowService->returnDepartureFromData($data['trip_date'], $data['return_time']);
         $margin = config('reservations.duration_margin_min', 15);
         $duration = $estimatedDurationMin ?? 0;
-        $end = $returnDeparture->addMinutes($duration + $margin);
+        $end = $this->timeWindowService->occupationEndFromData($data['trip_date'], $data['return_time'], $estimatedDurationMin);
 
         if ($organization->type !== OrganizationType::ECOLE_COMMUNALE) {
             $minDepartureTime = config('reservations.non_school_min_departure_time', '07:30');
@@ -205,16 +207,7 @@ class ReservationPreviewService
 
     private function overlapsReservation(Reservation $reservation, CarbonImmutable $start, CarbonImmutable $end, int $margin): bool
     {
-        $reservationStart = $this->dateTime($reservation->trip_date->toDateString(), $reservation->departure_time->format('H:i:s'));
-        $reservationEnd = $this->dateTime($reservation->trip_date->toDateString(), $reservation->return_time->format('H:i:s'))
-            ->addMinutes(($reservation->estimated_duration_min ?? 0) + $margin);
-
-        return $start->lessThan($reservationEnd) && $end->greaterThan($reservationStart);
-    }
-
-    private function dateTime(string $date, string $time): CarbonImmutable
-    {
-        return CarbonImmutable::parse($date.' '.$time);
+        return $this->timeWindowService->reservationOverlapsWindow($reservation, $start, $end);
     }
 
     private function overlapPriorityMessage(array $data, Organization $organization, Reservation $overlappingReservation): string

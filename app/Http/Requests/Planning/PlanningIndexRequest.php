@@ -1,0 +1,38 @@
+<?php
+
+namespace App\Http\Requests\Planning;
+
+use App\Enums\ReservationStatus;
+use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
+
+class PlanningIndexRequest extends FormRequest
+{
+    public function authorize(): bool
+    {
+        return $this->user()?->can('reservations.view') ?? false;
+    }
+
+    public function rules(): array
+    {
+        return [
+            'start_date' => ['required', 'date_format:Y-m-d'],
+            'end_date' => ['required', 'date_format:Y-m-d', 'after_or_equal:start_date'],
+            'include_availability' => ['sometimes', 'boolean'],
+            'statuses' => ['sometimes', 'array'],
+            'statuses.*' => ['string', Rule::in(array_column(ReservationStatus::cases(), 'value'))],
+        ];
+    }
+
+    public function messages(): array
+    {
+        return [
+            'start_date.required' => 'La date de debut est obligatoire.',
+            'start_date.date_format' => 'La date de debut doit etre au format YYYY-MM-DD.',
+            'end_date.required' => 'La date de fin est obligatoire.',
+            'end_date.date_format' => 'La date de fin doit etre au format YYYY-MM-DD.',
+            'end_date.after_or_equal' => 'La date de fin doit etre egale ou posterieure a la date de debut.',
+            'statuses.*.in' => 'Un des statuts demandes est invalide.',
+        ];
+    }
+}

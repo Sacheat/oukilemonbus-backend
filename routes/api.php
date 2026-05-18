@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\MunicipalityController;
 use App\Http\Controllers\Api\MunicipalityLocalityController;
 use App\Http\Controllers\Api\OrganizationController;
 use App\Http\Controllers\Api\OrgRegistrationRequestController;
+use App\Http\Controllers\Api\PlanningController;
 use App\Http\Controllers\Api\ReservationConflictController;
 use App\Http\Controllers\Api\ReservationController;
 use App\Http\Controllers\Api\UnavailabilityController;
@@ -209,6 +210,13 @@ Route::name('api.')->group(function (): void {
         Route::patch('/organizations/{organization}', [OrganizationController::class, 'update'])
             ->middleware('permission:organizations.update')
             ->name('organizations.update');
+
+        /**
+         * Planning routes
+         */
+        Route::get('/planning', [PlanningController::class, 'index'])
+            ->middleware('permission:reservations.view')
+            ->name('planning.index');
 
         /**
          * Reservations routes
