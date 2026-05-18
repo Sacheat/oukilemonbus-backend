@@ -22,10 +22,15 @@ class RouteSheetDocumentController extends Controller
         $data = $request->validated();
 
         try {
-            $document = $routeSheetDocumentService->generateForPeriod(
-                $data['start_date'],
-                $data['end_date']
-            );
+            $document = isset($data['service_date'])
+                ? $routeSheetDocumentService->generateForServiceDateVehicle(
+                    $data['service_date'],
+                    (int) $data['vehicle_id']
+                )
+                : $routeSheetDocumentService->generateForPeriod(
+                    $data['start_date'],
+                    $data['end_date']
+                );
         } catch (InvalidArgumentException $exception) {
             abort(422, $exception->getMessage());
         }

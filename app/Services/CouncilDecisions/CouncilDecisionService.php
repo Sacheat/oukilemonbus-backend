@@ -8,6 +8,7 @@ use App\Enums\ReservationConflictType;
 use App\Models\CouncilDecision;
 use App\Models\Reservation;
 use App\Models\User;
+use App\Services\Documents\DeliberationDocumentService;
 use App\Services\Reservations\ReservationService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -15,7 +16,8 @@ use Illuminate\Validation\ValidationException;
 class CouncilDecisionService
 {
     public function __construct(
-        private readonly ReservationService $reservationService
+        private readonly ReservationService $reservationService,
+        private readonly DeliberationDocumentService $deliberationDocumentService
     ) {}
 
     public function create(array $data, User $actor): CouncilDecision
@@ -26,7 +28,7 @@ class CouncilDecisionService
 
         $this->ensureCouncilDecisionRequired($reservation);
 
-        return DB::transaction(function () use ($reservation, $data, $actor): CouncilDecision {
+        $decision = DB::transaction(function () use ($reservation, $data, $actor): CouncilDecision {
             $decision = CouncilDecision::create([
                 'reservation_id' => $reservation->id,
                 'decision_status' => $data['decision_status'],
@@ -41,6 +43,10 @@ class CouncilDecisionService
 
             return $decision->refresh()->load(['reservation.organization', 'recordedByUser']);
         });
+
+        $this->generateDeliberationIfFinal($decision);
+
+        return $decision;
     }
 
     public function update(CouncilDecision $councilDecision, array $data, User $actor): CouncilDecision
@@ -49,7 +55,7 @@ class CouncilDecisionService
 
         $this->ensureCouncilDecisionRequired($councilDecision->reservation);
 
-        return DB::transaction(function () use ($councilDecision, $data, $actor): CouncilDecision {
+        $councilDecision = DB::transaction(function () use ($councilDecision, $data, $actor): CouncilDecision {
             $councilDecision->update([
                 'decision_status' => $data['decision_status'],
                 'decision_date' => $data['decision_date'] ?? null,
@@ -63,6 +69,10 @@ class CouncilDecisionService
 
             return $councilDecision->refresh()->load(['reservation.organization', 'recordedByUser']);
         });
+
+        $this->generateDeliberationIfFinal($councilDecision);
+
+        return $councilDecision;
     }
 
     private function applyDecisionConsequences(
@@ -105,5 +115,12 @@ class CouncilDecisionService
                 'resolved_by_user_id' => $actor->id,
                 'resolved_at' => now(),
             ]);
+    }
+
+    private function generateDeliberationIfFinal(CouncilDecision $decision): void
+    {
+        if ($this->deliberationDocumentService->canGenerateFor($decision)) {
+            $this->deliberationDocumentService->generateFor($decision);
+        }
     }
 }

@@ -113,7 +113,7 @@ class DeliberationDocumentServiceTest extends TestCase
         Carbon::setTestNow();
     }
 
-    public function test_it_refuses_to_generate_document_when_decision_is_not_approved(): void
+    public function test_it_refuses_to_generate_document_when_decision_is_not_final(): void
     {
         $councilDecision = new CouncilDecision();
         $councilDecision->forceFill([
@@ -138,9 +138,76 @@ class DeliberationDocumentServiceTest extends TestCase
         );
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('La délibération ne peut être générée que pour une décision approuvée.');
+        $this->expectExceptionMessage('La deliberation ne peut etre generee que pour une decision approuvee ou refusee.');
 
         $service->generateFor($councilDecision);
+    }
+
+    public function test_it_generates_a_deliberation_document_for_a_refused_decision(): void
+    {
+        $councilDecision = new CouncilDecision();
+        $councilDecision->forceFill([
+            'id' => 12,
+            'reservation_id' => 42,
+            'recorded_by_user_id' => 7,
+            'decision_reference' => 'COLL-2026-001',
+            'decision_status' => 'refuse',
+        ]);
+
+        $context = [
+            'document' => [
+                'template_key' => 'deliberations.external',
+                'template_version' => '1.0',
+            ],
+            'decision' => [
+                'status' => 'refuse',
+                'reference' => 'COLL-2026-001',
+            ],
+            'reservation' => [
+                'id' => 42,
+            ],
+        ];
+
+        $createdDocument = new Document();
+        $createdDocument->forceFill([
+            'id' => 99,
+            'document_type' => DocumentType::DELIBERATION,
+            'file_name' => 'deliberation-coll-2026-001-42-v001.pdf',
+        ]);
+
+        $contextBuilder = $this->createMock(DeliberationContextBuilder::class);
+        $generator = $this->createMock(DeliberationGenerator::class);
+        $documentService = $this->createMock(DocumentService::class);
+
+        $contextBuilder->method('build')->willReturn($context);
+        $generator->method('generatePdf')->willReturn('%PDF fake refused deliberation content');
+        $generator->method('defaultPdfFileName')->willReturn('deliberation-coll-2026-001-42.pdf');
+
+        $documentService->expects($this->once())
+            ->method('registerGeneratedDocument')
+            ->with(
+                DocumentType::DELIBERATION,
+                'documents/council-decisions/12',
+                'deliberation-coll-2026-001-42-v001.pdf',
+                '%PDF fake refused deliberation content',
+                $this->callback(function (array $data) use ($context): bool {
+                    $this->assertSame($context, $data['generation_context']);
+                    $this->assertSame(1, $data['version']);
+
+                    return true;
+                })
+            )
+            ->willReturn($createdDocument);
+
+        $service = new DeliberationDocumentService(
+            contextBuilder: $contextBuilder,
+            generator: $generator,
+            documentService: $documentService
+        );
+
+        $document = $service->generateFor($councilDecision);
+
+        $this->assertSame($createdDocument, $document);
     }
 
     public function test_it_creates_a_new_file_name_version_for_an_existing_deliberation(): void

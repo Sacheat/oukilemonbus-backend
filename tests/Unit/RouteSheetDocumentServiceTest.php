@@ -18,6 +18,7 @@ use App\Enums\ReservationStatus;
 use App\Models\Location;
 use App\Models\Organization;
 use App\Models\User;
+use App\Models\Vehicle;
 use Illuminate\Support\Facades\Storage;
 
 
@@ -315,6 +316,105 @@ class RouteSheetDocumentServiceTest extends TestCase
 
         $this->assertSame($createdDocument->id, $document->id);
 
+        $this->assertCount(0, $document->routeSheetReservations()->get());
+    }
+
+    public function test_it_generates_and_registers_a_daily_route_sheet_document_for_a_vehicle(): void
+    {
+        $vehicle = Vehicle::query()->create([
+            'licence_plate' => '1-VJX-649',
+            'capacity' => 41,
+            'is_active' => true,
+        ]);
+
+        $context = [
+            'document' => [
+                'type' => DocumentType::FEUILLE_ROUTE->value,
+                'label' => DocumentType::FEUILLE_ROUTE->label(),
+                'template_key' => 'route_sheets.daily',
+                'template_version' => '1.0',
+            ],
+            'service' => [
+                'date' => '2026-06-18',
+                'vehicle' => [
+                    'id' => $vehicle->id,
+                    'licence_plate' => '1-VJX-649',
+                ],
+            ],
+            'rows' => [],
+        ];
+
+        $pdfContent = '%PDF fake daily route sheet content';
+
+        $createdDocument = Document::query()->create([
+            'reservation_id' => null,
+            'user_id' => null,
+            'document_type' => DocumentType::FEUILLE_ROUTE,
+            'file_name' => 'mock-daily-route-sheet.pdf',
+            'file_path' => 'documents/test-placeholders/mock-daily-route-sheet.pdf',
+            'mime_type' => 'application/pdf',
+            'file_size' => strlen($pdfContent),
+            'checksum' => hash('sha256', $pdfContent),
+            'generation_mode' => 'auto',
+            'generation_context' => $context,
+            'template_key' => 'route_sheets.daily',
+            'template_version' => '1.0',
+            'generated_at' => now(),
+            'is_official' => false,
+            'version' => 1,
+            'is_available' => true,
+        ]);
+
+        $contextBuilder = $this->createMock(RouteSheetContextBuilder::class);
+        $generator = $this->createMock(RouteSheetGenerator::class);
+        $documentService = $this->createMock(DocumentService::class);
+
+        $contextBuilder->expects($this->once())
+            ->method('buildForServiceDateVehicle')
+            ->with('2026-06-18', $vehicle->id)
+            ->willReturn($context);
+
+        $generator->expects($this->once())
+            ->method('generatePdf')
+            ->with($context)
+            ->willReturn($pdfContent);
+
+        $generator->expects($this->once())
+            ->method('defaultPdfFileName')
+            ->with($context)
+            ->willReturn('route-sheet-2026-06-18-1-vjx-649.pdf');
+
+        $documentService->expects($this->once())
+            ->method('registerGeneratedDocument')
+            ->with(
+                DocumentType::FEUILLE_ROUTE,
+                'documents/route-sheets/2026-06-18/vehicle-'.$vehicle->id,
+                'route-sheet-2026-06-18-1-vjx-649-v001.pdf',
+                $pdfContent,
+                $this->callback(function (array $data) use ($context): bool {
+                    $this->assertNull($data['reservation_id']);
+                    $this->assertSame('auto', $data['generation_mode']);
+                    $this->assertSame($context, $data['generation_context']);
+                    $this->assertSame('route_sheets.daily', $data['template_key']);
+                    $this->assertSame('1.0', $data['template_version']);
+                    $this->assertFalse($data['is_official']);
+                    $this->assertSame(1, $data['version']);
+                    $this->assertTrue($data['is_available']);
+
+                    return true;
+                })
+            )
+            ->willReturn($createdDocument);
+
+        $service = new RouteSheetDocumentService(
+            contextBuilder: $contextBuilder,
+            generator: $generator,
+            documentService: $documentService
+        );
+
+        $document = $service->generateForServiceDateVehicle('2026-06-18', $vehicle->id);
+
+        $this->assertSame($createdDocument->id, $document->id);
         $this->assertCount(0, $document->routeSheetReservations()->get());
     }
 

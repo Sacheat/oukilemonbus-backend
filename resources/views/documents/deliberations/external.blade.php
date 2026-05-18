@@ -284,6 +284,9 @@
     $contactName = data_get($organization, 'name_contact');
 
     $titleContactPart = $contactName ? ' - '.$contactName : '';
+    $decisionStatus = data_get($decision, 'status');
+    $isRefused = $decisionStatus === 'refuse';
+    $decisionNotes = data_get($decision, 'notes');
 @endphp
 
 <div class="page first">
@@ -357,8 +360,18 @@
     </div>
 
     <div class="paragraph">
-        Considérant l'avis positif rendu par le service enseignement ;
+        @if($isRefused)
+            Considérant que la demande ne peut recevoir une suite favorable ;
+        @else
+            Considérant l'avis positif rendu par le service enseignement ;
+        @endif
     </div>
+
+    @if($isRefused && $decisionNotes)
+        <div class="paragraph">
+            Considérant le motif suivant : {{ $decisionNotes }} ;
+        </div>
+    @endif
 
     <div class="decision-title">
         DÉCIDE
@@ -369,14 +382,25 @@
     </div>
 
     <div class="paragraph">
-        De marquer accord pour mettre le car à disposition de
-        <strong>{{ $organizationName }}</strong>
-        @if($contactName)
-            ({{ $contactName }})
+        @if($isRefused)
+            De refuser la mise à disposition du car communal à
+            <strong>{{ $organizationName }}</strong>
+            @if($contactName)
+                ({{ $contactName }})
+            @endif
+            le <strong>{{ $tripDateLong }}</strong>
+            pour se rendre à
+            <strong>{{ $destinationAddress }}</strong>.
+        @else
+            De marquer accord pour mettre le car à disposition de
+            <strong>{{ $organizationName }}</strong>
+            @if($contactName)
+                ({{ $contactName }})
+            @endif
+            le <strong>{{ $tripDateLong }}</strong>
+            pour se rendre à
+            <strong>{{ $destinationAddress }}</strong>.
         @endif
-        le <strong>{{ $tripDateLong }}</strong>
-        pour se rendre à
-        <strong>{{ $destinationAddress }}</strong>.
     </div>
 
     <div class="article-title">

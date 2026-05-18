@@ -3,11 +3,14 @@
 namespace Tests\Feature;
 
 use App\Enums\CouncilDecisionStatus;
+use App\Enums\DocumentType;
 use App\Enums\ReservationActivityType;
 use App\Models\CouncilDecision;
+use App\Models\Document;
 use App\Models\Location;
 use App\Models\Organization;
 use App\Models\User;
+use App\Services\Documents\DeliberationDocumentService;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Database\Seeders\TestLocationsSeeder;
 use Database\Seeders\TestOrganizationsSeeder;
@@ -94,6 +97,7 @@ class CouncilDecisionApiTest extends TestCase
     {
         $agent = $this->seededUser('agent.test@bus-communal.local');
         $decision = $this->createCouncilDecisionForNonSchoolReservation();
+        $this->mockAutomaticDeliberationGeneration();
 
         Sanctum::actingAs($agent);
 
@@ -114,21 +118,60 @@ class CouncilDecisionApiTest extends TestCase
         ]);
     }
 
+    public function test_internal_user_creating_final_council_decision_generates_deliberation(): void
+    {
+        $agent = $this->seededUser('agent.test@bus-communal.local');
+        $organization = $this->seededOrganization('ASBL Les Amis du Parc');
+        $this->fakeRouteCalculation();
+        $this->mockAutomaticDeliberationGeneration();
+
+        Sanctum::actingAs($agent);
+
+        $reservationId = $this->postJson('/api/reservations', $this->payload($organization))
+            ->assertCreated()
+            ->json('data.id');
+
+        $this->postJson('/api/council-decisions', [
+            'reservation_id' => $reservationId,
+            'decision_status' => CouncilDecisionStatus::APPROUVE->value,
+            'decision_date' => '2026-06-03',
+            'decision_reference' => 'COL-2026-100',
+            'notes' => 'Decision favorable.',
+        ])
+            ->assertCreated()
+            ->assertJsonPath('data.decision_status', CouncilDecisionStatus::APPROUVE->value);
+    }
+
+    public function test_internal_user_creating_refused_council_decision_generates_deliberation(): void
+    {
+        $agent = $this->seededUser('agent.test@bus-communal.local');
+        $organization = $this->seededOrganization('ASBL Les Amis du Parc');
+        $this->fakeRouteCalculation();
+        $this->mockAutomaticDeliberationGeneration();
+
+        Sanctum::actingAs($agent);
+
+        $reservationId = $this->postJson('/api/reservations', $this->payload($organization))
+            ->assertCreated()
+            ->json('data.id');
+
+        $this->postJson('/api/council-decisions', [
+            'reservation_id' => $reservationId,
+            'decision_status' => CouncilDecisionStatus::REFUSE->value,
+            'decision_date' => '2026-06-03',
+            'decision_reference' => 'COL-2026-101',
+            'notes' => 'Decision defavorable.',
+        ])
+            ->assertCreated()
+            ->assertJsonPath('data.decision_status', CouncilDecisionStatus::REFUSE->value);
+    }
+
     private function createCouncilDecisionForNonSchoolReservation(
         string $organizationName = 'ASBL Les Amis du Parc',
         ?User $requestedByUser = null
     ): CouncilDecision
     {
-        Http::fake([
-            'https://ors.test/*' => Http::response([
-                'routes' => [[
-                    'summary' => [
-                        'distance' => 12000,
-                        'duration' => 1800,
-                    ],
-                ]],
-            ]),
-        ]);
+        $this->fakeRouteCalculation();
 
         $agent = $this->seededUser('agent.test@bus-communal.local');
         $organization = $this->seededOrganization($organizationName);
@@ -163,6 +206,41 @@ class CouncilDecisionApiTest extends TestCase
             'decision_reference' => 'COL-2026-050',
             'validated_at' => now(),
             'notes' => 'Decision test.',
+        ]);
+    }
+
+    private function mockAutomaticDeliberationGeneration(): void
+    {
+        $document = new Document();
+        $document->forceFill([
+            'id' => 999,
+            'document_type' => DocumentType::DELIBERATION,
+        ]);
+
+        $service = $this->createMock(DeliberationDocumentService::class);
+        $service->expects($this->once())
+            ->method('canGenerateFor')
+            ->with($this->isInstanceOf(CouncilDecision::class))
+            ->willReturn(true);
+        $service->expects($this->once())
+            ->method('generateFor')
+            ->with($this->isInstanceOf(CouncilDecision::class))
+            ->willReturn($document);
+
+        $this->app->instance(DeliberationDocumentService::class, $service);
+    }
+
+    private function fakeRouteCalculation(): void
+    {
+        Http::fake([
+            'https://ors.test/*' => Http::response([
+                'routes' => [[
+                    'summary' => [
+                        'distance' => 12000,
+                        'duration' => 1800,
+                    ],
+                ]],
+            ]),
         ]);
     }
 

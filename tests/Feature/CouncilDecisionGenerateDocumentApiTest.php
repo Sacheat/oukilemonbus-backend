@@ -81,7 +81,7 @@ class CouncilDecisionGenerateDocumentApiTest extends TestCase
         Storage::disk('local')->assertExists($document->file_path);
     }
 
-    public function test_it_refuses_to_generate_document_when_decision_is_not_approved(): void
+    public function test_it_refuses_to_generate_document_when_decision_is_not_final(): void
     {
         $agent = $this->userWithRole('agent_communal');
 
@@ -95,7 +95,7 @@ class CouncilDecisionGenerateDocumentApiTest extends TestCase
         $this->postJson("/api/council-decisions/{$councilDecision->id}/generate-document")
             ->assertUnprocessable()
             ->assertJsonFragment([
-                'message' => 'La délibération ne peut être générée que pour une décision approuvée.',
+                'message' => 'La deliberation ne peut etre generee que pour une decision approuvee ou refusee.',
             ]);
 
         $this->assertDatabaseMissing('documents', [

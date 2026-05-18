@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Enums\DocumentType;
 use App\Models\Document;
 use App\Models\User;
+use App\Models\Vehicle;
 use App\Services\Documents\RouteSheetDocumentService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
@@ -77,6 +78,71 @@ class RouteSheetDocumentApiTest extends TestCase
         $response->assertJsonPath('data.version', 1);
 
         $this->assertArrayNotHasKey('file_path', $response->json('data'));
+    }
+
+    public function test_agent_can_generate_daily_route_sheet_document_for_vehicle_from_api(): void
+    {
+        $agent = User::factory()->create();
+        $vehicle = Vehicle::query()->create([
+            'licence_plate' => '1-VJX-649',
+            'capacity' => 41,
+            'is_active' => true,
+        ]);
+
+        $permission = Permission::findOrCreate('documents.generate', 'web');
+
+        $role = Role::findOrCreate('agent_communal', 'web');
+        $role->givePermissionTo($permission);
+
+        $agent->assignRole($role);
+
+        Sanctum::actingAs($agent);
+
+        $document = Document::query()->create([
+            'reservation_id' => null,
+            'user_id' => null,
+            'document_type' => DocumentType::FEUILLE_ROUTE,
+            'file_name' => 'route-sheet-2026-06-18-1-vjx-649-v001.pdf',
+            'file_path' => 'documents/route-sheets/2026-06-18/vehicle-'.$vehicle->id.'/route-sheet-2026-06-18-1-vjx-649-v001.pdf',
+            'mime_type' => 'application/pdf',
+            'file_size' => 1234,
+            'checksum' => 'fake-checksum',
+            'generation_mode' => 'auto',
+            'generation_context' => [
+                'service' => [
+                    'date' => '2026-06-18',
+                    'vehicle' => [
+                        'id' => $vehicle->id,
+                    ],
+                ],
+                'rows' => [],
+            ],
+            'template_key' => 'route_sheets.daily',
+            'template_version' => '1.0',
+            'generated_at' => now(),
+            'is_official' => false,
+            'version' => 1,
+            'is_available' => true,
+        ]);
+
+        $service = $this->createMock(RouteSheetDocumentService::class);
+
+        $service->expects($this->once())
+            ->method('generateForServiceDateVehicle')
+            ->with('2026-06-18', $vehicle->id)
+            ->willReturn($document);
+
+        $this->app->instance(RouteSheetDocumentService::class, $service);
+
+        $response = $this->postJson('/api/documents/route-sheets/generate', [
+            'service_date' => '2026-06-18',
+            'vehicle_id' => $vehicle->id,
+        ]);
+
+        $response->assertCreated();
+        $response->assertJsonPath('message', 'Feuille de route generee avec succes.');
+        $response->assertJsonPath('data.id', $document->id);
+        $response->assertJsonPath('data.template_key', 'route_sheets.daily');
     }
 
     public function test_start_date_is_required_to_generate_route_sheet_document(): void
