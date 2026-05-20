@@ -10,4 +10,7 @@ return [
     ],
 
     'legal_retention_years' => 3,
+
+    'automatic_generation_time' => env('ROUTE_SHEET_AUTOMATIC_GENERATION_TIME', '20:00'),
+    'automatic_generation_timezone' => env('ROUTE_SHEET_AUTOMATIC_GENERATION_TIMEZONE', 'Europe/Brussels'),
 ];
