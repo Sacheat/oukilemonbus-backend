@@ -5,13 +5,16 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Planning\PlanningIndexRequest;
 use App\Http\Resources\PlanningItemResource;
+use App\Services\Planning\PlanningExportService;
 use App\Services\Planning\PlanningService;
 use Illuminate\Http\JsonResponse;
+use Symfony\Component\HttpFoundation\Response;
 
 class PlanningController extends Controller
 {
     public function __construct(
-        private readonly PlanningService $planningService
+        private readonly PlanningService $planningService,
+        private readonly PlanningExportService $planningExportService
     ) {}
 
     public function index(PlanningIndexRequest $request): JsonResponse
@@ -36,5 +39,24 @@ class PlanningController extends Controller
             ],
             'data' => PlanningItemResource::collection($items)->resolve($request),
         ]);
+    }
+
+    public function export(PlanningIndexRequest $request): Response
+    {
+        $validated = $request->validated();
+
+        $items = $this->planningService->forPeriod(
+            $request->user(),
+            $validated['start_date'],
+            $validated['end_date'],
+            false,
+            $validated['statuses'] ?? []
+        );
+
+        return $this->planningExportService->download(
+            $items,
+            $validated['start_date'],
+            $validated['end_date']
+        );
     }
 }

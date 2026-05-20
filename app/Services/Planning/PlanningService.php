@@ -24,6 +24,7 @@ class PlanningService
         $reservations = Reservation::query()
             ->with([
                 'organization',
+                'requestedByUser',
                 'pickupLocation',
                 'destinationLocation',
                 'driver.user',

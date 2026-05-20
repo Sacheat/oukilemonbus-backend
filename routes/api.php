@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CouncilDecisionController;
+use App\Http\Controllers\Api\DocumentController;
 use App\Http\Controllers\Api\DriverController;
 use App\Http\Controllers\Api\LocationController;
 use App\Http\Controllers\Api\MunicipalityController;
@@ -11,14 +12,13 @@ use App\Http\Controllers\Api\OrgRegistrationRequestController;
 use App\Http\Controllers\Api\PlanningController;
 use App\Http\Controllers\Api\ReservationConflictController;
 use App\Http\Controllers\Api\ReservationController;
+use App\Http\Controllers\Api\RouteSheetDocumentController;
 use App\Http\Controllers\Api\UnavailabilityController;
 use App\Http\Controllers\Api\UnavailabilityHistoryController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\UserOrgRequestController;
 use App\Http\Controllers\Api\VehicleController;
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\Api\DocumentController;
-use App\Http\Controllers\Api\RouteSheetDocumentController;
 
 Route::name('api.')->group(function (): void {
 
@@ -214,6 +214,10 @@ Route::name('api.')->group(function (): void {
         /**
          * Planning routes
          */
+        Route::get('/planning/export', [PlanningController::class, 'export'])
+            ->middleware('permission:reservations.view')
+            ->name('planning.export');
+
         Route::get('/planning', [PlanningController::class, 'index'])
             ->middleware('permission:reservations.view')
             ->name('planning.index');
@@ -281,7 +285,6 @@ Route::name('api.')->group(function (): void {
         Route::patch('/council-decisions/{councilDecision}', [CouncilDecisionController::class, 'update'])
             ->middleware('permission:council-decisions.update')
             ->name('council-decisions.update');
-
 
         Route::post('/council-decisions/{councilDecision}/generate-document', [CouncilDecisionController::class, 'generateDocument'])
             ->middleware('permission:documents.generate')

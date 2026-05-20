@@ -178,7 +178,6 @@ class PlanningApiTest extends TestCase
         $this->assertArrayNotHasKey('availability', $response->json('data.0'));
     }
 
-
     public function test_agent_can_filter_planning_by_status(): void
     {
         $agent = $this->userWithRole('agent_communal');
@@ -249,6 +248,91 @@ class PlanningApiTest extends TestCase
             ->assertJsonPath('data.0.conflicts.0.type', ReservationConflictType::SCHEDULE_OVERLAP->value)
             ->assertJsonPath('data.0.conflicts.0.message', 'Chevauchement avec une autre reservation.')
             ->assertJsonPath('data.0.conflicts.0.is_resolved', false);
+    }
+
+    public function test_agent_can_export_planning_as_excel_file(): void
+    {
+        $agent = $this->userWithRole('agent_communal');
+        $organization = $this->organization();
+        [$pickup, $destination] = $this->locations();
+        $driver = $this->driver('Alice', 'Martin');
+        $vehicle = Vehicle::create([
+            'licence_plate' => '1-XLS-001',
+            'capacity' => 41,
+            'is_active' => true,
+        ]);
+
+        $this->reservation([
+            'organization_id' => $organization->id,
+            'pickup_location_id' => $pickup->id,
+            'destination_location_id' => $destination->id,
+            'driver_id' => $driver->id,
+            'vehicle_id' => $vehicle->id,
+            'trip_date' => '2026-06-16',
+            'departure_time' => '09:00:00',
+            'return_time' => '11:00:00',
+            'trip_purpose' => 'Sortie piscine',
+            'status' => ReservationStatus::CONFIRME,
+        ]);
+
+        Sanctum::actingAs($agent);
+
+        $response = $this->get('/api/planning/export?start_date=2026-06-16&end_date=2026-06-16');
+
+        $response->assertOk()
+            ->assertHeader('content-disposition', 'attachment; filename="planning-2026-06-16-2026-06-16.xls"');
+
+        $this->assertStringContainsString('application/vnd.ms-excel', $response->headers->get('content-type'));
+        $this->assertStringContainsString('Sortie piscine', $response->getContent());
+        $this->assertStringContainsString('Alice Martin', $response->getContent());
+        $this->assertStringContainsString('1-XLS-001', $response->getContent());
+    }
+
+    public function test_chauffeur_exports_only_his_assigned_planning(): void
+    {
+        $organization = $this->organization();
+        [$pickup, $destination] = $this->locations();
+        $firstDriver = $this->driver('Jean', 'Chauffeur');
+        $secondDriver = $this->driver('Marc', 'Chauffeur');
+        $vehicle = Vehicle::create([
+            'licence_plate' => '1-XLS-002',
+            'capacity' => 41,
+            'is_active' => true,
+        ]);
+
+        $this->reservation([
+            'organization_id' => $organization->id,
+            'pickup_location_id' => $pickup->id,
+            'destination_location_id' => $destination->id,
+            'driver_id' => $firstDriver->id,
+            'vehicle_id' => $vehicle->id,
+            'trip_date' => '2026-06-16',
+            'departure_time' => '09:00:00',
+            'return_time' => '10:00:00',
+            'trip_purpose' => 'Trajet visible chauffeur',
+            'status' => ReservationStatus::CONFIRME,
+        ]);
+
+        $this->reservation([
+            'organization_id' => $organization->id,
+            'pickup_location_id' => $pickup->id,
+            'destination_location_id' => $destination->id,
+            'driver_id' => $secondDriver->id,
+            'vehicle_id' => $vehicle->id,
+            'trip_date' => '2026-06-16',
+            'departure_time' => '11:00:00',
+            'return_time' => '12:00:00',
+            'trip_purpose' => 'Trajet masque chauffeur',
+            'status' => ReservationStatus::CONFIRME,
+        ]);
+
+        Sanctum::actingAs($firstDriver->user);
+
+        $response = $this->get('/api/planning/export?start_date=2026-06-16&end_date=2026-06-16');
+
+        $response->assertOk();
+        $this->assertStringContainsString('Trajet visible chauffeur', $response->getContent());
+        $this->assertStringNotContainsString('Trajet masque chauffeur', $response->getContent());
     }
 
     private function userWithRole(string $role): User
