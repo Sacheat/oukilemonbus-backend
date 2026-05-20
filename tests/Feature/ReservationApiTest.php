@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use App\Enums\CouncilDecisionStatus;
-use App\Enums\OrganizationType;
 use App\Enums\ReservationActivityType;
 use App\Enums\ReservationConflictType;
 use App\Enums\ReservationStatus;
@@ -17,8 +16,8 @@ use Database\Seeders\TestLocationsSeeder;
 use Database\Seeders\TestOrganizationsSeeder;
 use Database\Seeders\TestUsersSeeder;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Http;
 use Laravel\Sanctum\Sanctum;
 use Spatie\Permission\PermissionRegistrar;
 use Tests\TestCase;
@@ -163,6 +162,236 @@ class ReservationApiTest extends TestCase
         ]);
     }
 
+    public function test_schedule_overlap_uses_the_total_estimated_bus_occupation(): void
+    {
+        config([
+            'reservations.pickup_buffer_min' => 0,
+            'reservations.dropoff_buffer_min' => 10,
+            'reservations.safety_buffer_min' => 5,
+        ]);
+
+        Http::fake([
+            'https://ors.test/*' => Http::response([
+                'routes' => [[
+                    'summary' => [
+                        'distance' => 12000,
+                        'duration' => 1500,
+                    ],
+                ]],
+            ]),
+        ]);
+
+        $user = $this->seededUser('user.test@bus-communal.local');
+        $organization = $this->seededOrganization('Ecole communale de Dinant');
+        [$pickup, $destination] = $this->seededLocations();
+
+        Reservation::create([
+            'requested_by_user_id' => $user->id,
+            'organization_id' => $organization->id,
+            'pickup_location_id' => $pickup->id,
+            'destination_location_id' => $destination->id,
+            'trip_date' => '2026-06-16',
+            'departure_time' => '08:00:00',
+            'return_time' => '08:40:00',
+            'nb_children' => 10,
+            'nb_adults' => 1,
+            'trip_purpose' => 'Reservation existante',
+            'activity_type' => ReservationActivityType::STANDARD,
+            'estimated_duration_min' => 25,
+            'status' => ReservationStatus::CONFIRME,
+            'approval_type' => 'auto',
+        ]);
+
+        Sanctum::actingAs($user);
+
+        $this->postJson('/api/reservations', [
+            ...$this->payload($organization, $pickup, $destination),
+            'departure_time' => '09:00',
+            'return_time' => '10:00',
+        ])
+            ->assertCreated()
+            ->assertJsonPath('data.status', ReservationStatus::EN_CONFLIT->value)
+            ->assertJsonPath('data.estimated_occupation.duration_min', 100)
+            ->assertJsonPath('data.estimated_occupation.return_trip_duration_min', 25)
+            ->assertJsonPath('data.estimated_occupation.pickup_buffer_min', 0)
+            ->assertJsonPath('data.estimated_occupation.post_return_buffer_min', 15);
+
+        $this->assertDatabaseHas('reservation_conflicts', [
+            'type' => ReservationConflictType::SCHEDULE_OVERLAP->value,
+            'is_resolved' => false,
+        ]);
+    }
+
+    public function test_schedule_overlap_message_explains_the_estimated_occupation_windows(): void
+    {
+        config([
+            'reservations.pickup_buffer_min' => 0,
+            'reservations.dropoff_buffer_min' => 10,
+            'reservations.safety_buffer_min' => 5,
+        ]);
+
+        Http::fake([
+            'https://ors.test/*' => Http::response([
+                'routes' => [[
+                    'summary' => [
+                        'distance' => 12000,
+                        'duration' => 1500,
+                    ],
+                ]],
+            ]),
+        ]);
+
+        $user = $this->seededUser('user.test@bus-communal.local');
+        $organization = $this->seededOrganization('Ecole communale de Dinant');
+        [$pickup, $destination] = $this->seededLocations();
+
+        $existingReservation = Reservation::create([
+            'requested_by_user_id' => $user->id,
+            'organization_id' => $organization->id,
+            'pickup_location_id' => $pickup->id,
+            'destination_location_id' => $destination->id,
+            'trip_date' => '2026-06-16',
+            'departure_time' => '08:00:00',
+            'return_time' => '08:40:00',
+            'nb_children' => 10,
+            'nb_adults' => 1,
+            'trip_purpose' => 'Reservation existante',
+            'activity_type' => ReservationActivityType::STANDARD,
+            'estimated_duration_min' => 25,
+            'status' => ReservationStatus::CONFIRME,
+            'approval_type' => 'auto',
+        ]);
+
+        Sanctum::actingAs($user);
+
+        $message = $this->postJson('/api/reservations', [
+            ...$this->payload($organization, $pickup, $destination),
+            'departure_time' => '09:00',
+            'return_time' => '10:00',
+        ])
+            ->assertCreated()
+            ->assertJsonPath('data.status', ReservationStatus::EN_CONFLIT->value)
+            ->json('data.conflicts.0.message');
+
+        $this->assertStringContainsString("Reservation #{$existingReservation->id} occupe le bus de 08h00 a 09h20", $message);
+        $this->assertStringContainsString('cette demande occuperait le bus de 09h00 a 10h40', $message);
+        $this->assertStringContainsString('Chevauchement estime: 20 min.', $message);
+    }
+
+    public function test_preview_suggests_the_next_available_departure_time_after_a_schedule_overlap(): void
+    {
+        config([
+            'reservations.pickup_buffer_min' => 0,
+            'reservations.dropoff_buffer_min' => 10,
+            'reservations.safety_buffer_min' => 5,
+        ]);
+
+        Http::fake([
+            'https://ors.test/*' => Http::response([
+                'routes' => [[
+                    'summary' => [
+                        'distance' => 12000,
+                        'duration' => 1500,
+                    ],
+                ]],
+            ]),
+        ]);
+
+        $user = $this->seededUser('user.test@bus-communal.local');
+        $organization = $this->seededOrganization('Ecole communale de Dinant');
+        [$pickup, $destination] = $this->seededLocations();
+
+        Reservation::create([
+            'requested_by_user_id' => $user->id,
+            'organization_id' => $organization->id,
+            'pickup_location_id' => $pickup->id,
+            'destination_location_id' => $destination->id,
+            'trip_date' => '2026-06-16',
+            'departure_time' => '08:00:00',
+            'return_time' => '08:40:00',
+            'nb_children' => 10,
+            'nb_adults' => 1,
+            'trip_purpose' => 'Reservation existante',
+            'activity_type' => ReservationActivityType::STANDARD,
+            'estimated_duration_min' => 25,
+            'status' => ReservationStatus::CONFIRME,
+            'approval_type' => 'auto',
+        ]);
+
+        Sanctum::actingAs($user);
+
+        $this->postJson('/api/reservations/preview', [
+            ...$this->payload($organization, $pickup, $destination),
+            'departure_time' => '09:00',
+            'return_time' => '10:00',
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.availability.is_available', false)
+            ->assertJsonPath('data.availability.requested_departure_time', '09:00')
+            ->assertJsonPath('data.availability.next_available_departure_time', '09:20')
+            ->assertJsonPath('data.availability.next_available_return_time', '10:20')
+            ->assertJsonPath('data.availability.overlap_duration_min', 20)
+            ->assertJsonPath('data.availability.message', 'Le bus n est pas disponible a 09:00. Prochain depart possible estime: 09:20.');
+    }
+
+    public function test_preview_keeps_searching_until_the_next_suggested_departure_is_available(): void
+    {
+        config([
+            'reservations.pickup_buffer_min' => 0,
+            'reservations.dropoff_buffer_min' => 10,
+            'reservations.safety_buffer_min' => 5,
+        ]);
+
+        Http::fake([
+            'https://ors.test/*' => Http::response([
+                'routes' => [[
+                    'summary' => [
+                        'distance' => 12000,
+                        'duration' => 1500,
+                    ],
+                ]],
+            ]),
+        ]);
+
+        $user = $this->seededUser('user.test@bus-communal.local');
+        $organization = $this->seededOrganization('Ecole communale de Dinant');
+        [$pickup, $destination] = $this->seededLocations();
+
+        foreach ([
+            ['departure_time' => '08:00:00', 'return_time' => '08:40:00'],
+            ['departure_time' => '09:20:00', 'return_time' => '09:50:00'],
+        ] as $index => $times) {
+            Reservation::create([
+                'requested_by_user_id' => $user->id,
+                'organization_id' => $organization->id,
+                'pickup_location_id' => $pickup->id,
+                'destination_location_id' => $destination->id,
+                'trip_date' => '2026-06-16',
+                'departure_time' => $times['departure_time'],
+                'return_time' => $times['return_time'],
+                'nb_children' => 10,
+                'nb_adults' => 1,
+                'trip_purpose' => 'Reservation existante '.($index + 1),
+                'activity_type' => ReservationActivityType::STANDARD,
+                'estimated_duration_min' => 25,
+                'status' => ReservationStatus::CONFIRME,
+                'approval_type' => 'auto',
+            ]);
+        }
+
+        Sanctum::actingAs($user);
+
+        $this->postJson('/api/reservations/preview', [
+            ...$this->payload($organization, $pickup, $destination),
+            'departure_time' => '09:00',
+            'return_time' => '10:00',
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.availability.is_available', false)
+            ->assertJsonPath('data.availability.next_available_departure_time', '10:30')
+            ->assertJsonPath('data.availability.next_available_return_time', '11:30');
+    }
+
     public function test_school_gym_reservation_is_marked_as_priority_over_standard_school_overlap(): void
     {
         Http::fake([
@@ -201,7 +430,7 @@ class ReservationApiTest extends TestCase
 
         Sanctum::actingAs($user);
 
-        $this->postJson('/api/reservations', [
+        $message = $this->postJson('/api/reservations', [
             ...$this->payload($organization, $pickup, $destination),
             'departure_time' => '10:00',
             'return_time' => '12:00',
@@ -210,7 +439,13 @@ class ReservationApiTest extends TestCase
             ->assertCreated()
             ->assertJsonPath('data.status', ReservationStatus::EN_CONFLIT->value)
             ->assertJsonPath('data.activity_type', ReservationActivityType::GYMNASTIQUE->value)
-            ->assertJsonPath('data.conflicts.0.message', 'Le creneau chevauche une autre reservation active, mais cette demande est prioritaire selon le reglement.');
+            ->json('data.conflicts.0.message');
+
+        $this->assertStringStartsWith(
+            'Le creneau chevauche une autre reservation active, mais cette demande est prioritaire selon le reglement.',
+            $message
+        );
+        $this->assertStringContainsString('Reservation #', $message);
     }
 
     public function test_standard_school_overlap_mentions_older_priority_when_existing_gym_reservation_exists(): void
@@ -251,7 +486,7 @@ class ReservationApiTest extends TestCase
 
         Sanctum::actingAs($user);
 
-        $this->postJson('/api/reservations', [
+        $message = $this->postJson('/api/reservations', [
             ...$this->payload($organization, $pickup, $destination),
             'departure_time' => '10:00',
             'return_time' => '12:00',
@@ -259,7 +494,13 @@ class ReservationApiTest extends TestCase
         ])
             ->assertCreated()
             ->assertJsonPath('data.status', ReservationStatus::EN_CONFLIT->value)
-            ->assertJsonPath('data.conflicts.0.message', 'Le creneau chevauche une reservation plus prioritaire selon le reglement.');
+            ->json('data.conflicts.0.message');
+
+        $this->assertStringStartsWith(
+            'Le creneau chevauche une reservation plus prioritaire selon le reglement.',
+            $message
+        );
+        $this->assertStringContainsString('Reservation #', $message);
     }
 
     public function test_user_cannot_create_for_unattached_organization(): void

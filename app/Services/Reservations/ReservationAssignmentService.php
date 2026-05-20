@@ -12,12 +12,15 @@ use App\Models\ReservationConflict;
 use App\Models\Unavailability;
 use App\Models\User;
 use App\Models\Vehicle;
-use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class ReservationAssignmentService
 {
+    public function __construct(
+        private readonly ReservationOccupationService $occupationService
+    ) {}
+
     public function autoAssign(Reservation $reservation, User $actor): Reservation
     {
         return DB::transaction(function () use ($reservation, $actor): Reservation {
@@ -194,19 +197,17 @@ class ReservationAssignmentService
 
     private function overlaps(Reservation $first, Reservation $second): bool
     {
-        [$firstStart, $firstEnd] = $this->window($first);
-        [$secondStart, $secondEnd] = $this->window($second);
-
-        return $firstStart->lessThan($secondEnd) && $firstEnd->greaterThan($secondStart);
+        return $this->occupationService->overlaps(
+            $this->occupationService->windowForReservation($first),
+            $this->occupationService->windowForReservation($second)
+        );
     }
 
     private function window(Reservation $reservation): array
     {
-        $start = CarbonImmutable::parse($reservation->trip_date->toDateString().' '.$reservation->departure_time->format('H:i:s'));
-        $returnDeparture = CarbonImmutable::parse($reservation->trip_date->toDateString().' '.$reservation->return_time->format('H:i:s'));
-        $end = $returnDeparture->addMinutes(($reservation->estimated_duration_min ?? 0) + config('reservations.duration_margin_min', 15));
+        $window = $this->occupationService->windowForReservation($reservation);
 
-        return [$start, $end];
+        return [$window['start'], $window['end']];
     }
 
     private function createConflict(Reservation $reservation, ReservationConflictType $type, string $message): void

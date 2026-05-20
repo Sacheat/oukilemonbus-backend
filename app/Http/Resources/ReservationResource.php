@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Services\Reservations\ReservationOccupationService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -27,6 +28,7 @@ class ReservationResource extends JsonResource
             'activity_type' => $this->activity_type?->value ?? $this->activity_type,
             'distance_km' => $this->distance_km,
             'estimated_duration_min' => $this->estimated_duration_min,
+            'estimated_occupation' => $this->estimatedOccupation(),
             'status' => $this->status,
             'approval_type' => $this->approval_type,
             'validated_by_user_id' => $this->validated_by_user_id,
@@ -43,6 +45,26 @@ class ReservationResource extends JsonResource
             'driver' => new DriverResource($this->whenLoaded('driver')),
             'vehicle' => new VehicleResource($this->whenLoaded('vehicle')),
             'conflicts' => ReservationConflictResource::collection($this->whenLoaded('conflicts')),
+        ];
+    }
+
+    private function estimatedOccupation(): ?array
+    {
+        if (! $this->trip_date || ! $this->departure_time || ! $this->return_time) {
+            return null;
+        }
+
+        $window = app(ReservationOccupationService::class)->windowForReservation($this->resource);
+
+        return [
+            'start_at' => $window['start']->toISOString(),
+            'end_at' => $window['end']->toISOString(),
+            'duration_min' => $window['duration_min'],
+            'return_trip_duration_min' => $window['return_trip_duration_min'],
+            'pickup_buffer_min' => $window['pickup_buffer_min'],
+            'dropoff_buffer_min' => $window['dropoff_buffer_min'],
+            'safety_buffer_min' => $window['safety_buffer_min'],
+            'post_return_buffer_min' => $window['post_return_buffer_min'],
         ];
     }
 }
