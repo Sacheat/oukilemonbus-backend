@@ -7,6 +7,7 @@ use App\Enums\ReservationStatus;
 use App\Models\Document;
 use App\Models\Reservation;
 use App\Services\Documents\RouteSheetDocumentService;
+use App\Services\Logging\DomainLogger;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -36,7 +37,7 @@ class GenerateDailyRouteSheetsJob implements ShouldBeUnique, ShouldQueue
         return $this->serviceDate;
     }
 
-    public function handle(RouteSheetDocumentService $routeSheetDocumentService): array
+    public function handle(RouteSheetDocumentService $routeSheetDocumentService, DomainLogger $logger): array
     {
         $vehicleIds = Reservation::query()
             ->whereDate('trip_date', $this->serviceDate)
@@ -55,12 +56,25 @@ class GenerateDailyRouteSheetsJob implements ShouldBeUnique, ShouldQueue
             'failed' => [],
         ];
 
+        $logger->dailyRouteSheetsStarted([
+            'service_date' => $this->serviceDate,
+            'force' => $this->force,
+            'vehicle_count' => count($vehicleIds),
+            'vehicle_ids' => $vehicleIds,
+        ]);
+
         foreach ($vehicleIds as $vehicleId) {
             if (! $this->force && $this->dailyRouteSheetExists($vehicleId)) {
                 $summary['skipped'][] = [
                     'vehicle_id' => $vehicleId,
                     'reason' => 'already_exists',
                 ];
+
+                $logger->routeSheetSkipped([
+                    'service_date' => $this->serviceDate,
+                    'vehicle_id' => $vehicleId,
+                    'reason' => 'already_exists',
+                ]);
 
                 continue;
             }
@@ -85,6 +99,14 @@ class GenerateDailyRouteSheetsJob implements ShouldBeUnique, ShouldQueue
                 ];
             }
         }
+
+        $logger->dailyRouteSheetsFinished([
+            'service_date' => $this->serviceDate,
+            'force' => $this->force,
+            'generated_count' => count($summary['generated']),
+            'skipped_count' => count($summary['skipped']),
+            'failed_count' => count($summary['failed']),
+        ]);
 
         return $summary;
     }

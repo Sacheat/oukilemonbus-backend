@@ -6,94 +6,138 @@ use App\Enums\DocumentType;
 use App\Models\Document;
 use App\Services\Documents\ContextBuilders\RouteSheetContextBuilder;
 use App\Services\Documents\Generators\RouteSheetGenerator;
+use App\Services\Logging\DomainLogger;
 use Carbon\CarbonImmutable;
 use InvalidArgumentException;
+use Throwable;
 
 class RouteSheetDocumentService
 {
     private const DIRECTORY_PREFIX = 'documents/route-sheets';
 
+    private DomainLogger $logger;
+
     public function __construct(
         private readonly RouteSheetContextBuilder $contextBuilder,
         private readonly RouteSheetGenerator $generator,
-        private readonly DocumentService $documentService
+        private readonly DocumentService $documentService,
+        ?DomainLogger $logger = null
     ) {
+        $this->logger = $logger ?? app(DomainLogger::class);
     }
 
     public function generateForPeriod(string $startDate, string $endDate): Document
     {
         [$startDate, $endDate] = $this->normalizePeriod($startDate, $endDate);
 
-        $context = $this->contextBuilder->buildForPeriod($startDate, $endDate);
+        $logContext = [
+            'mode' => 'period',
+            'start_date' => $startDate,
+            'end_date' => $endDate,
+        ];
 
-        $pdfContent = $this->generator->generatePdf($context);
+        $this->logger->routeSheetGenerationStarted($logContext);
 
-        $baseFileName = $this->generator->defaultPdfFileName($context);
+        try {
+            $context = $this->contextBuilder->buildForPeriod($startDate, $endDate);
 
-        $version = $this->nextVersionForPeriod($startDate, $endDate);
+            $pdfContent = $this->generator->generatePdf($context);
 
-        $fileName = $this->versionedFileName($baseFileName, $version);
+            $baseFileName = $this->generator->defaultPdfFileName($context);
 
-        $document = $this->documentService->registerGeneratedDocument(
-            documentType: DocumentType::FEUILLE_ROUTE,
-            directory: $this->directoryForPeriod($startDate, $endDate),
-            fileName: $fileName,
-            content: $pdfContent,
-            data: [
-                'reservation_id' => null,
-                'user_id' => null,
-                'generation_mode' => 'auto',
-                'generation_context' => $context,
-                'template_key' => data_get($context, 'document.template_key'),
-                'template_version' => data_get($context, 'document.template_version'),
-                'generated_at' => now(),
-                'is_official' => false,
-                'version' => $version,
-                'is_available' => true,
-            ]
-        );
+            $version = $this->nextVersionForPeriod($startDate, $endDate);
 
-        $this->attachRouteSheetReservations($document, $context);
+            $fileName = $this->versionedFileName($baseFileName, $version);
 
-        return $document;
+            $document = $this->documentService->registerGeneratedDocument(
+                documentType: DocumentType::FEUILLE_ROUTE,
+                directory: $this->directoryForPeriod($startDate, $endDate),
+                fileName: $fileName,
+                content: $pdfContent,
+                data: [
+                    'reservation_id' => null,
+                    'user_id' => null,
+                    'generation_mode' => 'auto',
+                    'generation_context' => $context,
+                    'template_key' => data_get($context, 'document.template_key'),
+                    'template_version' => data_get($context, 'document.template_version'),
+                    'generated_at' => now(),
+                    'is_official' => false,
+                    'version' => $version,
+                    'is_available' => true,
+                ]
+            );
+
+            $this->attachRouteSheetReservations($document, $context);
+
+            $this->logger->routeSheetGenerationSucceeded($document, [
+                ...$logContext,
+                'reservation_count' => count(data_get($context, 'rows', [])),
+            ]);
+
+            return $document;
+        } catch (Throwable $exception) {
+            $this->logger->routeSheetGenerationFailed($logContext, $exception);
+
+            throw $exception;
+        }
     }
 
     public function generateForServiceDateVehicle(string $serviceDate, int $vehicleId): Document
     {
         $serviceDate = $this->normalizeDate($serviceDate);
 
-        $context = $this->contextBuilder->buildForServiceDateVehicle($serviceDate, $vehicleId);
+        $logContext = [
+            'mode' => 'daily_vehicle',
+            'service_date' => $serviceDate,
+            'vehicle_id' => $vehicleId,
+        ];
 
-        $pdfContent = $this->generator->generatePdf($context);
+        $this->logger->routeSheetGenerationStarted($logContext);
 
-        $baseFileName = $this->generator->defaultPdfFileName($context);
+        try {
+            $context = $this->contextBuilder->buildForServiceDateVehicle($serviceDate, $vehicleId);
 
-        $version = $this->nextVersionForServiceDateVehicle($serviceDate, $vehicleId);
+            $pdfContent = $this->generator->generatePdf($context);
 
-        $fileName = $this->versionedFileName($baseFileName, $version);
+            $baseFileName = $this->generator->defaultPdfFileName($context);
 
-        $document = $this->documentService->registerGeneratedDocument(
-            documentType: DocumentType::FEUILLE_ROUTE,
-            directory: $this->directoryForServiceDateVehicle($serviceDate, $vehicleId),
-            fileName: $fileName,
-            content: $pdfContent,
-            data: [
-                'reservation_id' => null,
-                'user_id' => null,
-                'generation_mode' => 'auto',
-                'generation_context' => $context,
-                'template_key' => data_get($context, 'document.template_key'),
-                'template_version' => data_get($context, 'document.template_version'),
-                'generated_at' => now(),
-                'is_official' => false,
-                'version' => $version,
-                'is_available' => true,
-            ]
-        );
+            $version = $this->nextVersionForServiceDateVehicle($serviceDate, $vehicleId);
 
-        $this->attachRouteSheetReservations($document, $context);
+            $fileName = $this->versionedFileName($baseFileName, $version);
 
-        return $document;
+            $document = $this->documentService->registerGeneratedDocument(
+                documentType: DocumentType::FEUILLE_ROUTE,
+                directory: $this->directoryForServiceDateVehicle($serviceDate, $vehicleId),
+                fileName: $fileName,
+                content: $pdfContent,
+                data: [
+                    'reservation_id' => null,
+                    'user_id' => null,
+                    'generation_mode' => 'auto',
+                    'generation_context' => $context,
+                    'template_key' => data_get($context, 'document.template_key'),
+                    'template_version' => data_get($context, 'document.template_version'),
+                    'generated_at' => now(),
+                    'is_official' => false,
+                    'version' => $version,
+                    'is_available' => true,
+                ]
+            );
+
+            $this->attachRouteSheetReservations($document, $context);
+
+            $this->logger->routeSheetGenerationSucceeded($document, [
+                ...$logContext,
+                'reservation_count' => count(data_get($context, 'rows', [])),
+            ]);
+
+            return $document;
+        } catch (Throwable $exception) {
+            $this->logger->routeSheetGenerationFailed($logContext, $exception);
+
+            throw $exception;
+        }
     }
 
     private function directoryForPeriod(string $startDate, string $endDate): string
@@ -162,7 +206,7 @@ class RouteSheetDocumentService
         try {
             $start = CarbonImmutable::parse($startDate)->startOfDay();
             $end = CarbonImmutable::parse($endDate)->startOfDay();
-        } catch (\Throwable) {
+        } catch (Throwable) {
             throw new InvalidArgumentException(
                 'Les dates doivent etre valides.'
             );
@@ -184,7 +228,7 @@ class RouteSheetDocumentService
     {
         try {
             return CarbonImmutable::parse($date)->startOfDay()->toDateString();
-        } catch (\Throwable) {
+        } catch (Throwable) {
             throw new InvalidArgumentException(
                 'La date de service doit etre valide.'
             );

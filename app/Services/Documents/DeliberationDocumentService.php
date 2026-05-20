@@ -8,17 +8,23 @@ use App\Models\CouncilDecision;
 use App\Models\Document;
 use App\Services\Documents\ContextBuilders\DeliberationContextBuilder;
 use App\Services\Documents\Generators\DeliberationGenerator;
+use App\Services\Logging\DomainLogger;
 use InvalidArgumentException;
+use Throwable;
 
 class DeliberationDocumentService
 {
     private const DIRECTORY_PREFIX = 'documents/council-decisions';
 
+    private DomainLogger $logger;
+
     public function __construct(
         private readonly DeliberationContextBuilder $contextBuilder,
         private readonly DeliberationGenerator $generator,
-        private readonly DocumentService $documentService
+        private readonly DocumentService $documentService,
+        ?DomainLogger $logger = null
     ) {
+        $this->logger = $logger ?? app(DomainLogger::class);
     }
 
     public function generateFor(CouncilDecision $councilDecision): Document
@@ -29,35 +35,53 @@ class DeliberationDocumentService
             );
         }
 
-        $context = $this->contextBuilder->build($councilDecision);
+        $logContext = [
+            'council_decision_id' => $councilDecision->id,
+            'reservation_id' => $councilDecision->reservation_id,
+            'decision_status' => $this->decisionStatusValue($councilDecision),
+        ];
 
-        $pdfContent = $this->generator->generatePdf($context);
+        $this->logger->deliberationGenerationStarted($logContext);
 
-        $version = $this->nextVersionFor($councilDecision);
+        try {
+            $context = $this->contextBuilder->build($councilDecision);
 
-        $fileName = $this->versionedFileName(
-            $this->generator->defaultPdfFileName($context),
-            $version
-        );
+            $pdfContent = $this->generator->generatePdf($context);
 
-        return $this->documentService->registerGeneratedDocument(
-            documentType: DocumentType::DELIBERATION,
-            directory: $this->directoryFor($councilDecision),
-            fileName: $fileName,
-            content: $pdfContent,
-            data: [
-                'reservation_id' => $councilDecision->reservation_id,
-                'user_id' => $councilDecision->recorded_by_user_id,
-                'generation_mode' => 'auto',
-                'generation_context' => $context,
-                'template_key' => data_get($context, 'document.template_key'),
-                'template_version' => data_get($context, 'document.template_version'),
-                'generated_at' => now(),
-                'is_official' => true,
-                'version' => $version,
-                'is_available' => true,
-            ]
-        );
+            $version = $this->nextVersionFor($councilDecision);
+
+            $fileName = $this->versionedFileName(
+                $this->generator->defaultPdfFileName($context),
+                $version
+            );
+
+            $document = $this->documentService->registerGeneratedDocument(
+                documentType: DocumentType::DELIBERATION,
+                directory: $this->directoryFor($councilDecision),
+                fileName: $fileName,
+                content: $pdfContent,
+                data: [
+                    'reservation_id' => $councilDecision->reservation_id,
+                    'user_id' => $councilDecision->recorded_by_user_id,
+                    'generation_mode' => 'auto',
+                    'generation_context' => $context,
+                    'template_key' => data_get($context, 'document.template_key'),
+                    'template_version' => data_get($context, 'document.template_version'),
+                    'generated_at' => now(),
+                    'is_official' => true,
+                    'version' => $version,
+                    'is_available' => true,
+                ]
+            );
+
+            $this->logger->deliberationGenerationSucceeded($document, $logContext);
+
+            return $document;
+        } catch (Throwable $exception) {
+            $this->logger->deliberationGenerationFailed($logContext, $exception);
+
+            throw $exception;
+        }
     }
 
     public function canGenerateFor(CouncilDecision $councilDecision): bool
