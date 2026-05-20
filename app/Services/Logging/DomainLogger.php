@@ -171,6 +171,25 @@ class DomainLogger
         ]));
     }
 
+    public function backupStarted(array $context): void
+    {
+        $this->jobs()->info('Backup started.', $context);
+    }
+
+    public function backupSucceeded(array $context): void
+    {
+        $this->jobs()->info('Backup succeeded.', $context);
+    }
+
+    public function backupFailed(array $context, Throwable $exception): void
+    {
+        $this->jobs()->error('Backup failed.', [
+            ...$context,
+            'exception_class' => $exception::class,
+            'exception_message' => $exception->getMessage(),
+        ]);
+    }
+
     private function reservationContext(Reservation $reservation): array
     {
         return [
