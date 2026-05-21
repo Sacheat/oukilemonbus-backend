@@ -10,6 +10,7 @@ use App\Models\Reservation;
 use App\Models\ReservationConflict;
 use App\Models\ReservationStatusHistory;
 use App\Models\User;
+use App\Services\Logging\DomainLogger;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -17,10 +18,15 @@ use Illuminate\Validation\ValidationException;
 
 class ReservationService
 {
+    private DomainLogger $logger;
+
     public function __construct(
         private readonly ReservationPreviewService $previewService,
-        private readonly ReservationAssignmentService $assignmentService
-    ) {}
+        private readonly ReservationAssignmentService $assignmentService,
+        ?DomainLogger $logger = null
+    ) {
+        $this->logger = $logger ?? app(DomainLogger::class);
+    }
 
     public function create(array $data, User $actor): Reservation
     {
@@ -44,12 +50,12 @@ class ReservationService
                     'destination_location_id',
                     'trip_date',
                     'departure_time',
-                'return_time',
-                'nb_children',
-                'nb_adults',
-                'trip_purpose',
-                'activity_type',
-            ]),
+                    'return_time',
+                    'nb_children',
+                    'nb_adults',
+                    'trip_purpose',
+                    'activity_type',
+                ]),
                 'requested_by_user_id' => $requestedByUserId,
                 'distance_km' => $preview['distance_km'],
                 'estimated_duration_min' => $preview['estimated_duration_min'],
@@ -61,6 +67,7 @@ class ReservationService
 
             $this->recordStatus($reservation, null, $status, $actor, 'Creation de la demande');
             $this->syncConflicts($reservation, $preview['conflicts']);
+            $this->logger->reservationCreated($reservation, $actor, $preview);
 
             if ($status === ReservationStatus::APPROUVE) {
                 $reservation = $this->assignmentService->autoAssign($reservation, $actor);
@@ -114,6 +121,7 @@ class ReservationService
 
             $reservation->conflicts()->delete();
             $this->syncConflicts($reservation, $preview['conflicts']);
+            $this->logger->reservationUpdated($reservation, $actor, $preview);
 
             return $reservation->refresh()->load(['organization', 'pickupLocation', 'destinationLocation', 'driver', 'vehicle', 'conflicts']);
         });
@@ -229,6 +237,14 @@ class ReservationService
             'changed_by_user_id' => $actor->id,
             'reason' => $reason,
         ]);
+
+        $this->logger->reservationStatusChanged(
+            $reservation,
+            $actor,
+            $oldStatus instanceof ReservationStatus ? $oldStatus->value : (string) ($oldStatus ?? $newStatus->value),
+            $newStatus->value,
+            $reason
+        );
     }
 
     private function syncConflicts(Reservation $reservation, array $conflicts): void

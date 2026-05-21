@@ -12,16 +12,22 @@ use App\Models\Location;
 use App\Models\Organization;
 use App\Models\Reservation;
 use App\Services\Locations\LocationService;
+use App\Services\Logging\DomainLogger;
 use Carbon\CarbonImmutable;
 use Illuminate\Validation\ValidationException;
 
 class ReservationPreviewService
 {
+    private DomainLogger $logger;
+
     public function __construct(
         private readonly LocationService $locationService,
         private readonly ReservationQuotaService $quotaService,
-        private readonly ReservationOccupationService $occupationService
-    ) {}
+        private readonly ReservationOccupationService $occupationService,
+        ?DomainLogger $logger = null
+    ) {
+        $this->logger = $logger ?? app(DomainLogger::class);
+    }
 
     public function preview(array $data): array
     {
@@ -56,15 +62,22 @@ class ReservationPreviewService
             ? ReservationStatus::EN_CONFLIT
             : ($organization->type === OrganizationType::ECOLE_COMMUNALE ? ReservationStatus::APPROUVE : ReservationStatus::EN_ATTENTE);
 
+        $estimatedOccupation = $this->formatOccupationWindow(
+            $this->occupationService->windowForData($data, $estimatedDuration)
+        );
+        $availability = $this->availabilityForData($data, $estimatedDuration);
+
+        if ($conflicts !== []) {
+            $this->logger->reservationConflictsDetected($data, $conflicts, $availability);
+        }
+
         return [
             'is_allowed' => true,
             'distance_km' => $distance['distance_km'],
             'estimated_duration_min' => $estimatedDuration,
             'duration_margin_min' => config('reservations.duration_margin_min', 15),
-            'estimated_occupation' => $this->formatOccupationWindow(
-                $this->occupationService->windowForData($data, $estimatedDuration)
-            ),
-            'availability' => $this->availabilityForData($data, $estimatedDuration),
+            'estimated_occupation' => $estimatedOccupation,
+            'availability' => $availability,
             'status' => $status->value,
             'approval_type' => $organization->type === OrganizationType::ECOLE_COMMUNALE
                 ? ApprovalType::AUTO->value
@@ -250,18 +263,39 @@ class ReservationPreviewService
 
     private function calculateDistance(Location $pickup, Location $destination): array
     {
+        $context = [
+            'pickup_location_id' => $pickup->id,
+            'destination_location_id' => $destination->id,
+            'provider' => 'openrouteservice',
+        ];
+
         if (blank($pickup->latitude) || blank($pickup->longitude) || blank($destination->latitude) || blank($destination->longitude)) {
+            $this->logger->routeDistanceUnavailable([
+                ...$context,
+                'reason' => 'missing_coordinates',
+            ]);
+
             return ['distance_km' => null, 'estimated_duration_min' => null];
         }
 
         try {
-            return $this->locationService->calculateDistance(
+            $distance = $this->locationService->calculateDistance(
                 (float) $pickup->latitude,
                 (float) $pickup->longitude,
                 (float) $destination->latitude,
                 (float) $destination->longitude,
             );
-        } catch (GeocodingException) {
+
+            $this->logger->routeDistanceCalculated([
+                ...$context,
+                'distance_km' => $distance['distance_km'] ?? null,
+                'estimated_duration_min' => $distance['estimated_duration_min'] ?? null,
+            ]);
+
+            return $distance;
+        } catch (GeocodingException $exception) {
+            $this->logger->routeDistanceCalculationFailed($context, $exception);
+
             return ['distance_km' => null, 'estimated_duration_min' => null];
         }
     }

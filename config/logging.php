@@ -73,6 +73,38 @@ return [
             'replace_placeholders' => true,
         ],
 
+        'reservations' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/reservations.log'),
+            'level' => env('LOG_RESERVATIONS_LEVEL', env('LOG_LEVEL', 'info')),
+            'days' => env('LOG_DAILY_DAYS', 14),
+            'replace_placeholders' => true,
+        ],
+
+        'routing' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/routing.log'),
+            'level' => env('LOG_ROUTING_LEVEL', env('LOG_LEVEL', 'info')),
+            'days' => env('LOG_DAILY_DAYS', 14),
+            'replace_placeholders' => true,
+        ],
+
+        'documents' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/documents.log'),
+            'level' => env('LOG_DOCUMENTS_LEVEL', env('LOG_LEVEL', 'info')),
+            'days' => env('LOG_DAILY_DAYS', 14),
+            'replace_placeholders' => true,
+        ],
+
+        'jobs' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/jobs.log'),
+            'level' => env('LOG_JOBS_LEVEL', env('LOG_LEVEL', 'info')),
+            'days' => env('LOG_DAILY_DAYS', 14),
+            'replace_placeholders' => true,
+        ],
+
         'slack' => [
             'driver' => 'slack',
             'url' => env('LOG_SLACK_WEBHOOK_URL'),
