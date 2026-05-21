@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Enums\ReservationStatus;
 use App\Services\Reservations\ReservationOccupationService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -25,6 +26,7 @@ class PlanningItemResource extends JsonResource
             'approval_type' => $this->approval_type?->value ?? $this->approval_type,
             'total_passengers' => ($this->nb_children ?? 0) + ($this->nb_adults ?? 0),
             'is_fully_assigned' => filled($this->driver_id) && filled($this->vehicle_id),
+            'display' => $this->displayData($occupation),
             'organization' => new OrganizationResource($this->whenLoaded('organization')),
             'pickup_location' => new LocationResource($this->whenLoaded('pickupLocation')),
             'destination_location' => new LocationResource($this->whenLoaded('destinationLocation')),
@@ -34,5 +36,65 @@ class PlanningItemResource extends JsonResource
             'availability' => $this->when($availability !== null, $availability),
         ];
     }
-}
 
+    private function displayData(array $occupation): array
+    {
+        return [
+            'title' => $this->displayTitle(),
+            'time_label' => $occupation['start']->format('H:i').' - '.$occupation['end']->format('H:i'),
+            'status_label' => $this->statusLabel(),
+            'assignment_label' => $this->assignmentLabel(),
+            'color' => $this->statusColor(),
+        ];
+    }
+
+    private function displayTitle(): string
+    {
+        $parts = array_filter([
+            $this->organization?->name,
+            $this->trip_purpose,
+        ]);
+
+        if ($parts !== []) {
+            return implode(' - ', $parts);
+        }
+
+        return "Reservation #{$this->id}";
+    }
+
+    private function assignmentLabel(): string
+    {
+        if (filled($this->driver_id) && filled($this->vehicle_id)) {
+            return 'Affecte';
+        }
+
+        if (filled($this->driver_id) || filled($this->vehicle_id)) {
+            return 'Partiellement affecte';
+        }
+
+        return 'Non affecte';
+    }
+
+    private function statusLabel(): string
+    {
+        return $this->reservationStatus()?->label() ?? (string) ($this->status?->value ?? $this->status);
+    }
+
+    private function statusColor(): string
+    {
+        return $this->reservationStatus()?->color() ?? 'secondary';
+    }
+
+    private function reservationStatus(): ?ReservationStatus
+    {
+        if ($this->status instanceof ReservationStatus) {
+            return $this->status;
+        }
+
+        if (is_string($this->status)) {
+            return ReservationStatus::tryFrom($this->status);
+        }
+
+        return null;
+    }
+}

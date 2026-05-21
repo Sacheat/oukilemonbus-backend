@@ -82,6 +82,11 @@ class PlanningApiTest extends TestCase
             ->assertJsonPath('data.0.occupation_start', '2026-06-16 09:00:00')
             ->assertJsonPath('data.0.occupation_end', '2026-06-16 11:45:00')
             ->assertJsonPath('data.0.is_fully_assigned', true)
+            ->assertJsonPath('data.0.display.title', 'Ecole communale de Dinant - Sortie scolaire')
+            ->assertJsonPath('data.0.display.time_label', '09:00 - 11:45')
+            ->assertJsonPath('data.0.display.status_label', 'Confirme')
+            ->assertJsonPath('data.0.display.assignment_label', 'Affecte')
+            ->assertJsonPath('data.0.display.color', 'success')
             ->assertJsonStructure([
                 'data' => [[
                     'availability' => [
@@ -427,4 +432,5 @@ class PlanningApiTest extends TestCase
         ]);
     }
 }
+
 
