@@ -102,6 +102,15 @@ class PlanningApiTest extends TestCase
             ->assertJsonValidationErrors(['start_date', 'end_date']);
     }
 
+    public function test_planning_period_cannot_exceed_31_days(): void
+    {
+        $agent = $this->userWithRole('agent_communal');
+        Sanctum::actingAs($agent);
+
+        $this->getJson('/api/planning?start_date=2026-06-01&end_date=2026-07-02')
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['end_date']);
+    }
     public function test_chauffeur_only_sees_his_assigned_reservations(): void
     {
         $organization = $this->organization();
@@ -418,3 +427,4 @@ class PlanningApiTest extends TestCase
         ]);
     }
 }
+

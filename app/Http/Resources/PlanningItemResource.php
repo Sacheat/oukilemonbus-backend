@@ -23,7 +23,7 @@ class PlanningItemResource extends JsonResource
             'occupation_duration_min' => $occupation['duration_min'],
             'status' => $this->status?->value ?? $this->status,
             'approval_type' => $this->approval_type?->value ?? $this->approval_type,
-            'total_passengers' => $this->nb_children + $this->nb_adults,
+            'total_passengers' => ($this->nb_children ?? 0) + ($this->nb_adults ?? 0),
             'is_fully_assigned' => filled($this->driver_id) && filled($this->vehicle_id),
             'organization' => new OrganizationResource($this->whenLoaded('organization')),
             'pickup_location' => new LocationResource($this->whenLoaded('pickupLocation')),
@@ -35,3 +35,4 @@ class PlanningItemResource extends JsonResource
         ];
     }
 }
+
