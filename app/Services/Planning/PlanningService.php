@@ -15,6 +15,7 @@ class PlanningService
 
     public function forPeriod(User $user, string $startDate, string $endDate, bool $includeAvailability = false, array $statuses = []): Collection
     {
+        // Si aucun statut n'est spécifié, on considère que l'on veut tous les statuts sauf "refusé" et "annulé"
         $statuses = $statuses !== [] ? $statuses : [
             ReservationStatus::APPROUVE->value,
             ReservationStatus::CONFIRME->value,
@@ -34,6 +35,7 @@ class PlanningService
             ->whereDate('trip_date', '>=', $startDate)
             ->whereDate('trip_date', '<=', $endDate)
             ->whereIn('status', $statuses)
+            // Si l'utilisateur n'est pas admin ou agent communal, on ne lui retourne que les réservations qu'il a demandées, celles de son organisation ou celles où il est le chauffeur
             ->when(! $user->hasAnyRole(['admin', 'agent_communal']), function ($query) use ($user): void {
                 $query->where(function ($query) use ($user): void {
                     $query->where('requested_by_user_id', $user->getKey())
@@ -47,7 +49,7 @@ class PlanningService
             ->orderBy('trip_date')
             ->orderBy('departure_time')
             ->get();
-
+        // Si includeAvailability est vrai et que l'utilisateur est admin ou agent communal, on ajoute la disponibilité pour chaque réservation
         if ($includeAvailability && $user->hasAnyRole(['admin', 'agent_communal'])) {
             $reservations->each(function (Reservation $reservation): void {
                 $reservation->setAttribute('planning_availability', $this->availabilityService->forReservation($reservation));
