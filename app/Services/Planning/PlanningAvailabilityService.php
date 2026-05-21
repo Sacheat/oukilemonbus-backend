@@ -7,11 +7,12 @@ use App\Models\Driver;
 use App\Models\Reservation;
 use App\Models\Unavailability;
 use App\Models\Vehicle;
+use App\Services\Reservations\ReservationOccupationService;
 
 class PlanningAvailabilityService
 {
     public function __construct(
-        private readonly ReservationTimeWindowService $timeWindowService
+        private readonly ReservationOccupationService $occupationService
     ) {}
 
     public function forReservation(Reservation $reservation): array
@@ -85,7 +86,9 @@ class PlanningAvailabilityService
             return 'Chauffeur inactif.';
         }
 
-        [$start, $end] = $this->timeWindowService->window($reservation);
+        $window = $this->occupationService->windowForReservation($reservation);
+        $start = $window['start'];
+        $end = $window['end'];
 
         if (Unavailability::query()
             ->where('is_active', true)
@@ -102,7 +105,10 @@ class PlanningAvailabilityService
             ->whereIn('status', [ReservationStatus::APPROUVE->value, ReservationStatus::CONFIRME->value])
             ->whereDate('trip_date', $reservation->trip_date)
             ->get()
-            ->first(fn (Reservation $other): bool => $this->timeWindowService->overlaps($reservation, $other));
+            ->first(fn (Reservation $other): bool => $this->occupationService->overlaps(
+                $window,
+                $this->occupationService->windowForReservation($other)
+            ));
 
         if ($overlap) {
             return "Deja affecte a la reservation #{$overlap->id} sur ce creneau.";
@@ -123,7 +129,9 @@ class PlanningAvailabilityService
             return "Capacite insuffisante : {$vehicle->capacity} places pour {$requiredCapacity} necessaires.";
         }
 
-        [$start, $end] = $this->timeWindowService->window($reservation);
+        $window = $this->occupationService->windowForReservation($reservation);
+        $start = $window['start'];
+        $end = $window['end'];
 
         if (Unavailability::query()
             ->where('is_active', true)
@@ -140,7 +148,10 @@ class PlanningAvailabilityService
             ->whereIn('status', [ReservationStatus::APPROUVE->value, ReservationStatus::CONFIRME->value])
             ->whereDate('trip_date', $reservation->trip_date)
             ->get()
-            ->first(fn (Reservation $other): bool => $this->timeWindowService->overlaps($reservation, $other));
+            ->first(fn (Reservation $other): bool => $this->occupationService->overlaps(
+                $window,
+                $this->occupationService->windowForReservation($other)
+            ));
 
         if ($overlap) {
             return "Deja affecte a la reservation #{$overlap->id} sur ce creneau.";

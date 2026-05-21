@@ -3,6 +3,9 @@
 return [
     'max_distance_km' => 50,
     'duration_margin_min' => 15,
+    'pickup_buffer_min' => 0,
+    'dropoff_buffer_min' => 10,
+    'safety_buffer_min' => 5,
     'non_school_min_departure_time' => '07:30',
     'non_school_max_return_time' => '16:00',
     'non_school_max_total_duration_min' => 300,

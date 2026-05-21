@@ -2,6 +2,7 @@
 
 namespace App\Services\Documents;
 
+use App\Enums\CouncilDecisionStatus;
 use App\Enums\DocumentType;
 use App\Models\CouncilDecision;
 use App\Models\Document;
@@ -9,17 +10,6 @@ use App\Services\Documents\ContextBuilders\DeliberationContextBuilder;
 use App\Services\Documents\Generators\DeliberationGenerator;
 use InvalidArgumentException;
 
-/**
- * Service responsable de créer le document officiel de délibération
- * lié à une décision du Collège communal.
- *
- * Cette classe orchestre plusieurs responsabilités déjà séparées :
- * - DeliberationContextBuilder prépare les données métier ;
- * - DeliberationGenerator génère le PDF ;
- * - DocumentService stocke le fichier et crée l'enregistrement Document.
- *
- * Elle ne modifie pas directement CouncilDecisionService.
- */
 class DeliberationDocumentService
 {
     private const DIRECTORY_PREFIX = 'documents/council-decisions';
@@ -35,7 +25,7 @@ class DeliberationDocumentService
     {
         if (! $this->canGenerateFor($councilDecision)) {
             throw new InvalidArgumentException(
-                'La délibération ne peut être générée que pour une décision approuvée.'
+                'La deliberation ne peut etre generee que pour une decision approuvee ou refusee.'
             );
         }
 
@@ -72,9 +62,12 @@ class DeliberationDocumentService
 
     public function canGenerateFor(CouncilDecision $councilDecision): bool
     {
-        return $this->decisionStatusValue($councilDecision) === 'approuve';
+        return in_array($this->decisionStatusValue($councilDecision), [
+            CouncilDecisionStatus::APPROUVE->value,
+            CouncilDecisionStatus::REFUSE->value,
+        ], true);
     }
-    
+
     private function directoryFor(CouncilDecision $councilDecision): string
     {
         return self::DIRECTORY_PREFIX.'/'.$councilDecision->getKey();

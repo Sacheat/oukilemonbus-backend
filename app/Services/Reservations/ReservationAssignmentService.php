@@ -12,14 +12,13 @@ use App\Models\ReservationConflict;
 use App\Models\Unavailability;
 use App\Models\User;
 use App\Models\Vehicle;
-use App\Services\Planning\ReservationTimeWindowService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class ReservationAssignmentService
 {
     public function __construct(
-        private readonly ReservationTimeWindowService $timeWindowService
+        private readonly ReservationOccupationService $occupationService
     ) {}
 
     public function autoAssign(Reservation $reservation, User $actor): Reservation
@@ -150,7 +149,7 @@ class ReservationAssignmentService
 
     private function isDriverAvailable(Reservation $reservation, Driver $driver): bool
     {
-        [$start, $end] = $this->timeWindowService->window($reservation);
+        [$start, $end] = $this->window($reservation);
 
         $hasUnavailability = Unavailability::query()
             ->where('is_active', true)
@@ -169,12 +168,12 @@ class ReservationAssignmentService
             ->whereIn('status', [ReservationStatus::APPROUVE->value, ReservationStatus::CONFIRME->value])
             ->whereDate('trip_date', $reservation->trip_date)
             ->get()
-            ->contains(fn (Reservation $other): bool => $this->timeWindowService->overlaps($reservation, $other));
+            ->contains(fn (Reservation $other): bool => $this->overlaps($reservation, $other));
     }
 
     private function isVehicleAvailable(Reservation $reservation, Vehicle $vehicle): bool
     {
-        [$start, $end] = $this->timeWindowService->window($reservation);
+        [$start, $end] = $this->window($reservation);
 
         $hasUnavailability = Unavailability::query()
             ->where('is_active', true)
@@ -193,7 +192,22 @@ class ReservationAssignmentService
             ->whereIn('status', [ReservationStatus::APPROUVE->value, ReservationStatus::CONFIRME->value])
             ->whereDate('trip_date', $reservation->trip_date)
             ->get()
-            ->contains(fn (Reservation $other): bool => $this->timeWindowService->overlaps($reservation, $other));
+            ->contains(fn (Reservation $other): bool => $this->overlaps($reservation, $other));
+    }
+
+    private function overlaps(Reservation $first, Reservation $second): bool
+    {
+        return $this->occupationService->overlaps(
+            $this->occupationService->windowForReservation($first),
+            $this->occupationService->windowForReservation($second)
+        );
+    }
+
+    private function window(Reservation $reservation): array
+    {
+        $window = $this->occupationService->windowForReservation($reservation);
+
+        return [$window['start'], $window['end']];
     }
 
     private function createConflict(Reservation $reservation, ReservationConflictType $type, string $message): void

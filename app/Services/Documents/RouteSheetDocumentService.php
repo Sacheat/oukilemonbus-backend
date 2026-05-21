@@ -58,9 +58,52 @@ class RouteSheetDocumentService
         return $document;
     }
 
+    public function generateForServiceDateVehicle(string $serviceDate, int $vehicleId): Document
+    {
+        $serviceDate = $this->normalizeDate($serviceDate);
+
+        $context = $this->contextBuilder->buildForServiceDateVehicle($serviceDate, $vehicleId);
+
+        $pdfContent = $this->generator->generatePdf($context);
+
+        $baseFileName = $this->generator->defaultPdfFileName($context);
+
+        $version = $this->nextVersionForServiceDateVehicle($serviceDate, $vehicleId);
+
+        $fileName = $this->versionedFileName($baseFileName, $version);
+
+        $document = $this->documentService->registerGeneratedDocument(
+            documentType: DocumentType::FEUILLE_ROUTE,
+            directory: $this->directoryForServiceDateVehicle($serviceDate, $vehicleId),
+            fileName: $fileName,
+            content: $pdfContent,
+            data: [
+                'reservation_id' => null,
+                'user_id' => null,
+                'generation_mode' => 'auto',
+                'generation_context' => $context,
+                'template_key' => data_get($context, 'document.template_key'),
+                'template_version' => data_get($context, 'document.template_version'),
+                'generated_at' => now(),
+                'is_official' => false,
+                'version' => $version,
+                'is_available' => true,
+            ]
+        );
+
+        $this->attachRouteSheetReservations($document, $context);
+
+        return $document;
+    }
+
     private function directoryForPeriod(string $startDate, string $endDate): string
     {
         return self::DIRECTORY_PREFIX.'/'.$startDate.'-'.$endDate;
+    }
+
+    private function directoryForServiceDateVehicle(string $serviceDate, int $vehicleId): string
+    {
+        return self::DIRECTORY_PREFIX.'/'.$serviceDate.'/vehicle-'.$vehicleId;
     }
 
     private function attachRouteSheetReservations(Document $document, array $context): void
@@ -87,6 +130,16 @@ class RouteSheetDocumentService
         $maxVersion = Document::query()
             ->where('document_type', DocumentType::FEUILLE_ROUTE->value)
             ->where('file_path', 'like', $this->directoryForPeriod($startDate, $endDate).'/%')
+            ->max('version');
+
+        return ((int) $maxVersion) + 1;
+    }
+
+    private function nextVersionForServiceDateVehicle(string $serviceDate, int $vehicleId): int
+    {
+        $maxVersion = Document::query()
+            ->where('document_type', DocumentType::FEUILLE_ROUTE->value)
+            ->where('file_path', 'like', $this->directoryForServiceDateVehicle($serviceDate, $vehicleId).'/%')
             ->max('version');
 
         return ((int) $maxVersion) + 1;
@@ -125,5 +178,16 @@ class RouteSheetDocumentService
             $start->toDateString(),
             $end->toDateString(),
         ];
+    }
+
+    private function normalizeDate(string $date): string
+    {
+        try {
+            return CarbonImmutable::parse($date)->startOfDay()->toDateString();
+        } catch (\Throwable) {
+            throw new InvalidArgumentException(
+                'La date de service doit etre valide.'
+            );
+        }
     }
 }

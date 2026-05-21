@@ -13,6 +13,8 @@ use App\Models\Location;
 use App\Models\Organization;
 use App\Models\Reservation;
 use App\Models\User;
+use App\Models\Driver;
+use App\Models\Vehicle;
 use App\Enums\DocumentType;
 
 class RouteSheetContextBuilderTest extends TestCase
@@ -156,6 +158,114 @@ class RouteSheetContextBuilderTest extends TestCase
 
         $this->assertSame('20/02/2026', $row['validation']['date']);
         $this->assertSame('reservation_validation', $row['validation']['source']);
+    }
+
+    public function test_it_builds_a_daily_route_sheet_context_for_a_vehicle(): void
+    {
+        config([
+            'route_sheets.transporter.name' => 'Commune de Dinant - Service mobilite',
+            'route_sheets.transporter.identifier' => 'Commune de Dinant',
+            'route_sheets.transporter.license_number' => 'LIC-TEST',
+        ]);
+
+        $driverUser = User::factory()->create([
+            'first_name' => 'Bruno',
+            'last_name' => 'Chauffeur',
+            'phone' => '082100002',
+        ]);
+        $requester = User::factory()->create();
+
+        $driver = Driver::create([
+            'user_id' => $driverUser->id,
+            'licence_number' => 'DRV-001',
+            'licence_expiry_date' => '2030-01-01',
+            'is_active' => true,
+        ]);
+
+        $vehicle = Vehicle::create([
+            'licence_plate' => '1-VJX-649',
+            'capacity' => 41,
+            'is_active' => true,
+        ]);
+
+        $pickupLocation = Location::create([
+            'formatted_address' => 'Place Albert 1er, 5500 Dinant',
+            'street' => 'Place Albert 1er',
+            'street_number' => '1',
+            'postal_code' => '5500',
+            'city' => 'Dinant',
+            'country' => 'BE',
+            'latitude' => 50.260000,
+            'longitude' => 4.910000,
+            'provider' => 'test',
+            'is_verified' => true,
+        ]);
+
+        $destinationLocation = Location::create([
+            'formatted_address' => 'Centre sportif, 5500 Dinant',
+            'street' => 'Rue du Sport',
+            'street_number' => '2',
+            'postal_code' => '5500',
+            'city' => 'Dinant',
+            'country' => 'BE',
+            'latitude' => 50.270000,
+            'longitude' => 4.920000,
+            'provider' => 'test',
+            'is_verified' => true,
+        ]);
+
+        $organization = Organization::create([
+            'name' => 'ASBL Les Amis du Parc',
+            'type' => OrganizationType::ASBL,
+            'official_email' => 'contact@example.test',
+            'phone_contact' => '081000000',
+            'name_contact' => 'Mme Contact',
+            'location_id' => $pickupLocation->id,
+            'is_priority' => false,
+            'annual_quota' => 5,
+            'reservations_used_this_year' => 0,
+            'quota_reset_year' => now()->startOfYear(),
+        ]);
+
+        $reservation = Reservation::create([
+            'requested_by_user_id' => $requester->id,
+            'organization_id' => $organization->id,
+            'pickup_location_id' => $pickupLocation->id,
+            'destination_location_id' => $destinationLocation->id,
+            'driver_id' => $driver->id,
+            'vehicle_id' => $vehicle->id,
+            'trip_date' => '2026-06-18',
+            'departure_time' => '08:30:00',
+            'return_time' => '11:00:00',
+            'nb_children' => 10,
+            'nb_adults' => 2,
+            'trip_purpose' => 'Sortie sportive',
+            'activity_type' => ReservationActivityType::STANDARD,
+            'distance_km' => 12.50,
+            'estimated_duration_min' => 25,
+            'status' => ReservationStatus::CONFIRME,
+            'approval_type' => ApprovalType::MANUEL,
+        ]);
+
+        $context = (new RouteSheetContextBuilder())->buildForServiceDateVehicle('2026-06-18', $vehicle->id);
+
+        $this->assertSame('route_sheets.daily', $context['document']['template_key']);
+        $this->assertSame('2026-06-18', $context['service']['date']);
+        $this->assertSame('1-VJX-649', $context['service']['vehicle']['licence_plate']);
+        $this->assertSame('Commune de Dinant - Service mobilite', $context['service']['transporter']['name']);
+        $this->assertSame('LIC-TEST', $context['service']['transporter']['license_number']);
+        $this->assertSame(12, $context['service']['total_passengers']);
+        $this->assertSame(12.5, $context['service']['total_distance_km']);
+        $this->assertSame('2029-06-18', $context['service']['retention_until']);
+        $this->assertSame('Bruno Chauffeur', $context['service']['drivers'][0]['name']);
+        $this->assertSame('DRV-001', $context['service']['drivers'][0]['licence_number']);
+
+        $this->assertCount(1, $context['rows']);
+        $this->assertSame($reservation->id, $context['rows'][0]['reservation_id']);
+        $this->assertSame('ASBL Les Amis du Parc', $context['rows'][0]['order_giver']['name']);
+        $this->assertSame('08h30', $context['rows'][0]['departure']['time']);
+        $this->assertSame('Centre sportif, 5500 Dinant', $context['rows'][0]['destination']['place']);
+        $this->assertSame('Place Albert 1er, 5500 Dinant - Centre sportif, 5500 Dinant - Place Albert 1er, 5500 Dinant', $context['rows'][0]['main_route']);
     }
 
     public function test_it_orders_confirmed_reservations_by_trip_date_then_departure_time(): void

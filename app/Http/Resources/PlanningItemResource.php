@@ -2,7 +2,7 @@
 
 namespace App\Http\Resources;
 
-use App\Services\Planning\ReservationTimeWindowService;
+use App\Services\Reservations\ReservationOccupationService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -10,7 +10,7 @@ class PlanningItemResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
-        [$occupationStart, $occupationEnd] = app(ReservationTimeWindowService::class)->window($this->resource);
+        $occupation = app(ReservationOccupationService::class)->windowForReservation($this->resource);
         $availability = $this->resource->getAttribute('planning_availability');
 
         return [
@@ -18,8 +18,9 @@ class PlanningItemResource extends JsonResource
             'trip_date' => $this->trip_date?->toDateString(),
             'departure_time' => $this->departure_time?->format('H:i:s'),
             'return_time' => $this->return_time?->format('H:i:s'),
-            'occupation_start' => $occupationStart->format('Y-m-d H:i:s'),
-            'occupation_end' => $occupationEnd->format('Y-m-d H:i:s'),
+            'occupation_start' => $occupation['start']->format('Y-m-d H:i:s'),
+            'occupation_end' => $occupation['end']->format('Y-m-d H:i:s'),
+            'occupation_duration_min' => $occupation['duration_min'],
             'status' => $this->status?->value ?? $this->status,
             'approval_type' => $this->approval_type?->value ?? $this->approval_type,
             'total_passengers' => $this->nb_children + $this->nb_adults,

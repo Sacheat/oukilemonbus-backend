@@ -1,0 +1,105 @@
+<?php
+
+namespace App\Jobs;
+
+use App\Enums\DocumentType;
+use App\Enums\ReservationStatus;
+use App\Models\Document;
+use App\Models\Reservation;
+use App\Services\Documents\RouteSheetDocumentService;
+use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldBeUnique;
+use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Foundation\Bus\Dispatchable;
+use Illuminate\Queue\InteractsWithQueue;
+use Illuminate\Queue\SerializesModels;
+use Throwable;
+
+class GenerateDailyRouteSheetsJob implements ShouldBeUnique, ShouldQueue
+{
+    use Dispatchable;
+    use InteractsWithQueue;
+    use Queueable;
+    use SerializesModels;
+
+    public int $tries = 1;
+
+    public int $uniqueFor = 3600;
+
+    public function __construct(
+        public readonly string $serviceDate,
+        public readonly bool $force = false
+    ) {}
+
+    public function uniqueId(): string
+    {
+        return $this->serviceDate;
+    }
+
+    public function handle(RouteSheetDocumentService $routeSheetDocumentService): array
+    {
+        $vehicleIds = Reservation::query()
+            ->whereDate('trip_date', $this->serviceDate)
+            ->where('status', ReservationStatus::CONFIRME->value)
+            ->whereNotNull('vehicle_id')
+            ->distinct()
+            ->orderBy('vehicle_id')
+            ->pluck('vehicle_id')
+            ->map(fn (mixed $vehicleId): int => (int) $vehicleId)
+            ->all();
+
+        $summary = [
+            'service_date' => $this->serviceDate,
+            'generated' => [],
+            'skipped' => [],
+            'failed' => [],
+        ];
+
+        foreach ($vehicleIds as $vehicleId) {
+            if (! $this->force && $this->dailyRouteSheetExists($vehicleId)) {
+                $summary['skipped'][] = [
+                    'vehicle_id' => $vehicleId,
+                    'reason' => 'already_exists',
+                ];
+
+                continue;
+            }
+
+            try {
+                $document = $routeSheetDocumentService->generateForServiceDateVehicle(
+                    $this->serviceDate,
+                    $vehicleId
+                );
+
+                $summary['generated'][] = [
+                    'vehicle_id' => $vehicleId,
+                    'document_id' => $document->id,
+                    'file_path' => $document->file_path,
+                ];
+            } catch (Throwable $exception) {
+                report($exception);
+
+                $summary['failed'][] = [
+                    'vehicle_id' => $vehicleId,
+                    'message' => $exception->getMessage(),
+                ];
+            }
+        }
+
+        return $summary;
+    }
+
+    private function dailyRouteSheetExists(int $vehicleId): bool
+    {
+        return Document::query()
+            ->where('document_type', DocumentType::FEUILLE_ROUTE->value)
+            ->where('template_key', 'route_sheets.daily')
+            ->where('is_available', true)
+            ->where('file_path', 'like', sprintf(
+                'documents/route-sheets/%s/vehicle-%d/%%',
+                $this->serviceDate,
+                $vehicleId
+            ))
+            ->exists();
+    }
+}

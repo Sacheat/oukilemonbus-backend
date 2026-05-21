@@ -12,7 +12,6 @@ use App\Models\Location;
 use App\Models\Organization;
 use App\Models\Reservation;
 use App\Services\Locations\LocationService;
-use App\Services\Planning\ReservationTimeWindowService;
 use Carbon\CarbonImmutable;
 use Illuminate\Validation\ValidationException;
 
@@ -21,7 +20,7 @@ class ReservationPreviewService
     public function __construct(
         private readonly LocationService $locationService,
         private readonly ReservationQuotaService $quotaService,
-        private readonly ReservationTimeWindowService $timeWindowService
+        private readonly ReservationOccupationService $occupationService
     ) {}
 
     public function preview(array $data): array
@@ -62,6 +61,10 @@ class ReservationPreviewService
             'distance_km' => $distance['distance_km'],
             'estimated_duration_min' => $estimatedDuration,
             'duration_margin_min' => config('reservations.duration_margin_min', 15),
+            'estimated_occupation' => $this->formatOccupationWindow(
+                $this->occupationService->windowForData($data, $estimatedDuration)
+            ),
+            'availability' => $this->availabilityForData($data, $estimatedDuration),
             'status' => $status->value,
             'approval_type' => $organization->type === OrganizationType::ECOLE_COMMUNALE
                 ? ApprovalType::AUTO->value
@@ -70,15 +73,78 @@ class ReservationPreviewService
         ];
     }
 
+    public function availabilityForData(array $data, ?int $estimatedDurationMin): array
+    {
+        $requestedWindow = $this->occupationService->windowForData($data, $estimatedDurationMin);
+        $candidateData = $data;
+        $candidateWindow = $requestedWindow;
+        $blockingReservation = null;
+        $blockingWindow = null;
+        $overlapDuration = 0;
+        $iterations = 0;
+
+        while ($iterations < 50) {
+            $iterations++;
+            $overlap = $this->findOverlappingReservation($candidateWindow, $data);
+
+            if ($overlap === null) {
+                return [
+                    'is_available' => $candidateData === $data,
+                    'requested_departure_time' => $this->formatTimeString($data['departure_time']),
+                    'requested_return_time' => $this->formatTimeString($data['return_time']),
+                    'next_available_departure_time' => $this->formatTimeString($candidateData['departure_time']),
+                    'next_available_return_time' => $this->formatTimeString($candidateData['return_time']),
+                    'bus_available_at' => $candidateWindow['start']->toISOString(),
+                    'blocking_reservation_id' => $blockingReservation?->id,
+                    'overlap_duration_min' => $overlapDuration,
+                    'requested_occupation' => $this->formatOccupationWindow($requestedWindow),
+                    'next_available_occupation' => $this->formatOccupationWindow($candidateWindow),
+                    'message' => $blockingReservation
+                        ? sprintf(
+                            'Le bus n est pas disponible a %s. Prochain depart possible estime: %s.',
+                            $this->formatTimeString($data['departure_time']),
+                            $this->formatTimeString($candidateData['departure_time'])
+                        )
+                        : null,
+                ];
+            }
+
+            $blockingReservation = $overlap;
+            $blockingWindow = $this->occupationService->windowForReservation($blockingReservation);
+            $overlapDuration = $this->occupationService->overlapDurationMinutes($candidateWindow, $blockingWindow);
+            $nextDeparture = $this->occupationService->nextDepartureAfterWindow($blockingWindow);
+
+            if ($nextDeparture->toDateString() !== CarbonImmutable::parse($data['trip_date'])->toDateString()) {
+                break;
+            }
+
+            $candidateData = $this->occupationService->dataWithDepartureTime($data, $nextDeparture);
+            $candidateWindow = $this->occupationService->windowForData($candidateData, $estimatedDurationMin);
+        }
+
+        return [
+            'is_available' => false,
+            'requested_departure_time' => $this->formatTimeString($data['departure_time']),
+            'requested_return_time' => $this->formatTimeString($data['return_time']),
+            'next_available_departure_time' => null,
+            'next_available_return_time' => null,
+            'bus_available_at' => $blockingWindow ? $blockingWindow['end']->toISOString() : null,
+            'blocking_reservation_id' => $blockingReservation?->id,
+            'overlap_duration_min' => $overlapDuration,
+            'requested_occupation' => $this->formatOccupationWindow($requestedWindow),
+            'next_available_occupation' => null,
+            'message' => 'Aucun depart disponible n a pu etre estime pour cette journee.',
+        ];
+    }
+
     public function detectConflicts(array $data, ?int $estimatedDurationMin, ?Organization $organization = null): array
     {
         $conflicts = [];
         $organization ??= Organization::findOrFail($data['organization_id']);
-        $departure = $this->timeWindowService->departureFromData($data['trip_date'], $data['departure_time']);
-        $returnDeparture = $this->timeWindowService->returnDepartureFromData($data['trip_date'], $data['return_time']);
-        $margin = config('reservations.duration_margin_min', 15);
+        $departure = $this->dateTime($data['trip_date'], $data['departure_time']);
+        $returnDeparture = $this->dateTime($data['trip_date'], $data['return_time']);
         $duration = $estimatedDurationMin ?? 0;
-        $end = $this->timeWindowService->occupationEndFromData($data['trip_date'], $data['return_time'], $estimatedDurationMin);
+        $candidateWindow = $this->occupationService->windowForData($data, $estimatedDurationMin);
 
         if ($organization->type !== OrganizationType::ECOLE_COMMUNALE) {
             $minDepartureTime = config('reservations.non_school_min_departure_time', '07:30');
@@ -101,7 +167,7 @@ class ReservationPreviewService
                 ];
             }
 
-            if ($estimatedDurationMin !== null && $departure->diffInMinutes($end) > $maxTotalDuration) {
+            if ($estimatedDurationMin !== null && $candidateWindow['duration_min'] > $maxTotalDuration) {
                 $conflicts[] = [
                     'type' => ReservationConflictType::DURATION_OVER_ALLOWED_LIMIT->value,
                     'message' => 'La duree totale d utilisation depasse 5 heures. Une derogation du college est necessaire.',
@@ -110,7 +176,7 @@ class ReservationPreviewService
             }
         }
 
-        if ($estimatedDurationMin !== null && $departure->addMinutes($duration + $margin)->greaterThan($returnDeparture)) {
+        if ($estimatedDurationMin !== null && $departure->addMinutes($duration)->greaterThan($returnDeparture)) {
             $conflicts[] = [
                 'type' => ReservationConflictType::IMPOSSIBLE_TIME_WINDOW->value,
                 'message' => 'Le creneau demande ne permet pas de realiser le trajet aller avant le retour souhaite.',
@@ -118,20 +184,15 @@ class ReservationPreviewService
             ];
         }
 
-        $overlappingReservation = Reservation::query()
-            ->whereIn('status', [
-                ReservationStatus::EN_ATTENTE->value,
-                ReservationStatus::EN_CONFLIT->value,
-                ReservationStatus::APPROUVE->value,
-                ReservationStatus::CONFIRME->value,
-            ])
-            ->whereDate('trip_date', $data['trip_date'])
-            ->when(isset($data['ignore_reservation_id']), fn ($query) => $query->whereKeyNot($data['ignore_reservation_id']))
-            ->get()
-            ->first(fn (Reservation $reservation): bool => $this->overlapsReservation($reservation, $departure, $end, $margin));
+        $overlappingReservation = $this->findOverlappingReservation($candidateWindow, $data);
 
         if ($overlappingReservation) {
-            $priorityMessage = $this->overlapPriorityMessage($data, $organization, $overlappingReservation);
+            $priorityMessage = $this->overlapPriorityMessage(
+                $data,
+                $organization,
+                $overlappingReservation,
+                $candidateWindow
+            );
 
             $conflicts[] = [
                 'type' => ReservationConflictType::SCHEDULE_OVERLAP->value,
@@ -205,13 +266,50 @@ class ReservationPreviewService
         }
     }
 
-    private function overlapsReservation(Reservation $reservation, CarbonImmutable $start, CarbonImmutable $end, int $margin): bool
+    private function dateTime(string $date, string $time): CarbonImmutable
     {
-        return $this->timeWindowService->reservationOverlapsWindow($reservation, $start, $end);
+        return CarbonImmutable::parse($date.' '.$time);
     }
 
-    private function overlapPriorityMessage(array $data, Organization $organization, Reservation $overlappingReservation): string
+    private function findOverlappingReservation(array $candidateWindow, array $data): ?Reservation
     {
+        return Reservation::query()
+            ->whereIn('status', [
+                ReservationStatus::EN_ATTENTE->value,
+                ReservationStatus::EN_CONFLIT->value,
+                ReservationStatus::APPROUVE->value,
+                ReservationStatus::CONFIRME->value,
+            ])
+            ->whereDate('trip_date', $data['trip_date'])
+            ->when(isset($data['ignore_reservation_id']), fn ($query) => $query->whereKeyNot($data['ignore_reservation_id']))
+            ->orderBy('departure_time')
+            ->get()
+            ->first(fn (Reservation $reservation): bool => $this->occupationService->overlaps(
+                $candidateWindow,
+                $this->occupationService->windowForReservation($reservation)
+            ));
+    }
+
+    private function formatOccupationWindow(array $window): array
+    {
+        return [
+            'start_at' => $window['start']->toISOString(),
+            'end_at' => $window['end']->toISOString(),
+            'duration_min' => $window['duration_min'],
+            'return_trip_duration_min' => $window['return_trip_duration_min'],
+            'pickup_buffer_min' => $window['pickup_buffer_min'],
+            'dropoff_buffer_min' => $window['dropoff_buffer_min'],
+            'safety_buffer_min' => $window['safety_buffer_min'],
+            'post_return_buffer_min' => $window['post_return_buffer_min'],
+        ];
+    }
+
+    private function overlapPriorityMessage(
+        array $data,
+        Organization $organization,
+        Reservation $overlappingReservation,
+        array $candidateWindow
+    ): string {
         $candidatePriority = $this->priorityTuple(
             $organization->type,
             $this->candidateActivityType($data),
@@ -224,15 +322,36 @@ class ReservationPreviewService
             CarbonImmutable::instance($overlappingReservation->created_at)
         );
 
+        $relatedWindow = $this->occupationService->windowForReservation($overlappingReservation);
+        $details = sprintf(
+            ' Reservation #%d occupe le bus de %s a %s; cette demande occuperait le bus de %s a %s. Chevauchement estime: %d min.',
+            $overlappingReservation->id,
+            $this->formatWindowTime($relatedWindow['start']),
+            $this->formatWindowTime($relatedWindow['end']),
+            $this->formatWindowTime($candidateWindow['start']),
+            $this->formatWindowTime($candidateWindow['end']),
+            $this->occupationService->overlapDurationMinutes($candidateWindow, $relatedWindow)
+        );
+
         if ($candidatePriority > $existingPriority) {
-            return 'Le creneau chevauche une autre reservation active, mais cette demande est prioritaire selon le reglement.';
+            return 'Le creneau chevauche une autre reservation active, mais cette demande est prioritaire selon le reglement.'.$details;
         }
 
         if ($candidatePriority < $existingPriority) {
-            return 'Le creneau chevauche une reservation plus prioritaire selon le reglement.';
+            return 'Le creneau chevauche une reservation plus prioritaire selon le reglement.'.$details;
         }
 
-        return 'Le creneau chevauche une autre reservation active de meme priorite. La demande introduite en premier est prioritaire.';
+        return 'Le creneau chevauche une autre reservation active de meme priorite. La demande introduite en premier est prioritaire.'.$details;
+    }
+
+    private function formatWindowTime(CarbonImmutable $dateTime): string
+    {
+        return $dateTime->format('H\hi');
+    }
+
+    private function formatTimeString(string $time): string
+    {
+        return CarbonImmutable::parse($time)->format('H:i');
     }
 
     private function candidateActivityType(array $data): ReservationActivityType

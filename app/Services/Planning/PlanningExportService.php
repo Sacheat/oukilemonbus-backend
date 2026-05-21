@@ -3,13 +3,14 @@
 namespace App\Services\Planning;
 
 use App\Models\Reservation;
+use App\Services\Reservations\ReservationOccupationService;
 use Illuminate\Database\Eloquent\Collection;
 use Symfony\Component\HttpFoundation\Response;
 
 class PlanningExportService
 {
     public function __construct(
-        private readonly ReservationTimeWindowService $timeWindowService
+        private readonly ReservationOccupationService $occupationService
     ) {}
 
     public function download(Collection $reservations, string $startDate, string $endDate): Response
@@ -68,7 +69,9 @@ class PlanningExportService
 
     private function row(Reservation $reservation): string
     {
-        [$occupationStart, $occupationEnd] = $this->timeWindowService->window($reservation);
+        $occupation = $this->occupationService->windowForReservation($reservation);
+        $occupationStart = $occupation['start'];
+        $occupationEnd = $occupation['end'];
 
         $driverName = trim(
             ($reservation->driver?->user?->first_name ?? '').' '.
