@@ -21,15 +21,20 @@ class PlanningController extends Controller
     {
         $validated = $request->validated();
         $user = $request->user();
-        $includeAvailability = $request->boolean('include_availability')
+
+        // Les disponibilites detaillees sont reservees aux roles internes.
+        $includeAvailability = $request->wantsAvailabilityDetails()
             && $user->hasAnyRole(['admin', 'agent_communal']);
+
+        $filters = $request->planningFilters();
 
         $items = $this->planningService->forPeriod(
             $user,
             $validated['start_date'],
             $validated['end_date'],
             $includeAvailability,
-            $validated['statuses'] ?? []
+            $request->planningStatuses(),
+            $filters
         );
 
         return response()->json([
@@ -37,6 +42,7 @@ class PlanningController extends Controller
                 'start_date' => $validated['start_date'],
                 'end_date' => $validated['end_date'],
             ],
+            'filters' => $filters,
             'data' => PlanningItemResource::collection($items)->resolve($request),
         ]);
     }
@@ -50,7 +56,8 @@ class PlanningController extends Controller
             $validated['start_date'],
             $validated['end_date'],
             false,
-            $validated['statuses'] ?? []
+            $request->planningStatuses(),
+            $request->planningFilters()
         );
 
         return $this->planningExportService->download(

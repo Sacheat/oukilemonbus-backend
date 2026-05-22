@@ -13,9 +13,17 @@ class PlanningService
         private readonly PlanningAvailabilityService $availabilityService
     ) {}
 
-    public function forPeriod(User $user, string $startDate, string $endDate, bool $includeAvailability = false, array $statuses = []): Collection
-    {
-        // Si aucun statut n'est spécifié, on considère que l'on veut tous les statuts sauf "refusé" et "annulé"
+    public function forPeriod(
+        User $user,
+        string $startDate,
+        string $endDate,
+        bool $includeAvailability = false,
+        array $statuses = [],
+        array $filters = []
+    ): Collection {
+        // Par défaut, le planning affiche uniquement les réservations encore utiles
+        // pour l'organisation du service : approuvées, confirmées ou en conflit.
+        // Les réservations refusées ou annulées sont volontairement exclues.
         $statuses = $statuses !== [] ? $statuses : [
             ReservationStatus::APPROUVE->value,
             ReservationStatus::CONFIRME->value,
@@ -35,7 +43,17 @@ class PlanningService
             ->whereDate('trip_date', '>=', $startDate)
             ->whereDate('trip_date', '<=', $endDate)
             ->whereIn('status', $statuses)
-            // Si l'utilisateur n'est pas admin ou agent communal, on ne lui retourne que les réservations qu'il a demandées, celles de son organisation ou celles où il est le chauffeur
+
+            // Filtres optionnels de consultation du planning.
+            // Ils permettent de construire une vue ciblée par véhicule,
+            // par chauffeur ou par organisation.
+            ->when(isset($filters['vehicle_id']), fn ($query) => $query->where('vehicle_id', $filters['vehicle_id']))
+            ->when(isset($filters['driver_id']), fn ($query) => $query->where('driver_id', $filters['driver_id']))
+            ->when(isset($filters['organization_id']), fn ($query) => $query->where('organization_id', $filters['organization_id']))
+
+            // Restriction d'accès :
+            // les rôles internes voient tout le planning ;
+            // les autres utilisateurs ne voient que les réservations qui les concernent.
             ->when(! $user->hasAnyRole(['admin', 'agent_communal']), function ($query) use ($user): void {
                 $query->where(function ($query) use ($user): void {
                     $query->where('requested_by_user_id', $user->getKey())
@@ -49,7 +67,9 @@ class PlanningService
             ->orderBy('trip_date')
             ->orderBy('departure_time')
             ->get();
-        // Si includeAvailability est vrai et que l'utilisateur est admin ou agent communal, on ajoute la disponibilité pour chaque réservation
+
+        // Les disponibilités détaillées sont ajoutées uniquement lorsque le contrôleur
+        // les a autorisées. En pratique, elles sont réservées aux rôles internes.
         if ($includeAvailability && $user->hasAnyRole(['admin', 'agent_communal'])) {
             $reservations->each(function (Reservation $reservation): void {
                 $reservation->setAttribute('planning_availability', $this->availabilityService->forReservation($reservation));

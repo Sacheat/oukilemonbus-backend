@@ -349,6 +349,142 @@ class PlanningApiTest extends TestCase
         $this->assertStringNotContainsString('Trajet masque chauffeur', $response->getContent());
     }
 
+    public function test_agent_can_filter_planning_by_vehicle(): void
+    {
+        $agent = $this->userWithRole('agent_communal');
+        $organization = $this->organization();
+        [$pickup, $destination] = $this->locations();
+
+        $firstVehicle = Vehicle::create([
+            'licence_plate' => '1-FIL-001',
+            'capacity' => 41,
+            'is_active' => true,
+        ]);
+
+        $secondVehicle = Vehicle::create([
+            'licence_plate' => '1-FIL-002',
+            'capacity' => 41,
+            'is_active' => true,
+        ]);
+
+        $visibleReservation = $this->reservation([
+            'organization_id' => $organization->id,
+            'pickup_location_id' => $pickup->id,
+            'destination_location_id' => $destination->id,
+            'vehicle_id' => $firstVehicle->id,
+            'trip_date' => '2026-06-16',
+            'departure_time' => '09:00:00',
+            'return_time' => '10:00:00',
+            'status' => ReservationStatus::CONFIRME,
+        ]);
+
+        $this->reservation([
+            'organization_id' => $organization->id,
+            'pickup_location_id' => $pickup->id,
+            'destination_location_id' => $destination->id,
+            'vehicle_id' => $secondVehicle->id,
+            'trip_date' => '2026-06-16',
+            'departure_time' => '11:00:00',
+            'return_time' => '12:00:00',
+            'status' => ReservationStatus::CONFIRME,
+        ]);
+
+        Sanctum::actingAs($agent);
+
+        $response = $this->getJson("/api/planning?start_date=2026-06-16&end_date=2026-06-16&vehicle_id={$firstVehicle->id}");
+
+        $response->assertOk()
+            ->assertJsonPath('filters.vehicle_id', $firstVehicle->id)
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.reservation_id', $visibleReservation->id)
+            ->assertJsonPath('data.0.vehicle.id', $firstVehicle->id);
+    }
+
+    public function test_agent_can_filter_planning_by_driver(): void
+    {
+        $agent = $this->userWithRole('agent_communal');
+        $organization = $this->organization();
+        [$pickup, $destination] = $this->locations();
+        $firstDriver = $this->driver('Filtre', 'Chauffeur');
+        $secondDriver = $this->driver('Autre', 'Chauffeur');
+
+        $visibleReservation = $this->reservation([
+            'organization_id' => $organization->id,
+            'pickup_location_id' => $pickup->id,
+            'destination_location_id' => $destination->id,
+            'driver_id' => $firstDriver->id,
+            'trip_date' => '2026-06-16',
+            'departure_time' => '09:00:00',
+            'return_time' => '10:00:00',
+            'status' => ReservationStatus::CONFIRME,
+        ]);
+
+        $this->reservation([
+            'organization_id' => $organization->id,
+            'pickup_location_id' => $pickup->id,
+            'destination_location_id' => $destination->id,
+            'driver_id' => $secondDriver->id,
+            'trip_date' => '2026-06-16',
+            'departure_time' => '11:00:00',
+            'return_time' => '12:00:00',
+            'status' => ReservationStatus::CONFIRME,
+        ]);
+
+        Sanctum::actingAs($agent);
+
+        $response = $this->getJson("/api/planning?start_date=2026-06-16&end_date=2026-06-16&driver_id={$firstDriver->id}");
+
+        $response->assertOk()
+            ->assertJsonPath('filters.driver_id', $firstDriver->id)
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.reservation_id', $visibleReservation->id)
+            ->assertJsonPath('data.0.driver.id', $firstDriver->id);
+    }
+
+    public function test_agent_can_filter_planning_by_organization(): void
+    {
+        $agent = $this->userWithRole('agent_communal');
+        $firstOrganization = $this->organization();
+        $secondOrganization = Organization::create([
+            'name' => 'ASBL Dinant Sport',
+            'type' => OrganizationType::ASBL,
+            'official_email' => 'sport@example.test',
+            'is_priority' => false,
+            'annual_quota' => 5,
+            'reservations_used_this_year' => 0,
+        ]);
+        [$pickup, $destination] = $this->locations();
+
+        $visibleReservation = $this->reservation([
+            'organization_id' => $firstOrganization->id,
+            'pickup_location_id' => $pickup->id,
+            'destination_location_id' => $destination->id,
+            'trip_date' => '2026-06-16',
+            'departure_time' => '09:00:00',
+            'return_time' => '10:00:00',
+            'status' => ReservationStatus::CONFIRME,
+        ]);
+
+        $this->reservation([
+            'organization_id' => $secondOrganization->id,
+            'pickup_location_id' => $pickup->id,
+            'destination_location_id' => $destination->id,
+            'trip_date' => '2026-06-16',
+            'departure_time' => '11:00:00',
+            'return_time' => '12:00:00',
+            'status' => ReservationStatus::CONFIRME,
+        ]);
+
+        Sanctum::actingAs($agent);
+
+        $response = $this->getJson("/api/planning?start_date=2026-06-16&end_date=2026-06-16&organization_id={$firstOrganization->id}");
+
+        $response->assertOk()
+            ->assertJsonPath('filters.organization_id', $firstOrganization->id)
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.reservation_id', $visibleReservation->id)
+            ->assertJsonPath('data.0.organization.id', $firstOrganization->id);
+    }
     private function userWithRole(string $role): User
     {
         $user = User::factory()->create();
@@ -432,5 +568,6 @@ class PlanningApiTest extends TestCase
         ]);
     }
 }
+
 
 

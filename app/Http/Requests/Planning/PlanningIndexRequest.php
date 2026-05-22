@@ -50,6 +50,12 @@ class PlanningIndexRequest extends FormRequest
             'include_availability' => ['sometimes', 'boolean'],
             'statuses' => ['sometimes', 'array'],
             'statuses.*' => ['string', Rule::in(array_column(ReservationStatus::cases(), 'value'))],
+
+            // Filtres optionnels de consultation du planning.
+            // Ces filtres sont utilisés par l'API planning et par l'export.
+            'vehicle_id' => ['sometimes', 'integer', 'exists:vehicles,id'],
+            'driver_id' => ['sometimes', 'integer', 'exists:drivers,id'],
+            'organization_id' => ['sometimes', 'integer', 'exists:organizations,id'],
         ];
     }
 
@@ -62,6 +68,28 @@ class PlanningIndexRequest extends FormRequest
             'end_date.date_format' => 'La date de fin doit etre au format YYYY-MM-DD.',
             'end_date.after_or_equal' => 'La date de fin doit etre egale ou posterieure a la date de debut.',
             'statuses.*.in' => 'Un des statuts demandes est invalide.',
+            'vehicle_id.exists' => 'Le vehicule demande est introuvable.',
+            'driver_id.exists' => 'Le chauffeur demande est introuvable.',
+            'organization_id.exists' => 'L organisation demandee est introuvable.',
         ];
+    }
+
+    public function planningStatuses(): array
+    {
+        return $this->validated('statuses', []);
+    }
+
+    public function wantsAvailabilityDetails(): bool
+    {
+        return $this->boolean('include_availability');
+    }
+
+    public function planningFilters(): array
+    {
+        return array_filter([
+            'vehicle_id' => $this->has('vehicle_id') ? $this->integer('vehicle_id') : null,
+            'driver_id' => $this->has('driver_id') ? $this->integer('driver_id') : null,
+            'organization_id' => $this->has('organization_id') ? $this->integer('organization_id') : null,
+        ], fn ($value): bool => $value !== null);
     }
 }
