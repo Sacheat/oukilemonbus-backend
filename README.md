@@ -240,4 +240,60 @@ npm run build
 
 ## Licence
 
-Projet distribue sous licence MIT.
+Projet distribue sous licence MIT.rnrn<!-- DOCUMENTATION_TECHNIQUE_START -->
+
+## Documentation technique
+
+Le projet contient plusieurs fichiers de documentation technique dans le dossier `docs/`.
+
+Ces documents servent à expliquer l'architecture, les modules principaux, les règles métier, les accès, les tests et l'intégration future avec le frontend React.
+
+### Vue d'ensemble
+
+| Document | Description |
+|---|---|
+| [`docs/modules.md`](docs/modules.md) | Vue d'ensemble des modules backend de l'application. |
+| [`docs/access-control.md`](docs/access-control.md) | Rôles, permissions, règles d'accès et sécurité des données. |
+| [`docs/testing.md`](docs/testing.md) | Stratégie de tests automatisés et commandes utiles. |
+| [`docs/frontend-integration.md`](docs/frontend-integration.md) | Guide d'intégration pour le futur frontend React. |
+
+### Modules métier
+
+| Document | Description |
+|---|---|
+| [`docs/reservations.md`](docs/reservations.md) | Fonctionnement du module réservations, statuts, règles métier et conflits. |
+| [`docs/planning.md`](docs/planning.md) | API planning, filtres, export, disponibilités et affichage côté front. |
+| [`docs/operational-resources.md`](docs/operational-resources.md) | Chauffeurs, véhicules, lieux, indisponibilités, conflits et affectations. |
+| [`docs/documents.md`](docs/documents.md) | Gestion documentaire, stockage, accès, téléchargement et sécurité. |
+| [`docs/route_sheets.md`](docs/route_sheets.md) | Feuilles de route journalières par véhicule, génération, versioning et archivage. |
+| [`docs/deliberations.md`](docs/deliberations.md) | Délibérations liées aux décisions administratives du Collège. |
+| [`docs/logging.md`](docs/logging.md) | Stratégie de logs, canaux, données autorisées/interdites et bonnes pratiques. |
+
+### Modules à documenter plus tard
+
+Certains modules devront être documentés lorsqu'ils seront stabilisés :
+
+- notifications ;
+- backups ;
+- éventuelles évolutions du frontend ;
+- optimisations avancées de tournées.
+
+### Commandes de test utiles
+
+Lancer tous les tests :
+
+```bash
+php artisan test
+
+Tester uniquement le module planning :
+
+php artisan test --filter=PlanningApiTest
+
+Tester le calcul d'occupation du bus :
+
+php artisan test --filter=ReservationOccupationServiceTest
+
+Tester les logs :
+
+php artisan test --filter=DomainLoggerTest
+<!-- DOCUMENTATION_TECHNIQUE_END -->rn
