@@ -38,7 +38,7 @@ class PlanningApiTest extends TestCase
         $this->getJson('/api/planning?start_date=2026-06-16&end_date=2026-06-16')
             ->assertUnauthorized();
 
-        $this->get('/api/planning/export?start_date=2026-06-16&end_date=2026-06-16')
+        $this->getJson('/api/planning/export?start_date=2026-06-16&end_date=2026-06-16')
             ->assertUnauthorized();
     }
 
@@ -633,5 +633,4 @@ class PlanningApiTest extends TestCase
         ]);
     }
 }
-
 
