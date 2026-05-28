@@ -18,6 +18,7 @@ use Database\Seeders\TestUsersSeeder;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Schema;
 use Laravel\Sanctum\Sanctum;
 use Spatie\Permission\PermissionRegistrar;
 use Tests\TestCase;
@@ -85,6 +86,51 @@ class ReservationApiTest extends TestCase
         ]);
         $this->assertDatabaseCount('reservation_conflicts', 0);
         $this->assertDatabaseCount('reservation_assignment_history', 2);
+    }
+
+    public function test_create_reservation_is_idempotent_with_same_key(): void
+    {
+        if (! Schema::hasTable('api_idempotency_keys')) {
+            $this->markTestSkipped('Table api_idempotency_keys absente dans le schema de test courant.');
+        }
+
+        Http::fake([
+            'https://ors.test/*' => Http::response([
+                'routes' => [[
+                    'summary' => [
+                        'distance' => 12000,
+                        'duration' => 1800,
+                    ],
+                ]],
+            ]),
+        ]);
+
+        $user = $this->seededUser('user.test@bus-communal.local');
+        $organization = $this->seededOrganization('Ecole communale de Dinant');
+
+        Sanctum::actingAs($user);
+
+        $first = $this->withHeader('Idempotency-Key', 'reservation-create-001')
+            ->postJson('/api/reservations', $this->payload($organization))
+            ->assertCreated();
+
+        $second = $this->withHeader('Idempotency-Key', 'reservation-create-001')
+            ->postJson('/api/reservations', $this->payload($organization))
+            ->assertCreated();
+
+        $this->assertSame(
+            $first->json('data.id'),
+            $second->json('data.id'),
+            'La meme cle idempotente doit renvoyer la meme reservation.'
+        );
+
+        $this->assertDatabaseCount('reservations', 1);
+        if (Schema::hasTable('domain_events')) {
+            $this->assertDatabaseHas('domain_events', [
+                'aggregate_type' => 'reservation',
+                'event_type' => 'reservation.created',
+            ]);
+        }
     }
 
     public function test_distance_over_limit_blocks_creation(): void

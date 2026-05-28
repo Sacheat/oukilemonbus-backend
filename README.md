@@ -290,6 +290,25 @@ Checklist minimale avant mise en production:
   - verifier le scheduler (digest + healthcheck) ;
   - inspecter les lignes `failed` de `notification_deliveries` et relancer les jobs si necessaire.
 
+## Hardening auth/cookies
+
+- Cookies de session:
+  - `SESSION_HTTP_ONLY=true` pour bloquer l'acces JavaScript au cookie ;
+  - `SESSION_SAME_SITE=lax` pour limiter les envois cross-site ;
+  - `SESSION_SECURE_COOKIE=true` en production HTTPS ;
+  - `SESSION_PARTITIONED_COOKIE=false` par defaut (a activer uniquement si besoin cross-site + secure + same_site=none).
+- Sanctum:
+  - `SANCTUM_STATEFUL_DOMAINS` doit lister uniquement les frontends autorises ;
+  - `SANCTUM_TOKEN_PREFIX` active un prefixe de token reconnaissable en secret scanning ;
+  - `SANCTUM_TOKEN_EXPIRATION` permet de fixer une duree de vie aux PAT si utilises.
+- Rate limiting routes sensibles:
+  - `POST /api/auth/register` -> `throttle:10,1`
+  - `POST /api/auth/login` -> `throttle:20,1`
+  - `POST /api/auth/logout` -> `throttle:30,1`
+  - `GET /api/notifications/health` -> `throttle:30,1`
+  - `GET /api/planning/export` -> `throttle:20,1`
+  - `GET /api/documents/{document}/signed-download` -> `throttle:30,1`
+
 ## Commandes utiles
 
 ```powershell

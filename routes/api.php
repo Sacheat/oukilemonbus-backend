@@ -25,14 +25,19 @@ use Illuminate\Support\Facades\Route;
 Route::name('api.')->group(function (): void {
     Route::get('/documents/{document}/signed-download', [DocumentController::class, 'signedDownload'])
         ->middleware('signed')
+        ->middleware('throttle:30,1')
         ->name('documents.signed-download');
 
     // =========================================================================
     // Routes accessibles sans authentification
     // =========================================================================
     Route::middleware('guest')->group(function (): void {
-        Route::post('/auth/register', [AuthController::class, 'register'])->name('auth.register');
-        Route::post('/auth/login', [AuthController::class, 'login'])->name('auth.login');
+        Route::post('/auth/register', [AuthController::class, 'register'])
+            ->middleware('throttle:10,1')
+            ->name('auth.register');
+        Route::post('/auth/login', [AuthController::class, 'login'])
+            ->middleware('throttle:20,1')
+            ->name('auth.login');
     });
 
     // =========================================================================
@@ -43,18 +48,23 @@ Route::name('api.')->group(function (): void {
          * Authentication routes
          */
         Route::get('/auth/me', [AuthController::class, 'me'])->name('auth.me');
-        Route::post('/auth/logout', [AuthController::class, 'logout'])->name('auth.logout');
+        Route::post('/auth/logout', [AuthController::class, 'logout'])
+            ->middleware('throttle:30,1')
+            ->name('auth.logout');
 
         /**
          * In-app notifications and preferences routes
          */
         Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
+        Route::get('/notifications/summary', [NotificationController::class, 'summary'])->name('notifications.summary');
         Route::get('/notifications/unread-count', [NotificationController::class, 'unreadCount'])->name('notifications.unread-count');
         Route::get('/notifications/health', [NotificationController::class, 'health'])
+            ->middleware('throttle:30,1')
             ->middleware('permission:notifications.monitor')
             ->name('notifications.health');
         Route::patch('/notifications/{notificationId}/read', [NotificationController::class, 'markAsRead'])->name('notifications.mark-read');
         Route::patch('/notifications/read', [NotificationController::class, 'markManyAsRead'])->name('notifications.mark-many-read');
+        Route::patch('/notifications/read-by-filter', [NotificationController::class, 'markByFilterAsRead'])->name('notifications.mark-by-filter-read');
         Route::patch('/notifications/read-all', [NotificationController::class, 'markAllAsRead'])->name('notifications.mark-all-read');
         Route::get('/notifications/preferences', [NotificationPreferenceController::class, 'show'])->name('notifications.preferences.show');
         Route::patch('/notifications/preferences', [NotificationPreferenceController::class, 'update'])->name('notifications.preferences.update');
@@ -234,8 +244,18 @@ Route::name('api.')->group(function (): void {
          * Planning routes
          */
         Route::get('/planning/export', [PlanningController::class, 'export'])
+            ->middleware('throttle:20,1')
             ->middleware('permission:reservations.view')
             ->name('planning.export');
+
+        Route::post('/planning/exports', [PlanningController::class, 'requestExport'])
+            ->middleware('throttle:20,1')
+            ->middleware('permission:reservations.view')
+            ->name('planning.exports.request');
+
+        Route::get('/planning/exports/{planningExportRequest}', [PlanningController::class, 'showExport'])
+            ->middleware('permission:reservations.view')
+            ->name('planning.exports.show');
 
         Route::get('/planning', [PlanningController::class, 'index'])
             ->middleware('permission:reservations.view')

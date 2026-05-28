@@ -8,6 +8,7 @@ use App\Enums\ReservationConflictType;
 use App\Models\CouncilDecision;
 use App\Models\Reservation;
 use App\Models\User;
+use App\Services\Audit\DomainEventLogger;
 use App\Services\Documents\DeliberationDocumentService;
 use App\Services\Reservations\ReservationService;
 use Illuminate\Support\Facades\DB;
@@ -17,7 +18,8 @@ class CouncilDecisionService
 {
     public function __construct(
         private readonly ReservationService $reservationService,
-        private readonly DeliberationDocumentService $deliberationDocumentService
+        private readonly DeliberationDocumentService $deliberationDocumentService,
+        private readonly DomainEventLogger $eventLogger
     ) {}
 
     public function create(array $data, User $actor): CouncilDecision
@@ -40,6 +42,13 @@ class CouncilDecisionService
             ]);
 
             $this->applyDecisionConsequences($decision, $reservation, $actor, $data['notes'] ?? null);
+            $this->eventLogger->log(
+                aggregateType: 'council_decision',
+                aggregateId: $decision->id,
+                eventType: 'council_decision.created',
+                actor: $actor,
+                newValues: $decision->only(['decision_status', 'decision_date', 'decision_reference', 'reservation_id'])
+            );
 
             return $decision->refresh()->load(['reservation.organization', 'recordedByUser']);
         });
@@ -57,6 +66,7 @@ class CouncilDecisionService
 
         $councilDecision = DB::transaction(function () use ($councilDecision, $data, $actor): CouncilDecision {
             $councilDecision->update([
+                // trace before/after in a single audit event.
                 'decision_status' => $data['decision_status'],
                 'decision_date' => $data['decision_date'] ?? null,
                 'recorded_by_user_id' => $actor->id,
@@ -66,6 +76,14 @@ class CouncilDecisionService
             ]);
 
             $this->applyDecisionConsequences($councilDecision, $councilDecision->reservation, $actor, $data['notes'] ?? null);
+            $this->eventLogger->log(
+                aggregateType: 'council_decision',
+                aggregateId: $councilDecision->id,
+                eventType: 'council_decision.updated',
+                actor: $actor,
+                oldValues: $councilDecision->getOriginal(),
+                newValues: $councilDecision->only(['decision_status', 'decision_date', 'decision_reference', 'notes'])
+            );
 
             return $councilDecision->refresh()->load(['reservation.organization', 'recordedByUser']);
         });

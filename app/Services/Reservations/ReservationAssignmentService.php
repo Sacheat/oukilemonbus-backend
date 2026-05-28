@@ -12,13 +12,15 @@ use App\Models\ReservationConflict;
 use App\Models\Unavailability;
 use App\Models\User;
 use App\Models\Vehicle;
+use App\Services\Audit\DomainEventLogger;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class ReservationAssignmentService
 {
     public function __construct(
-        private readonly ReservationOccupationService $occupationService
+        private readonly ReservationOccupationService $occupationService,
+        private readonly DomainEventLogger $eventLogger
     ) {}
 
     public function autoAssign(Reservation $reservation, User $actor): Reservation
@@ -108,6 +110,16 @@ class ReservationAssignmentService
             'changed_by_user_id' => $actor->id,
             'reason' => $reason,
         ]);
+
+        $this->eventLogger->log(
+            aggregateType: 'reservation',
+            aggregateId: $reservation->id,
+            eventType: 'reservation.driver_assigned',
+            actor: $actor,
+            oldValues: ['driver_id' => $oldDriverId],
+            newValues: ['driver_id' => $driver->id],
+            context: ['reason' => $reason]
+        );
     }
 
     private function assignVehicle(Reservation $reservation, Vehicle $vehicle, User $actor, ?string $reason): void
@@ -125,6 +137,16 @@ class ReservationAssignmentService
             'changed_by_user_id' => $actor->id,
             'reason' => $reason,
         ]);
+
+        $this->eventLogger->log(
+            aggregateType: 'reservation',
+            aggregateId: $reservation->id,
+            eventType: 'reservation.vehicle_assigned',
+            actor: $actor,
+            oldValues: ['vehicle_id' => $oldVehicleId],
+            newValues: ['vehicle_id' => $vehicle->id],
+            context: ['reason' => $reason]
+        );
     }
 
     private function ensureDriverAvailable(Reservation $reservation, Driver $driver): void

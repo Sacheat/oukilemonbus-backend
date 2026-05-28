@@ -9,13 +9,17 @@ use App\Enums\ReservationConflictType;
 use App\Enums\ReservationStatus;
 use App\Models\Driver;
 use App\Models\Location;
+use App\Models\PlanningExportRequest;
 use App\Models\Organization;
 use App\Models\Reservation;
 use App\Models\ReservationConflict;
 use App\Models\User;
 use App\Models\Vehicle;
+use App\Jobs\GeneratePlanningExportJob;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Support\Facades\Bus;
+use Illuminate\Support\Facades\Schema;
 use Laravel\Sanctum\Sanctum;
 use Spatie\Permission\PermissionRegistrar;
 use Tests\TestCase;
@@ -40,6 +44,11 @@ class PlanningApiTest extends TestCase
 
         $this->getJson('/api/planning/export?start_date=2026-06-16&end_date=2026-06-16')
             ->assertUnauthorized();
+
+        $this->postJson('/api/planning/exports', [
+            'start_date' => '2026-06-16',
+            'end_date' => '2026-06-16',
+        ])->assertUnauthorized();
     }
 
     public function test_authenticated_user_without_permission_gets_forbidden_on_planning_routes(): void
@@ -52,6 +61,70 @@ class PlanningApiTest extends TestCase
 
         $this->get('/api/planning/export?start_date=2026-06-16&end_date=2026-06-16')
             ->assertForbidden();
+
+        $this->postJson('/api/planning/exports', [
+            'start_date' => '2026-06-16',
+            'end_date' => '2026-06-16',
+        ])->assertForbidden();
+    }
+
+    public function test_agent_can_request_planning_export_asynchronously(): void
+    {
+        if (! Schema::hasTable('planning_export_requests')) {
+            $this->markTestSkipped('Table planning_export_requests absente dans le schema de test courant.');
+        }
+
+        Bus::fake();
+
+        $agent = $this->userWithRole('agent_communal');
+        Sanctum::actingAs($agent);
+
+        $response = $this->postJson('/api/planning/exports', [
+            'start_date' => '2026-06-16',
+            'end_date' => '2026-06-16',
+            'statuses' => [ReservationStatus::CONFIRME->value],
+        ]);
+
+        $response->assertStatus(202)
+            ->assertJsonPath('data.status', 'pending')
+            ->assertJsonPath('data.start_date', '2026-06-16')
+            ->assertJsonPath('data.end_date', '2026-06-16');
+
+        $requestId = (int) $response->json('data.id');
+        $this->assertGreaterThan(0, $requestId);
+
+        $this->assertDatabaseHas('planning_export_requests', [
+            'id' => $requestId,
+            'requested_by_user_id' => $agent->id,
+            'status' => 'pending',
+        ]);
+
+        Bus::assertDispatched(GeneratePlanningExportJob::class, function (GeneratePlanningExportJob $job) use ($requestId): bool {
+            return $job->planningExportRequestId === $requestId;
+        });
+    }
+
+    public function test_user_cannot_read_other_user_planning_export_request(): void
+    {
+        if (! Schema::hasTable('planning_export_requests')) {
+            $this->markTestSkipped('Table planning_export_requests absente dans le schema de test courant.');
+        }
+
+        $owner = $this->userWithRole('agent_communal');
+        $other = $this->userWithRole('user');
+
+        $request = PlanningExportRequest::query()->create([
+            'requested_by_user_id' => $owner->id,
+            'start_date' => '2026-06-16',
+            'end_date' => '2026-06-16',
+            'status' => 'pending',
+            'requested_at' => now(),
+        ]);
+
+        Sanctum::actingAs($other);
+
+        $this->getJson('/api/planning/exports/'.$request->id)
+            ->assertNotFound();
     }
 
     public function test_agent_can_view_planning_with_availability_details(): void
@@ -633,4 +706,3 @@ class PlanningApiTest extends TestCase
         ]);
     }
 }
-

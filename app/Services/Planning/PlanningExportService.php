@@ -17,14 +17,14 @@ class PlanningExportService
     {
         $fileName = sprintf('planning-%s-%s.xls', $startDate, $endDate);
 
-        return response($this->html($reservations, $startDate, $endDate), 200, [
+        return response($this->htmlExportContent($reservations, $startDate, $endDate), 200, [
             'Content-Type' => 'application/vnd.ms-excel; charset=UTF-8',
             'Content-Disposition' => 'attachment; filename="'.$fileName.'"',
             'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
         ]);
     }
 
-    private function html(Collection $reservations, string $startDate, string $endDate): string
+    public function htmlExportContent(Collection $reservations, string $startDate, string $endDate): string
     {
         $rows = $reservations
             ->values()

@@ -245,4 +245,123 @@ class NotificationApiTest extends TestCase
                 ],
             ]);
     }
+
+    public function test_notifications_health_endpoint_is_rate_limited(): void
+    {
+        $user = User::factory()->create();
+        $user->assignRole('agent_communal');
+        Sanctum::actingAs($user);
+
+        for ($attempt = 1; $attempt <= 30; $attempt++) {
+            $this->getJson('/api/notifications/health')
+                ->assertOk();
+        }
+
+        $this->getJson('/api/notifications/health')
+            ->assertStatus(429);
+    }
+
+    public function test_user_can_get_notifications_summary_grouped_by_category_and_priority(): void
+    {
+        $user = User::factory()->create();
+        $user->assignRole('user');
+
+        $user->notifications()->create([
+            'id' => (string) \Illuminate\Support\Str::uuid(),
+            'type' => 'App\\Notifications\\OperationalNotification',
+            'data' => [
+                'category' => 'reservation_updates',
+                'priority' => 'normal',
+                'title' => 'Reservation confirmee',
+                'message' => 'Votre reservation est confirmee.',
+            ],
+            'read_at' => null,
+        ]);
+
+        $user->notifications()->create([
+            'id' => (string) \Illuminate\Support\Str::uuid(),
+            'type' => 'App\\Notifications\\OperationalNotification',
+            'data' => [
+                'category' => 'last_minute_cancellation',
+                'priority' => 'high',
+                'title' => 'Annulation urgente',
+                'message' => 'Mission annulee a la derniere minute.',
+            ],
+            'read_at' => null,
+        ]);
+
+        $user->notifications()->create([
+            'id' => (string) \Illuminate\Support\Str::uuid(),
+            'type' => 'App\\Notifications\\OperationalNotification',
+            'data' => [
+                'category' => 'reservation_updates',
+                'priority' => 'normal',
+                'title' => 'Reservation approuvee',
+                'message' => 'Votre reservation est approuvee.',
+            ],
+            'read_at' => now(),
+        ]);
+
+        Sanctum::actingAs($user);
+
+        $this->getJson('/api/notifications/summary')
+            ->assertOk()
+            ->assertJsonPath('data.total', 3)
+            ->assertJsonPath('data.unread', 2)
+            ->assertJsonPath('data.read', 1)
+            ->assertJsonCount(2, 'data.by_category')
+            ->assertJsonCount(2, 'data.by_priority');
+    }
+
+    public function test_user_can_mark_notifications_as_read_by_filter(): void
+    {
+        $user = User::factory()->create();
+        $user->assignRole('user');
+
+        $highOne = $user->notifications()->create([
+            'id' => (string) \Illuminate\Support\Str::uuid(),
+            'type' => 'App\\Notifications\\OperationalNotification',
+            'data' => [
+                'category' => 'last_minute_cancellation',
+                'priority' => 'high',
+                'title' => 'Annulation 1',
+                'message' => 'Annulation urgente.',
+            ],
+            'read_at' => null,
+        ]);
+
+        $highTwo = $user->notifications()->create([
+            'id' => (string) \Illuminate\Support\Str::uuid(),
+            'type' => 'App\\Notifications\\OperationalNotification',
+            'data' => [
+                'category' => 'last_minute_cancellation',
+                'priority' => 'high',
+                'title' => 'Annulation 2',
+                'message' => 'Deuxieme annulation urgente.',
+            ],
+            'read_at' => null,
+        ]);
+
+        $normal = $user->notifications()->create([
+            'id' => (string) \Illuminate\Support\Str::uuid(),
+            'type' => 'App\\Notifications\\OperationalNotification',
+            'data' => [
+                'category' => 'reservation_updates',
+                'priority' => 'normal',
+                'title' => 'Info',
+                'message' => 'Notification normale.',
+            ],
+            'read_at' => null,
+        ]);
+
+        Sanctum::actingAs($user);
+
+        $this->patchJson('/api/notifications/read-by-filter?category=last_minute_cancellation&priority=high&unread=1')
+            ->assertOk()
+            ->assertJsonPath('data.marked_as_read', 2);
+
+        $this->assertNotNull($highOne->fresh()->read_at);
+        $this->assertNotNull($highTwo->fresh()->read_at);
+        $this->assertNull($normal->fresh()->read_at);
+    }
 }

@@ -17,6 +17,7 @@ use App\Models\Reservation;
 use App\Services\Reservations\ReservationAssignmentService;
 use App\Services\Reservations\ReservationPreviewService;
 use App\Services\Reservations\ReservationService;
+use App\Services\Idempotency\ApiIdempotencyService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\Gate;
@@ -26,7 +27,8 @@ class ReservationController extends Controller
     public function __construct(
         private readonly ReservationService $reservationService,
         private readonly ReservationPreviewService $previewService,
-        private readonly ReservationAssignmentService $assignmentService
+        private readonly ReservationAssignmentService $assignmentService,
+        private readonly ApiIdempotencyService $idempotencyService
     ) {}
 
     public function index(): AnonymousResourceCollection
@@ -69,6 +71,27 @@ class ReservationController extends Controller
 
     public function store(StoreReservationRequest $request): JsonResponse
     {
+        $idempotencyKey = $request->header('Idempotency-Key');
+        if (is_string($idempotencyKey) && $idempotencyKey !== '') {
+            $response = $this->idempotencyService->execute(
+                user: $request->user(),
+                key: $idempotencyKey,
+                method: 'POST',
+                routeName: (string) ($request->route()?->getName() ?? 'api.reservations.store'),
+                requestHash: hash('sha256', json_encode($request->validated(), JSON_THROW_ON_ERROR)),
+                action: function () use ($request): array {
+                    $reservation = $this->reservationService->create($request->validated(), $request->user());
+
+                    return [
+                        'status' => 201,
+                        'body' => (new ReservationResource($reservation))->response()->getData(true),
+                    ];
+                }
+            );
+
+            return response()->json($response['body'], $response['status']);
+        }
+
         $reservation = $this->reservationService->create($request->validated(), $request->user());
 
         return (new ReservationResource($reservation))
@@ -106,18 +129,63 @@ class ReservationController extends Controller
         return new ReservationResource($reservation);
     }
 
-    public function cancel(CancelReservationRequest $request, Reservation $reservation): ReservationResource
+    public function cancel(CancelReservationRequest $request, Reservation $reservation): JsonResponse
     {
+        $idempotencyKey = $request->header('Idempotency-Key');
+        if (is_string($idempotencyKey) && $idempotencyKey !== '') {
+            $response = $this->idempotencyService->execute(
+                user: $request->user(),
+                key: $idempotencyKey,
+                method: 'PATCH',
+                routeName: (string) ($request->route()?->getName() ?? 'api.reservations.cancel'),
+                requestHash: hash('sha256', json_encode($request->validated() + ['reservation_id' => $reservation->id], JSON_THROW_ON_ERROR)),
+                action: function () use ($request, $reservation): array {
+                    $updated = $this->reservationService->cancel($reservation, $request->user(), $request->validated('reason'));
+
+                    return [
+                        'status' => 200,
+                        'body' => (new ReservationResource($updated))->response()->getData(true),
+                    ];
+                }
+            );
+
+            return response()->json($response['body'], $response['status']);
+        }
+
         $reservation = $this->reservationService->cancel($reservation, $request->user(), $request->validated('reason'));
 
-        return new ReservationResource($reservation);
+        return response()->json((new ReservationResource($reservation))->response()->getData(true));
     }
 
-    public function assign(AssignReservationRequest $request, Reservation $reservation): ReservationResource
+    public function assign(AssignReservationRequest $request, Reservation $reservation): JsonResponse
     {
+        $idempotencyKey = $request->header('Idempotency-Key');
+        if (is_string($idempotencyKey) && $idempotencyKey !== '') {
+            $response = $this->idempotencyService->execute(
+                user: $request->user(),
+                key: $idempotencyKey,
+                method: 'PATCH',
+                routeName: (string) ($request->route()?->getName() ?? 'api.reservations.assign'),
+                requestHash: hash('sha256', json_encode($request->validated() + ['reservation_id' => $reservation->id], JSON_THROW_ON_ERROR)),
+                action: function () use ($request, $reservation): array {
+                    $updated = $this->assignmentService->assign($reservation, $request->validated(), $request->user());
+                    $resource = new ReservationResource($updated->load(['organization', 'pickupLocation', 'destinationLocation', 'driver', 'vehicle', 'conflicts']));
+
+                    return [
+                        'status' => 200,
+                        'body' => $resource->response()->getData(true),
+                    ];
+                }
+            );
+
+            return response()->json($response['body'], $response['status']);
+        }
+
         $reservation = $this->assignmentService->assign($reservation, $request->validated(), $request->user());
 
-        return new ReservationResource($reservation->load(['organization', 'pickupLocation', 'destinationLocation', 'driver', 'vehicle', 'conflicts']));
+        $resource = new ReservationResource($reservation->load(['organization', 'pickupLocation', 'destinationLocation', 'driver', 'vehicle', 'conflicts']));
+
+        return response()->json($resource->response()->getData(true));
     }
 
     public function confirm(ConfirmReservationRequest $request, Reservation $reservation): ReservationResource

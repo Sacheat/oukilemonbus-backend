@@ -10,6 +10,7 @@ use App\Models\Reservation;
 use App\Models\ReservationConflict;
 use App\Models\ReservationStatusHistory;
 use App\Models\User;
+use App\Services\Audit\DomainEventLogger;
 use App\Services\Logging\DomainLogger;
 use App\Services\Notifications\NotificationDispatchService;
 use App\Services\Notifications\NotificationRecipientResolver;
@@ -29,6 +30,7 @@ class ReservationService
         private readonly ReservationAssignmentService $assignmentService,
         private readonly NotificationDispatchService $notificationDispatchService,
         private readonly NotificationRecipientResolver $notificationRecipientResolver,
+        private readonly DomainEventLogger $eventLogger,
         ?DomainLogger $logger = null
     ) {
         $this->logger = $logger ?? app(DomainLogger::class);
@@ -74,6 +76,14 @@ class ReservationService
             $this->recordStatus($reservation, null, $status, $actor, 'Creation de la demande');
             $this->syncConflicts($reservation, $preview['conflicts']);
             $this->logger->reservationCreated($reservation, $actor, $preview);
+            $this->eventLogger->log(
+                aggregateType: 'reservation',
+                aggregateId: $reservation->id,
+                eventType: 'reservation.created',
+                actor: $actor,
+                newValues: $reservation->only(['status', 'organization_id', 'trip_date', 'departure_time', 'return_time', 'driver_id', 'vehicle_id']),
+                context: ['preview' => Arr::only($preview, ['status', 'approval_type', 'distance_km', 'estimated_duration_min'])]
+            );
 
             if ($status === ReservationStatus::APPROUVE) {
                 $reservation = $this->assignmentService->autoAssign($reservation, $actor);
@@ -138,6 +148,15 @@ class ReservationService
             $reservation->conflicts()->delete();
             $this->syncConflicts($reservation, $preview['conflicts']);
             $this->logger->reservationUpdated($reservation, $actor, $preview);
+            $this->eventLogger->log(
+                aggregateType: 'reservation',
+                aggregateId: $reservation->id,
+                eventType: 'reservation.updated',
+                actor: $actor,
+                oldValues: Arr::only($reservation->getOriginal(), ['trip_date', 'departure_time', 'return_time', 'nb_children', 'nb_adults', 'status']),
+                newValues: $reservation->only(['trip_date', 'departure_time', 'return_time', 'nb_children', 'nb_adults', 'status']),
+                context: ['conflicts_count' => count($preview['conflicts'])]
+            );
 
             return $reservation->refresh()->load(['organization', 'pickupLocation', 'destinationLocation', 'driver', 'vehicle', 'conflicts']);
         });
@@ -176,6 +195,14 @@ class ReservationService
             ]);
 
             $this->recordStatus($reservation, $reservation->getOriginal('status'), ReservationStatus::REFUSE, $actor, $reason);
+            $this->eventLogger->log(
+                aggregateType: 'reservation',
+                aggregateId: $reservation->id,
+                eventType: 'reservation.rejected',
+                actor: $actor,
+                oldValues: ['status' => $reservation->getOriginal('status')],
+                newValues: ['status' => ReservationStatus::REFUSE->value, 'rejection_reason' => $reason]
+            );
 
             $this->notifyRequester(
                 $reservation,
@@ -200,6 +227,14 @@ class ReservationService
             ]);
 
             $this->recordStatus($reservation, $reservation->getOriginal('status'), ReservationStatus::ANNULE, $actor, $reason);
+            $this->eventLogger->log(
+                aggregateType: 'reservation',
+                aggregateId: $reservation->id,
+                eventType: 'reservation.cancelled',
+                actor: $actor,
+                oldValues: ['status' => $reservation->getOriginal('status')],
+                newValues: ['status' => ReservationStatus::ANNULE->value, 'cancellation_reason' => $reason]
+            );
 
             $isLastMinute = $this->isLastMinuteCancellation($reservation);
             $category = $isLastMinute ? 'last_minute_cancellation' : 'reservation_updates';
@@ -302,6 +337,15 @@ class ReservationService
         ]);
 
         $this->recordStatus($reservation, $oldStatus, $newStatus, $actor, $reason);
+        $this->eventLogger->log(
+            aggregateType: 'reservation',
+            aggregateId: $reservation->id,
+            eventType: 'reservation.status_transition',
+            actor: $actor,
+            oldValues: ['status' => $oldStatus->value],
+            newValues: ['status' => $newStatus->value],
+            context: ['reason' => $reason]
+        );
 
         return $reservation->refresh();
     }
