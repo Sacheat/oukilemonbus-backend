@@ -8,6 +8,7 @@ use App\Models\Reservation;
 use App\Models\Unavailability;
 use App\Models\Vehicle;
 use App\Services\Reservations\ReservationOccupationService;
+use Illuminate\Support\Collection;
 
 class PlanningAvailabilityService
 {
@@ -17,19 +18,99 @@ class PlanningAvailabilityService
 
     public function forReservation(Reservation $reservation): array
     {
-        return [
-            'drivers' => $this->driversForReservation($reservation),
-            'vehicles' => $this->vehiclesForReservation($reservation),
-        ];
-    }
+        $window = $this->occupationService->windowForReservation($reservation);
+        $start = $window['start'];
+        $end = $window['end'];
 
-    private function driversForReservation(Reservation $reservation): array
-    {
         $drivers = Driver::query()
             ->with('user')
             ->orderBy('id')
-            ->get()
-            ->map(fn (Driver $driver): array => $this->driverAvailability($reservation, $driver))
+            ->get();
+
+        $vehicles = Vehicle::query()
+            ->orderBy('capacity')
+            ->orderBy('id')
+            ->get();
+
+        $driverUnavailabilities = Unavailability::query()
+            ->where('is_active', true)
+            ->whereNotNull('driver_id')
+            ->where('start_datetime', '<', $end)
+            ->where('end_datetime', '>', $start)
+            ->pluck('driver_id')
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        $vehicleUnavailabilities = Unavailability::query()
+            ->where('is_active', true)
+            ->whereNotNull('vehicle_id')
+            ->where('start_datetime', '<', $end)
+            ->where('end_datetime', '>', $start)
+            ->pluck('vehicle_id')
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        $overlappingReservations = Reservation::query()
+            ->whereKeyNot($reservation->id)
+            ->whereDate('trip_date', $reservation->trip_date)
+            ->whereIn('status', [ReservationStatus::APPROUVE->value, ReservationStatus::CONFIRME->value])
+            ->where(function ($query): void {
+                $query->whereNotNull('driver_id')
+                    ->orWhereNotNull('vehicle_id');
+            })
+            ->get();
+
+        $overlapWindowsByReservationId = [];
+        $overlappingByDriver = [];
+        $overlappingByVehicle = [];
+
+        foreach ($overlappingReservations as $overlapReservation) {
+            $overlapWindowsByReservationId[$overlapReservation->id] = $this->occupationService->windowForReservation($overlapReservation);
+
+            if ($overlapReservation->driver_id !== null) {
+                $overlappingByDriver[$overlapReservation->driver_id][] = $overlapReservation;
+            }
+
+            if ($overlapReservation->vehicle_id !== null) {
+                $overlappingByVehicle[$overlapReservation->vehicle_id][] = $overlapReservation;
+            }
+        }
+
+        return [
+            'drivers' => $this->driversForReservation(
+                $reservation,
+                $window,
+                $drivers,
+                $driverUnavailabilities,
+                $overlappingByDriver,
+                $overlapWindowsByReservationId
+            ),
+            'vehicles' => $this->vehiclesForReservation(
+                $reservation,
+                $window,
+                $vehicles,
+                $vehicleUnavailabilities,
+                $overlappingByVehicle,
+                $overlapWindowsByReservationId
+            ),
+        ];
+    }
+
+    private function driversForReservation(
+        Reservation $reservation,
+        array $window,
+        Collection $drivers,
+        array $driverUnavailabilities,
+        array $overlappingByDriver,
+        array $overlapWindowsByReservationId
+    ): array
+    {
+        $drivers = $drivers
+            ->map(fn (Driver $driver): array => $this->driverAvailability($reservation, $driver, $window, $driverUnavailabilities, $overlappingByDriver, $overlapWindowsByReservationId))
             ->values();
 
         return [
@@ -38,13 +119,17 @@ class PlanningAvailabilityService
         ];
     }
 
-    private function vehiclesForReservation(Reservation $reservation): array
+    private function vehiclesForReservation(
+        Reservation $reservation,
+        array $window,
+        Collection $vehicles,
+        array $vehicleUnavailabilities,
+        array $overlappingByVehicle,
+        array $overlapWindowsByReservationId
+    ): array
     {
-        $vehicles = Vehicle::query()
-            ->orderBy('capacity')
-            ->orderBy('id')
-            ->get()
-            ->map(fn (Vehicle $vehicle): array => $this->vehicleAvailability($reservation, $vehicle))
+        $vehicles = $vehicles
+            ->map(fn (Vehicle $vehicle): array => $this->vehicleAvailability($reservation, $vehicle, $window, $vehicleUnavailabilities, $overlappingByVehicle, $overlapWindowsByReservationId))
             ->values();
 
         return [
@@ -53,9 +138,23 @@ class PlanningAvailabilityService
         ];
     }
 
-    private function driverAvailability(Reservation $reservation, Driver $driver): array
+    private function driverAvailability(
+        Reservation $reservation,
+        Driver $driver,
+        array $window,
+        array $driverUnavailabilities,
+        array $overlappingByDriver,
+        array $overlapWindowsByReservationId
+    ): array
     {
-        $reason = $this->driverUnavailabilityReason($reservation, $driver);
+        $reason = $this->driverUnavailabilityReason(
+            $reservation,
+            $driver,
+            $window,
+            $driverUnavailabilities,
+            $overlappingByDriver,
+            $overlapWindowsByReservationId
+        );
 
         return [
             'id' => $driver->id,
@@ -67,9 +166,23 @@ class PlanningAvailabilityService
         ];
     }
 
-    private function vehicleAvailability(Reservation $reservation, Vehicle $vehicle): array
+    private function vehicleAvailability(
+        Reservation $reservation,
+        Vehicle $vehicle,
+        array $window,
+        array $vehicleUnavailabilities,
+        array $overlappingByVehicle,
+        array $overlapWindowsByReservationId
+    ): array
     {
-        $reason = $this->vehicleUnavailabilityReason($reservation, $vehicle);
+        $reason = $this->vehicleUnavailabilityReason(
+            $reservation,
+            $vehicle,
+            $window,
+            $vehicleUnavailabilities,
+            $overlappingByVehicle,
+            $overlapWindowsByReservationId
+        );
 
         return [
             'id' => $vehicle->id,
@@ -80,35 +193,24 @@ class PlanningAvailabilityService
         ];
     }
 
-    private function driverUnavailabilityReason(Reservation $reservation, Driver $driver): ?string
+    private function driverUnavailabilityReason(
+        Reservation $reservation,
+        Driver $driver,
+        array $window,
+        array $driverUnavailabilities,
+        array $overlappingByDriver,
+        array $overlapWindowsByReservationId
+    ): ?string
     {
         if (! $driver->is_active) {
             return 'Chauffeur inactif.';
         }
 
-        $window = $this->occupationService->windowForReservation($reservation);
-        $start = $window['start'];
-        $end = $window['end'];
-
-        if (Unavailability::query()
-            ->where('is_active', true)
-            ->where('driver_id', $driver->id)
-            ->where('start_datetime', '<', $end)
-            ->where('end_datetime', '>', $start)
-            ->exists()) {
+        if (in_array($driver->id, $driverUnavailabilities, true)) {
             return 'Chauffeur indisponible sur ce creneau.';
         }
 
-        $overlap = Reservation::query()
-            ->whereKeyNot($reservation->id)
-            ->where('driver_id', $driver->id)
-            ->whereIn('status', [ReservationStatus::APPROUVE->value, ReservationStatus::CONFIRME->value])
-            ->whereDate('trip_date', $reservation->trip_date)
-            ->get()
-            ->first(fn (Reservation $other): bool => $this->occupationService->overlaps(
-                $window,
-                $this->occupationService->windowForReservation($other)
-            ));
+        $overlap = $this->firstOverlap($window, $overlappingByDriver[$driver->id] ?? [], $overlapWindowsByReservationId);
 
         if ($overlap) {
             return "Deja affecte a la reservation #{$overlap->id} sur ce creneau.";
@@ -117,7 +219,14 @@ class PlanningAvailabilityService
         return null;
     }
 
-    private function vehicleUnavailabilityReason(Reservation $reservation, Vehicle $vehicle): ?string
+    private function vehicleUnavailabilityReason(
+        Reservation $reservation,
+        Vehicle $vehicle,
+        array $window,
+        array $vehicleUnavailabilities,
+        array $overlappingByVehicle,
+        array $overlapWindowsByReservationId
+    ): ?string
     {
         if (! $vehicle->is_active) {
             return 'Vehicule inactif.';
@@ -129,32 +238,27 @@ class PlanningAvailabilityService
             return "Capacite insuffisante : {$vehicle->capacity} places pour {$requiredCapacity} necessaires.";
         }
 
-        $window = $this->occupationService->windowForReservation($reservation);
-        $start = $window['start'];
-        $end = $window['end'];
-
-        if (Unavailability::query()
-            ->where('is_active', true)
-            ->where('vehicle_id', $vehicle->id)
-            ->where('start_datetime', '<', $end)
-            ->where('end_datetime', '>', $start)
-            ->exists()) {
+        if (in_array($vehicle->id, $vehicleUnavailabilities, true)) {
             return 'Vehicule indisponible sur ce creneau.';
         }
 
-        $overlap = Reservation::query()
-            ->whereKeyNot($reservation->id)
-            ->where('vehicle_id', $vehicle->id)
-            ->whereIn('status', [ReservationStatus::APPROUVE->value, ReservationStatus::CONFIRME->value])
-            ->whereDate('trip_date', $reservation->trip_date)
-            ->get()
-            ->first(fn (Reservation $other): bool => $this->occupationService->overlaps(
-                $window,
-                $this->occupationService->windowForReservation($other)
-            ));
+        $overlap = $this->firstOverlap($window, $overlappingByVehicle[$vehicle->id] ?? [], $overlapWindowsByReservationId);
 
         if ($overlap) {
             return "Deja affecte a la reservation #{$overlap->id} sur ce creneau.";
+        }
+
+        return null;
+    }
+
+    private function firstOverlap(array $window, array $candidates, array $overlapWindowsByReservationId): ?Reservation
+    {
+        foreach ($candidates as $candidate) {
+            $candidateWindow = $overlapWindowsByReservationId[$candidate->id] ?? null;
+
+            if ($candidateWindow !== null && $this->occupationService->overlaps($window, $candidateWindow)) {
+                return $candidate;
+            }
         }
 
         return null;

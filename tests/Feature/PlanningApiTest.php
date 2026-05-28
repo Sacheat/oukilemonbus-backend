@@ -33,6 +33,27 @@ class PlanningApiTest extends TestCase
         config(['reservations.duration_margin_min' => 15]);
     }
 
+    public function test_guest_cannot_access_planning_routes(): void
+    {
+        $this->getJson('/api/planning?start_date=2026-06-16&end_date=2026-06-16')
+            ->assertUnauthorized();
+
+        $this->get('/api/planning/export?start_date=2026-06-16&end_date=2026-06-16')
+            ->assertUnauthorized();
+    }
+
+    public function test_authenticated_user_without_permission_gets_forbidden_on_planning_routes(): void
+    {
+        $user = User::factory()->create();
+        Sanctum::actingAs($user);
+
+        $this->getJson('/api/planning?start_date=2026-06-16&end_date=2026-06-16')
+            ->assertForbidden();
+
+        $this->get('/api/planning/export?start_date=2026-06-16&end_date=2026-06-16')
+            ->assertForbidden();
+    }
+
     public function test_agent_can_view_planning_with_availability_details(): void
     {
         $agent = $this->userWithRole('agent_communal');
@@ -485,6 +506,50 @@ class PlanningApiTest extends TestCase
             ->assertJsonPath('data.0.reservation_id', $visibleReservation->id)
             ->assertJsonPath('data.0.organization.id', $firstOrganization->id);
     }
+
+    public function test_agent_can_request_availability_on_multiple_items_without_response_regression(): void
+    {
+        $agent = $this->userWithRole('agent_communal');
+        $organization = $this->organization();
+        [$pickup, $destination] = $this->locations();
+        $driver = $this->driver('Charge', 'Test');
+        $vehicle = Vehicle::create([
+            'licence_plate' => '1-LOAD-001',
+            'capacity' => 60,
+            'is_active' => true,
+        ]);
+
+        foreach (range(0, 9) as $offset) {
+            $this->reservation([
+                'organization_id' => $organization->id,
+                'pickup_location_id' => $pickup->id,
+                'destination_location_id' => $destination->id,
+                'driver_id' => $driver->id,
+                'vehicle_id' => $vehicle->id,
+                'trip_date' => '2026-06-'.str_pad((string) (16 + $offset), 2, '0', STR_PAD_LEFT),
+                'departure_time' => '09:00:00',
+                'return_time' => '10:00:00',
+                'status' => ReservationStatus::CONFIRME,
+            ]);
+        }
+
+        Sanctum::actingAs($agent);
+
+        $response = $this->getJson('/api/planning?start_date=2026-06-16&end_date=2026-06-25&include_availability=1');
+
+        $response->assertOk()
+            ->assertJsonCount(10, 'data')
+            ->assertJsonStructure([
+                'data' => [[
+                    'reservation_id',
+                    'availability' => [
+                        'drivers' => ['available', 'unavailable'],
+                        'vehicles' => ['available', 'unavailable'],
+                    ],
+                ]],
+            ]);
+    }
+
     private function userWithRole(string $role): User
     {
         $user = User::factory()->create();
@@ -568,6 +633,5 @@ class PlanningApiTest extends TestCase
         ]);
     }
 }
-
 
 

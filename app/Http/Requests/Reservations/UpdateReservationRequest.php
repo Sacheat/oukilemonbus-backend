@@ -2,7 +2,9 @@
 
 namespace App\Http\Requests\Reservations;
 
+use App\Enums\ReservationActivityType;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rules\Enum;
 
 class UpdateReservationRequest extends FormRequest
 {
@@ -25,6 +27,7 @@ class UpdateReservationRequest extends FormRequest
             'nb_children' => ['sometimes', 'integer', 'min:0'],
             'nb_adults' => ['sometimes', 'integer', 'min:1'],
             'trip_purpose' => ['sometimes', 'string', 'max:500'],
+            'activity_type' => ['sometimes', new Enum(ReservationActivityType::class)],
         ];
     }
 }
