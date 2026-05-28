@@ -14,6 +14,12 @@ class OperationalNotification extends Notification implements ShouldQueue
 {
     use Queueable;
 
+    public int $tries = 3;
+
+    public int $timeout = 120;
+
+    public bool $failOnTimeout = true;
+
     public function __construct(
         private readonly string $eventKey,
         private readonly string $category,
@@ -32,6 +38,11 @@ class OperationalNotification extends Notification implements ShouldQueue
     public function via(object $notifiable): array
     {
         return $this->channels;
+    }
+
+    public function backoff(): array
+    {
+        return [30, 120, 600];
     }
 
     public function toArray(object $notifiable): array
@@ -75,4 +86,3 @@ class OperationalNotification extends Notification implements ShouldQueue
         return $mail;
     }
 }
-

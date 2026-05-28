@@ -15,6 +15,12 @@ return [
 
     'default' => env('QUEUE_CONNECTION', 'database'),
 
+    'names' => [
+        'critical' => env('QUEUE_NAME_CRITICAL', 'critical'),
+        'default' => env('QUEUE_NAME_DEFAULT', 'default'),
+        'low' => env('QUEUE_NAME_LOW', 'low'),
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | Queue Connections

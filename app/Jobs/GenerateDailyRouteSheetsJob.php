@@ -14,6 +14,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Log;
 use Throwable;
 
 class GenerateDailyRouteSheetsJob implements ShouldBeUnique, ShouldQueue
@@ -23,18 +24,29 @@ class GenerateDailyRouteSheetsJob implements ShouldBeUnique, ShouldQueue
     use Queueable;
     use SerializesModels;
 
-    public int $tries = 1;
+    public int $tries = 3;
+
+    public int $timeout = 180;
+
+    public bool $failOnTimeout = true;
 
     public int $uniqueFor = 3600;
 
     public function __construct(
         public readonly string $serviceDate,
         public readonly bool $force = false
-    ) {}
+    ) {
+        $this->onQueue((string) config('queue.names.low', 'low'));
+    }
 
     public function uniqueId(): string
     {
         return $this->serviceDate;
+    }
+
+    public function backoff(): array
+    {
+        return [60, 300, 900];
     }
 
     public function handle(RouteSheetDocumentService $routeSheetDocumentService, DomainLogger $logger): array
@@ -123,5 +135,14 @@ class GenerateDailyRouteSheetsJob implements ShouldBeUnique, ShouldQueue
                 $vehicleId
             ))
             ->exists();
+    }
+
+    public function failed(Throwable $exception): void
+    {
+        Log::error('jobs.generate_daily_route_sheets.failed', [
+            'service_date' => $this->serviceDate,
+            'force' => $this->force,
+            'message' => $exception->getMessage(),
+        ]);
     }
 }

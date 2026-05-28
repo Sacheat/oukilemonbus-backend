@@ -22,3 +22,8 @@ Schedule::command('notifications:send-digests')
     ->hourly()
     ->timezone('Europe/Brussels')
     ->withoutOverlapping();
+
+Schedule::command('notifications:health --json')
+    ->everyFifteenMinutes()
+    ->timezone('Europe/Brussels')
+    ->withoutOverlapping();

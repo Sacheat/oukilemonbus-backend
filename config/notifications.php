@@ -23,4 +23,10 @@ return [
         'delivery_logs_days' => (int) env('NOTIFICATIONS_RETENTION_DELIVERY_LOGS_DAYS', 180),
         'failed_delivery_logs_days' => (int) env('NOTIFICATIONS_RETENTION_FAILED_LOGS_DAYS', 365),
     ],
+
+    'observability' => [
+        'max_failed_deliveries_24h' => (int) env('NOTIFICATIONS_OBS_MAX_FAILED_DELIVERIES_24H', 20),
+        'max_high_pending_over_5m' => (int) env('NOTIFICATIONS_OBS_MAX_HIGH_PENDING_OVER_5M', 0),
+        'max_late_digests_over_30m' => (int) env('NOTIFICATIONS_OBS_MAX_LATE_DIGESTS_OVER_30M', 10),
+    ],
 ];

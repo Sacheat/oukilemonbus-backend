@@ -135,6 +135,7 @@ class NotificationDispatchService
                         attachDocumentIfSmall: $channel === 'mail',
                         channels: [$channel]
                     );
+                    $notification->onQueue($this->queueNameFor($priority, $channel));
 
                     $user->notify($notification);
 
@@ -241,5 +242,18 @@ class NotificationDispatchService
             'available_at' => $availableAt,
             'sent_at' => null,
         ]);
+    }
+
+    private function queueNameFor(string $priority, string $channel): string
+    {
+        if ($priority === 'high') {
+            return (string) config('queue.names.critical', 'critical');
+        }
+
+        if ($channel === 'mail') {
+            return (string) config('queue.names.default', 'default');
+        }
+
+        return (string) config('queue.names.low', 'low');
     }
 }
