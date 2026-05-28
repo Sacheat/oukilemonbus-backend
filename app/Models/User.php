@@ -30,6 +30,11 @@ class User extends Authenticatable
         return $this->hasOne(Driver::class);
     }
 
+    public function notificationPreference(): HasOne
+    {
+        return $this->hasOne(UserNotificationPreference::class);
+    }
+
     public function organizations(): BelongsToMany
     {
         return $this->belongsToMany(Organization::class, 'user_organization')

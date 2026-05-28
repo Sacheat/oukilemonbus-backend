@@ -5,13 +5,17 @@ namespace App\Services\UserOrgRequests;
 use App\Enums\RequestStatus;
 use App\Models\User;
 use App\Models\UserOrgRequest;
+use App\Services\Notifications\NotificationDispatchService;
+use App\Services\Notifications\NotificationRecipientResolver;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class UserOrgRequestService
 {
     public function __construct(
-        private readonly UserOrgRequestConfidenceScoreService $confidenceScoreService
+        private readonly UserOrgRequestConfidenceScoreService $confidenceScoreService,
+        private readonly NotificationDispatchService $notificationDispatchService,
+        private readonly NotificationRecipientResolver $notificationRecipientResolver
     ) {}
 
     public function create(User $user, array $data): UserOrgRequest
@@ -28,6 +32,14 @@ class UserOrgRequestService
         $request->update([
             'confidence_note' => $this->confidenceScoreService->calculate($request),
         ]);
+
+        $this->notificationDispatchService->dispatch(
+            users: $this->notificationRecipientResolver->internalUsers(),
+            eventKey: 'user_org_request.created',
+            category: 'admin_workflow',
+            title: 'Nouvelle demande de rattachement organisation',
+            message: "La demande #{$request->id} doit etre revue par un agent communal."
+        );
 
         return $request->refresh();
     }

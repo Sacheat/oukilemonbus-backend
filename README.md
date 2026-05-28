@@ -252,6 +252,18 @@ Checklist minimale avant mise en production:
 - `council-decisions`
 - `unavailabilities`
 - `unavailabilities history`
+- `notifications` (in-app + email + preferences utilisateur)
+
+## Notifications (V1)
+
+- Canaux: `in-app` (table `notifications`) et `email`.
+- Preferences utilisateur: endpoints `GET/PATCH /api/notifications/preferences`.
+- In-app: `GET /api/notifications`, `PATCH /api/notifications/{id}/read`, `PATCH /api/notifications/read-all`.
+- Anti-spam: cooldown configurable (`NOTIFICATIONS_COOLDOWN_MINUTES`).
+- Annulation de derniere minute: seuil configurable (`NOTIFICATIONS_LAST_MINUTE_CANCELLATION_HOURS`, defaut 24h).
+- Documents dans les emails:
+  - petit fichier: piece jointe (max `NOTIFICATIONS_MAIL_MAX_ATTACHMENT_BYTES`);
+  - gros fichier: lien signe temporaire.
 
 ## Commandes utiles
 

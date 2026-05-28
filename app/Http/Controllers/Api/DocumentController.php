@@ -64,4 +64,9 @@ class DocumentController extends Controller
 
         return $this->documentService->download($document);
     }
+
+    public function signedDownload(Document $document): StreamedResponse
+    {
+        return $this->documentService->download($document);
+    }
 }

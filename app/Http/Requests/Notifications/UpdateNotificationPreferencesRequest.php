@@ -1,0 +1,28 @@
+<?php
+
+namespace App\Http\Requests\Notifications;
+
+use Illuminate\Foundation\Http\FormRequest;
+
+class UpdateNotificationPreferencesRequest extends FormRequest
+{
+    public function authorize(): bool
+    {
+        return $this->user() !== null;
+    }
+
+    public function rules(): array
+    {
+        return [
+            'notify_reservation_updates_in_app' => ['sometimes', 'boolean'],
+            'notify_reservation_updates_email' => ['sometimes', 'boolean'],
+            'notify_driver_planning_in_app' => ['sometimes', 'boolean'],
+            'notify_driver_planning_email' => ['sometimes', 'boolean'],
+            'notify_admin_workflow_in_app' => ['sometimes', 'boolean'],
+            'notify_admin_workflow_email' => ['sometimes', 'boolean'],
+            'notify_last_minute_cancellation_in_app' => ['sometimes', 'boolean'],
+            'notify_last_minute_cancellation_email' => ['sometimes', 'boolean'],
+        ];
+    }
+}
+

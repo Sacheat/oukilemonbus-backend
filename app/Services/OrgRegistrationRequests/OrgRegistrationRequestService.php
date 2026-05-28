@@ -6,13 +6,17 @@ use App\Enums\RequestStatus;
 use App\Models\Organization;
 use App\Models\OrgRegistrationRequest;
 use App\Models\User;
+use App\Services\Notifications\NotificationDispatchService;
+use App\Services\Notifications\NotificationRecipientResolver;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class OrgRegistrationRequestService
 {
     public function __construct(
-        private readonly OrgRegistrationConfidenceScoreService $confidenceScoreService
+        private readonly OrgRegistrationConfidenceScoreService $confidenceScoreService,
+        private readonly NotificationDispatchService $notificationDispatchService,
+        private readonly NotificationRecipientResolver $notificationRecipientResolver
     ) {}
 
     public function create(User $user, array $data): OrgRegistrationRequest
@@ -27,6 +31,14 @@ class OrgRegistrationRequestService
         $request->update([
             'confidence_note' => $this->confidenceScoreService->calculate($request),
         ]);
+
+        $this->notificationDispatchService->dispatch(
+            users: $this->notificationRecipientResolver->internalUsers(),
+            eventKey: 'org_registration_request.created',
+            category: 'admin_workflow',
+            title: 'Nouvelle demande de creation d organisation',
+            message: "La demande #{$request->id} doit etre revue par un agent communal."
+        );
 
         return $request->refresh();
     }

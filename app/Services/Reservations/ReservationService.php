@@ -11,6 +11,9 @@ use App\Models\ReservationConflict;
 use App\Models\ReservationStatusHistory;
 use App\Models\User;
 use App\Services\Logging\DomainLogger;
+use App\Services\Notifications\NotificationDispatchService;
+use App\Services\Notifications\NotificationRecipientResolver;
+use Carbon\CarbonImmutable;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
@@ -24,6 +27,8 @@ class ReservationService
     public function __construct(
         private readonly ReservationPreviewService $previewService,
         private readonly ReservationAssignmentService $assignmentService,
+        private readonly NotificationDispatchService $notificationDispatchService,
+        private readonly NotificationRecipientResolver $notificationRecipientResolver,
         ?DomainLogger $logger = null
     ) {
         $this->logger = $logger ?? app(DomainLogger::class);
@@ -75,6 +80,16 @@ class ReservationService
                 if ($this->assignmentService->hasRequiredAssignments($reservation) && ! $reservation->conflicts()->where('is_resolved', false)->exists()) {
                     $reservation = $this->transition($reservation, ReservationStatus::CONFIRME, $actor, 'Confirmation automatique');
                 }
+            }
+
+            if ($status === ReservationStatus::EN_CONFLIT) {
+                $this->notifyInternalUsers(
+                    'reservation.conflict_detected',
+                    'admin_workflow',
+                    'Conflit de reservation detecte',
+                    "La reservation #{$reservation->id} a ete creee avec un conflit.",
+                    $reservation
+                );
             }
 
             return $reservation->refresh()->load(['organization', 'pickupLocation', 'destinationLocation', 'driver', 'vehicle', 'conflicts']);
@@ -140,6 +155,14 @@ class ReservationService
                 $reservation = $this->transition($reservation, ReservationStatus::CONFIRME, $actor, 'Confirmation apres approbation');
             }
 
+            $this->notifyRequester(
+                $reservation,
+                'reservation.approved',
+                'reservation_updates',
+                'Reservation approuvee',
+                "Votre reservation #{$reservation->id} a ete approuvee."
+            );
+
             return $reservation->refresh()->load(['organization', 'pickupLocation', 'destinationLocation', 'driver', 'vehicle', 'conflicts']);
         });
     }
@@ -153,6 +176,14 @@ class ReservationService
             ]);
 
             $this->recordStatus($reservation, $reservation->getOriginal('status'), ReservationStatus::REFUSE, $actor, $reason);
+
+            $this->notifyRequester(
+                $reservation,
+                'reservation.rejected',
+                'reservation_updates',
+                'Reservation refusee',
+                "Votre reservation #{$reservation->id} a ete refusee. Motif: {$reason}"
+            );
 
             return $reservation->refresh();
         });
@@ -169,6 +200,30 @@ class ReservationService
             ]);
 
             $this->recordStatus($reservation, $reservation->getOriginal('status'), ReservationStatus::ANNULE, $actor, $reason);
+
+            $isLastMinute = $this->isLastMinuteCancellation($reservation);
+            $category = $isLastMinute ? 'last_minute_cancellation' : 'reservation_updates';
+            $priority = $isLastMinute ? 'high' : 'normal';
+
+            $this->notifyRequester(
+                $reservation,
+                'reservation.cancelled',
+                $category,
+                'Reservation annulee',
+                "Votre reservation #{$reservation->id} a ete annulee. Motif: {$reason}",
+                $priority,
+                $isLastMinute
+            );
+
+            $this->notifyDriver(
+                $reservation,
+                'reservation.cancelled',
+                $category,
+                'Annulation de reservation',
+                "La reservation #{$reservation->id} a ete annulee. Motif: {$reason}",
+                $priority,
+                $isLastMinute
+            );
 
             return $reservation->refresh();
         });
@@ -188,7 +243,25 @@ class ReservationService
             ]);
         }
 
-        return $this->transition($reservation, ReservationStatus::CONFIRME, $actor, 'Confirmation');
+        $reservation = $this->transition($reservation, ReservationStatus::CONFIRME, $actor, 'Confirmation');
+
+        $this->notifyRequester(
+            $reservation,
+            'reservation.confirmed',
+            'reservation_updates',
+            'Reservation confirmee',
+            "Votre reservation #{$reservation->id} est confirmee."
+        );
+
+        $this->notifyDriver(
+            $reservation,
+            'reservation.confirmed',
+            'driver_planning',
+            'Mission confirmee',
+            "La mission liee a la reservation #{$reservation->id} est confirmee."
+        );
+
+        return $reservation;
     }
 
     public function resolveConflict(ReservationConflict $conflict, User $actor): ReservationConflict
@@ -262,5 +335,107 @@ class ReservationService
                 'related_reservation_id' => $conflict['related_reservation_id'] ?? null,
             ]);
         }
+    }
+
+    private function notifyInternalUsers(
+        string $eventKey,
+        string $category,
+        string $title,
+        string $message,
+        Reservation $reservation,
+        string $priority = 'normal',
+        bool $urgent = false
+    ): void {
+        $this->notificationDispatchService->dispatch(
+            users: $this->notificationRecipientResolver->internalUsers(),
+            eventKey: $eventKey,
+            category: $category,
+            title: $title,
+            message: $message,
+            reservation: $reservation,
+            priority: $priority,
+            urgent: $urgent
+        );
+    }
+
+    private function notifyRequester(
+        Reservation $reservation,
+        string $eventKey,
+        string $category,
+        string $title,
+        string $message,
+        string $priority = 'normal',
+        bool $urgent = false
+    ): void {
+        $requester = $this->notificationRecipientResolver->reservationRequester($reservation);
+        if ($requester === null) {
+            return;
+        }
+
+        $this->notificationDispatchService->dispatch(
+            users: collect([$requester]),
+            eventKey: $eventKey,
+            category: $category,
+            title: $title,
+            message: $message,
+            reservation: $reservation,
+            priority: $priority,
+            urgent: $urgent
+        );
+    }
+
+    private function notifyDriver(
+        Reservation $reservation,
+        string $eventKey,
+        string $category,
+        string $title,
+        string $message,
+        string $priority = 'normal',
+        bool $urgent = false
+    ): void {
+        $driverUser = $this->notificationRecipientResolver->reservationDriverUser($reservation);
+        if ($driverUser === null) {
+            return;
+        }
+
+        $document = $urgent ? $this->latestRouteSheetDocumentForReservation($reservation) : null;
+
+        $this->notificationDispatchService->dispatch(
+            users: collect([$driverUser]),
+            eventKey: $eventKey,
+            category: $category,
+            title: $title,
+            message: $message,
+            reservation: $reservation,
+            document: $document,
+            priority: $priority,
+            urgent: $urgent
+        );
+    }
+
+    private function isLastMinuteCancellation(Reservation $reservation): bool
+    {
+        $tripDate = $reservation->trip_date?->toDateString();
+        $departureTime = $reservation->departure_time?->format('H:i:s');
+
+        if ($tripDate === null || $departureTime === null) {
+            return false;
+        }
+
+        $departureAt = CarbonImmutable::parse($tripDate.' '.$departureTime);
+        $threshold = now()->addHours((int) config('notifications.last_minute_cancellation_hours', 24));
+
+        return $departureAt->lessThanOrEqualTo($threshold);
+    }
+
+    private function latestRouteSheetDocumentForReservation(Reservation $reservation): ?\App\Models\Document
+    {
+        return \App\Models\Document::query()
+            ->where('document_type', \App\Enums\DocumentType::FEUILLE_ROUTE->value)
+            ->where('is_available', true)
+            ->whereHas('routeSheetReservations', fn ($query) => $query->whereKey($reservation->id))
+            ->latest('generated_at')
+            ->latest('id')
+            ->first();
     }
 }
