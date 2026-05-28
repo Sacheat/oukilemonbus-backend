@@ -269,11 +269,26 @@ Checklist minimale avant mise en production:
 
 - Digest non urgent (horaire/quotidien) configurable par utilisateur.
 - Quiet hours par utilisateur (`quiet_hours_start` / `quiet_hours_end`).
+- Observabilite minimale:
+  - commande `php artisan notifications:health` (texte) ;
+  - commande `php artisan notifications:health --json` (machine readable) ;
+  - endpoint protege `GET /api/notifications/health` (permission `notifications.monitor`).
 - Liens de telechargement document one-time:
   - token unique;
   - expiration;
   - usage unique;
   - journalisation des acces (succes/echec).
+
+### Runbook rapide notifications
+
+- Seuils observabilite (variables d'environnement) :
+  - `NOTIFICATIONS_OBS_MAX_FAILED_DELIVERIES_24H`
+  - `NOTIFICATIONS_OBS_MAX_HIGH_PENDING_OVER_5M`
+  - `NOTIFICATIONS_OBS_MAX_LATE_DIGESTS_OVER_30M`
+- Si `status=alert` :
+  - verifier les workers des queues `critical`, `default`, `low` ;
+  - verifier le scheduler (digest + healthcheck) ;
+  - inspecter les lignes `failed` de `notification_deliveries` et relancer les jobs si necessaire.
 
 ## Commandes utiles
 

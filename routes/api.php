@@ -50,6 +50,9 @@ Route::name('api.')->group(function (): void {
          */
         Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
         Route::get('/notifications/unread-count', [NotificationController::class, 'unreadCount'])->name('notifications.unread-count');
+        Route::get('/notifications/health', [NotificationController::class, 'health'])
+            ->middleware('permission:notifications.monitor')
+            ->name('notifications.health');
         Route::patch('/notifications/{notificationId}/read', [NotificationController::class, 'markAsRead'])->name('notifications.mark-read');
         Route::patch('/notifications/read', [NotificationController::class, 'markManyAsRead'])->name('notifications.mark-many-read');
         Route::patch('/notifications/read-all', [NotificationController::class, 'markAllAsRead'])->name('notifications.mark-all-read');

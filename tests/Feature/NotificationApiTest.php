@@ -207,4 +207,42 @@ class NotificationApiTest extends TestCase
         $this->assertSame(0, NotificationDelivery::query()->where('channel', 'mail')->count());
         $this->assertSame(1, NotificationDigestQueue::query()->count());
     }
+
+    public function test_guest_cannot_access_notifications_health_endpoint(): void
+    {
+        $this->getJson('/api/notifications/health')
+            ->assertUnauthorized();
+    }
+
+    public function test_authenticated_user_without_permission_cannot_access_notifications_health_endpoint(): void
+    {
+        $user = User::factory()->create();
+        $user->assignRole('user');
+        Sanctum::actingAs($user);
+
+        $this->getJson('/api/notifications/health')
+            ->assertForbidden();
+    }
+
+    public function test_agent_can_access_notifications_health_endpoint(): void
+    {
+        $user = User::factory()->create();
+        $user->assignRole('agent_communal');
+        Sanctum::actingAs($user);
+
+        $this->getJson('/api/notifications/health')
+            ->assertOk()
+            ->assertJsonStructure([
+                'status',
+                'data' => [
+                    'deliveries_pending_total',
+                    'deliveries_failed_last_24h',
+                    'deliveries_high_pending_over_5m',
+                    'digests_pending_ready',
+                    'digests_late_over_30m',
+                    'oldest_pending_delivery_age_seconds',
+                    'checked_at',
+                ],
+            ]);
+    }
 }

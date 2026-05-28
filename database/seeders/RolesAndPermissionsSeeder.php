@@ -61,6 +61,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'documents.download',
             'documents.generate',
             'documents.update',
+            'notifications.monitor',
         ];
 
         foreach ($permissions as $permission) {
@@ -158,6 +159,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'documents.download',
             'documents.generate',
             'documents.update',
+            'notifications.monitor',
         ]);
 
         $responsableOrganisation->givePermissionTo([

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\InAppNotificationResource;
+use App\Services\Notifications\NotificationHealthService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Notifications\DatabaseNotification;
@@ -85,5 +86,16 @@ class NotificationController extends Controller
             ->update(['read_at' => now()]);
 
         return response()->json(null, 204);
+    }
+
+    public function health(NotificationHealthService $healthService): JsonResponse
+    {
+        $summary = $healthService->summary();
+        $healthy = $healthService->isHealthy($summary);
+
+        return response()->json([
+            'status' => $healthy ? 'ok' : 'alert',
+            'data' => $summary,
+        ]);
     }
 }
