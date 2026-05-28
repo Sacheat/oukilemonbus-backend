@@ -1,0 +1,50 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+    container_name: bus-communal-app
+    restart: unless-stopped
+    working_dir: /var/www/html
+    volumes:
+      - .:/var/www/html
+    depends_on:
+      - mariadb
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: bus-communal-nginx
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    volumes:
+      - .:/var/www/html
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      - app
+
+  mariadb:
+    image: mariadb:11.4
+    container_name: bus-communal-mariadb
+    restart: unless-stopped
+    environment:
+      MARIADB_ROOT_PASSWORD: root
+      MARIADB_DATABASE: bus_communal
+      MARIADB_USER: bus_user
+      MARIADB_PASSWORD: bus_password
+    ports:
+      - "3307:3306"
+    volumes:
+      - bus_communal_mariadb_data:/var/lib/mysql
+
+  adminer:
+    image: adminer:latest
+    container_name: bus-communal-adminer
+    restart: unless-stopped
+    ports:
+      - "8081:8080"
+    depends_on:
+      - mariadb
+
+volumes:
+  bus_communal_mariadb_data:

@@ -11,6 +11,7 @@ use App\Models\ReservationConflict;
 use App\Models\ReservationStatusHistory;
 use App\Models\User;
 use App\Services\Logging\DomainLogger;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -37,7 +38,7 @@ class ReservationService
                 : $actor->id;
 
             if (! Gate::forUser($actor)->allows('createForOrganization', [Reservation::class, $organization])) {
-                abort(403);
+                throw new AuthorizationException('Action non autorisee pour cette organisation.');
             }
 
             $preview = $this->previewService->preview($data);
@@ -145,28 +146,32 @@ class ReservationService
 
     public function reject(Reservation $reservation, User $actor, string $reason): Reservation
     {
-        $reservation->update([
-            'status' => ReservationStatus::REFUSE,
-            'rejection_reason' => $reason,
-        ]);
+        return DB::transaction(function () use ($reservation, $actor, $reason): Reservation {
+            $reservation->update([
+                'status' => ReservationStatus::REFUSE,
+                'rejection_reason' => $reason,
+            ]);
 
-        $this->recordStatus($reservation, $reservation->getOriginal('status'), ReservationStatus::REFUSE, $actor, $reason);
+            $this->recordStatus($reservation, $reservation->getOriginal('status'), ReservationStatus::REFUSE, $actor, $reason);
 
-        return $reservation->refresh();
+            return $reservation->refresh();
+        });
     }
 
     public function cancel(Reservation $reservation, User $actor, string $reason): Reservation
     {
-        $reservation->update([
-            'status' => ReservationStatus::ANNULE,
-            'cancelled_by_user_id' => $actor->id,
-            'cancelled_at' => now(),
-            'cancellation_reason' => $reason,
-        ]);
+        return DB::transaction(function () use ($reservation, $actor, $reason): Reservation {
+            $reservation->update([
+                'status' => ReservationStatus::ANNULE,
+                'cancelled_by_user_id' => $actor->id,
+                'cancelled_at' => now(),
+                'cancellation_reason' => $reason,
+            ]);
 
-        $this->recordStatus($reservation, $reservation->getOriginal('status'), ReservationStatus::ANNULE, $actor, $reason);
+            $this->recordStatus($reservation, $reservation->getOriginal('status'), ReservationStatus::ANNULE, $actor, $reason);
 
-        return $reservation->refresh();
+            return $reservation->refresh();
+        });
     }
 
     public function confirm(Reservation $reservation, User $actor): Reservation
