@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Enums\DocumentType;
+use App\Models\DocumentAccessToken;
 use App\Models\Document;
 use App\Models\Location;
 use App\Models\Organization;
@@ -12,6 +13,7 @@ use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\URL;
 use Laravel\Sanctum\Sanctum;
 use Spatie\Permission\PermissionRegistrar;
 use Tests\TestCase;
@@ -207,6 +209,68 @@ class DocumentApiTest extends TestCase
 
         $this->assertArrayNotHasKey('generation_context', $response->json('data'));
         $this->assertArrayNotHasKey('file_path', $response->json('data'));
+    }
+
+    public function test_signed_download_link_can_be_used_only_once(): void
+    {
+        $user = $this->userWithRole('user');
+        $document = $this->createStoredDocument($user);
+        $token = DocumentAccessToken::create([
+            'document_id' => $document->id,
+            'user_id' => $user->id,
+            'token' => 'tok_once_123',
+            'expires_at' => now()->addHour(),
+        ]);
+
+        $url = URL::temporarySignedRoute(
+            'api.documents.signed-download',
+            now()->addHour(),
+            ['document' => $document->id, 'token' => $token->token]
+        );
+
+        $this->get($url)->assertOk();
+        $this->get($url)->assertForbidden();
+    }
+
+    public function test_signed_download_link_is_refused_when_token_is_expired(): void
+    {
+        $user = $this->userWithRole('user');
+        $document = $this->createStoredDocument($user);
+        $token = DocumentAccessToken::create([
+            'document_id' => $document->id,
+            'user_id' => $user->id,
+            'token' => 'tok_expired_123',
+            'expires_at' => now()->subMinute(),
+        ]);
+
+        $url = URL::temporarySignedRoute(
+            'api.documents.signed-download',
+            now()->addHour(),
+            ['document' => $document->id, 'token' => $token->token]
+        );
+
+        $this->get($url)->assertForbidden();
+    }
+
+    public function test_signed_download_link_is_refused_when_token_document_mismatch(): void
+    {
+        $user = $this->userWithRole('user');
+        $first = $this->createStoredDocument($user);
+        $second = $this->createStoredDocument($user);
+        $token = DocumentAccessToken::create([
+            'document_id' => $first->id,
+            'user_id' => $user->id,
+            'token' => 'tok_mismatch_123',
+            'expires_at' => now()->addHour(),
+        ]);
+
+        $url = URL::temporarySignedRoute(
+            'api.documents.signed-download',
+            now()->addHour(),
+            ['document' => $second->id, 'token' => $token->token]
+        );
+
+        $this->get($url)->assertForbidden();
     }
 
     private function userWithRole(string $role): User

@@ -35,6 +35,11 @@ class User extends Authenticatable
         return $this->hasOne(UserNotificationPreference::class);
     }
 
+    public function notificationDigestQueueItems(): HasMany
+    {
+        return $this->hasMany(NotificationDigestQueue::class);
+    }
+
     public function organizations(): BelongsToMany
     {
         return $this->belongsToMany(Organization::class, 'user_organization')

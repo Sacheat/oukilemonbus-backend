@@ -17,3 +17,8 @@ Schedule::command('notifications:prune')
     ->dailyAt('02:30')
     ->timezone('Europe/Brussels')
     ->withoutOverlapping();
+
+Schedule::command('notifications:send-digests')
+    ->hourly()
+    ->timezone('Europe/Brussels')
+    ->withoutOverlapping();

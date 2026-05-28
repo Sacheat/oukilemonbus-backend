@@ -265,6 +265,16 @@ Checklist minimale avant mise en production:
   - petit fichier: piece jointe (max `NOTIFICATIONS_MAIL_MAX_ATTACHMENT_BYTES`);
   - gros fichier: lien signe temporaire.
 
+## Notifications (V2)
+
+- Digest non urgent (horaire/quotidien) configurable par utilisateur.
+- Quiet hours par utilisateur (`quiet_hours_start` / `quiet_hours_end`).
+- Liens de telechargement document one-time:
+  - token unique;
+  - expiration;
+  - usage unique;
+  - journalisation des acces (succes/echec).
+
 ## Commandes utiles
 
 ```powershell

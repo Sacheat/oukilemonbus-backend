@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\DocumentResource;
 use App\Models\Document;
+use App\Services\Documents\DocumentAccessTokenService;
 use App\Services\Documents\DocumentService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -34,7 +35,8 @@ use Illuminate\Support\Facades\Gate;
 class DocumentController extends Controller
 {
     public function __construct(
-        private readonly DocumentService $documentService
+        private readonly DocumentService $documentService,
+        private readonly DocumentAccessTokenService $tokenService
     ) {
     }
 
@@ -65,8 +67,14 @@ class DocumentController extends Controller
         return $this->documentService->download($document);
     }
 
-    public function signedDownload(Document $document): StreamedResponse
+    public function signedDownload(Request $request, Document $document): StreamedResponse
     {
+        $token = (string) $request->query('token', '');
+
+        if ($token === '' || ! $this->tokenService->validateAndConsume($document, $token, $request)) {
+            abort(403, 'Lien de telechargement invalide ou expire.');
+        }
+
         return $this->documentService->download($document);
     }
 }

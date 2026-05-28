@@ -47,6 +47,16 @@ class Document extends Model
         return $this->hasMany(NotificationDelivery::class);
     }
 
+    public function accessTokens(): HasMany
+    {
+        return $this->hasMany(DocumentAccessToken::class);
+    }
+
+    public function accessLogs(): HasMany
+    {
+        return $this->hasMany(DocumentAccessLog::class);
+    }
+
     /* Relation utilisée pour les feuilles de route hebdomadaires
      *permettant d'associer plusieurs réservations à un même document de feuille de route
      * et de gérer l'ordre des réservations associées à une même feuille de route via la colonne position de la table pivot document_reservation

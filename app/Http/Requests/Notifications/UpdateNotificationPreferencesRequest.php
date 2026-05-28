@@ -22,7 +22,9 @@ class UpdateNotificationPreferencesRequest extends FormRequest
             'notify_admin_workflow_email' => ['sometimes', 'boolean'],
             'notify_last_minute_cancellation_in_app' => ['sometimes', 'boolean'],
             'notify_last_minute_cancellation_email' => ['sometimes', 'boolean'],
+            'digest_frequency' => ['sometimes', 'string', 'in:none,hourly,daily'],
+            'quiet_hours_start' => ['sometimes', 'integer', 'between:0,23'],
+            'quiet_hours_end' => ['sometimes', 'integer', 'between:0,23'],
         ];
     }
 }
-

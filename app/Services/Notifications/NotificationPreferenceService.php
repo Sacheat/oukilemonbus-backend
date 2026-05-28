@@ -2,6 +2,7 @@
 
 namespace App\Services\Notifications;
 
+use Carbon\CarbonImmutable;
 use App\Models\User;
 use App\Models\UserNotificationPreference;
 
@@ -56,7 +57,37 @@ class NotificationPreferenceService
             'notify_admin_workflow_email' => true,
             'notify_last_minute_cancellation_in_app' => true,
             'notify_last_minute_cancellation_email' => true,
+            'digest_frequency' => 'none',
+            'quiet_hours_start' => null,
+            'quiet_hours_end' => null,
         ];
     }
-}
 
+    public function digestFrequency(User $user): string
+    {
+        return (string) $this->forUser($user)->digest_frequency;
+    }
+
+    public function inQuietHours(User $user): bool
+    {
+        $preference = $this->forUser($user);
+        $start = $preference->quiet_hours_start;
+        $end = $preference->quiet_hours_end;
+
+        if ($start === null || $end === null) {
+            return false;
+        }
+
+        $hour = (int) CarbonImmutable::now('Europe/Brussels')->format('G');
+
+        if ($start === $end) {
+            return true;
+        }
+
+        if ($start < $end) {
+            return $hour >= $start && $hour < $end;
+        }
+
+        return $hour >= $start || $hour < $end;
+    }
+}

@@ -11,6 +11,8 @@ use Illuminate\Database\Eloquent\Relations\MorphTo;
 
 #[Fillable([
     'event_id',
+    'event_key',
+    'dedupe_key',
     'attempt_id',
     'attempt_number',
     'notification_id',
@@ -20,6 +22,7 @@ use Illuminate\Database\Eloquent\Relations\MorphTo;
     'reservation_id',
     'document_id',
     'channel',
+    'priority',
     'recipient_email',
     'status',
     'provider',

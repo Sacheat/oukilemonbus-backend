@@ -18,8 +18,10 @@ class UserNotificationPreferenceResource extends JsonResource
             'notify_admin_workflow_email' => $this->notify_admin_workflow_email,
             'notify_last_minute_cancellation_in_app' => $this->notify_last_minute_cancellation_in_app,
             'notify_last_minute_cancellation_email' => $this->notify_last_minute_cancellation_email,
+            'digest_frequency' => $this->digest_frequency,
+            'quiet_hours_start' => $this->quiet_hours_start,
+            'quiet_hours_end' => $this->quiet_hours_end,
             'updated_at' => $this->updated_at?->toISOString(),
         ];
     }
 }
-

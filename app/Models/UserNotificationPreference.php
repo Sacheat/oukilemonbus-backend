@@ -17,6 +17,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'notify_admin_workflow_email',
     'notify_last_minute_cancellation_in_app',
     'notify_last_minute_cancellation_email',
+    'digest_frequency',
+    'quiet_hours_start',
+    'quiet_hours_end',
 ])]
 class UserNotificationPreference extends Model
 {
@@ -38,7 +41,8 @@ class UserNotificationPreference extends Model
             'notify_admin_workflow_email' => 'boolean',
             'notify_last_minute_cancellation_in_app' => 'boolean',
             'notify_last_minute_cancellation_email' => 'boolean',
+            'quiet_hours_start' => 'integer',
+            'quiet_hours_end' => 'integer',
         ];
     }
 }
-

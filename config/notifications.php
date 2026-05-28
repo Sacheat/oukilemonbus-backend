@@ -7,6 +7,12 @@ return [
         'cooldown_minutes' => (int) env('NOTIFICATIONS_COOLDOWN_MINUTES', 15),
     ],
 
+    'digest' => [
+        'hourly_minute' => (int) env('NOTIFICATIONS_DIGEST_HOURLY_MINUTE', 5),
+        'daily_hour' => (int) env('NOTIFICATIONS_DIGEST_DAILY_HOUR', 8),
+        'daily_minute' => (int) env('NOTIFICATIONS_DIGEST_DAILY_MINUTE', 0),
+    ],
+
     'mail' => [
         'max_attachment_bytes' => (int) env('NOTIFICATIONS_MAIL_MAX_ATTACHMENT_BYTES', 5 * 1024 * 1024),
         'signed_link_expiration_minutes' => (int) env('NOTIFICATIONS_SIGNED_LINK_EXPIRATION_MINUTES', 60 * 24),
@@ -18,4 +24,3 @@ return [
         'failed_delivery_logs_days' => (int) env('NOTIFICATIONS_RETENTION_FAILED_LOGS_DAYS', 365),
     ],
 ];
-

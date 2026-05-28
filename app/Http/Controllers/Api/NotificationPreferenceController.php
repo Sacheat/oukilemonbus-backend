@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Notifications\UpdateNotificationPreferencesRequest;
 use App\Http\Resources\UserNotificationPreferenceResource;
 use App\Services\Notifications\NotificationPreferenceService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class NotificationPreferenceController extends Controller
@@ -14,11 +15,11 @@ class NotificationPreferenceController extends Controller
         private readonly NotificationPreferenceService $preferenceService
     ) {}
 
-    public function show(Request $request): UserNotificationPreferenceResource
+    public function show(Request $request): JsonResponse
     {
-        return new UserNotificationPreferenceResource(
+        return (new UserNotificationPreferenceResource(
             $this->preferenceService->forUser($request->user())
-        );
+        ))->response()->setStatusCode(200);
     }
 
     public function update(UpdateNotificationPreferencesRequest $request): UserNotificationPreferenceResource
@@ -28,4 +29,3 @@ class NotificationPreferenceController extends Controller
         );
     }
 }
-
