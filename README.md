@@ -113,6 +113,13 @@ La suite actuelle est fortement orientee base de donnees:
 - endpoints User Org Requests
 - permissions Spatie et acces Sanctum
 
+Execution recommandee (projet dockerise):
+
+```bash
+docker compose up -d
+docker compose exec app php artisan test
+```
+
 Lancer tous les tests:
 
 ```powershell
@@ -181,6 +188,13 @@ Exemple pour un module `reservations`:
 
 Les regles purement metier restent dans les services ou actions. Les FormRequest valident l'entree HTTP et les permissions. Les contraintes SQL doivent rester reservees aux invariants de donnees qui ne dependent pas du contexte metier.
 
+## Decisions d'architecture
+
+- Les services metier ne doivent pas repondre directement en HTTP (`abort`, `response`, etc.). Ils doivent lever des exceptions metier ou d'autorisation.
+- Les ecritures metier composees (mise a jour + historique + logs) doivent etre executees dans une transaction SQL.
+- Les FormRequest restent la source de verite de validation d'entree HTTP et doivent rester alignes avec les champs reellement traites par les services.
+- Les policies centralisent l'autorisation contextuelle (role + perimetre organisationnel + statut metier).
+
 ## Etat actuel du projet
 
 Ce qui est deja solide:
@@ -204,6 +218,24 @@ Ce qui reste a construire:
 - configuration de production: CORS, domaines Sanctum, cookies secure, queue, mail
 - notifications metier applicatives
 - synchronisation continue de la documentation technique (`README`, `DBML`, matrices de droits)
+
+## Limites connues
+
+- La disponibilite chauffeur/vehicule et certains controles de chevauchement utilisent encore des parcours en memoire sur des collections; c'est acceptable au volume actuel mais a optimiser pour des charges plus importantes.
+- La suite de tests est orientee forte valeur metier/API, mais ne couvre pas encore tous les cas de performance et de concurrence.
+- Le pipeline de generation documentaire est en progression, avec des workflows encore partiellement manuels selon les cas.
+
+## Hardening production
+
+Checklist minimale avant mise en production:
+
+- Configurer explicitement `SANCTUM_STATEFUL_DOMAINS` pour les domaines frontend reels.
+- Activer les cookies securises (`SESSION_SECURE_COOKIE=true`) et verifier `SameSite` selon le mode de deploiement.
+- Restreindre `CORS_ALLOWED_ORIGINS` aux seules origines de confiance.
+- Basculer la queue en asynchrone (ex: Redis) et superviser les workers.
+- Configurer un provider mail reel + strategie de retry.
+- Mettre en place la centralisation des logs et alertes sur erreurs critiques.
+- Verifier la rotation des secrets et la gestion des variables d'environnement.
 
 ## Modules API disponibles
 
