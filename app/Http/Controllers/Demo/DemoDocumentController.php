@@ -52,20 +52,35 @@ final class DemoDocumentController extends DemoBaseController
             'vehicle_id' => ['nullable', 'integer', 'exists:vehicles,id'],
         ]);
 
-        return $this->runDemoAction(function () use ($actor, $validated): void {
-            $this->authorizeFor($actor, 'generate', Document::class);
+        return $this->runDemoAction(
+            function () use ($actor, $validated): void {
+                $this->authorizeFor($actor, 'generate', Document::class);
 
-            if (! empty($validated['vehicle_id'])) {
-                $this->routeSheetDocumentService->generateForServiceDateVehicle(
-                    $validated['service_date'],
-                    (int) $validated['vehicle_id']
+                if (! empty($validated['vehicle_id'])) {
+                    $this->routeSheetDocumentService->generateForServiceDateVehicle(
+                        $validated['service_date'],
+                        (int) $validated['vehicle_id']
+                    );
+
+                    return;
+                }
+
+                $this->routeSheetDocumentService->generateForPeriod(
+                    $validated['start_date'],
+                    $validated['end_date']
                 );
-
-                return;
-            }
-
-            $this->routeSheetDocumentService->generateForPeriod($validated['start_date'], $validated['end_date']);
-        }, 'Feuille de route generee.');
+            },
+            'Feuille de route generee.',
+            $request,
+            'documents.route_sheets.generate',
+            [
+                'mode' => ! empty($validated['vehicle_id']) ? 'daily_vehicle' : 'period',
+                'start_date' => $validated['start_date'] ?? null,
+                'end_date' => $validated['end_date'] ?? null,
+                'service_date' => $validated['service_date'] ?? null,
+                'vehicle_id' => $validated['vehicle_id'] ?? null,
+            ]
+        );
     }
 
     public function download(Request $request, Document $document)

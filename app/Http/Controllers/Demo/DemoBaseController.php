@@ -39,14 +39,31 @@ abstract class DemoBaseController extends Controller
         ];
     }
 
-    protected function runDemoAction(callable $action, string $successMessage): RedirectResponse
-    {
+    protected function runDemoAction(callable $action, string $successMessage, ?Request $request = null, ?string $inspectorAction = null, array $inspectorContext = []): RedirectResponse {
         try {
             $action();
+
+            if ($request !== null && $inspectorAction !== null) {
+                $this->recordInspectorAction($request, $inspectorAction, array_merge($inspectorContext, [
+                    'status' => 'success',
+                    'message' => $successMessage,
+                ]));
+
+                $request->session()->put('backend_inspector.skip_next_view_recording', true);
+            }
 
             return back()->with('status', $successMessage);
         } catch (Throwable $exception) {
             report($exception);
+
+            if ($request !== null && $inspectorAction !== null) {
+                $this->recordInspectorAction($request, $inspectorAction, array_merge($inspectorContext, [
+                    'status' => 'error',
+                    'message' => $exception->getMessage(),
+                ]));
+
+                $request->session()->put('backend_inspector.skip_next_view_recording', true);
+            }
 
             return back()
                 ->withInput()
@@ -86,5 +103,5 @@ abstract class DemoBaseController extends Controller
             $sessionKeys['last_recorded_at'] ?? 'backend_inspector.last_recorded_at' => now()->toDateTimeString(),
         ]);
     }
-    
+
 }
