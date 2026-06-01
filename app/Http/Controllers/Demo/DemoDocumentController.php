@@ -91,6 +91,17 @@ final class DemoDocumentController extends DemoBaseController
         abort_unless($document->is_available, 404);
         abort_unless(Storage::disk('local')->exists($document->file_path), 404);
 
+        $this->recordInspectorAction($request, 'documents.download', [
+            'status' => 'success',
+            'message' => 'Téléchargement du document.',
+            'actor_id' => $actor->id,
+            'document_id' => $document->id,
+            'document_type' => $document->type?->value ?? $document->type,
+            'file_name' => $document->file_name,
+            'mime_type' => $document->mime_type,
+            'file_path' => $document->file_path,
+        ]);
+
         return Storage::disk('local')->download(
             $document->file_path,
             $document->file_name,
