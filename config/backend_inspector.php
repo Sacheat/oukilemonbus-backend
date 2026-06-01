@@ -686,6 +686,109 @@ return [
             ],
         ],
 
+        'notifications.read_all' => [
+            'title' => 'Marquage global des notifications comme lues',
+            'category' => 'Notifications',
+            'scenario' => 'admin',
+            'goal' => 'Marquer toutes les notifications non lues de l’acteur courant comme lues.',
+
+            'route' => [
+                'demo' => 'POST /demo/notifications/read-all',
+                'api' => 'POST /api/notifications/read-all',
+            ],
+
+            'demo_controller' => [
+                'class' => 'DemoNotificationController',
+                'method' => 'markAllAsRead',
+            ],
+
+            'api_controller' => [
+                'class' => 'NotificationController',
+                'method' => 'markAllAsRead',
+            ],
+
+            'request' => null,
+
+            'service' => [
+                'class' => 'DatabaseNotification',
+                'method' => 'update',
+                'internal_methods' => [
+                    'Récupération de l’acteur courant',
+                    'Comptage des notifications non lues',
+                    'Mise à jour du champ read_at',
+                    'Redirection vers la page notifications',
+                ],
+            ],
+
+            'related_services' => [
+                'DemoActorResolver',
+                'NotificationHealthService',
+            ],
+
+            'tables' => [
+                'notifications',
+            ],
+
+            'effects' => [
+                'Toutes les notifications non lues de l’acteur courant sont marquées comme lues.',
+                'Le champ read_at est rempli avec la date actuelle.',
+                'La page notifications est rechargée après l’action.',
+                'L’inspector conserve l’action POST malgré la redirection.',
+            ],
+        ],
+
+        'notifications.read' => [
+            'title' => 'Marquage d’une notification comme lue',
+            'category' => 'Notifications',
+            'scenario' => 'admin',
+            'goal' => 'Marquer une notification précise de l’acteur courant comme lue.',
+
+            'route' => [
+                'demo' => 'POST /demo/notifications/{notificationId}/read',
+                'api' => 'PATCH /api/notifications/{notificationId}/read',
+            ],
+
+            'demo_controller' => [
+                'class' => 'DemoNotificationController',
+                'method' => 'markAsRead',
+            ],
+
+            'api_controller' => [
+                'class' => 'NotificationController',
+                'method' => 'markAsRead',
+            ],
+
+            'request' => null,
+
+            'service' => [
+                'class' => 'DatabaseNotification',
+                'method' => 'markAsRead',
+                'internal_methods' => [
+                    'Récupération de l’acteur courant',
+                    'Recherche de la notification par son identifiant',
+                    'Vérification que la notification appartient bien à l’acteur',
+                    'Mise à jour du champ read_at',
+                    'Redirection vers la page notifications',
+                ],
+            ],
+
+            'related_services' => [
+                'DemoActorResolver',
+                'NotificationHealthService',
+            ],
+
+            'tables' => [
+                'notifications',
+            ],
+
+            'effects' => [
+                'La notification ciblée est marquée comme lue.',
+                'Le champ read_at est rempli si la notification était encore non lue.',
+                'Une notification appartenant à un autre utilisateur ne peut pas être modifiée.',
+                'L’inspector conserve l’action POST malgré la redirection.',
+            ],
+        ],
+
         // _________________________________________________________________________________________DEMANDES (REQUESTS)
         'requests.index' => [
             'title' => 'Consultation des demandes administratives',

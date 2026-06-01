@@ -57,16 +57,40 @@ final class DemoNotificationController extends DemoBaseController
     {
         $actor = $this->actor($request);
         $notification = $actor->notifications()->whereKey($notificationId)->firstOrFail();
-        $notification->markAsRead();
+        $wasUnread = $notification->read_at === null;
 
-        return back()->with('status', 'Notification marquee comme lue.');
+        return $this->runDemoAction(
+            function () use ($notification): void {
+                $notification->markAsRead();
+            },
+            'Notification marquee comme lue.',
+            $request,
+            'notifications.read',
+            [
+                'actor_id' => $actor->id,
+                'notification_id' => $notificationId,
+                'notification_type' => $notification->type,
+                'was_unread' => $wasUnread,
+            ]
+        );
     }
 
     public function markAllAsRead(Request $request): RedirectResponse
     {
         $actor = $this->actor($request);
-        $actor->unreadNotifications()->update(['read_at' => now()]);
+        $unreadCount = $actor->unreadNotifications()->count();
 
-        return back()->with('status', 'Notifications marquees comme lues.');
+        return $this->runDemoAction(
+            function () use ($actor): void {
+                $actor->unreadNotifications()->update(['read_at' => now()]);
+            },
+            'Notifications marquees comme lues.',
+            $request,
+            'notifications.read_all',
+            [
+                'actor_id' => $actor->id,
+                'unread_notifications_count' => $unreadCount,
+            ]
+        );
     }
 }
