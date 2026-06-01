@@ -58,4 +58,33 @@ abstract class DemoBaseController extends Controller
     {
         Gate::forUser($actor)->authorize($ability, $arguments);
     }
+
+    protected function recordInspectorView(Request $request, string $actionKey, array $context = []): void
+    {
+        if ($request->session()->pull('backend_inspector.skip_next_view_recording', false)) {
+            return;
+        }
+
+        $this->recordInspectorAction($request, $actionKey, $context);
+    }
+
+    protected function recordInspectorAction(Request $request, ?string $actionKey, array $context = []): void
+    {
+        if ($actionKey === null) {
+            return;
+        }
+
+        if (! config('backend_inspector.enabled', false)) {
+            return;
+        }
+
+        $sessionKeys = config('backend_inspector.session_keys', []);
+
+        $request->session()->put([
+            $sessionKeys['last_action'] ?? 'backend_inspector.last_action' => $actionKey,
+            $sessionKeys['last_context'] ?? 'backend_inspector.last_context' => $context,
+            $sessionKeys['last_recorded_at'] ?? 'backend_inspector.last_recorded_at' => now()->toDateTimeString(),
+        ]);
+    }
+    
 }

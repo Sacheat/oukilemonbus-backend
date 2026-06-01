@@ -29,6 +29,12 @@ final class DemoDocumentController extends DemoBaseController
         $actor = $this->actor($request);
         $this->authorizeFor($actor, 'viewAny', Document::class);
 
+        $this->recordInspectorView($request, 'documents.index', [
+            'status' => 'success',
+            'message' => 'Ouverture de la page documents.',
+            'actor_id' => $actor->id,
+        ]);
+
         return view('demo.documents', [
             ...$this->shared($request),
             'documents' => $this->demoData->documents($actor),
