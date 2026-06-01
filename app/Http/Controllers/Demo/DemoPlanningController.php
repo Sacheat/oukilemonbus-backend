@@ -28,6 +28,15 @@ final class DemoPlanningController extends DemoBaseController
         $endDate = $request->input('end_date', CarbonImmutable::today()->addDays(21)->toDateString());
         $includeAvailability = $actor->hasAnyRole(['admin', 'agent_communal']);
 
+        $this->recordInspectorView($request, 'planning.index', [
+            'status' => 'success',
+            'message' => 'Ouverture du planning.',
+            'actor_id' => $actor->id,
+            'start_date' => $startDate,
+            'end_date' => $endDate,
+            'include_availability' => $includeAvailability,
+        ]);
+
         return view('demo.planning', [
             ...$this->shared($request),
             'startDate' => $startDate,
