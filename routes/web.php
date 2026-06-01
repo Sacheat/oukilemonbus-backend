@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Demo\DemoController;
+use App\Http\Controllers\Demo\BackendInspectorController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -10,6 +11,17 @@ Route::get('/', function () {
 Route::prefix('demo')->name('demo.')->group(function (): void {
     Route::get('/', [DemoController::class, 'dashboard'])->name('dashboard');
     Route::post('/actor', [DemoController::class, 'setActor'])->name('actor');
+
+    // Backend Inspector routes
+    Route::prefix('inspector')
+    ->name('inspector.')
+    ->group(function (): void {
+        Route::get('/live', [BackendInspectorController::class, 'live'])
+            ->name('live');
+
+        Route::get('/state', [BackendInspectorController::class, 'state'])
+            ->name('state');
+    });
 
     Route::get('/reservations', [DemoController::class, 'reservations'])->name('reservations');
     Route::post('/reservations/{reservation}/auto-assign', [DemoController::class, 'autoAssign'])->name('reservations.auto-assign');

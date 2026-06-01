@@ -44,6 +44,12 @@ class DemoController extends Controller
     {
         $actor = $this->actor($request);
         $health = $this->notificationHealthService->summary();
+        // Enregistrer une action de visualisation du dashboard pour le backend inspector, avec un contexte contenant des statistiques sur le système
+        $this->recordInspectorAction($request, 'demo.dashboard.viewed', [
+            'status' => 'success',
+            'message' => 'Ouverture du tableau de bord.',
+            'actor_id' => $actor->id,
+        ]);
 
         return view('demo.dashboard', [
             ...$this->shared($request),
@@ -73,11 +79,27 @@ class DemoController extends Controller
 
         $request->session()->put('demo_user_id', $validated['user_id']);
 
+        $this->recordInspectorAction(
+            $request,
+            'demo.actor.changed',
+            [
+                'status' => 'success',
+                'message' => 'Acteur de démonstration changé.',
+                'user_id' => $validated['user_id'],
+            ]
+        );
+
         return back()->with('status', 'Acteur de demonstration change.');
     }
 
     public function reservations(Request $request): View
     {
+        $this->recordInspectorAction($request, 'reservations.index', [
+            'status' => 'success',
+            'message' => 'Ouverture de la liste des réservations.',
+            'status_filter' => $request->input('status'),
+        ]);
+
         return view('demo.reservations', [
             ...$this->shared($request),
             'reservations' => Reservation::query()
@@ -119,9 +141,22 @@ class DemoController extends Controller
 
     public function approve(Request $request, Reservation $reservation): RedirectResponse
     {
-        return $this->runAction($request, function () use ($request, $reservation): void {
-            $this->reservationService->approve($reservation, $this->actor($request), 'Validation depuis la demo backend');
-        }, 'Reservation approuvee.');
+        return $this->runAction(
+            $request,
+            function () use ($request, $reservation): void {
+                $this->reservationService->approve(
+                    $reservation,
+                    $this->actor($request),
+                    'Validation depuis la demo backend'
+                );
+            },
+            'Reservation approuvee.',
+            'reservations.approve',
+            [
+                'reservation_id' => $reservation->id,
+                'current_status' => $reservation->status?->value ?? $reservation->status,
+            ]
+        );
     }
 
     public function confirm(Request $request, Reservation $reservation): RedirectResponse
@@ -143,6 +178,14 @@ class DemoController extends Controller
         $actor = $this->actor($request);
         $startDate = $request->input('start_date', CarbonImmutable::today()->subDays(7)->toDateString());
         $endDate = $request->input('end_date', CarbonImmutable::today()->addDays(21)->toDateString());
+        // Enregistrer une action de visualisation du planning pour le backend inspector, avec un contexte contenant les filtres appliqués
+        $this->recordInspectorAction($request, 'planning.index', [
+            'status' => 'success',
+            'message' => 'Ouverture du planning.',
+            'actor_id' => $actor->id,
+            'start_date' => $startDate,
+            'end_date' => $endDate,
+        ]);
 
         return view('demo.planning', [
             ...$this->shared($request),
@@ -154,6 +197,12 @@ class DemoController extends Controller
 
     public function documents(Request $request): View
     {
+        // Enregistrer une action de visualisation de la page documents pour le backend inspector, avec un contexte optionnel pour fournir des détails sur l'action
+        $this->recordInspectorAction($request, 'documents.index', [
+            'status' => 'success',
+            'message' => 'Ouverture de la page documents.',
+        ]);
+
         return view('demo.documents', [
             ...$this->shared($request),
             'documents' => Document::query()
@@ -205,6 +254,12 @@ class DemoController extends Controller
     public function notifications(Request $request): View
     {
         $actor = $this->actor($request);
+        // Enregistrer une action de visualisation des notifications pour le backend inspector, avec un contexte contenant des statistiques sur les notifications de l'utilisateur
+        $this->recordInspectorAction($request, 'notifications.index', [
+            'status' => 'success',
+            'message' => 'Ouverture des notifications.',
+            'actor_id' => $actor->id,
+        ]);
 
         return view('demo.notifications', [
             ...$this->shared($request),
@@ -229,6 +284,12 @@ class DemoController extends Controller
 
     public function requests(Request $request): View
     {
+        // Enregistrer une action de visualisation des demandes administratives pour le backend inspector, avec un contexte optionnel pour fournir des détails sur l'action
+        $this->recordInspectorAction($request, 'requests.index', [
+            'status' => 'success',
+            'message' => 'Ouverture des demandes administratives.',
+        ]);
+
         return view('demo.requests', [
             ...$this->shared($request),
             'orgRequests' => OrgRegistrationRequest::query()
@@ -298,6 +359,7 @@ class DemoController extends Controller
         return $defaultUser;
     }
 
+    // Données partagées entre plusieurs vues de la demo
     private function shared(Request $request): array
     {
         return [
@@ -309,18 +371,55 @@ class DemoController extends Controller
         ];
     }
 
-    private function runAction(Request $request, callable $action, string $successMessage): RedirectResponse
+    // Helper pour factoriser l'execution d'une action avec gestion des erreurs et enregistrement pour le backend inspector
+    private function runAction(Request $request, callable $action, string $successMessage, ?string $inspectorAction = null, array $inspectorContext = [] ): RedirectResponse
     {
         try {
             $action();
+
+            $this->recordInspectorAction(
+                $request,
+                $inspectorAction,
+                array_merge($inspectorContext, [
+                    'status' => 'success',
+                    'message' => $successMessage,
+                ])
+            );
 
             return back()->with('status', $successMessage);
         } catch (Throwable $exception) {
             report($exception);
 
+            $this->recordInspectorAction(
+                $request,
+                $inspectorAction,
+                array_merge($inspectorContext, [
+                    'status' => 'error',
+                    'message' => $exception->getMessage(),
+                ])
+            );
+
             return back()
                 ->withInput()
                 ->with('error', $exception->getMessage());
         }
+    }
+
+    // Enregistre une action pour le backend inspector, avec un contexte optionnel pour fournir des détails sur l'action
+    private function recordInspectorAction(Request $request,?string $actionKey,array $context = []): void
+    {
+        if ($actionKey === null) {
+            return;
+        }
+
+        if (!config('backend_inspector.enabled', false)) {
+            return;
+        }
+        // Enregistrer l'action dans la session pour que le backend inspector puisse la récupérer et l'afficher
+        session([
+            'backend_inspector.last_action' => $actionKey,
+            'backend_inspector.last_context' => $context,
+            'backend_inspector.last_recorded_at' => now()->toDateTimeString(),
+        ]);
     }
 }
