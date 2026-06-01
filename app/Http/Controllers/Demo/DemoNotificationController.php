@@ -25,16 +25,31 @@ final class DemoNotificationController extends DemoBaseController
     {
         $actor = $this->actor($request);
 
+        $notifications = $actor->notifications()->latest()->paginate(15)->withQueryString();
+
+        $deliveries = NotificationDelivery::query()
+            ->where('notifiable_type', User::class)
+            ->where('notifiable_id', $actor->id)
+            ->latest()
+            ->limit(15)
+            ->get();
+
+        $health = $this->notificationHealthService->summary();
+
+        $this->recordInspectorView($request, 'notifications.index', [
+            'status' => 'success',
+            'message' => 'Ouverture des notifications.',
+            'actor_id' => $actor->id,
+            'notifications_count' => $notifications->total(),
+            'unread_notifications_count' => $actor->unreadNotifications()->count(),
+            'deliveries_count' => $deliveries->count(),
+        ]);
+
         return view('demo.notifications', [
             ...$this->shared($request),
-            'notifications' => $actor->notifications()->latest()->paginate(15)->withQueryString(),
-            'deliveries' => NotificationDelivery::query()
-                ->where('notifiable_type', User::class)
-                ->where('notifiable_id', $actor->id)
-                ->latest()
-                ->limit(15)
-                ->get(),
-            'health' => $this->notificationHealthService->summary(),
+            'notifications' => $notifications,
+            'deliveries' => $deliveries,
+            'health' => $health,
         ]);
     }
 
