@@ -4,13 +4,16 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Demo;
 
+use App\Enums\CouncilDecisionStatus;
 use App\Enums\ReservationActivityType;
 use App\Enums\ReservationStatus;
+use App\Models\CouncilDecision;
 use App\Models\Driver;
 use App\Models\Location;
 use App\Models\Organization;
 use App\Models\Reservation;
 use App\Models\Vehicle;
+use App\Services\CouncilDecisions\CouncilDecisionService;
 use App\Services\Demo\DemoActorResolver;
 use App\Services\Demo\DemoDataService;
 use App\Services\Reservations\ReservationAssignmentService;
@@ -18,6 +21,7 @@ use App\Services\Reservations\ReservationService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Enum;
 
 final class DemoReservationController extends DemoBaseController
@@ -27,6 +31,7 @@ final class DemoReservationController extends DemoBaseController
         private readonly DemoDataService $demoData,
         private readonly ReservationService $reservationService,
         private readonly ReservationAssignmentService $assignmentService,
+        private readonly CouncilDecisionService $councilDecisionService,
     ) {
         parent::__construct($actorResolver);
     }
@@ -62,6 +67,10 @@ final class DemoReservationController extends DemoBaseController
             'drivers' => $drivers,
             'vehicles' => $vehicles,
             'statuses' => ReservationStatus::cases(),
+            'councilDecisionStatuses' => [
+                CouncilDecisionStatus::APPROUVE,
+                CouncilDecisionStatus::REFUSE,
+            ],
         ]);
     }
 
@@ -149,6 +158,42 @@ final class DemoReservationController extends DemoBaseController
         }, 'Affectation mise a jour.');
     }
 
+    public function councilDecision(Request $request, Reservation $reservation): RedirectResponse
+    {
+        $actor = $this->actor($request);
+        $validated = $request->validate([
+            'decision_status' => [
+                'required',
+                new Enum(CouncilDecisionStatus::class),
+                Rule::in([CouncilDecisionStatus::APPROUVE->value, CouncilDecisionStatus::REFUSE->value]),
+            ],
+            'decision_date' => ['nullable', 'date'],
+            'decision_reference' => ['nullable', 'string', 'max:100'],
+            'notes' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        return $this->runDemoAction(function () use ($actor, $reservation, $validated): void {
+            $reservation->loadMissing(['organization', 'councilDecision']);
+            $payload = [
+                'reservation_id' => $reservation->id,
+                'decision_status' => $validated['decision_status'],
+                'decision_date' => $validated['decision_date'] ?? now()->toDateString(),
+                'decision_reference' => ($validated['decision_reference'] ?? null) ?: $this->decisionReference($reservation),
+                'notes' => $validated['notes'] ?? 'Decision encodee depuis la demo',
+            ];
+
+            if ($reservation->councilDecision instanceof CouncilDecision) {
+                $this->authorizeFor($actor, 'update', $reservation->councilDecision);
+                $this->councilDecisionService->update($reservation->councilDecision, $payload, $actor);
+
+                return;
+            }
+
+            $this->authorizeFor($actor, 'create', [CouncilDecision::class, $reservation]);
+            $this->councilDecisionService->create($payload, $actor);
+        }, 'Decision du college encodee.');
+    }
+
     public function approve(Request $request, Reservation $reservation): RedirectResponse
     {
         $actor = $this->actor($request);
@@ -217,5 +262,10 @@ final class DemoReservationController extends DemoBaseController
             )
             ->orderBy('name')
             ->get();
+    }
+
+    private function decisionReference(Reservation $reservation): string
+    {
+        return sprintf('DEMO-%s-R%04d', now()->format('Ymd'), $reservation->id);
     }
 }

@@ -26,8 +26,9 @@ class ReservationAssignmentService
     public function autoAssign(Reservation $reservation, User $actor): Reservation
     {
         return DB::transaction(function () use ($reservation, $actor): Reservation {
-            $driver = $this->availableDriver($reservation);
-            $vehicle = $this->availableVehicle($reservation);
+            $window = $this->occupationService->windowForReservation($reservation);
+            $driver = $this->availableDriver($reservation, $window);
+            $vehicle = $this->availableVehicle($reservation, $window);
 
             if (! $driver) {
                 $this->createConflict($reservation, ReservationConflictType::NO_DRIVER_AVAILABLE, 'Aucun chauffeur disponible pour ce creneau.');
@@ -68,26 +69,31 @@ class ReservationAssignmentService
         });
     }
 
-    public function availableDriver(Reservation $reservation): ?Driver
+    public function availableDriver(Reservation $reservation, ?array $window = null): ?Driver
     {
+        $window ??= $this->occupationService->windowForReservation($reservation);
+        $busyIds = $this->busyDriverIds($reservation, $window);
+
         return Driver::query()
             ->where('is_active', true)
+            ->when($busyIds !== [], fn ($q) => $q->whereNotIn('id', $busyIds))
             ->orderBy('id')
-            ->get()
-            ->first(fn (Driver $driver): bool => $this->isDriverAvailable($reservation, $driver));
+            ->first();
     }
 
-    public function availableVehicle(Reservation $reservation): ?Vehicle
+    public function availableVehicle(Reservation $reservation, ?array $window = null): ?Vehicle
     {
+        $window ??= $this->occupationService->windowForReservation($reservation);
         $requiredCapacity = $reservation->nb_children + $reservation->nb_adults + 1;
+        $busyIds = $this->busyVehicleIds($reservation, $window);
 
         return Vehicle::query()
             ->where('is_active', true)
             ->where('capacity', '>=', $requiredCapacity)
+            ->when($busyIds !== [], fn ($q) => $q->whereNotIn('id', $busyIds))
             ->orderBy('capacity')
             ->orderBy('id')
-            ->get()
-            ->first(fn (Vehicle $vehicle): bool => $this->isVehicleAvailable($reservation, $vehicle));
+            ->first();
     }
 
     public function hasRequiredAssignments(Reservation $reservation): bool
@@ -171,65 +177,85 @@ class ReservationAssignmentService
 
     private function isDriverAvailable(Reservation $reservation, Driver $driver): bool
     {
-        [$start, $end] = $this->window($reservation);
+        $window = $this->occupationService->windowForReservation($reservation);
 
-        $hasUnavailability = Unavailability::query()
-            ->where('is_active', true)
-            ->where('driver_id', $driver->id)
-            ->where('start_datetime', '<', $end)
-            ->where('end_datetime', '>', $start)
-            ->exists();
-
-        if ($hasUnavailability) {
+        if (in_array($driver->id, $this->busyDriverIds($reservation, $window), true)) {
             return false;
         }
 
-        return ! Reservation::query()
-            ->whereKeyNot($reservation->id)
-            ->where('driver_id', $driver->id)
-            ->whereIn('status', [ReservationStatus::APPROUVE->value, ReservationStatus::CONFIRME->value])
-            ->whereDate('trip_date', $reservation->trip_date)
-            ->get()
-            ->contains(fn (Reservation $other): bool => $this->overlaps($reservation, $other));
+        return true;
     }
 
     private function isVehicleAvailable(Reservation $reservation, Vehicle $vehicle): bool
     {
-        [$start, $end] = $this->window($reservation);
+        $window = $this->occupationService->windowForReservation($reservation);
 
-        $hasUnavailability = Unavailability::query()
-            ->where('is_active', true)
-            ->where('vehicle_id', $vehicle->id)
-            ->where('start_datetime', '<', $end)
-            ->where('end_datetime', '>', $start)
-            ->exists();
-
-        if ($hasUnavailability) {
+        if (in_array($vehicle->id, $this->busyVehicleIds($reservation, $window), true)) {
             return false;
         }
 
-        return ! Reservation::query()
+        return true;
+    }
+
+    private function busyDriverIds(Reservation $reservation, array $window): array
+    {
+        $fromUnavailabilities = Unavailability::query()
+            ->where('is_active', true)
+            ->whereNotNull('driver_id')
+            ->where('start_datetime', '<', $window['end'])
+            ->where('end_datetime', '>', $window['start'])
+            ->pluck('driver_id')
+            ->all();
+
+        $fromReservations = $this->overlappingReservationsQuery($reservation, $window)
+            ->whereNotNull('driver_id')
+            ->pluck('driver_id')
+            ->all();
+
+        return array_values(array_unique(array_merge($fromUnavailabilities, $fromReservations)));
+    }
+
+    private function busyVehicleIds(Reservation $reservation, array $window): array
+    {
+        $fromUnavailabilities = Unavailability::query()
+            ->where('is_active', true)
+            ->whereNotNull('vehicle_id')
+            ->where('start_datetime', '<', $window['end'])
+            ->where('end_datetime', '>', $window['start'])
+            ->pluck('vehicle_id')
+            ->all();
+
+        $fromReservations = $this->overlappingReservationsQuery($reservation, $window)
+            ->whereNotNull('vehicle_id')
+            ->pluck('vehicle_id')
+            ->all();
+
+        return array_values(array_unique(array_merge($fromUnavailabilities, $fromReservations)));
+    }
+
+    /**
+     * Reservations on the same day whose occupation window overlaps the given window.
+     * Replicates OccupationService::overlaps() in SQL to avoid loading all reservations in memory.
+     */
+    private function overlappingReservationsQuery(Reservation $reservation, array $window): \Illuminate\Database\Eloquent\Builder
+    {
+        $pickupBuffer = $window['pickup_buffer_min'];
+        $postReturnBuffer = $window['post_return_buffer_min'];
+
+        return Reservation::query()
             ->whereKeyNot($reservation->id)
-            ->where('vehicle_id', $vehicle->id)
-            ->whereIn('status', [ReservationStatus::APPROUVE->value, ReservationStatus::CONFIRME->value])
             ->whereDate('trip_date', $reservation->trip_date)
-            ->get()
-            ->contains(fn (Reservation $other): bool => $this->overlaps($reservation, $other));
-    }
-
-    private function overlaps(Reservation $first, Reservation $second): bool
-    {
-        return $this->occupationService->overlaps(
-            $this->occupationService->windowForReservation($first),
-            $this->occupationService->windowForReservation($second)
-        );
-    }
-
-    private function window(Reservation $reservation): array
-    {
-        $window = $this->occupationService->windowForReservation($reservation);
-
-        return [$window['start'], $window['end']];
+            ->whereIn('status', [ReservationStatus::APPROUVE->value, ReservationStatus::CONFIRME->value])
+            // other.window_start < candidate.window_end
+            ->whereRaw(
+                'TIMESTAMPADD(MINUTE, ?, TIMESTAMP(trip_date, departure_time)) < ?',
+                [-$pickupBuffer, $window['end']->toDateTimeString()]
+            )
+            // other.window_end > candidate.window_start
+            ->whereRaw(
+                'TIMESTAMPADD(MINUTE, COALESCE(estimated_duration_min, 0) + ?, TIMESTAMP(trip_date, return_time)) > ?',
+                [$postReturnBuffer, $window['start']->toDateTimeString()]
+            );
     }
 
     private function createConflict(Reservation $reservation, ReservationConflictType $type, string $message): void

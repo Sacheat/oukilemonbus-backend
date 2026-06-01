@@ -3,8 +3,10 @@
 namespace App\Services\Reservations;
 
 use App\Enums\CouncilDecisionStatus;
+use App\Enums\DocumentType;
 use App\Enums\OrganizationType;
 use App\Enums\ReservationStatus;
+use App\Models\Document;
 use App\Models\Organization;
 use App\Models\Reservation;
 use App\Models\ReservationConflict;
@@ -122,7 +124,12 @@ class ReservationService
             ]), $data, ['ignore_reservation_id' => $reservation->id]);
 
             $preview = $this->previewService->preview($payload);
-            $newStatus = count($preview['conflicts']) > 0 ? ReservationStatus::EN_CONFLIT : $reservation->status;
+            $currentStatus = $reservation->status;
+            $newStatus = count($preview['conflicts']) > 0 ? ReservationStatus::EN_CONFLIT : $currentStatus;
+
+            if ($newStatus !== $currentStatus) {
+                $this->assertCanTransition($reservation, $newStatus);
+            }
 
             $reservation->update([
                 ...Arr::only($data, [
@@ -141,8 +148,8 @@ class ReservationService
                 'status' => $newStatus,
             ]);
 
-            if ($newStatus !== $reservation->getOriginal('status')) {
-                $this->recordStatus($reservation, $reservation->getOriginal('status'), $newStatus, $actor, 'Modification de la demande');
+            if ($newStatus !== $currentStatus) {
+                $this->recordStatus($reservation, $currentStatus, $newStatus, $actor, 'Modification de la demande');
             }
 
             $reservation->conflicts()->delete();
@@ -179,7 +186,8 @@ class ReservationService
                 'reservation.approved',
                 'reservation_updates',
                 'Reservation approuvee',
-                "Votre reservation #{$reservation->id} a ete approuvee."
+                "Votre reservation #{$reservation->id} a ete approuvee.",
+                document: $this->latestDeliberationDocumentForReservation($reservation)
             );
 
             return $reservation->refresh()->load(['organization', 'pickupLocation', 'destinationLocation', 'driver', 'vehicle', 'conflicts']);
@@ -188,6 +196,8 @@ class ReservationService
 
     public function reject(Reservation $reservation, User $actor, string $reason): Reservation
     {
+        $this->assertCanTransition($reservation, ReservationStatus::REFUSE);
+
         return DB::transaction(function () use ($reservation, $actor, $reason): Reservation {
             $reservation->update([
                 'status' => ReservationStatus::REFUSE,
@@ -209,7 +219,8 @@ class ReservationService
                 'reservation.rejected',
                 'reservation_updates',
                 'Reservation refusee',
-                "Votre reservation #{$reservation->id} a ete refusee. Motif: {$reason}"
+                "Votre reservation #{$reservation->id} a ete refusee. Motif: {$reason}",
+                document: $this->latestDeliberationDocumentForReservation($reservation)
             );
 
             return $reservation->refresh();
@@ -218,6 +229,8 @@ class ReservationService
 
     public function cancel(Reservation $reservation, User $actor, string $reason): Reservation
     {
+        $this->assertCanTransition($reservation, ReservationStatus::ANNULE);
+
         return DB::transaction(function () use ($reservation, $actor, $reason): Reservation {
             $reservation->update([
                 'status' => ReservationStatus::ANNULE,
@@ -323,8 +336,19 @@ class ReservationService
         }
     }
 
+    private function assertCanTransition(Reservation $reservation, ReservationStatus $target): void
+    {
+        if (! $reservation->status->canTransitionTo($target)) {
+            throw ValidationException::withMessages([
+                'reservation' => "La transition « {$reservation->status->label()} » → « {$target->label()} » n'est pas autorisee.",
+            ]);
+        }
+    }
+
     private function transition(Reservation $reservation, ReservationStatus $newStatus, User $actor, string $reason): Reservation
     {
+        $this->assertCanTransition($reservation, $newStatus);
+
         $oldStatus = $reservation->status;
         $reservation->update([
             'status' => $newStatus,
@@ -409,7 +433,8 @@ class ReservationService
         string $title,
         string $message,
         string $priority = 'normal',
-        bool $urgent = false
+        bool $urgent = false,
+        ?Document $document = null
     ): void {
         $requester = $this->notificationRecipientResolver->reservationRequester($reservation);
         if ($requester === null) {
@@ -423,6 +448,7 @@ class ReservationService
             title: $title,
             message: $message,
             reservation: $reservation,
+            document: $document,
             priority: $priority,
             urgent: $urgent
         );
@@ -472,12 +498,23 @@ class ReservationService
         return $departureAt->lessThanOrEqualTo($threshold);
     }
 
-    private function latestRouteSheetDocumentForReservation(Reservation $reservation): ?\App\Models\Document
+    private function latestRouteSheetDocumentForReservation(Reservation $reservation): ?Document
     {
-        return \App\Models\Document::query()
-            ->where('document_type', \App\Enums\DocumentType::FEUILLE_ROUTE->value)
+        return Document::query()
+            ->where('document_type', DocumentType::FEUILLE_ROUTE->value)
             ->where('is_available', true)
             ->whereHas('routeSheetReservations', fn ($query) => $query->whereKey($reservation->id))
+            ->latest('generated_at')
+            ->latest('id')
+            ->first();
+    }
+
+    private function latestDeliberationDocumentForReservation(Reservation $reservation): ?Document
+    {
+        return Document::query()
+            ->where('reservation_id', $reservation->id)
+            ->where('document_type', DocumentType::DELIBERATION->value)
+            ->where('is_available', true)
             ->latest('generated_at')
             ->latest('id')
             ->first();

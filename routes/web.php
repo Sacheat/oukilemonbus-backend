@@ -38,6 +38,7 @@ Route::prefix('demo')->name('demo.')->group(function (): void {
     Route::patch('/reservations/{reservation}', [DemoReservationController::class, 'update'])->name('reservations.update');
     Route::post('/reservations/{reservation}/auto-assign', [DemoReservationController::class, 'autoAssign'])->name('reservations.auto-assign');
     Route::post('/reservations/{reservation}/assign', [DemoReservationController::class, 'assign'])->name('reservations.assign');
+    Route::post('/reservations/{reservation}/council-decision', [DemoReservationController::class, 'councilDecision'])->name('reservations.council-decision');
     Route::post('/reservations/{reservation}/approve', [DemoReservationController::class, 'approve'])->name('reservations.approve');
     Route::post('/reservations/{reservation}/reject', [DemoReservationController::class, 'reject'])->name('reservations.reject');
     Route::post('/reservations/{reservation}/confirm', [DemoReservationController::class, 'confirm'])->name('reservations.confirm');

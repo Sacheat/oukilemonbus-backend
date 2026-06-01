@@ -1,0 +1,9 @@
+.git
+.idea
+node_modules
+vendor
+storage/app/private/documents
+storage/framework/cache
+storage/framework/sessions
+storage/framework/views
+storage/logs

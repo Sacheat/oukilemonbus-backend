@@ -18,6 +18,9 @@ use Illuminate\Validation\ValidationException;
 
 class ReservationPreviewService
 {
+    private const float DISTANCE_FALLBACK_ROUTE_FACTOR = 1.25;
+    private const int DISTANCE_FALLBACK_AVERAGE_SPEED_KMH = 45;
+
     private DomainLogger $logger;
 
     public function __construct(
@@ -296,8 +299,51 @@ class ReservationPreviewService
         } catch (GeocodingException $exception) {
             $this->logger->routeDistanceCalculationFailed($context, $exception);
 
+            return $this->estimateDistanceFromCoordinates($pickup, $destination, [
+                ...$context,
+                'reason' => 'provider_unavailable',
+            ]);
+        }
+    }
+
+    private function estimateDistanceFromCoordinates(Location $pickup, Location $destination, array $context): array
+    {
+        if (blank($pickup->latitude) || blank($pickup->longitude) || blank($destination->latitude) || blank($destination->longitude)) {
             return ['distance_km' => null, 'estimated_duration_min' => null];
         }
+
+        $straightLineKm = $this->haversineDistanceKm(
+            (float) $pickup->latitude,
+            (float) $pickup->longitude,
+            (float) $destination->latitude,
+            (float) $destination->longitude
+        );
+        $estimatedDistanceKm = round($straightLineKm * self::DISTANCE_FALLBACK_ROUTE_FACTOR, 2);
+        $estimatedDurationMin = max(1, (int) round(($estimatedDistanceKm / self::DISTANCE_FALLBACK_AVERAGE_SPEED_KMH) * 60));
+
+        $this->logger->routeDistanceCalculated([
+            ...$context,
+            'provider' => 'coordinate_fallback',
+            'distance_km' => $estimatedDistanceKm,
+            'estimated_duration_min' => $estimatedDurationMin,
+        ]);
+
+        return [
+            'distance_km' => $estimatedDistanceKm,
+            'estimated_duration_min' => $estimatedDurationMin,
+        ];
+    }
+
+    private function haversineDistanceKm(float $fromLat, float $fromLng, float $toLat, float $toLng): float
+    {
+        $earthRadiusKm = 6371.0;
+        $latDelta = deg2rad($toLat - $fromLat);
+        $lngDelta = deg2rad($toLng - $fromLng);
+
+        $a = sin($latDelta / 2) ** 2
+            + cos(deg2rad($fromLat)) * cos(deg2rad($toLat)) * sin($lngDelta / 2) ** 2;
+
+        return $earthRadiusKm * 2 * atan2(sqrt($a), sqrt(1 - $a));
     }
 
     private function dateTime(string $date, string $time): CarbonImmutable

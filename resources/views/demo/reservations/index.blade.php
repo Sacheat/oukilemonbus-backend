@@ -49,6 +49,19 @@
             </thead>
             <tbody>
             @forelse ($reservations as $reservation)
+                @php
+                    $requiresCouncilDecision = $reservation->organization?->type !== \App\Enums\OrganizationType::ECOLE_COMMUNALE;
+                    $councilDecision = $reservation->councilDecision;
+                    $openConflicts = $reservation->conflicts->where('is_resolved', false);
+                    $hasFavorableCouncilDecision = $councilDecision?->decision_status === \App\Enums\CouncilDecisionStatus::APPROUVE;
+                    $canViewConflicts = \Illuminate\Support\Facades\Gate::forUser($actor)->allows('viewConflicts', $reservation);
+                    $canRecordCouncilDecision = $requiresCouncilDecision
+                        && (
+                            $councilDecision
+                                ? \Illuminate\Support\Facades\Gate::forUser($actor)->allows('update', $councilDecision)
+                                : \Illuminate\Support\Facades\Gate::forUser($actor)->allows('create', [\App\Models\CouncilDecision::class, $reservation])
+                        );
+                @endphp
                 <tr>
                     <td>#{{ $reservation->id }}</td>
                     <td>
@@ -65,8 +78,34 @@
                         <span class="badge {{ $reservation->status?->value === 'en_conflit' ? 'danger' : 'brand' }}">
                             {{ $reservation->status?->label() ?? $reservation->status }}
                         </span>
-                        @if ($reservation->conflicts->where('is_resolved', false)->isNotEmpty())
-                            <br><span class="badge danger">{{ $reservation->conflicts->where('is_resolved', false)->count() }} conflit(s)</span>
+                        @if ($openConflicts->isNotEmpty())
+                            <br><span class="badge danger">{{ $openConflicts->count() }} conflit(s)</span>
+                            @if ($canViewConflicts)
+                                <div class="conflict-list">
+                                    @foreach ($openConflicts as $conflict)
+                                        <div class="conflict-item">
+                                            <span class="badge danger">{{ $conflict->type?->label() ?? $conflict->type }}</span>
+                                            <span class="muted">{{ $conflict->message }}</span>
+                                            @if ($conflict->related_reservation_id)
+                                                <span class="muted">Reservation liee #{{ $conflict->related_reservation_id }}</span>
+                                            @endif
+                                        </div>
+                                    @endforeach
+                                </div>
+                            @endif
+                        @endif
+                        @if ($requiresCouncilDecision)
+                            <br>
+                            @if ($councilDecision)
+                                <span class="badge {{ $councilDecision->decision_status?->color() === 'success' ? 'ok' : $councilDecision->decision_status?->color() }}">
+                                    College: {{ $councilDecision->decision_status?->label() }}
+                                </span>
+                                @if ($councilDecision->decision_reference)
+                                    <br><span class="muted">{{ $councilDecision->decision_reference }}</span>
+                                @endif
+                            @else
+                                <span class="badge warning">Decision college attendue</span>
+                            @endif
                         @endif
                     </td>
                     <td>
@@ -101,13 +140,27 @@
                                     <button type="submit">Affecter</button>
                                 </form>
                             @endif
-                            @if (\Illuminate\Support\Facades\Gate::forUser($actor)->allows('approve', $reservation))
+                            @if ($canRecordCouncilDecision)
+                                <form class="actions" method="post" action="{{ route('demo.reservations.council-decision', $reservation) }}">
+                                    @csrf
+                                    <select name="decision_status" aria-label="Decision du college">
+                                        @foreach ($councilDecisionStatuses as $status)
+                                            <option value="{{ $status->value }}" @selected($councilDecision?->decision_status === $status)>{{ $status->label() }}</option>
+                                        @endforeach
+                                    </select>
+                                    <input type="date" name="decision_date" value="{{ $councilDecision?->decision_date?->toDateString() ?? now()->toDateString() }}" aria-label="Date decision">
+                                    <input name="decision_reference" value="{{ $councilDecision?->decision_reference }}" placeholder="Reference">
+                                    <input name="notes" value="{{ $councilDecision?->notes }}" placeholder="Notes college">
+                                    <button class="primary" type="submit">Encoder decision</button>
+                                </form>
+                            @endif
+                            @if (\Illuminate\Support\Facades\Gate::forUser($actor)->allows('approve', $reservation) && (! $requiresCouncilDecision || $hasFavorableCouncilDecision))
                                 <form method="post" action="{{ route('demo.reservations.approve', $reservation) }}">
                                     @csrf
                                     <button class="primary" type="submit">Approuver</button>
                                 </form>
                             @endif
-                            @if (\Illuminate\Support\Facades\Gate::forUser($actor)->allows('reject', $reservation))
+                            @if (\Illuminate\Support\Facades\Gate::forUser($actor)->allows('reject', $reservation) && ! $requiresCouncilDecision)
                                 <form class="actions" method="post" action="{{ route('demo.reservations.reject', $reservation) }}">
                                     @csrf
                                     <input name="reason" placeholder="Motif refus" required>

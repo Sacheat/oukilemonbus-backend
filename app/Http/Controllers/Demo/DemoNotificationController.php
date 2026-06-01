@@ -28,6 +28,7 @@ final class DemoNotificationController extends DemoBaseController
         $notifications = $actor->notifications()->latest()->paginate(15)->withQueryString();
 
         $deliveries = NotificationDelivery::query()
+            ->with('document')
             ->where('notifiable_type', User::class)
             ->where('notifiable_id', $actor->id)
             ->latest()

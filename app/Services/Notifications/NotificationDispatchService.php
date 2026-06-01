@@ -12,6 +12,7 @@ use App\Notifications\OperationalNotification;
 use App\Services\Documents\DocumentAccessTokenService;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Notification as NotificationFacade;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Str;
 use Throwable;
@@ -113,6 +114,9 @@ class NotificationDispatchService
                         'category' => $category,
                         'priority' => $priority,
                         'title' => $title,
+                        'message' => $message,
+                        'reservation_id' => $reservationId,
+                        'document_id' => $document?->id,
                         'has_document' => $document !== null,
                         'action_url' => $actionUrl,
                     ],
@@ -137,7 +141,11 @@ class NotificationDispatchService
                     );
                     $notification->onQueue($this->queueNameFor($priority, $channel));
 
-                    $user->notify($notification);
+                    if ($channel === 'database') {
+                        NotificationFacade::sendNow($user, $notification, ['database']);
+                    } else {
+                        $user->notify($notification);
+                    }
 
                     $delivery->update([
                         'notification_id' => $channel === 'database' ? $notification->id : null,

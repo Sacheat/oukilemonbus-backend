@@ -86,6 +86,13 @@
         .badge.danger { background: #fde8e4; color: var(--danger); }
         .badge.brand { background: var(--brand-soft); color: var(--brand); }
         .actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+        .conflict-list { display: grid; gap: 8px; margin-top: 8px; max-width: 360px; }
+        .conflict-item {
+            border-left: 3px solid #e5a39a;
+            display: grid;
+            gap: 4px;
+            padding-left: 8px;
+        }
         .stack { display: grid; gap: 12px; }
         .split { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; justify-content: space-between; }
         .inline { display: inline-flex; gap: 6px; align-items: center; }

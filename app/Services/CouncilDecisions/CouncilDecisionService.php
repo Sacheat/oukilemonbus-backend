@@ -6,10 +6,13 @@ use App\Enums\CouncilDecisionStatus;
 use App\Enums\OrganizationType;
 use App\Enums\ReservationConflictType;
 use App\Models\CouncilDecision;
+use App\Models\Document;
 use App\Models\Reservation;
 use App\Models\User;
 use App\Services\Audit\DomainEventLogger;
 use App\Services\Documents\DeliberationDocumentService;
+use App\Services\Notifications\NotificationDispatchService;
+use App\Services\Notifications\NotificationRecipientResolver;
 use App\Services\Reservations\ReservationService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -19,7 +22,9 @@ class CouncilDecisionService
     public function __construct(
         private readonly ReservationService $reservationService,
         private readonly DeliberationDocumentService $deliberationDocumentService,
-        private readonly DomainEventLogger $eventLogger
+        private readonly DomainEventLogger $eventLogger,
+        private readonly NotificationDispatchService $notificationDispatchService,
+        private readonly NotificationRecipientResolver $notificationRecipientResolver
     ) {}
 
     public function create(array $data, User $actor): CouncilDecision
@@ -53,7 +58,10 @@ class CouncilDecisionService
             return $decision->refresh()->load(['reservation.organization', 'recordedByUser']);
         });
 
-        $this->generateDeliberationIfFinal($decision);
+        $this->notifyRequesterWhenDeliberationIsGenerated(
+            $decision,
+            $this->generateDeliberationIfFinal($decision)
+        );
 
         return $decision;
     }
@@ -88,7 +96,10 @@ class CouncilDecisionService
             return $councilDecision->refresh()->load(['reservation.organization', 'recordedByUser']);
         });
 
-        $this->generateDeliberationIfFinal($councilDecision);
+        $this->notifyRequesterWhenDeliberationIsGenerated(
+            $councilDecision,
+            $this->generateDeliberationIfFinal($councilDecision)
+        );
 
         return $councilDecision;
     }
@@ -135,10 +146,40 @@ class CouncilDecisionService
             ]);
     }
 
-    private function generateDeliberationIfFinal(CouncilDecision $decision): void
+    private function generateDeliberationIfFinal(CouncilDecision $decision): ?Document
     {
         if ($this->deliberationDocumentService->canGenerateFor($decision)) {
-            $this->deliberationDocumentService->generateFor($decision);
+            return $this->deliberationDocumentService->generateFor($decision);
         }
+
+        return null;
+    }
+
+    private function notifyRequesterWhenDeliberationIsGenerated(CouncilDecision $decision, ?Document $document): void
+    {
+        if ($document === null || ! $document->exists) {
+            return;
+        }
+
+        $decision->loadMissing('reservation.requestedByUser');
+        $reservation = $decision->reservation;
+        $requester = $this->notificationRecipientResolver->reservationRequester($reservation);
+
+        if ($requester === null) {
+            return;
+        }
+
+        $statusLabel = $decision->decision_status?->label() ?? (string) $decision->decision_status;
+
+        $this->notificationDispatchService->dispatch(
+            users: collect([$requester]),
+            eventKey: 'document.deliberation.generated',
+            category: 'reservation_updates',
+            title: 'Deliberation disponible',
+            message: "La decision du college pour votre reservation #{$reservation->id} est {$statusLabel}. La deliberation est disponible.",
+            reservation: $reservation,
+            document: $document,
+            priority: 'normal'
+        );
     }
 }

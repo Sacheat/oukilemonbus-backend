@@ -58,12 +58,15 @@
                             </span>
                         </td>
                         <td>
+                            @if (data_get($notification->data, 'action_url'))
+                                <a class="button" href="{{ data_get($notification->data, 'action_url') }}">Ouvrir document</a>
+                            @endif
                             @if (! $notification->read_at)
                                 <form method="post" action="{{ route('demo.notifications.read', $notification->id) }}">
                                     @csrf
                                     <button type="submit">Marquer lue</button>
                                 </form>
-                            @else
+                            @elseif (! data_get($notification->data, 'action_url'))
                                 <span class="muted">-</span>
                             @endif
                         </td>
@@ -85,6 +88,7 @@
                     <th>Canal</th>
                     <th>Statut</th>
                     <th>Priorite</th>
+                    <th>Document</th>
                     <th>Date</th>
                 </tr>
                 </thead>
@@ -99,10 +103,17 @@
                             </span>
                         </td>
                         <td>{{ $delivery->priority }}</td>
+                        <td>
+                            @if ($delivery->document)
+                                #{{ $delivery->document->id }} {{ $delivery->document->file_name }}
+                            @else
+                                <span class="muted">-</span>
+                            @endif
+                        </td>
                         <td>{{ $delivery->created_at?->format('d/m/Y H:i') }}</td>
                     </tr>
                 @empty
-                    <tr><td colspan="5" class="muted">Aucune livraison.</td></tr>
+                    <tr><td colspan="6" class="muted">Aucune livraison.</td></tr>
                 @endforelse
                 </tbody>
             </table>

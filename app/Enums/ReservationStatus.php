@@ -37,7 +37,27 @@ enum ReservationStatus: string
 
     public function isFinal(): bool
     {
-        return in_array($this, [self::CONFIRME, self::REFUSE, self::ANNULE], true);
+        return match ($this) {
+            self::REFUSE, self::ANNULE => true,
+            default => false,
+        };
+    }
+
+    /** @return list<self> */
+    public function allowedTransitions(): array
+    {
+        return match ($this) {
+            self::EN_ATTENTE => [self::EN_CONFLIT, self::APPROUVE, self::REFUSE, self::ANNULE],
+            self::EN_CONFLIT => [self::EN_ATTENTE, self::EN_CONFLIT, self::APPROUVE, self::REFUSE, self::ANNULE],
+            self::APPROUVE   => [self::EN_CONFLIT, self::CONFIRME, self::REFUSE, self::ANNULE],
+            self::CONFIRME   => [self::EN_CONFLIT, self::ANNULE],
+            self::REFUSE, self::ANNULE => [],
+        };
+    }
+
+    public function canTransitionTo(self $target): bool
+    {
+        return in_array($target, $this->allowedTransitions(), true);
     }
 
     public static function toArray(): array

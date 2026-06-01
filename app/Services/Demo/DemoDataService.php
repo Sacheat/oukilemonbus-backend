@@ -111,7 +111,7 @@ final class DemoDataService
     public function visibleReservationsQuery(User $actor): Builder
     {
         return Reservation::query()
-            ->with(['organization', 'requestedByUser', 'pickupLocation', 'destinationLocation', 'driver.user', 'vehicle', 'conflicts'])
+            ->with(['organization', 'requestedByUser', 'pickupLocation', 'destinationLocation', 'driver.user', 'vehicle', 'conflicts', 'councilDecision'])
             ->when(! $actor->hasAnyRole(['admin', 'agent_communal']), function (Builder $query) use ($actor): void {
                 $query->where(function (Builder $query) use ($actor): void {
                     $query->where('requested_by_user_id', $actor->getKey())
