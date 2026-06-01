@@ -5,22 +5,30 @@
     <p class="lede">Notifications in-app, preferences indirectes et traces de livraison creees par les actions metier.</p>
 
     <div class="grid">
-        <section class="panel span-4">
-            <h2>Sante notifications</h2>
-            <table>
-                <tbody>
-                @foreach ($health as $key => $value)
-                    <tr>
-                        <td>{{ str_replace('_', ' ', $key) }}</td>
-                        <td><strong>{{ is_scalar($value) ? $value : json_encode($value) }}</strong></td>
-                    </tr>
-                @endforeach
-                </tbody>
-            </table>
-        </section>
+        @if ($actor->can('notifications.monitor'))
+            <section class="panel span-4">
+                <h2>Sante notifications</h2>
+                <table>
+                    <tbody>
+                    @foreach ($health as $key => $value)
+                        <tr>
+                            <td>{{ str_replace('_', ' ', $key) }}</td>
+                            <td><strong>{{ is_scalar($value) ? $value : json_encode($value) }}</strong></td>
+                        </tr>
+                    @endforeach
+                    </tbody>
+                </table>
+            </section>
+        @endif
 
-        <section class="panel span-8">
-            <h2>Notifications in-app de {{ $actor->first_name }} {{ $actor->last_name }}</h2>
+        <section class="panel {{ $actor->can('notifications.monitor') ? 'span-8' : 'span-12' }}">
+            <div class="split">
+                <h2>Notifications in-app de {{ $actor->first_name }} {{ $actor->last_name }}</h2>
+                <form method="post" action="{{ route('demo.notifications.read-all') }}">
+                    @csrf
+                    <button type="submit">Tout marquer lu</button>
+                </form>
+            </div>
             <table>
                 <thead>
                 <tr>

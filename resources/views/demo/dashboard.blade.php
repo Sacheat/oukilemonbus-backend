@@ -2,7 +2,7 @@
 
 @section('content')
     <h1>Tableau de bord</h1>
-    <p class="lede">Vue courte pour presenter l'etat du backend et les donnees disponibles.</p>
+    <p class="lede">Vue minimale du vrai perimetre fonctionnel disponible pour l'acteur selectionne.</p>
 
     <div class="grid">
         @foreach ($stats as $label => $value)
@@ -12,8 +12,39 @@
             </section>
         @endforeach
 
+        <section class="panel span-4">
+            <h2>Acteur courant</h2>
+            <p><strong>{{ trim($actor->first_name.' '.$actor->last_name) ?: $actor->email }}</strong></p>
+            <p class="muted">{{ $actor->email }}</p>
+            <div class="actions">
+                @foreach ($actorRoles as $role)
+                    <span class="badge brand">{{ $role }}</span>
+                @endforeach
+            </div>
+            <p class="muted">
+                Organisations:
+                {{ $actor->organizations->pluck('name')->join(', ') ?: 'aucune' }}
+            </p>
+        </section>
+
         <section class="panel span-8">
-            <h2>Dernieres reservations</h2>
+            <h2>Actions disponibles</h2>
+            <div class="actions">
+                @forelse ($availableActions as $action)
+                    <span class="badge ok">{{ $action }}</span>
+                @empty
+                    <span class="muted">Aucune action metier directe pour cet acteur.</span>
+                @endforelse
+            </div>
+        </section>
+
+        <section class="panel span-8">
+            <div class="split">
+                <h2>Dernieres reservations visibles</h2>
+                @if ($actor->can('reservations.create'))
+                    <a class="button primary" href="{{ route('demo.reservations.create') }}">Nouvelle reservation</a>
+                @endif
+            </div>
             <table>
                 <thead>
                 <tr>
@@ -72,14 +103,12 @@
         </section>
 
         <section class="panel span-12">
-            <h2>Parcours conseille pour la demo</h2>
-            <p class="lede">
-                1. Montrer les compteurs et les tests backend.
-                2. Ouvrir les reservations, affecter un chauffeur/vehicule, approuver puis confirmer.
-                3. Montrer le planning mis a jour.
-                4. Generer une feuille de route.
-                5. Afficher les notifications creees par les actions metier.
-            </p>
+            <h2>Compteurs globaux</h2>
+            <div class="actions">
+                @foreach ($globalStats as $label => $value)
+                    <span class="badge">{{ str_replace('_', ' ', $label) }}: {{ $value }}</span>
+                @endforeach
+            </div>
         </section>
     </div>
 @endsection

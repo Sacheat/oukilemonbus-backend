@@ -5,41 +5,43 @@
     <p class="lede">Generation de feuilles de route et consultation des documents produits par le backend.</p>
 
     <div class="grid">
-        <section class="panel span-6">
-            <h2>Generer une feuille de route periode</h2>
-            <form class="filters" method="post" action="{{ route('demo.documents.route-sheets') }}">
-                @csrf
-                <label>
-                    Debut
-                    <input type="date" name="start_date" value="{{ now()->toDateString() }}">
-                </label>
-                <label>
-                    Fin
-                    <input type="date" name="end_date" value="{{ now()->addDays(7)->toDateString() }}">
-                </label>
-                <button class="primary" type="submit">Generer</button>
-            </form>
-        </section>
+        @if (\Illuminate\Support\Facades\Gate::forUser($actor)->allows('generate', \App\Models\Document::class))
+            <section class="panel span-6">
+                <h2>Generer une feuille de route periode</h2>
+                <form class="filters" method="post" action="{{ route('demo.documents.route-sheets') }}">
+                    @csrf
+                    <label>
+                        Debut
+                        <input type="date" name="start_date" value="{{ now()->toDateString() }}">
+                    </label>
+                    <label>
+                        Fin
+                        <input type="date" name="end_date" value="{{ now()->addDays(7)->toDateString() }}">
+                    </label>
+                    <button class="primary" type="submit">Generer</button>
+                </form>
+            </section>
 
-        <section class="panel span-6">
-            <h2>Generer une feuille journaliere par vehicule</h2>
-            <form class="filters" method="post" action="{{ route('demo.documents.route-sheets') }}">
-                @csrf
-                <label>
-                    Date
-                    <input type="date" name="service_date" value="{{ now()->toDateString() }}">
-                </label>
-                <label>
-                    Vehicule
-                    <select name="vehicle_id">
-                        @foreach ($vehicles as $vehicle)
-                            <option value="{{ $vehicle->id }}">{{ $vehicle->licence_plate }} ({{ $vehicle->capacity }})</option>
-                        @endforeach
-                    </select>
-                </label>
-                <button class="primary" type="submit">Generer</button>
-            </form>
-        </section>
+            <section class="panel span-6">
+                <h2>Generer une feuille journaliere par vehicule</h2>
+                <form class="filters" method="post" action="{{ route('demo.documents.route-sheets') }}">
+                    @csrf
+                    <label>
+                        Date
+                        <input type="date" name="service_date" value="{{ now()->toDateString() }}">
+                    </label>
+                    <label>
+                        Vehicule
+                        <select name="vehicle_id">
+                            @foreach ($vehicles as $vehicle)
+                                <option value="{{ $vehicle->id }}">{{ $vehicle->licence_plate }} ({{ $vehicle->capacity }})</option>
+                            @endforeach
+                        </select>
+                    </label>
+                    <button class="primary" type="submit">Generer</button>
+                </form>
+            </section>
+        @endif
 
         <section class="panel span-12">
             <h2>Documents generes</h2>
@@ -73,7 +75,7 @@
                             </span>
                         </td>
                         <td>
-                            @if ($document->is_available)
+                            @if ($document->is_available && \Illuminate\Support\Facades\Gate::forUser($actor)->allows('download', $document))
                                 <a class="button" href="{{ route('demo.documents.download', $document) }}">Telecharger</a>
                             @else
                                 <span class="muted">-</span>

@@ -14,11 +14,10 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
+        $this->call(RolesAndPermissionsSeeder::class);
+
         if (app()->environment(['local', 'testing'])) {
             $this->call(TestScenariosSeeder::class);
-            return;
         }
-
-        $this->call(RolesAndPermissionsSeeder::class);
     }
 }

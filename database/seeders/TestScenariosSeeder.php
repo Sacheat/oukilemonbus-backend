@@ -9,7 +9,6 @@ class TestScenariosSeeder extends Seeder
     public function run(): void
     {
         $this->call([
-            RolesAndPermissionsSeeder::class,
             TestUsersSeeder::class,
             TestLocationsSeeder::class,
             TestMunicipalitySeeder::class,
