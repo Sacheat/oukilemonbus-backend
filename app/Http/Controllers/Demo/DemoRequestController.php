@@ -33,12 +33,27 @@ final class DemoRequestController extends DemoBaseController
     {
         $actor = $this->actor($request);
 
+        $orgRequests = $this->demoData->orgRegistrationRequests($actor);
+        $userOrgRequests = $this->demoData->userOrgRequests($actor);
+        $organizations = Organization::query()->orderBy('name')->get();
+        $locations = Location::query()->orderBy('city')->orderBy('formatted_address')->get();
+
+        $this->recordInspectorView($request, 'requests.index', [
+            'status' => 'success',
+            'message' => 'Ouverture des demandes administratives.',
+            'actor_id' => $actor->id,
+            'org_requests_count' => $orgRequests->count(),
+            'user_org_requests_count' => $userOrgRequests->count(),
+            'organizations_count' => $organizations->count(),
+            'locations_count' => $locations->count(),
+        ]);
+
         return view('demo.requests.index', [
             ...$this->shared($request),
-            'orgRequests' => $this->demoData->orgRegistrationRequests($actor),
-            'userOrgRequests' => $this->demoData->userOrgRequests($actor),
-            'organizations' => Organization::query()->orderBy('name')->get(),
-            'locations' => Location::query()->orderBy('city')->orderBy('formatted_address')->get(),
+            'orgRequests' => $orgRequests,
+            'userOrgRequests' => $userOrgRequests,
+            'organizations' => $organizations,
+            'locations' => $locations,
             'organizationTypes' => OrganizationType::cases(),
             'requestedRoles' => ['prof', 'directeur', 'animateur', 'responsable', 'referent'],
         ]);
