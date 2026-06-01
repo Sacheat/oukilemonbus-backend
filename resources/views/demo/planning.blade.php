@@ -44,17 +44,52 @@
                     <td>{{ $reservation->driver?->user?->first_name ?? '-' }} {{ $reservation->driver?->user?->last_name ?? '' }}</td>
                     <td>{{ $reservation->vehicle?->licence_plate ?? '-' }}</td>
                     <td>
-                        @php($availability = $reservation->getAttribute('planning_availability'))
-                        @if ($availability)
-                            <span class="badge {{ data_get($availability, 'driver.available') ? 'ok' : 'danger' }}">
-                                Chauffeur {{ data_get($availability, 'driver.available') ? 'OK' : 'KO' }}
-                            </span>
-                            <span class="badge {{ data_get($availability, 'vehicle.available') ? 'ok' : 'danger' }}">
-                                Vehicule {{ data_get($availability, 'vehicle.available') ? 'OK' : 'KO' }}
+                        @php
+                        $availability = $reservation->getAttribute('planning_availability');
+
+                        $driverAvailability = null;
+                        $vehicleAvailability = null;
+
+                        if ($availability) {
+                            $driverAvailability = $reservation->driver_id
+                                ? collect(data_get($availability, 'drivers.available', []))
+                                    ->merge(data_get($availability, 'drivers.unavailable', []))
+                                    ->firstWhere('id', $reservation->driver_id)
+                                : null;
+
+                            $vehicleAvailability = $reservation->vehicle_id
+                                ? collect(data_get($availability, 'vehicles.available', []))
+                                    ->merge(data_get($availability, 'vehicles.unavailable', []))
+                                    ->firstWhere('id', $reservation->vehicle_id)
+                                : null;
+                        }
+
+                        $driverIsAvailable = (bool) data_get($driverAvailability, 'is_available', false);
+                        $vehicleIsAvailable = (bool) data_get($vehicleAvailability, 'is_available', false);
+
+                        $driverReason = data_get($driverAvailability, 'unavailable_reason');
+                        $vehicleReason = data_get($vehicleAvailability, 'unavailable_reason');
+                    @endphp
+
+                    @if ($availability)
+                        @if ($reservation->driver_id)
+                            <span class="badge {{ $driverIsAvailable ? 'ok' : 'danger' }}" title="{{ $driverReason }}">
+                                Chauffeur {{ $driverIsAvailable ? 'OK' : 'KO' }}
                             </span>
                         @else
-                            <span class="muted">Non affiche pour cet acteur.</span>
+                            <span class="badge danger">Chauffeur non affecté</span>
                         @endif
+
+                        @if ($reservation->vehicle_id)
+                            <span class="badge {{ $vehicleIsAvailable ? 'ok' : 'danger' }}" title="{{ $vehicleReason }}">
+                                Vehicule {{ $vehicleIsAvailable ? 'OK' : 'KO' }}
+                            </span>
+                        @else
+                            <span class="badge danger">Vehicule non affecté</span>
+                        @endif
+                    @else
+                        <span class="muted">Non affiche pour cet acteur.</span>
+                    @endif
                     </td>
                 </tr>
             @empty
