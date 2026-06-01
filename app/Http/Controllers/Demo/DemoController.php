@@ -45,7 +45,7 @@ class DemoController extends Controller
         $actor = $this->actor($request);
         $health = $this->notificationHealthService->summary();
         // Enregistrer une action de visualisation du dashboard pour le backend inspector, avec un contexte contenant des statistiques sur le système
-        $this->recordInspectorAction($request, 'demo.dashboard.viewed', [
+        $this->recordInspectorView($request, 'demo.dashboard.viewed', [
             'status' => 'success',
             'message' => 'Ouverture du tableau de bord.',
             'actor_id' => $actor->id,
@@ -94,7 +94,7 @@ class DemoController extends Controller
 
     public function reservations(Request $request): View
     {
-        $this->recordInspectorAction($request, 'reservations.index', [
+        $this->recordInspectorView($request, 'reservations.index', [
             'status' => 'success',
             'message' => 'Ouverture de la liste des réservations.',
             'status_filter' => $request->input('status'),
@@ -116,9 +116,23 @@ class DemoController extends Controller
 
     public function autoAssign(Request $request, Reservation $reservation): RedirectResponse
     {
-        return $this->runAction($request, function () use ($request, $reservation): void {
-            $this->assignmentService->autoAssign($reservation, $this->actor($request));
-        }, 'Affectation automatique effectuee.');
+        return $this->runAction(
+            $request,
+            function () use ($request, $reservation): void {
+                $this->assignmentService->autoAssign(
+                    $reservation,
+                    $this->actor($request)
+                );
+            },
+            'Affectation automatique effectuee.',
+            'reservations.auto_assign',
+            [
+                'reservation_id' => $reservation->id,
+                'status_before' => $reservation->status?->value ?? $reservation->status,
+                'driver_before' => $reservation->driver_id,
+                'vehicle_before' => $reservation->vehicle_id,
+            ]
+        );
     }
 
     public function assign(Request $request, Reservation $reservation): RedirectResponse
@@ -134,9 +148,24 @@ class DemoController extends Controller
             'reason' => 'Affectation depuis la demo backend',
         ], fn ($value) => $value !== null && $value !== '');
 
-        return $this->runAction($request, function () use ($request, $reservation, $payload): void {
-            $this->assignmentService->assign($reservation, $payload, $this->actor($request));
-        }, 'Affectation manuelle effectuee.');
+        return $this->runAction(
+            $request,
+            function () use ($request, $reservation, $payload): void {
+                $this->assignmentService->assign(
+                    $reservation,
+                    $payload,
+                    $this->actor($request)
+                );
+            },
+            'Affectation manuelle effectuee.',
+            'reservations.assign',
+            [
+                'reservation_id' => $reservation->id,
+                'driver_id' => $payload['driver_id'] ?? null,
+                'vehicle_id' => $payload['vehicle_id'] ?? null,
+                'status_before' => $reservation->status?->value ?? $reservation->status,
+            ]
+        );
     }
 
     public function approve(Request $request, Reservation $reservation): RedirectResponse
@@ -161,16 +190,41 @@ class DemoController extends Controller
 
     public function confirm(Request $request, Reservation $reservation): RedirectResponse
     {
-        return $this->runAction($request, function () use ($request, $reservation): void {
-            $this->reservationService->confirm($reservation, $this->actor($request));
-        }, 'Reservation confirmee.');
+        return $this->runAction(
+            $request,
+            function () use ($request, $reservation): void {
+                $this->reservationService->confirm(
+                    $reservation,
+                    $this->actor($request)
+                );
+            },
+            'Reservation confirmee.',
+            'reservations.confirm',
+            [
+                'reservation_id' => $reservation->id,
+                'status_before' => $reservation->status?->value ?? $reservation->status,
+            ]
+        );
     }
 
     public function cancel(Request $request, Reservation $reservation): RedirectResponse
     {
-        return $this->runAction($request, function () use ($request, $reservation): void {
-            $this->reservationService->cancel($reservation, $this->actor($request), 'Annulation depuis la demo backend');
-        }, 'Reservation annulee.');
+        return $this->runAction(
+            $request,
+            function () use ($request, $reservation): void {
+                $this->reservationService->cancel(
+                    $reservation,
+                    $this->actor($request),
+                    'Annulation depuis la demo backend'
+                );
+            },
+            'Reservation annulee.',
+            'reservations.cancel',
+            [
+                'reservation_id' => $reservation->id,
+                'status_before' => $reservation->status?->value ?? $reservation->status,
+            ]
+        );
     }
 
     public function planning(Request $request): View
@@ -179,7 +233,7 @@ class DemoController extends Controller
         $startDate = $request->input('start_date', CarbonImmutable::today()->subDays(7)->toDateString());
         $endDate = $request->input('end_date', CarbonImmutable::today()->addDays(21)->toDateString());
         // Enregistrer une action de visualisation du planning pour le backend inspector, avec un contexte contenant les filtres appliqués
-        $this->recordInspectorAction($request, 'planning.index', [
+        $this->recordInspectorView($request, 'planning.index', [
             'status' => 'success',
             'message' => 'Ouverture du planning.',
             'actor_id' => $actor->id,
@@ -198,7 +252,7 @@ class DemoController extends Controller
     public function documents(Request $request): View
     {
         // Enregistrer une action de visualisation de la page documents pour le backend inspector, avec un contexte optionnel pour fournir des détails sur l'action
-        $this->recordInspectorAction($request, 'documents.index', [
+        $this->recordInspectorView($request, 'documents.index', [
             'status' => 'success',
             'message' => 'Ouverture de la page documents.',
         ]);
@@ -372,8 +426,7 @@ class DemoController extends Controller
     }
 
     // Helper pour factoriser l'execution d'une action avec gestion des erreurs et enregistrement pour le backend inspector
-    private function runAction(Request $request, callable $action, string $successMessage, ?string $inspectorAction = null, array $inspectorContext = [] ): RedirectResponse
-    {
+    private function runAction(Request $request, callable $action, string $successMessage, ?string $inspectorAction = null, array $inspectorContext = []): RedirectResponse {
         try {
             $action();
 
@@ -385,6 +438,8 @@ class DemoController extends Controller
                     'message' => $successMessage,
                 ])
             );
+
+            $request->session()->flash('backend_inspector.just_recorded_post_action', true);
 
             return back()->with('status', $successMessage);
         } catch (Throwable $exception) {
@@ -399,10 +454,21 @@ class DemoController extends Controller
                 ])
             );
 
+            $request->session()->flash('backend_inspector.just_recorded_post_action', true);
+
             return back()
                 ->withInput()
                 ->with('error', $exception->getMessage());
         }
+    }
+
+    private function recordInspectorView(Request $request, string $actionKey, array $context = []): void
+    {
+        if ($request->session()->pull('backend_inspector.just_recorded_post_action', false)) {
+            return;
+        }
+
+        $this->recordInspectorAction($request, $actionKey, $context);
     }
 
     // Enregistre une action pour le backend inspector, avec un contexte optionnel pour fournir des détails sur l'action
@@ -422,4 +488,5 @@ class DemoController extends Controller
             'backend_inspector.last_recorded_at' => now()->toDateTimeString(),
         ]);
     }
+
 }
