@@ -59,8 +59,8 @@ return [
             ],
 
             'demo_controller' => [
-                'class' => 'DemoController',
-                'method' => 'setActor',
+                'class' => 'DemoActorController',
+                'method' => 'update',
             ],
 
             'api_controller' => null,
@@ -110,8 +110,8 @@ return [
             ],
 
             'demo_controller' => [
-                'class' => 'DemoController',
-                'method' => 'planning',
+                'class' => 'DemoPlanningController',
+                'method' => '__invoke',
             ],
 
             'api_controller' => [
@@ -173,7 +173,7 @@ return [
             ],
 
             'demo_controller' => [
-                'class' => 'DemoController',
+                'class' => 'DemoReservationController',
                 'method' => 'approve',
             ],
 
@@ -236,18 +236,17 @@ return [
                 'demo' => 'GET /demo',
                 'api' => null,
             ],
-
             'demo_controller' => [
-                'class' => 'DemoController',
-                'method' => 'dashboard',
+                'class' => 'DemoDashboardController',
+                'method' => '__invoke',
             ],
 
             'api_controller' => null,
             'request' => null,
 
             'service' => [
-                'class' => 'DemoController',
-                'method' => 'dashboard',
+                'class' => 'DemoDashboardController',
+                'method' => '__invoke',
                 'internal_methods' => [
                     'actor',
                     'shared',
@@ -288,8 +287,8 @@ return [
             ],
 
             'demo_controller' => [
-                'class' => 'DemoController',
-                'method' => 'reservations',
+                'class' => 'DemoReservationController',
+                'method' => 'index',
             ],
 
             'api_controller' => [
@@ -344,8 +343,8 @@ return [
             ],
 
             'demo_controller' => [
-                'class' => 'DemoController',
-                'method' => 'documents',
+                'class' => 'DemoDocumentController',
+                'method' => 'index',
             ],
 
             'api_controller' => [
@@ -396,7 +395,7 @@ return [
             ],
 
             'demo_controller' => [
-                'class' => 'DemoController',
+                'class' => 'DemoReservationController',
                 'method' => 'autoAssign',
             ],
 
@@ -455,7 +454,7 @@ return [
             ],
 
             'demo_controller' => [
-                'class' => 'DemoController',
+                'class' => 'DemoReservationController',
                 'method' => 'assign',
             ],
 
@@ -521,7 +520,7 @@ return [
             ],
 
             'demo_controller' => [
-                'class' => 'DemoController',
+                'class' => 'DemoReservationController',
                 'method' => 'confirm',
             ],
 
@@ -584,7 +583,7 @@ return [
             ],
 
             'demo_controller' => [
-                'class' => 'DemoController',
+                'class' => 'DemoReservationController',
                 'method' => 'cancel',
             ],
 
@@ -647,8 +646,8 @@ return [
             ],
 
             'demo_controller' => [
-                'class' => 'DemoController',
-                'method' => 'notifications',
+                'class' => 'DemoNotificationController',
+                'method' => 'index',
             ],
 
             'api_controller' => [
@@ -700,8 +699,8 @@ return [
             ],
 
             'demo_controller' => [
-                'class' => 'DemoController',
-                'method' => 'requests',
+                'class' => 'DemoRequestController',
+                'method' => 'index',
             ],
 
             'api_controller' => null,
@@ -751,7 +750,7 @@ return [
             ],
 
             'demo_controller' => [
-                'class' => 'DemoController',
+                'class' => 'DemoDocumentController',
                 'method' => 'generateRouteSheet',
             ],
 
@@ -813,8 +812,8 @@ return [
             ],
 
             'demo_controller' => [
-                'class' => 'DemoController',
-                'method' => 'downloadDocument',
+                'class' => 'DemoDocumentController',
+                'method' => 'download',
             ],
 
             'api_controller' => [
@@ -845,6 +844,112 @@ return [
             'effects' => [
                 'Le fichier est récupéré depuis le stockage.',
                 'Le navigateur déclenche le téléchargement.',
+            ],
+        ],
+
+        'organizations.index' => [
+            'title' => 'Consultation des organisations',
+            'category' => 'Organisations',
+            'scenario' => 'admin',
+            'goal' => 'Afficher les organisations visibles par l’acteur courant.',
+
+            'route' => [
+                'demo' => 'GET /demo/organizations',
+                'api' => 'GET /api/organizations',
+            ],
+
+            'demo_controller' => [
+                'class' => 'DemoOrganizationController',
+                'method' => 'index',
+            ],
+
+            'api_controller' => [
+                'class' => 'OrganizationController',
+                'method' => 'index',
+            ],
+
+            'request' => null,
+
+            'service' => [
+                'class' => 'DemoDataService',
+                'method' => 'organizations',
+                'internal_methods' => [
+                    'Identification de l’acteur courant',
+                    'Filtrage des organisations visibles',
+                    'Préparation de la liste affichée dans la démo',
+                ],
+            ],
+
+            'related_services' => [
+                'DemoActorResolver',
+                'DemoDataService',
+            ],
+
+            'tables' => [
+                'organizations',
+                'users',
+                'user_organizations',
+                'roles',
+                'permissions',
+            ],
+
+            'effects' => [
+                'Les organisations visibles sont chargées.',
+                'La liste est adaptée aux droits de l’acteur courant.',
+                'Les informations sont préparées pour la page de démonstration.',
+            ],
+        ],
+
+        'admin.index' => [
+            'title' => 'Consultation de la gestion',
+            'category' => 'Gestion',
+            'scenario' => 'admin',
+            'goal' => 'Afficher les données de gestion accessibles à l’acteur courant.',
+
+            'route' => [
+                'demo' => 'GET /demo/admin',
+                'api' => null,
+            ],
+
+            'demo_controller' => [
+                'class' => 'DemoAdminController',
+                'method' => 'index',
+            ],
+
+            'api_controller' => null,
+
+            'request' => null,
+
+            'service' => [
+                'class' => 'DemoDataService',
+                'method' => 'unavailabilities',
+                'internal_methods' => [
+                    'Vérification des permissions de gestion',
+                    'Chargement des utilisateurs visibles',
+                    'Chargement des chauffeurs visibles',
+                    'Chargement des véhicules visibles',
+                    'Chargement des indisponibilités si autorisé',
+                ],
+            ],
+
+            'related_services' => [
+                'DemoActorResolver',
+                'DemoDataService',
+            ],
+
+            'tables' => [
+                'users',
+                'drivers',
+                'vehicles',
+                'unavailabilities',
+                'roles',
+                'permissions',
+            ],
+
+            'effects' => [
+                'Les données de gestion autorisées sont chargées.',
+                'Les sections interdites restent masquées.',
+                'La page de gestion reflète les permissions de l’acteur courant.',
             ],
         ],
 

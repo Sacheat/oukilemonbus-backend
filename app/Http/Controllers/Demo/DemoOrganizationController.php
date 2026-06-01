@@ -23,9 +23,18 @@ final class DemoOrganizationController extends DemoBaseController
         $actor = $this->actor($request);
         $this->authorizeFor($actor, 'viewAny', \App\Models\Organization::class);
 
+        $organizations = $this->demoData->organizations($actor);
+
+        $this->recordInspectorView($request, 'organizations.index', [
+            'status' => 'success',
+            'message' => 'Ouverture de la liste des organisations.',
+            'actor_id' => $actor->id,
+            'organizations_count' => method_exists($organizations, 'total') ? $organizations->total() : $organizations->count(),
+        ]);
+
         return view('demo.organizations.index', [
             ...$this->shared($request),
-            'organizations' => $this->demoData->organizations($actor),
+            'organizations' => $organizations,
         ]);
     }
 }

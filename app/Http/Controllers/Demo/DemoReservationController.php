@@ -35,12 +35,32 @@ final class DemoReservationController extends DemoBaseController
     {
         $actor = $this->actor($request);
 
+        $reservations = $this->demoData->reservations(
+            $actor,
+            $request->only(['status', 'organization_id', 'date_from', 'date_to'])
+        );
+
+        $organizations = $this->visibleOrganizations($actor);
+        $drivers = Driver::query()->with('user')->where('is_active', true)->orderBy('id')->get();
+        $vehicles = Vehicle::query()->where('is_active', true)->orderBy('id')->get();
+
+        $this->recordInspectorView($request, 'reservations.index', [
+            'status' => 'success',
+            'message' => 'Ouverture de la liste des réservations.',
+            'actor_id' => $actor->id,
+            'reservations_count' => method_exists($reservations, 'total') ? $reservations->total() : $reservations->count(),
+            'organizations_count' => $organizations->count(),
+            'drivers_count' => $drivers->count(),
+            'vehicles_count' => $vehicles->count(),
+            'filters' => $request->only(['status', 'organization_id', 'date_from', 'date_to']),
+        ]);
+
         return view('demo.reservations.index', [
             ...$this->shared($request),
-            'reservations' => $this->demoData->reservations($actor, $request->only(['status', 'organization_id', 'date_from', 'date_to'])),
-            'organizations' => $this->visibleOrganizations($actor),
-            'drivers' => Driver::query()->with('user')->where('is_active', true)->orderBy('id')->get(),
-            'vehicles' => Vehicle::query()->where('is_active', true)->orderBy('id')->get(),
+            'reservations' => $reservations,
+            'organizations' => $organizations,
+            'drivers' => $drivers,
+            'vehicles' => $vehicles,
             'statuses' => ReservationStatus::cases(),
         ]);
     }

@@ -31,6 +31,12 @@ final class DemoDashboardController extends DemoBaseController
         $actor = $this->actor($request);
         $health = $this->notificationHealthService->summary();
 
+        $this->recordInspectorView($request, 'demo.dashboard.viewed', [
+            'status' => 'success',
+            'message' => 'Ouverture du tableau de bord de démonstration.',
+            'actor_id' => $actor->id,
+        ]);
+
         return view('demo.dashboard', [
             ...$this->shared($request),
             'stats' => [

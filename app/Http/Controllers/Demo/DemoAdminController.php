@@ -34,20 +34,41 @@ final class DemoAdminController extends DemoBaseController
             403
         );
 
+        $users = $actor->can('users.view')
+            ? User::query()->with(['roles', 'organizations'])->latest()->limit(20)->get()
+            : collect();
+
+        $drivers = $actor->can('drivers.view')
+            ? Driver::query()->with('user')->orderBy('id')->limit(20)->get()
+            : collect();
+
+        $vehicles = $actor->can('vehicles.view')
+            ? Vehicle::query()->orderBy('id')->limit(20)->get()
+            : collect();
+
+        $unavailabilities = $actor->can('unavailabilities.view')
+            ? $this->demoData->unavailabilities($actor)
+            : null;
+
+        $this->recordInspectorView($request, 'admin.index', [
+            'status' => 'success',
+            'message' => 'Ouverture de la page de gestion.',
+            'actor_id' => $actor->id,
+            'users_count' => $users->count(),
+            'drivers_count' => $drivers->count(),
+            'vehicles_count' => $vehicles->count(),
+            'can_view_users' => $actor->can('users.view'),
+            'can_view_drivers' => $actor->can('drivers.view'),
+            'can_view_vehicles' => $actor->can('vehicles.view'),
+            'can_view_unavailabilities' => $actor->can('unavailabilities.view'),
+        ]);
+
         return view('demo.admin.index', [
             ...$this->shared($request),
-            'users' => $actor->can('users.view')
-                ? User::query()->with(['roles', 'organizations'])->latest()->limit(20)->get()
-                : collect(),
-            'drivers' => $actor->can('drivers.view')
-                ? Driver::query()->with('user')->orderBy('id')->limit(20)->get()
-                : collect(),
-            'vehicles' => $actor->can('vehicles.view')
-                ? Vehicle::query()->orderBy('id')->limit(20)->get()
-                : collect(),
-            'unavailabilities' => $actor->can('unavailabilities.view')
-                ? $this->demoData->unavailabilities($actor)
-                : null,
+            'users' => $users,
+            'drivers' => $drivers,
+            'vehicles' => $vehicles,
+            'unavailabilities' => $unavailabilities,
             'canViewUsers' => $actor->can('users.view'),
             'canViewDrivers' => $actor->can('drivers.view'),
             'canViewVehicles' => $actor->can('vehicles.view'),
