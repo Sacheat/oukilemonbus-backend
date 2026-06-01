@@ -97,6 +97,7 @@ return [
             ],
         ],
 
+        // _________________________________________________________________________________________PLANNING
         'planning.index' => [
             'title' => 'Consultation du planning',
             'category' => 'Planning',
@@ -159,6 +160,7 @@ return [
             ],
         ],
 
+        // _________________________________________________________________________________________RÉSERVATIONS
         'reservations.approve' => [
             'title' => 'Approbation d’une réservation',
             'category' => 'Réservations',
@@ -382,6 +384,257 @@ return [
             ],
         ],
 
+        'reservations.auto_assign' => [
+            'title' => 'Affectation automatique d’une réservation',
+            'category' => 'Réservations',
+            'scenario' => 'admin',
+            'goal' => 'Tenter d’assigner automatiquement un chauffeur et un véhicule disponibles à une réservation.',
+
+            'route' => [
+                'demo' => 'POST /demo/reservations/{reservation}/auto-assign',
+                'api' => null,
+            ],
+
+            'demo_controller' => [
+                'class' => 'DemoController',
+                'method' => 'autoAssign',
+            ],
+
+            'api_controller' => [
+                'class' => 'ReservationAssignmentController',
+                'method' => 'autoAssign',
+            ],
+
+            'request' => null,
+
+            'service' => [
+                'class' => 'ReservationAssignmentService',
+                'method' => 'autoAssign',
+                'internal_methods' => [
+                    'Recherche des chauffeurs disponibles',
+                    'Recherche des véhicules disponibles',
+                    'Vérification des conflits actifs',
+                    'Création ou mise à jour de l’affectation',
+                ],
+            ],
+
+            'related_services' => [
+                'ReservationOccupationService',
+                'NotificationDispatchService::dispatch',
+                'DomainEventLogger::log',
+            ],
+
+            'tables' => [
+                'reservations',
+                'drivers',
+                'vehicles',
+                'reservation_assignment_history',
+                'notification_deliveries',
+                'notifications',
+                'domain_events',
+            ],
+
+            'effects' => [
+                'Le backend cherche un chauffeur disponible.',
+                'Le backend cherche un véhicule disponible.',
+                'La réservation peut recevoir une affectation automatique.',
+                'Un historique d’affectation peut être créé.',
+                'Une notification peut être envoyée.',
+            ],
+        ],
+
+        'reservations.assign' => [
+            'title' => 'Affectation manuelle d’une réservation',
+            'category' => 'Réservations',
+            'scenario' => 'admin',
+            'goal' => 'Assigner manuellement un chauffeur et/ou un véhicule à une réservation.',
+
+            'route' => [
+                'demo' => 'POST /demo/reservations/{reservation}/assign',
+                'api' => 'PATCH /api/reservations/{reservation}/assign',
+            ],
+
+            'demo_controller' => [
+                'class' => 'DemoController',
+                'method' => 'assign',
+            ],
+
+            'api_controller' => [
+                'class' => 'ReservationController',
+                'method' => 'assign',
+            ],
+
+            'request' => [
+                'class' => 'AssignReservationRequest',
+                'methods' => [
+                    'authorize',
+                    'rules',
+                ],
+            ],
+
+            'service' => [
+                'class' => 'ReservationAssignmentService',
+                'method' => 'assign',
+                'internal_methods' => [
+                    'Validation du chauffeur demandé',
+                    'Validation du véhicule demandé',
+                    'Vérification des disponibilités',
+                    'Mise à jour de la réservation',
+                    'Création de l’historique d’affectation',
+                ],
+            ],
+
+            'related_services' => [
+                'ReservationOccupationService',
+                'NotificationDispatchService::dispatch',
+                'DomainEventLogger::log',
+            ],
+
+            'tables' => [
+                'reservations',
+                'drivers',
+                'vehicles',
+                'reservation_assignment_history',
+                'notifications',
+                'notification_deliveries',
+                'domain_events',
+            ],
+
+            'effects' => [
+                'Le chauffeur sélectionné peut être associé à la réservation.',
+                'Le véhicule sélectionné peut être associé à la réservation.',
+                'Le système vérifie les conflits avant ou pendant l’affectation.',
+                'Un historique d’affectation peut être créé.',
+                'Une notification peut être déclenchée.',
+            ],
+        ],
+
+        'reservations.confirm' => [
+            'title' => 'Confirmation d’une réservation',
+            'category' => 'Réservations',
+            'scenario' => 'admin',
+            'goal' => 'Faire passer une réservation vers le statut confirmé.',
+
+            'route' => [
+                'demo' => 'POST /demo/reservations/{reservation}/confirm',
+                'api' => 'PATCH /api/reservations/{reservation}/confirm',
+            ],
+
+            'demo_controller' => [
+                'class' => 'DemoController',
+                'method' => 'confirm',
+            ],
+
+            'api_controller' => [
+                'class' => 'ReservationController',
+                'method' => 'confirm',
+            ],
+
+            'request' => [
+                'class' => 'ConfirmReservationRequest',
+                'methods' => [
+                    'authorize',
+                    'rules',
+                ],
+            ],
+
+            'service' => [
+                'class' => 'ReservationService',
+                'method' => 'confirm',
+                'internal_methods' => [
+                    'Vérification du statut actuel',
+                    'Vérification des affectations nécessaires',
+                    'transition',
+                    'recordStatus',
+                    'notifyRequester',
+                ],
+            ],
+
+            'related_services' => [
+                'NotificationDispatchService::dispatch',
+                'DomainEventLogger::log',
+            ],
+
+            'tables' => [
+                'reservations',
+                'reservation_status_history',
+                'notifications',
+                'notification_deliveries',
+                'domain_events',
+                'jobs',
+            ],
+
+            'effects' => [
+                'Le statut de la réservation passe à confirmé.',
+                'Un historique de statut est créé.',
+                'Le demandeur peut être notifié.',
+                'Un événement métier peut être journalisé.',
+            ],
+        ],
+
+        'reservations.cancel' => [
+            'title' => 'Annulation d’une réservation',
+            'category' => 'Réservations',
+            'scenario' => 'admin',
+            'goal' => 'Annuler une réservation depuis la démo.',
+
+            'route' => [
+                'demo' => 'POST /demo/reservations/{reservation}/cancel',
+                'api' => 'PATCH /api/reservations/{reservation}/cancel',
+            ],
+
+            'demo_controller' => [
+                'class' => 'DemoController',
+                'method' => 'cancel',
+            ],
+
+            'api_controller' => [
+                'class' => 'ReservationController',
+                'method' => 'cancel',
+            ],
+
+            'request' => [
+                'class' => 'CancelReservationRequest',
+                'methods' => [
+                    'authorize',
+                    'rules',
+                ],
+            ],
+
+            'service' => [
+                'class' => 'ReservationService',
+                'method' => 'cancel',
+                'internal_methods' => [
+                    'Vérification du statut actuel',
+                    'transition',
+                    'recordStatus',
+                    'notifyRequester',
+                ],
+            ],
+
+            'related_services' => [
+                'NotificationDispatchService::dispatch',
+                'DomainEventLogger::log',
+            ],
+
+            'tables' => [
+                'reservations',
+                'reservation_status_history',
+                'notifications',
+                'notification_deliveries',
+                'domain_events',
+                'jobs',
+            ],
+
+            'effects' => [
+                'Le statut de la réservation passe à annulé.',
+                'Un historique de statut est créé.',
+                'Le demandeur peut être notifié.',
+                'L’annulation peut apparaître dans le suivi des notifications.',
+            ],
+        ],
+
+        // _________________________________________________________________________________________NOTIFICATIONS
         'notifications.index' => [
             'title' => 'Consultation des notifications',
             'category' => 'Notifications',
@@ -434,6 +687,7 @@ return [
             ],
         ],
 
+        // _________________________________________________________________________________________DEMANDES (REQUESTS)
         'requests.index' => [
             'title' => 'Consultation des demandes administratives',
             'category' => 'Demandes',
@@ -483,255 +737,116 @@ return [
             ],
         ],
 
-        'reservations.auto_assign' => [
-    'title' => 'Affectation automatique d’une réservation',
-    'category' => 'Réservations',
-    'scenario' => 'admin',
-    'goal' => 'Tenter d’assigner automatiquement un chauffeur et un véhicule disponibles à une réservation.',
+        // _________________________________________________________________________________________DOCUMENTS
 
-    'route' => [
-        'demo' => 'POST /demo/reservations/{reservation}/auto-assign',
-        'api' => null,
-    ],
+        'documents.route_sheets.generate' => [
+            'title' => 'Génération d’une feuille de route',
+            'category' => 'Documents',
+            'scenario' => 'admin',
+            'goal' => 'Générer un document de feuille de route à partir des réservations planifiées.',
 
-    'demo_controller' => [
-        'class' => 'DemoController',
-        'method' => 'autoAssign',
-    ],
+            'route' => [
+                'demo' => 'POST /demo/documents/route-sheets',
+                'api' => 'POST /api/documents/route-sheets',
+            ],
 
-    'api_controller' => [
-        'class' => 'ReservationAssignmentController',
-        'method' => 'autoAssign',
-    ],
+            'demo_controller' => [
+                'class' => 'DemoController',
+                'method' => 'generateRouteSheet',
+            ],
 
-    'request' => null,
+            'api_controller' => [
+                'class' => 'DocumentController',
+                'method' => 'generateRouteSheet',
+            ],
 
-    'service' => [
-        'class' => 'ReservationAssignmentService',
-        'method' => 'autoAssign',
-        'internal_methods' => [
-            'Recherche des chauffeurs disponibles',
-            'Recherche des véhicules disponibles',
-            'Vérification des conflits actifs',
-            'Création ou mise à jour de l’affectation',
+            'request' => [
+                'class' => 'GenerateRouteSheetRequest',
+                'methods' => [
+                    'authorize',
+                    'rules',
+                ],
+            ],
+
+            'service' => [
+                'class' => 'RouteSheetDocumentService',
+                'method' => 'generate',
+                'internal_methods' => [
+                    'Validation de la période ou du véhicule',
+                    'Récupération des réservations concernées',
+                    'Construction du document',
+                    'Stockage du fichier généré',
+                    'Création de l’enregistrement document',
+                ],
+            ],
+
+            'related_services' => [
+                'DocumentStorageService',
+                'DomainEventLogger::log',
+            ],
+
+            'tables' => [
+                'documents',
+                'reservations',
+                'vehicles',
+                'drivers',
+                'organizations',
+                'locations',
+            ],
+
+            'effects' => [
+                'Un fichier PDF de feuille de route est généré.',
+                'Un document est enregistré en base de données.',
+                'Le document devient disponible au téléchargement.',
+            ],
         ],
-    ],
 
-    'related_services' => [
-        'ReservationOccupationService',
-        'NotificationDispatchService::dispatch',
-        'DomainEventLogger::log',
-    ],
+        'documents.download' => [
+            'title' => 'Téléchargement d’un document',
+            'category' => 'Documents',
+            'scenario' => 'admin',
+            'goal' => 'Télécharger un document généré par le backend.',
 
-    'tables' => [
-        'reservations',
-        'drivers',
-        'vehicles',
-        'reservation_assignment_history',
-        'notification_deliveries',
-        'notifications',
-        'domain_events',
-    ],
+            'route' => [
+                'demo' => 'GET /demo/documents/{document}/download',
+                'api' => 'GET /api/documents/{document}/download',
+            ],
 
-    'effects' => [
-        'Le backend cherche un chauffeur disponible.',
-        'Le backend cherche un véhicule disponible.',
-        'La réservation peut recevoir une affectation automatique.',
-        'Un historique d’affectation peut être créé.',
-        'Une notification peut être envoyée.',
-    ],
-],
+            'demo_controller' => [
+                'class' => 'DemoController',
+                'method' => 'downloadDocument',
+            ],
 
-'reservations.assign' => [
-    'title' => 'Affectation manuelle d’une réservation',
-    'category' => 'Réservations',
-    'scenario' => 'admin',
-    'goal' => 'Assigner manuellement un chauffeur et/ou un véhicule à une réservation.',
+            'api_controller' => [
+                'class' => 'DocumentController',
+                'method' => 'download',
+            ],
 
-    'route' => [
-        'demo' => 'POST /demo/reservations/{reservation}/assign',
-        'api' => 'PATCH /api/reservations/{reservation}/assign',
-    ],
+            'request' => null,
 
-    'demo_controller' => [
-        'class' => 'DemoController',
-        'method' => 'assign',
-    ],
+            'service' => [
+                'class' => 'Document',
+                'method' => 'download',
+                'internal_methods' => [
+                    'Vérification de l’existence du document',
+                    'Vérification du fichier stocké',
+                    'Retour du fichier en réponse HTTP',
+                ],
+            ],
 
-    'api_controller' => [
-        'class' => 'ReservationController',
-        'method' => 'assign',
-    ],
+            'related_services' => [
+                'Storage',
+            ],
 
-    'request' => [
-        'class' => 'AssignReservationRequest',
-        'methods' => [
-            'authorize',
-            'rules',
+            'tables' => [
+                'documents',
+            ],
+
+            'effects' => [
+                'Le fichier est récupéré depuis le stockage.',
+                'Le navigateur déclenche le téléchargement.',
+            ],
         ],
-    ],
-
-    'service' => [
-        'class' => 'ReservationAssignmentService',
-        'method' => 'assign',
-        'internal_methods' => [
-            'Validation du chauffeur demandé',
-            'Validation du véhicule demandé',
-            'Vérification des disponibilités',
-            'Mise à jour de la réservation',
-            'Création de l’historique d’affectation',
-        ],
-    ],
-
-    'related_services' => [
-        'ReservationOccupationService',
-        'NotificationDispatchService::dispatch',
-        'DomainEventLogger::log',
-    ],
-
-    'tables' => [
-        'reservations',
-        'drivers',
-        'vehicles',
-        'reservation_assignment_history',
-        'notifications',
-        'notification_deliveries',
-        'domain_events',
-    ],
-
-    'effects' => [
-        'Le chauffeur sélectionné peut être associé à la réservation.',
-        'Le véhicule sélectionné peut être associé à la réservation.',
-        'Le système vérifie les conflits avant ou pendant l’affectation.',
-        'Un historique d’affectation peut être créé.',
-        'Une notification peut être déclenchée.',
-    ],
-],
-
-'reservations.confirm' => [
-    'title' => 'Confirmation d’une réservation',
-    'category' => 'Réservations',
-    'scenario' => 'admin',
-    'goal' => 'Faire passer une réservation vers le statut confirmé.',
-
-    'route' => [
-        'demo' => 'POST /demo/reservations/{reservation}/confirm',
-        'api' => 'PATCH /api/reservations/{reservation}/confirm',
-    ],
-
-    'demo_controller' => [
-        'class' => 'DemoController',
-        'method' => 'confirm',
-    ],
-
-    'api_controller' => [
-        'class' => 'ReservationController',
-        'method' => 'confirm',
-    ],
-
-    'request' => [
-        'class' => 'ConfirmReservationRequest',
-        'methods' => [
-            'authorize',
-            'rules',
-        ],
-    ],
-
-    'service' => [
-        'class' => 'ReservationService',
-        'method' => 'confirm',
-        'internal_methods' => [
-            'Vérification du statut actuel',
-            'Vérification des affectations nécessaires',
-            'transition',
-            'recordStatus',
-            'notifyRequester',
-        ],
-    ],
-
-    'related_services' => [
-        'NotificationDispatchService::dispatch',
-        'DomainEventLogger::log',
-    ],
-
-    'tables' => [
-        'reservations',
-        'reservation_status_history',
-        'notifications',
-        'notification_deliveries',
-        'domain_events',
-        'jobs',
-    ],
-
-    'effects' => [
-        'Le statut de la réservation passe à confirmé.',
-        'Un historique de statut est créé.',
-        'Le demandeur peut être notifié.',
-        'Un événement métier peut être journalisé.',
-    ],
-],
-
-'reservations.cancel' => [
-    'title' => 'Annulation d’une réservation',
-    'category' => 'Réservations',
-    'scenario' => 'admin',
-    'goal' => 'Annuler une réservation depuis la démo.',
-
-    'route' => [
-        'demo' => 'POST /demo/reservations/{reservation}/cancel',
-        'api' => 'PATCH /api/reservations/{reservation}/cancel',
-    ],
-
-    'demo_controller' => [
-        'class' => 'DemoController',
-        'method' => 'cancel',
-    ],
-
-    'api_controller' => [
-        'class' => 'ReservationController',
-        'method' => 'cancel',
-    ],
-
-    'request' => [
-        'class' => 'CancelReservationRequest',
-        'methods' => [
-            'authorize',
-            'rules',
-        ],
-    ],
-
-    'service' => [
-        'class' => 'ReservationService',
-        'method' => 'cancel',
-        'internal_methods' => [
-            'Vérification du statut actuel',
-            'transition',
-            'recordStatus',
-            'notifyRequester',
-        ],
-    ],
-
-    'related_services' => [
-        'NotificationDispatchService::dispatch',
-        'DomainEventLogger::log',
-    ],
-
-    'tables' => [
-        'reservations',
-        'reservation_status_history',
-        'notifications',
-        'notification_deliveries',
-        'domain_events',
-        'jobs',
-    ],
-
-    'effects' => [
-        'Le statut de la réservation passe à annulé.',
-        'Un historique de statut est créé.',
-        'Le demandeur peut être notifié.',
-        'L’annulation peut apparaître dans le suivi des notifications.',
-    ],
-],
 
     ],
 
