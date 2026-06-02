@@ -75,20 +75,46 @@ final class DemoRequestController extends DemoBaseController
             'comment' => ['nullable', 'string'],
         ]);
 
-        return $this->runDemoAction(function () use ($actor, $validated): void {
-            $this->authorizeFor($actor, 'create', OrgRegistrationRequest::class);
-            $this->orgRegistrationRequestService->create($actor, $validated);
-        }, 'Demande de creation d organisation envoyee.');
+        return $this->runDemoAction(
+            function () use ($actor, $validated): void {
+                $this->authorizeFor($actor, 'create', OrgRegistrationRequest::class);
+                $this->orgRegistrationRequestService->create($actor, $validated);
+            },
+            'Demande de creation d organisation envoyee.',
+            $request,
+            'requests.organizations.store',
+            [
+                'actor_id' => $actor->id,
+                'organization_name' => $validated['organization_name'],
+                'organization_type' => $validated['organization_type'],
+                'official_email' => $validated['official_email'],
+                'location_id' => $validated['location_id'] ?? null,
+                'validated_fields' => array_keys($validated),
+            ]
+        );
     }
 
     public function approveOrg(Request $request, OrgRegistrationRequest $orgRegistrationRequest): RedirectResponse
     {
         $actor = $this->actor($request);
 
-        return $this->runDemoAction(function () use ($actor, $orgRegistrationRequest): void {
-            $this->authorizeFor($actor, 'approve', $orgRegistrationRequest);
-            $this->orgRegistrationRequestService->approve($orgRegistrationRequest, $actor);
-        }, 'Demande de creation approuvee.');
+        return $this->runDemoAction(
+            function () use ($actor, $orgRegistrationRequest): void {
+                $this->authorizeFor($actor, 'approve', $orgRegistrationRequest);
+                $this->orgRegistrationRequestService->approve($orgRegistrationRequest, $actor);
+            },
+            'Demande de creation approuvee.',
+            $request,
+            'requests.organizations.approve',
+            [
+                'actor_id' => $actor->id,
+                'org_registration_request_id' => $orgRegistrationRequest->id,
+                'organization_name' => $orgRegistrationRequest->organization_name,
+                'organization_type' => $orgRegistrationRequest->organization_type?->value ?? $orgRegistrationRequest->organization_type,
+                'status_before' => $orgRegistrationRequest->status?->value ?? $orgRegistrationRequest->status,
+                'requested_by_user_id' => $orgRegistrationRequest->request_by_user_id,
+            ]
+        );
     }
 
     public function rejectOrg(Request $request, OrgRegistrationRequest $orgRegistrationRequest): RedirectResponse
@@ -96,10 +122,24 @@ final class DemoRequestController extends DemoBaseController
         $actor = $this->actor($request);
         $validated = $request->validate(['rejection_reason' => ['required', 'string', 'max:1000']]);
 
-        return $this->runDemoAction(function () use ($actor, $orgRegistrationRequest, $validated): void {
-            $this->authorizeFor($actor, 'reject', $orgRegistrationRequest);
-            $this->orgRegistrationRequestService->reject($orgRegistrationRequest, $actor, $validated['rejection_reason']);
-        }, 'Demande de creation refusee.');
+        return $this->runDemoAction(
+            function () use ($actor, $orgRegistrationRequest, $validated): void {
+                $this->authorizeFor($actor, 'reject', $orgRegistrationRequest);
+                $this->orgRegistrationRequestService->reject($orgRegistrationRequest, $actor, $validated['rejection_reason']);
+            },
+            'Demande de creation refusee.',
+            $request,
+            'requests.organizations.reject',
+            [
+                'actor_id' => $actor->id,
+                'org_registration_request_id' => $orgRegistrationRequest->id,
+                'organization_name' => $orgRegistrationRequest->organization_name,
+                'organization_type' => $orgRegistrationRequest->organization_type?->value ?? $orgRegistrationRequest->organization_type,
+                'status_before' => $orgRegistrationRequest->status?->value ?? $orgRegistrationRequest->status,
+                'requested_by_user_id' => $orgRegistrationRequest->request_by_user_id,
+                'rejection_reason' => $validated['rejection_reason'],
+            ]
+        );
     }
 
     public function storeUserOrg(Request $request): RedirectResponse
@@ -112,20 +152,44 @@ final class DemoRequestController extends DemoBaseController
             'proof_document_path' => ['nullable', 'string', 'max:500'],
         ]);
 
-        return $this->runDemoAction(function () use ($actor, $validated): void {
-            $this->authorizeFor($actor, 'create', UserOrgRequest::class);
-            $this->userOrgRequestService->create($actor, $validated);
-        }, 'Demande de rattachement envoyee.');
+        return $this->runDemoAction(
+            function () use ($actor, $validated): void {
+                $this->authorizeFor($actor, 'create', UserOrgRequest::class);
+                $this->userOrgRequestService->create($actor, $validated);
+            },
+            'Demande de rattachement envoyee.',
+            $request,
+            'requests.user_organizations.store',
+            [
+                'actor_id' => $actor->id,
+                'organization_id' => $validated['organization_id'],
+                'requested_role' => $validated['requested_role'],
+                'validated_fields' => array_keys($validated),
+            ]
+        );
     }
 
     public function approveUserOrg(Request $request, UserOrgRequest $userOrgRequest): RedirectResponse
     {
         $actor = $this->actor($request);
 
-        return $this->runDemoAction(function () use ($actor, $userOrgRequest): void {
-            $this->authorizeFor($actor, 'approve', $userOrgRequest);
-            $this->userOrgRequestService->approve($userOrgRequest, $actor);
-        }, 'Demande de rattachement approuvee.');
+        return $this->runDemoAction(
+            function () use ($actor, $userOrgRequest): void {
+                $this->authorizeFor($actor, 'approve', $userOrgRequest);
+                $this->userOrgRequestService->approve($userOrgRequest, $actor);
+            },
+            'Demande de rattachement approuvee.',
+            $request,
+            'requests.user_organizations.approve',
+            [
+                'actor_id' => $actor->id,
+                'user_org_request_id' => $userOrgRequest->request_id,
+                'organization_id' => $userOrgRequest->organization_id,
+                'requested_by_user_id' => $userOrgRequest->requested_by_user_id,
+                'requested_role' => $userOrgRequest->requested_role,
+                'status_before' => $userOrgRequest->status?->value ?? $userOrgRequest->status,
+            ]
+        );
     }
 
     public function rejectUserOrg(Request $request, UserOrgRequest $userOrgRequest): RedirectResponse
@@ -133,9 +197,23 @@ final class DemoRequestController extends DemoBaseController
         $actor = $this->actor($request);
         $validated = $request->validate(['rejection_reason' => ['required', 'string', 'max:1000']]);
 
-        return $this->runDemoAction(function () use ($actor, $userOrgRequest, $validated): void {
-            $this->authorizeFor($actor, 'reject', $userOrgRequest);
-            $this->userOrgRequestService->reject($userOrgRequest, $actor, $validated['rejection_reason']);
-        }, 'Demande de rattachement refusee.');
+        return $this->runDemoAction(
+            function () use ($actor, $userOrgRequest, $validated): void {
+                $this->authorizeFor($actor, 'reject', $userOrgRequest);
+                $this->userOrgRequestService->reject($userOrgRequest, $actor, $validated['rejection_reason']);
+            },
+            'Demande de rattachement refusee.',
+            $request,
+            'requests.user_organizations.reject',
+            [
+                'actor_id' => $actor->id,
+                'user_org_request_id' => $userOrgRequest->request_id,
+                'organization_id' => $userOrgRequest->organization_id,
+                'requested_by_user_id' => $userOrgRequest->requested_by_user_id,
+                'requested_role' => $userOrgRequest->requested_role,
+                'status_before' => $userOrgRequest->status?->value ?? $userOrgRequest->status,
+                'rejection_reason' => $validated['rejection_reason'],
+            ]
+        );
     }
 }

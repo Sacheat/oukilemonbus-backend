@@ -1196,6 +1196,377 @@ return [
             ],
         ],
 
+        'requests.organizations.store' => [
+            'title' => 'Création d’une demande d’organisation',
+            'category' => 'Demandes',
+            'scenario' => 'admin',
+            'goal' => 'Créer une demande de création d’organisation depuis la démo.',
+
+            'route' => [
+                'demo' => 'POST /demo/requests/organizations',
+                'api' => 'POST /api/org-registration-requests',
+            ],
+
+            'demo_controller' => [
+                'class' => 'DemoRequestController',
+                'method' => 'storeOrg',
+            ],
+
+            'api_controller' => [
+                'class' => 'OrgRegistrationRequestController',
+                'method' => 'store',
+            ],
+
+            'request' => [
+                'organization_name',
+                'organization_type',
+                'enterprise_number',
+                'official_email',
+                'phone',
+                'location_id',
+                'contact_person_name',
+                'contact_person_role',
+                'proof_document_path',
+                'comment',
+            ],
+
+            'service' => [
+                'class' => 'OrgRegistrationRequestService',
+                'method' => 'create',
+                'internal_methods' => [
+                    'Validation des données de demande',
+                    'Vérification du droit de création',
+                    'Création de la demande en attente',
+                    'Calcul de la note de confiance',
+                    'Notification des utilisateurs internes',
+                    'Redirection vers les demandes administratives',
+                ],
+            ],
+
+            'related_services' => [
+                'OrgRegistrationRequestService',
+                'OrgRegistrationConfidenceScoreService',
+                'NotificationDispatchService',
+                'NotificationRecipientResolver',
+            ],
+
+            'tables' => [
+                'org_registration_requests',
+                'users',
+                'locations',
+                'notifications',
+                'notification_deliveries',
+            ],
+
+            'effects' => [
+                'Une demande de création d’organisation est créée.',
+                'La demande est placée en attente.',
+                'Une note de confiance peut être calculée.',
+                'Les agents internes peuvent être notifiés.',
+                'L’inspector conserve l’action POST malgré la redirection.',
+            ],
+        ],
+
+        'requests.organizations.approve' => [
+            'title' => 'Approbation d’une demande d’organisation',
+            'category' => 'Demandes',
+            'scenario' => 'admin',
+            'goal' => 'Approuver une demande de création d’organisation et créer l’organisation correspondante.',
+
+            'route' => [
+                'demo' => 'POST /demo/requests/organizations/{orgRegistrationRequest}/approve',
+                'api' => 'PATCH /api/org-registration-requests/{orgRegistrationRequest}/approve',
+            ],
+
+            'demo_controller' => [
+                'class' => 'DemoRequestController',
+                'method' => 'approveOrg',
+            ],
+
+            'api_controller' => [
+                'class' => 'OrgRegistrationRequestController',
+                'method' => 'approve',
+            ],
+
+            'request' => null,
+
+            'service' => [
+                'class' => 'OrgRegistrationRequestService',
+                'method' => 'approve',
+                'internal_methods' => [
+                    'Vérification du droit d’approbation',
+                    'Vérification que la demande est encore en attente',
+                    'Création de l’organisation',
+                    'Rattachement du demandeur comme responsable',
+                    'Passage de la demande au statut approuvé',
+                    'Enregistrement de l’utilisateur qui a traité la demande',
+                    'Redirection vers les demandes administratives',
+                ],
+            ],
+
+            'related_services' => [
+                'OrgRegistrationRequestService',
+            ],
+
+            'tables' => [
+                'org_registration_requests',
+                'organizations',
+                'organization_user',
+                'users',
+            ],
+
+            'effects' => [
+                'Une nouvelle organisation est créée.',
+                'Le demandeur est rattaché à cette organisation.',
+                'La demande passe au statut approuvé.',
+                'L’inspector conserve l’action POST malgré la redirection.',
+            ],
+        ],
+
+        'requests.organizations.reject' => [
+            'title' => 'Refus d’une demande d’organisation',
+            'category' => 'Demandes',
+            'scenario' => 'admin',
+            'goal' => 'Refuser une demande de création d’organisation avec un motif explicite.',
+
+            'route' => [
+                'demo' => 'POST /demo/requests/organizations/{orgRegistrationRequest}/reject',
+                'api' => 'PATCH /api/org-registration-requests/{orgRegistrationRequest}/reject',
+            ],
+
+            'demo_controller' => [
+                'class' => 'DemoRequestController',
+                'method' => 'rejectOrg',
+            ],
+
+            'api_controller' => [
+                'class' => 'OrgRegistrationRequestController',
+                'method' => 'reject',
+            ],
+
+            'request' => [
+                'rejection_reason',
+            ],
+
+            'service' => [
+                'class' => 'OrgRegistrationRequestService',
+                'method' => 'reject',
+                'internal_methods' => [
+                    'Validation du motif de refus',
+                    'Vérification du droit de refus',
+                    'Vérification que la demande est encore traitable',
+                    'Passage de la demande au statut refusé',
+                    'Enregistrement du motif de refus',
+                    'Enregistrement de l’utilisateur qui a traité la demande',
+                    'Redirection vers les demandes administratives',
+                ],
+            ],
+
+            'related_services' => [
+                'OrgRegistrationRequestService',
+                'NotificationDispatchService',
+                'NotificationRecipientResolver',
+            ],
+
+            'tables' => [
+                'org_registration_requests',
+                'users',
+                'notifications',
+                'notification_deliveries',
+            ],
+
+            'effects' => [
+                'La demande de création d’organisation est refusée.',
+                'Le motif du refus est conservé.',
+                'La demande ne crée pas d’organisation.',
+                'Le demandeur peut être notifié.',
+                'L’inspector conserve l’action POST malgré la redirection.',
+            ],
+        ],
+
+        'requests.user_organizations.store' => [
+            'title' => 'Création d’une demande de rattachement',
+            'category' => 'Demandes',
+            'scenario' => 'admin',
+            'goal' => 'Créer une demande de rattachement d’un utilisateur à une organisation existante.',
+
+            'route' => [
+                'demo' => 'POST /demo/requests/user-organizations',
+                'api' => 'POST /api/user-org-requests',
+            ],
+
+            'demo_controller' => [
+                'class' => 'DemoRequestController',
+                'method' => 'storeUserOrg',
+            ],
+
+            'api_controller' => [
+                'class' => 'UserOrgRequestController',
+                'method' => 'store',
+            ],
+
+            'request' => [
+                'organization_id',
+                'requested_role',
+                'justification',
+                'proof_document_path',
+            ],
+
+            'service' => [
+                'class' => 'UserOrgRequestService',
+                'method' => 'create',
+                'internal_methods' => [
+                    'Validation des données de rattachement',
+                    'Vérification du droit de création',
+                    'Vérification de l’organisation ciblée',
+                    'Création de la demande de rattachement',
+                    'Passage de la demande au statut en attente',
+                    'Redirection vers les demandes administratives',
+                ],
+            ],
+
+            'related_services' => [
+                'UserOrgRequestService',
+                'NotificationDispatchService',
+                'NotificationRecipientResolver',
+            ],
+
+            'tables' => [
+                'user_org_requests',
+                'organizations',
+                'users',
+                'notifications',
+                'notification_deliveries',
+            ],
+
+            'effects' => [
+                'Une demande de rattachement est créée.',
+                'L’utilisateur demande un rôle dans une organisation existante.',
+                'La demande reste en attente jusqu’à validation ou refus.',
+                'Les responsables internes peuvent être notifiés.',
+                'L’inspector conserve l’action POST malgré la redirection.',
+            ],
+        ],
+
+        'requests.user_organizations.approve' => [
+            'title' => 'Approbation d’une demande de rattachement',
+            'category' => 'Demandes',
+            'scenario' => 'admin',
+            'goal' => 'Approuver une demande de rattachement et associer l’utilisateur à l’organisation.',
+
+            'route' => [
+                'demo' => 'POST /demo/requests/user-organizations/{userOrgRequest}/approve',
+                'api' => 'PATCH /api/user-org-requests/{userOrgRequest}/approve',
+            ],
+
+            'demo_controller' => [
+                'class' => 'DemoRequestController',
+                'method' => 'approveUserOrg',
+            ],
+
+            'api_controller' => [
+                'class' => 'UserOrgRequestController',
+                'method' => 'approve',
+            ],
+
+            'request' => null,
+
+            'service' => [
+                'class' => 'UserOrgRequestService',
+                'method' => 'approve',
+                'internal_methods' => [
+                    'Vérification du droit d’approbation',
+                    'Vérification que la demande est encore en attente',
+                    'Rattachement de l’utilisateur à l’organisation',
+                    'Attribution du rôle demandé',
+                    'Passage de la demande au statut approuvé',
+                    'Enregistrement de l’utilisateur qui a traité la demande',
+                    'Redirection vers les demandes administratives',
+                ],
+            ],
+
+            'related_services' => [
+                'UserOrgRequestService',
+            ],
+
+            'tables' => [
+                'user_org_requests',
+                'organization_user',
+                'organizations',
+                'users',
+                'roles',
+            ],
+
+            'effects' => [
+                'L’utilisateur est rattaché à l’organisation.',
+                'Le rôle demandé peut être attribué.',
+                'La demande passe au statut approuvé.',
+                'L’inspector conserve l’action POST malgré la redirection.',
+            ],
+        ],
+
+        'requests.user_organizations.reject' => [
+            'title' => 'Refus d’une demande de rattachement',
+            'category' => 'Demandes',
+            'scenario' => 'admin',
+            'goal' => 'Refuser une demande de rattachement avec un motif explicite.',
+
+            'route' => [
+                'demo' => 'POST /demo/requests/user-organizations/{userOrgRequest}/reject',
+                'api' => 'PATCH /api/user-org-requests/{userOrgRequest}/reject',
+            ],
+
+            'demo_controller' => [
+                'class' => 'DemoRequestController',
+                'method' => 'rejectUserOrg',
+            ],
+
+            'api_controller' => [
+                'class' => 'UserOrgRequestController',
+                'method' => 'reject',
+            ],
+
+            'request' => [
+                'rejection_reason',
+            ],
+
+            'service' => [
+                'class' => 'UserOrgRequestService',
+                'method' => 'reject',
+                'internal_methods' => [
+                    'Validation du motif de refus',
+                    'Vérification du droit de refus',
+                    'Vérification que la demande est encore traitable',
+                    'Passage de la demande au statut refusé',
+                    'Enregistrement du motif de refus',
+                    'Enregistrement de l’utilisateur qui a traité la demande',
+                    'Redirection vers les demandes administratives',
+                ],
+            ],
+
+            'related_services' => [
+                'UserOrgRequestService',
+                'NotificationDispatchService',
+                'NotificationRecipientResolver',
+            ],
+
+            'tables' => [
+                'user_org_requests',
+                'organizations',
+                'users',
+                'notifications',
+                'notification_deliveries',
+            ],
+
+            'effects' => [
+                'La demande de rattachement est refusée.',
+                'Le motif du refus est conservé.',
+                'L’utilisateur n’est pas rattaché à l’organisation.',
+                'Le demandeur peut être notifié.',
+                'L’inspector conserve l’action POST malgré la redirection.',
+            ],
+        ],
+
         // _________________________________________________________________________________________DOCUMENTS
 
         'documents.index' => [
