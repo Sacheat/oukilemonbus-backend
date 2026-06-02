@@ -17,11 +17,23 @@ final class DemoActorController extends DemoBaseController
 
     public function update(Request $request): RedirectResponse
     {
+        $previousActor = $this->actor($request);
+
         $validated = $request->validate([
             'user_id' => ['required', 'integer', 'exists:users,id'],
         ]);
 
         $this->actorResolver->set($request, (int) $validated['user_id']);
+
+        $this->recordInspectorAction($request, 'demo.actor.changed', [
+            'status' => 'success',
+            'message' => 'Changement de l’acteur de démonstration.',
+            'previous_actor_id' => $previousActor->id,
+            'previous_actor_email' => $previousActor->email,
+            'new_actor_id' => (int) $validated['user_id'],
+        ]);
+
+        $request->session()->put('backend_inspector.skip_next_view_recording', true);
 
         return back()->with('status', 'Acteur de demonstration change.');
     }
