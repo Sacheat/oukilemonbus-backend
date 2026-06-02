@@ -387,7 +387,7 @@ return [
             'title' => 'Affectation automatique d’une réservation',
             'category' => 'Réservations',
             'scenario' => 'admin',
-            'goal' => 'Tenter d’assigner automatiquement un chauffeur et un véhicule disponibles à une réservation.',
+            'goal' => 'Tenter d’assigner automatiquement un chauffeur et un véhicule disponibles à une réservation, en évitant les conflits d’occupation.',
 
             'route' => [
                 'demo' => 'POST /demo/reservations/{reservation}/auto-assign',
@@ -410,15 +410,21 @@ return [
                 'class' => 'ReservationAssignmentService',
                 'method' => 'autoAssign',
                 'internal_methods' => [
-                    'Recherche des chauffeurs disponibles',
-                    'Recherche des véhicules disponibles',
-                    'Vérification des conflits actifs',
-                    'Création ou mise à jour de l’affectation',
+                    'ReservationOccupationService::windowForReservation',
+                    'availableDriver($reservation, $window)',
+                    'busyDriverIds($reservation, $window)',
+                    'availableVehicle($reservation, $window)',
+                    'busyVehicleIds($reservation, $window)',
+                    'overlappingReservationsQuery($reservation, $window)',
+                    'whereNotIn sur les chauffeurs/véhicules déjà occupés',
+                    'Création de conflits si aucun chauffeur ou véhicule disponible',
+                    'Mise à jour de l’affectation si une combinaison est trouvée',
                 ],
             ],
 
             'related_services' => [
                 'ReservationOccupationService',
+                'ReservationAssignmentService',
                 'NotificationDispatchService::dispatch',
                 'DomainEventLogger::log',
             ],
@@ -427,6 +433,8 @@ return [
                 'reservations',
                 'drivers',
                 'vehicles',
+                'unavailabilities',
+                'reservation_conflicts',
                 'reservation_assignment_history',
                 'notification_deliveries',
                 'notifications',
@@ -434,11 +442,14 @@ return [
             ],
 
             'effects' => [
-                'Le backend cherche un chauffeur disponible.',
-                'Le backend cherche un véhicule disponible.',
-                'La réservation peut recevoir une affectation automatique.',
-                'Un historique d’affectation peut être créé.',
-                'Une notification peut être envoyée.',
+                'Le backend calcule la fenêtre réelle d’occupation de la réservation.',
+                'Le backend récupère en SQL les chauffeurs indisponibles ou déjà occupés.',
+                'Le backend récupère en SQL les véhicules indisponibles ou déjà occupés.',
+                'Les chauffeurs et véhicules occupés sont exclus avec whereNotIn.',
+                'La recherche évite de charger toute la flotte en mémoire.',
+                'La réservation peut recevoir automatiquement un chauffeur et un véhicule disponibles.',
+                'Des conflits peuvent être créés si aucune ressource n’est disponible.',
+                'L’inspector conserve l’action POST malgré la redirection.',
             ],
         ],
 

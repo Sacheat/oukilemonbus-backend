@@ -137,10 +137,23 @@ final class DemoReservationController extends DemoBaseController
     {
         $actor = $this->actor($request);
 
-        return $this->runDemoAction(function () use ($actor, $reservation): void {
-            $this->authorizeFor($actor, 'assign', $reservation);
-            $this->assignmentService->autoAssign($reservation, $actor);
-        }, 'Affectation automatique effectuee.');
+        return $this->runDemoAction(
+            function () use ($actor, $reservation): void {
+                $this->authorizeFor($actor, 'assign', $reservation);
+                $this->assignmentService->autoAssign($reservation, $actor);
+            },
+            'Affectation automatique effectuee.',
+            $request,
+            'reservations.auto_assign',
+            [
+                'actor_id' => $actor->id,
+                'reservation_id' => $reservation->id,
+                'organization_id' => $reservation->organization_id,
+                'status_before' => $reservation->status?->value ?? $reservation->status,
+                'driver_id_before' => $reservation->driver_id,
+                'vehicle_id_before' => $reservation->vehicle_id,
+            ]
+        );
     }
 
     public function assign(Request $request, Reservation $reservation): RedirectResponse
