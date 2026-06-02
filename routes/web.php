@@ -1,10 +1,11 @@
 <?php
 
+use App\Http\Controllers\Demo\BackendInspectorController;
 use App\Http\Controllers\Demo\DemoActorController;
 use App\Http\Controllers\Demo\DemoAdminController;
-use App\Http\Controllers\Demo\BackendInspectorController;
 use App\Http\Controllers\Demo\DemoDashboardController;
 use App\Http\Controllers\Demo\DemoDocumentController;
+use App\Http\Controllers\Demo\DemoDriverController;
 use App\Http\Controllers\Demo\DemoNotificationController;
 use App\Http\Controllers\Demo\DemoOrganizationController;
 use App\Http\Controllers\Demo\DemoPlanningController;
@@ -19,6 +20,8 @@ Route::get('/', function () {
 Route::prefix('demo')->name('demo.')->group(function (): void {
     Route::get('/', DemoDashboardController::class)->name('dashboard');
     Route::post('/actor', [DemoActorController::class, 'update'])->name('actor');
+
+    Route::get('/driver', DemoDriverController::class)->name('driver');
 
     // Backend Inspector routes
     Route::prefix('inspector')
@@ -43,6 +46,7 @@ Route::prefix('demo')->name('demo.')->group(function (): void {
     Route::post('/reservations/{reservation}/reject', [DemoReservationController::class, 'reject'])->name('reservations.reject');
     Route::post('/reservations/{reservation}/confirm', [DemoReservationController::class, 'confirm'])->name('reservations.confirm');
     Route::post('/reservations/{reservation}/cancel', [DemoReservationController::class, 'cancel'])->name('reservations.cancel');
+    Route::post('/reservations/{reservation}/conflicts/{conflict}/resolve', [DemoReservationController::class, 'resolveConflict'])->name('reservations.conflicts.resolve');
 
     Route::get('/planning', DemoPlanningController::class)->name('planning');
 
@@ -53,6 +57,7 @@ Route::prefix('demo')->name('demo.')->group(function (): void {
     Route::get('/documents/{document}/download', [DemoDocumentController::class, 'download'])->name('documents.download');
 
     Route::get('/notifications', [DemoNotificationController::class, 'index'])->name('notifications');
+    Route::post('/notifications/preferences', [DemoNotificationController::class, 'updatePreferences'])->name('notifications.preferences');
     Route::post('/notifications/read-all', [DemoNotificationController::class, 'markAllAsRead'])->name('notifications.read-all');
     Route::post('/notifications/{notificationId}/read', [DemoNotificationController::class, 'markAsRead'])->name('notifications.read');
 
@@ -65,4 +70,6 @@ Route::prefix('demo')->name('demo.')->group(function (): void {
     Route::post('/requests/user-organizations/{userOrgRequest}/reject', [DemoRequestController::class, 'rejectUserOrg'])->name('requests.user-organizations.reject');
 
     Route::get('/admin', [DemoAdminController::class, 'index'])->name('admin');
+    Route::post('/admin/unavailabilities', [DemoAdminController::class, 'storeUnavailability'])->name('admin.unavailabilities.store');
+    Route::post('/admin/unavailabilities/{unavailability}/cancel', [DemoAdminController::class, 'cancelUnavailability'])->name('admin.unavailabilities.cancel');
 });

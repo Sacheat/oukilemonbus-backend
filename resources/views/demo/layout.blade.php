@@ -141,6 +141,9 @@
             <div class="brand">OuKiLeMonBus - demo backend</div>
             <nav aria-label="Navigation demo">
                 <a class="{{ request()->routeIs('demo.dashboard') ? 'active' : '' }}" href="{{ route('demo.dashboard') }}">Dashboard</a>
+                @if ($actor->hasRole('chauffeur') && $actor->driver !== null)
+                    <a class="{{ request()->routeIs('demo.driver') ? 'active' : '' }}" href="{{ route('demo.driver') }}">Mes missions</a>
+                @endif
                 @if (\Illuminate\Support\Facades\Gate::forUser($actor)->allows('viewAny', \App\Models\Reservation::class))
                     <a class="{{ request()->routeIs('demo.reservations*') ? 'active' : '' }}" href="{{ route('demo.reservations') }}">Reservations</a>
                     <a class="{{ request()->routeIs('demo.planning') ? 'active' : '' }}" href="{{ route('demo.planning') }}">Planning</a>

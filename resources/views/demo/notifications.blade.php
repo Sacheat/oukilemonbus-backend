@@ -80,6 +80,64 @@
         </section>
 
         <section class="panel span-12">
+            <h2>Preferences de notification</h2>
+            <p class="muted">Canaux actives par categorie pour cet acteur. Branche sur <code>NotificationPreferenceService::update</code>.</p>
+            <form method="post" action="{{ route('demo.notifications.preferences') }}">
+                @csrf
+                <table>
+                    <thead>
+                    <tr>
+                        <th>Categorie</th>
+                        <th>In-app</th>
+                        <th>Email</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr>
+                        <td>Mises a jour reservations</td>
+                        <td><input type="checkbox" name="notify_reservation_updates_in_app" value="1" {{ $preference->notify_reservation_updates_in_app ? 'checked' : '' }}></td>
+                        <td><input type="checkbox" name="notify_reservation_updates_email" value="1" {{ $preference->notify_reservation_updates_email ? 'checked' : '' }}></td>
+                    </tr>
+                    <tr>
+                        <td>Planning chauffeur</td>
+                        <td><input type="checkbox" name="notify_driver_planning_in_app" value="1" {{ $preference->notify_driver_planning_in_app ? 'checked' : '' }}></td>
+                        <td><input type="checkbox" name="notify_driver_planning_email" value="1" {{ $preference->notify_driver_planning_email ? 'checked' : '' }}></td>
+                    </tr>
+                    <tr>
+                        <td>Workflow admin</td>
+                        <td><input type="checkbox" name="notify_admin_workflow_in_app" value="1" {{ $preference->notify_admin_workflow_in_app ? 'checked' : '' }}></td>
+                        <td><input type="checkbox" name="notify_admin_workflow_email" value="1" {{ $preference->notify_admin_workflow_email ? 'checked' : '' }}></td>
+                    </tr>
+                    <tr>
+                        <td>Annulation last-minute</td>
+                        <td><input type="checkbox" name="notify_last_minute_cancellation_in_app" value="1" {{ $preference->notify_last_minute_cancellation_in_app ? 'checked' : '' }}></td>
+                        <td><input type="checkbox" name="notify_last_minute_cancellation_email" value="1" {{ $preference->notify_last_minute_cancellation_email ? 'checked' : '' }}></td>
+                    </tr>
+                    </tbody>
+                </table>
+                <div class="filters" style="margin-top: 14px;">
+                    <label>
+                        Digest
+                        <select name="digest_frequency">
+                            <option value="none" {{ ($preference->digest_frequency ?? 'none') === 'none' ? 'selected' : '' }}>Aucun</option>
+                            <option value="daily" {{ ($preference->digest_frequency ?? '') === 'daily' ? 'selected' : '' }}>Quotidien</option>
+                            <option value="weekly" {{ ($preference->digest_frequency ?? '') === 'weekly' ? 'selected' : '' }}>Hebdomadaire</option>
+                        </select>
+                    </label>
+                    <label>
+                        Heures calmes (debut)
+                        <input type="number" name="quiet_hours_start" min="0" max="23" placeholder="Ex: 22" value="{{ $preference->quiet_hours_start }}">
+                    </label>
+                    <label>
+                        Heures calmes (fin)
+                        <input type="number" name="quiet_hours_end" min="0" max="23" placeholder="Ex: 7" value="{{ $preference->quiet_hours_end }}">
+                    </label>
+                    <button class="primary" type="submit">Enregistrer</button>
+                </div>
+            </form>
+        </section>
+
+        <section class="panel span-12">
             <h2>Dernieres livraisons</h2>
             <table>
                 <thead>

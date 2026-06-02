@@ -4,13 +4,17 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Demo;
 
+use App\Enums\UnavailabilityReasonType;
 use App\Models\Driver;
 use App\Models\Unavailability;
 use App\Models\User;
 use App\Models\Vehicle;
 use App\Services\Demo\DemoActorResolver;
 use App\Services\Demo\DemoDataService;
+use App\Services\Unavailabilities\UnavailabilityService;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 final class DemoAdminController extends DemoBaseController
@@ -18,6 +22,7 @@ final class DemoAdminController extends DemoBaseController
     public function __construct(
         DemoActorResolver $actorResolver,
         private readonly DemoDataService $demoData,
+        private readonly UnavailabilityService $unavailabilityService,
     ) {
         parent::__construct($actorResolver);
     }
@@ -73,6 +78,37 @@ final class DemoAdminController extends DemoBaseController
             'canViewDrivers' => $actor->can('drivers.view'),
             'canViewVehicles' => $actor->can('vehicles.view'),
             'canViewUnavailabilities' => $actor->can('unavailabilities.view'),
+            'canCreateUnavailability' => $actor->can('unavailabilities.create'),
+            'reasonTypes' => UnavailabilityReasonType::cases(),
         ]);
+    }
+
+    public function storeUnavailability(Request $request): RedirectResponse
+    {
+        $actor = $this->actor($request);
+
+        $validated = $request->validate([
+            'reason_type' => ['required', Rule::enum(UnavailabilityReasonType::class)],
+            'driver_id' => ['nullable', 'integer', 'exists:drivers,id'],
+            'vehicle_id' => ['nullable', 'integer', 'exists:vehicles,id'],
+            'start_datetime' => ['required', 'date'],
+            'end_datetime' => ['required', 'date', 'after:start_datetime'],
+            'reason' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        return $this->runDemoAction(function () use ($actor, $validated): void {
+            $this->authorizeFor($actor, 'create', Unavailability::class);
+            $this->unavailabilityService->create($validated, $actor->id);
+        }, 'Indisponibilite creee.');
+    }
+
+    public function cancelUnavailability(Request $request, Unavailability $unavailability): RedirectResponse
+    {
+        $actor = $this->actor($request);
+
+        return $this->runDemoAction(function () use ($actor, $unavailability): void {
+            $this->authorizeFor($actor, 'cancel', $unavailability);
+            $this->unavailabilityService->cancel($unavailability, $actor->id);
+        }, 'Indisponibilite annulee.');
     }
 }

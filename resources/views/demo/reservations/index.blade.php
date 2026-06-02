@@ -83,11 +83,20 @@
                             @if ($canViewConflicts)
                                 <div class="conflict-list">
                                     @foreach ($openConflicts as $conflict)
+                                        @php
+                                            $canResolve = \Illuminate\Support\Facades\Gate::forUser($actor)->allows('resolveConflict', $reservation);
+                                        @endphp
                                         <div class="conflict-item">
                                             <span class="badge danger">{{ $conflict->type?->label() ?? $conflict->type }}</span>
                                             <span class="muted">{{ $conflict->message }}</span>
                                             @if ($conflict->related_reservation_id)
                                                 <span class="muted">Reservation liee #{{ $conflict->related_reservation_id }}</span>
+                                            @endif
+                                            @if ($canResolve)
+                                                <form method="post" action="{{ route('demo.reservations.conflicts.resolve', [$reservation, $conflict]) }}">
+                                                    @csrf
+                                                    <button type="submit">Resoudre</button>
+                                                </form>
                                             @endif
                                         </div>
                                     @endforeach

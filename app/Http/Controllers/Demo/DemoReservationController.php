@@ -13,6 +13,7 @@ use App\Models\Location;
 use App\Models\Organization;
 use App\Models\Reservation;
 use App\Models\Vehicle;
+use App\Models\ReservationConflict;
 use App\Services\CouncilDecisions\CouncilDecisionService;
 use App\Services\Demo\DemoActorResolver;
 use App\Services\Demo\DemoDataService;
@@ -299,6 +300,18 @@ final class DemoReservationController extends DemoBaseController
             $this->authorizeFor($actor, 'cancel', $reservation);
             $this->reservationService->cancel($reservation, $actor, $validated['reason']);
         }, 'Reservation annulee.');
+    }
+
+    public function resolveConflict(Request $request, Reservation $reservation, ReservationConflict $conflict): RedirectResponse
+    {
+        $actor = $this->actor($request);
+
+        abort_unless($conflict->reservation_id === $reservation->id, 404);
+
+        return $this->runDemoAction(function () use ($actor, $reservation, $conflict): void {
+            $this->authorizeFor($actor, 'resolveConflict', $reservation);
+            $this->reservationService->resolveConflict($conflict, $actor);
+        }, 'Conflit marque comme resolu.');
     }
 
     private function reservationPayload(Request $request): array

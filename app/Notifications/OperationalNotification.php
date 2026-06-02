@@ -18,6 +18,7 @@ class OperationalNotification extends Notification implements ShouldQueue
 
     public int $timeout = 120;
 
+
     public bool $failOnTimeout = true;
 
     public function __construct(

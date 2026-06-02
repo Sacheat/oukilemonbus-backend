@@ -8,6 +8,7 @@ use App\Models\NotificationDelivery;
 use App\Models\User;
 use App\Services\Demo\DemoActorResolver;
 use App\Services\Notifications\NotificationHealthService;
+use App\Services\Notifications\NotificationPreferenceService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -17,6 +18,7 @@ final class DemoNotificationController extends DemoBaseController
     public function __construct(
         DemoActorResolver $actorResolver,
         private readonly NotificationHealthService $notificationHealthService,
+        private readonly NotificationPreferenceService $preferenceService,
     ) {
         parent::__construct($actorResolver);
     }
@@ -46,11 +48,14 @@ final class DemoNotificationController extends DemoBaseController
             'deliveries_count' => $deliveries->count(),
         ]);
 
+        $preference = $this->preferenceService->forUser($actor);
+
         return view('demo.notifications', [
             ...$this->shared($request),
             'notifications' => $notifications,
             'deliveries' => $deliveries,
             'health' => $health,
+            'preference' => $preference,
         ]);
     }
 
@@ -74,6 +79,41 @@ final class DemoNotificationController extends DemoBaseController
                 'was_unread' => $wasUnread,
             ]
         );
+    }
+
+    public function updatePreferences(Request $request): RedirectResponse
+    {
+        $actor = $this->actor($request);
+
+        $booleanFields = [
+            'notify_reservation_updates_in_app',
+            'notify_reservation_updates_email',
+            'notify_driver_planning_in_app',
+            'notify_driver_planning_email',
+            'notify_admin_workflow_in_app',
+            'notify_admin_workflow_email',
+            'notify_last_minute_cancellation_in_app',
+            'notify_last_minute_cancellation_email',
+        ];
+
+        $data = [];
+        foreach ($booleanFields as $field) {
+            $data[$field] = $request->boolean($field);
+        }
+
+        $request->validate([
+            'digest_frequency' => ['nullable', 'string', 'in:none,daily,weekly'],
+            'quiet_hours_start' => ['nullable', 'integer', 'min:0', 'max:23'],
+            'quiet_hours_end' => ['nullable', 'integer', 'min:0', 'max:23'],
+        ]);
+
+        $data['digest_frequency'] = $request->input('digest_frequency', 'none');
+        $data['quiet_hours_start'] = $request->filled('quiet_hours_start') ? (int) $request->input('quiet_hours_start') : null;
+        $data['quiet_hours_end'] = $request->filled('quiet_hours_end') ? (int) $request->input('quiet_hours_end') : null;
+
+        return $this->runDemoAction(function () use ($actor, $data): void {
+            $this->preferenceService->update($actor, $data);
+        }, 'Preferences de notification mises a jour.');
     }
 
     public function markAllAsRead(Request $request): RedirectResponse

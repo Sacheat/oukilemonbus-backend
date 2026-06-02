@@ -64,25 +64,93 @@
             </section>
         @endif
 
+        @if ($canCreateUnavailability)
+            <section class="panel span-12">
+                <h2>Declarer une indisponibilite</h2>
+                <form class="form-grid" method="post" action="{{ route('demo.admin.unavailabilities.store') }}">
+                    @csrf
+                    <label>
+                        Type
+                        <select name="reason_type" id="reason_type" required onchange="toggleUnavailabilitySubject(this.value)">
+                            @foreach ($reasonTypes as $type)
+                                <option value="{{ $type->value }}">{{ $type->label() }}</option>
+                            @endforeach
+                        </select>
+                    </label>
+                    <div id="driver_field">
+                        <label>
+                            Chauffeur
+                            <select name="driver_id">
+                                <option value="">Selectionner</option>
+                                @foreach ($drivers as $driver)
+                                    <option value="{{ $driver->id }}">{{ $driver->user?->first_name }} {{ $driver->user?->last_name }}</option>
+                                @endforeach
+                            </select>
+                        </label>
+                    </div>
+                    <div id="vehicle_field" style="display:none">
+                        <label>
+                            Vehicule
+                            <select name="vehicle_id">
+                                <option value="">Selectionner</option>
+                                @foreach ($vehicles as $vehicle)
+                                    <option value="{{ $vehicle->id }}">{{ $vehicle->licence_plate }} ({{ $vehicle->capacity }})</option>
+                                @endforeach
+                            </select>
+                        </label>
+                    </div>
+                    <label>Debut <input type="datetime-local" name="start_datetime" value="{{ now()->format('Y-m-d\TH:i') }}" required></label>
+                    <label>Fin <input type="datetime-local" name="end_datetime" value="{{ now()->addDay()->format('Y-m-d\TH:i') }}" required></label>
+                    <label class="full">
+                        Motif
+                        <input name="reason" placeholder="Ex: Conge, maladie, maintenance...">
+                    </label>
+                    <div class="actions full">
+                        <button class="primary" type="submit">Declarer</button>
+                    </div>
+                </form>
+                <script>
+                    function toggleUnavailabilitySubject(value) {
+                        document.getElementById('driver_field').style.display = value === 'driver' ? '' : 'none';
+                        document.getElementById('vehicle_field').style.display = value === 'vehicle' ? '' : 'none';
+                    }
+                    toggleUnavailabilitySubject(document.getElementById('reason_type').value);
+                </script>
+            </section>
+        @endif
+
         @if ($canViewUnavailabilities && $unavailabilities)
             <section class="panel span-12">
                 <h2>Indisponibilites</h2>
                 <table>
-                    <thead><tr><th>Type</th><th>Ressource</th><th>Periode</th><th>Motif</th><th>Etat</th></tr></thead>
+                    <thead><tr><th>Type</th><th>Ressource</th><th>Periode</th><th>Motif</th><th>Etat</th><th>Actions</th></tr></thead>
                     <tbody>
                     @forelse ($unavailabilities as $unavailability)
                         <tr>
-                            <td>{{ $unavailability->reason_type?->value ?? $unavailability->reason_type }}</td>
+                            <td>{{ $unavailability->reason_type?->label() ?? $unavailability->reason_type }}</td>
                             <td>
-                                {{ $unavailability->driver?->user?->first_name }} {{ $unavailability->driver?->user?->last_name }}
-                                {{ $unavailability->vehicle?->licence_plate }}
+                                @if ($unavailability->driver)
+                                    {{ $unavailability->driver->user?->first_name }} {{ $unavailability->driver->user?->last_name }}
+                                @elseif ($unavailability->vehicle)
+                                    {{ $unavailability->vehicle->licence_plate }}
+                                @else
+                                    <span class="muted">-</span>
+                                @endif
                             </td>
                             <td>{{ $unavailability->start_datetime?->format('d/m/Y H:i') }} - {{ $unavailability->end_datetime?->format('d/m/Y H:i') }}</td>
-                            <td>{{ $unavailability->reason }}</td>
-                            <td><span class="badge {{ $unavailability->is_active ? 'warning' : 'ok' }}">{{ $unavailability->is_active ? 'Active' : 'Inactive' }}</span></td>
+                            <td>{{ $unavailability->reason ?? '-' }}</td>
+                            <td><span class="badge {{ $unavailability->is_active ? 'warning' : 'ok' }}">{{ $unavailability->is_active ? 'Active' : 'Annulee' }}</span></td>
+                            <td>
+                                @if ($unavailability->is_active && \Illuminate\Support\Facades\Gate::forUser($actor)->allows('cancel', $unavailability))
+                                    <form method="post" action="{{ route('demo.admin.unavailabilities.cancel', $unavailability) }}">
+                                        @csrf
+                                        <button class="danger" type="submit">Annuler</button>
+                                    </form>
+                                @endif
+                            </td>
                         </tr>
                     @empty
-                        <tr><td colspan="5" class="muted">Aucune indisponibilite.</td></tr>
+                        <tr><td colspan="6" class="muted">Aucune indisponibilite.</td></tr>
                     @endforelse
                     </tbody>
                 </table>
