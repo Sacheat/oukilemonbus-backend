@@ -149,7 +149,8 @@ return [
                 'vehicles',
                 'locations',
                 'organizations',
-                'reservation_assignments',
+                'reservation_conflicts',
+                'unavailabilities',
             ],
 
             'effects' => [
@@ -514,7 +515,7 @@ return [
                 'reservations',
                 'locations',
                 'reservation_conflicts',
-                'reservation_status_histories',
+                'reservation_status_history',
                 'domain_events',
             ],
 
@@ -738,7 +739,7 @@ return [
 
             'route' => [
                 'demo' => 'POST /demo/reservations/{reservation}/council-decision',
-                'api' => 'POST /api/reservations/{reservation}/council-decision',
+                'api' => 'POST /api/council-decisions ou PATCH /api/council-decisions/{councilDecision}',
             ],
 
             'demo_controller' => [
@@ -748,7 +749,7 @@ return [
 
             'api_controller' => [
                 'class' => 'CouncilDecisionController',
-                'method' => 'store',
+                'method' => 'store / update',
             ],
 
             'request' => [
@@ -912,7 +913,7 @@ return [
 
             'tables' => [
                 'reservations',
-                'reservation_status_histories',
+                'reservation_status_history',
                 'notification_deliveries',
                 'notifications',
                 'domain_events',
@@ -1051,7 +1052,7 @@ return [
 
             'route' => [
                 'demo' => 'POST /demo/notifications/read-all',
-                'api' => 'POST /api/notifications/read-all',
+                'api' => 'PATCH /api/notifications/read-all',
             ],
 
             'demo_controller' => [
@@ -1155,7 +1156,7 @@ return [
 
             'route' => [
                 'demo' => 'GET /demo/requests',
-                'api' => null,
+                'api' => 'Composite : GET /api/org-registration-requests + GET /api/user-org-requests',
             ],
 
             'demo_controller' => [
@@ -1163,7 +1164,10 @@ return [
                 'method' => 'index',
             ],
 
-            'api_controller' => null,
+            'api_controller' => [
+                'class' => 'OrgRegistrationRequestController / UserOrgRequestController',
+                'method' => 'index',
+            ],
             'request' => null,
 
             'service' => [
@@ -1311,7 +1315,7 @@ return [
             'tables' => [
                 'org_registration_requests',
                 'organizations',
-                'organization_user',
+                'user_organization',
                 'users',
             ],
 
@@ -1491,7 +1495,7 @@ return [
 
             'tables' => [
                 'user_org_requests',
-                'organization_user',
+                'user_organization',
                 'organizations',
                 'users',
                 'roles',
@@ -1629,7 +1633,7 @@ return [
 
             'route' => [
                 'demo' => 'POST /demo/documents/route-sheets',
-                'api' => 'POST /api/documents/route-sheets',
+                'api' => 'POST /api/documents/route-sheets/generate',
             ],
 
             'demo_controller' => [
@@ -1638,8 +1642,8 @@ return [
             ],
 
             'api_controller' => [
-                'class' => 'DocumentController',
-                'method' => 'generateRouteSheet',
+                'class' => 'RouteSheetDocumentController',
+                'method' => 'generate',
             ],
 
             'request' => [
@@ -1772,7 +1776,7 @@ return [
             'tables' => [
                 'organizations',
                 'users',
-                'user_organizations',
+                'user_organization',
                 'roles',
                 'permissions',
             ],
