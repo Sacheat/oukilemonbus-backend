@@ -172,26 +172,43 @@ final class DemoReservationController extends DemoBaseController
             'notes' => ['nullable', 'string', 'max:1000'],
         ]);
 
-        return $this->runDemoAction(function () use ($actor, $reservation, $validated): void {
-            $reservation->loadMissing(['organization', 'councilDecision']);
-            $payload = [
+        $hasExistingDecision = $reservation->councilDecision()->exists();
+
+        return $this->runDemoAction(
+            function () use ($actor, $reservation, $validated): void {
+                $reservation->loadMissing(['organization', 'councilDecision']);
+
+                $payload = [
+                    'reservation_id' => $reservation->id,
+                    'decision_status' => $validated['decision_status'],
+                    'decision_date' => $validated['decision_date'] ?? now()->toDateString(),
+                    'decision_reference' => ($validated['decision_reference'] ?? null) ?: $this->decisionReference($reservation),
+                    'notes' => $validated['notes'] ?? 'Decision encodee depuis la demo',
+                ];
+
+                if ($reservation->councilDecision instanceof CouncilDecision) {
+                    $this->authorizeFor($actor, 'update', $reservation->councilDecision);
+                    $this->councilDecisionService->update($reservation->councilDecision, $payload, $actor);
+
+                    return;
+                }
+
+                $this->authorizeFor($actor, 'create', [CouncilDecision::class, $reservation]);
+                $this->councilDecisionService->create($payload, $actor);
+            },
+            'Decision du college encodee.',
+            $request,
+            'reservations.council_decision',
+            [
+                'actor_id' => $actor->id,
                 'reservation_id' => $reservation->id,
+                'organization_id' => $reservation->organization_id,
+                'operation' => $hasExistingDecision ? 'update' : 'create',
                 'decision_status' => $validated['decision_status'],
                 'decision_date' => $validated['decision_date'] ?? now()->toDateString(),
                 'decision_reference' => ($validated['decision_reference'] ?? null) ?: $this->decisionReference($reservation),
-                'notes' => $validated['notes'] ?? 'Decision encodee depuis la demo',
-            ];
-
-            if ($reservation->councilDecision instanceof CouncilDecision) {
-                $this->authorizeFor($actor, 'update', $reservation->councilDecision);
-                $this->councilDecisionService->update($reservation->councilDecision, $payload, $actor);
-
-                return;
-            }
-
-            $this->authorizeFor($actor, 'create', [CouncilDecision::class, $reservation]);
-            $this->councilDecisionService->create($payload, $actor);
-        }, 'Decision du college encodee.');
+            ]
+        );
     }
 
     public function approve(Request $request, Reservation $reservation): RedirectResponse

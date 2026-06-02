@@ -508,6 +508,75 @@ return [
             ],
         ],
 
+        'reservations.council_decision' => [
+            'title' => 'Encodage d’une décision du collège',
+            'category' => 'Réservations',
+            'scenario' => 'admin',
+            'goal' => 'Encoder ou mettre à jour la décision du collège communal liée à une réservation.',
+
+            'route' => [
+                'demo' => 'POST /demo/reservations/{reservation}/council-decision',
+                'api' => 'POST /api/reservations/{reservation}/council-decision',
+            ],
+
+            'demo_controller' => [
+                'class' => 'DemoReservationController',
+                'method' => 'councilDecision',
+            ],
+
+            'api_controller' => [
+                'class' => 'CouncilDecisionController',
+                'method' => 'store',
+            ],
+
+            'request' => [
+                'decision_status',
+                'decision_date',
+                'decision_reference',
+                'notes',
+            ],
+
+            'service' => [
+                'class' => 'CouncilDecisionService',
+                'method' => 'create / update',
+                'internal_methods' => [
+                    'Validation de la décision envoyée',
+                    'Chargement de la réservation et de sa décision existante',
+                    'Vérification des droits de création ou modification',
+                    'Création ou mise à jour de la décision du collège',
+                    'Génération éventuelle de la délibération',
+                    'Notification éventuelle du demandeur',
+                    'Redirection vers la liste des réservations',
+                ],
+            ],
+
+            'related_services' => [
+                'DemoActorResolver',
+                'CouncilDecisionService',
+                'DeliberationDocumentService',
+                'NotificationDispatchService',
+                'NotificationRecipientResolver',
+                'ReservationService',
+            ],
+
+            'tables' => [
+                'reservations',
+                'council_decisions',
+                'documents',
+                'notifications',
+                'notification_deliveries',
+                'domain_events',
+            ],
+
+            'effects' => [
+                'Une décision du collège est créée ou mise à jour.',
+                'La décision peut autoriser ou refuser la réservation concernée.',
+                'Une délibération peut être générée si la décision est finale.',
+                'Le demandeur peut être notifié lorsqu’un document de délibération est disponible.',
+                'L’inspector conserve l’action POST malgré la redirection.',
+            ],
+        ],
+
         'reservations.confirm' => [
             'title' => 'Confirmation d’une réservation',
             'category' => 'Réservations',
