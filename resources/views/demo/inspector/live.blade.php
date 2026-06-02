@@ -393,9 +393,9 @@
         return value;
     }
 
-    function controllerLabel(controller) {
+    function controllerLabel(controller, fallback = 'Aucun contrôleur dédié') {
         if (!controller) {
-            return '—';
+            return fallback;
         }
 
         const className = controller.class ?? '—';
@@ -435,12 +435,12 @@
 
         renderKeyValues('routeInfo', {
             'Démo': route.demo,
-            'API': route.api,
+            'API': route.api ?? 'Non exposé directement en API',
         });
 
         renderKeyValues('controllerInfo', {
-            'Contrôleur démo': controllerLabel(demoController),
-            'Contrôleur API': controllerLabel(apiController),
+            'Contrôleur démo': controllerLabel(demoController, 'Aucun contrôleur démo dédié'),
+            'Contrôleur API': controllerLabel(apiController, 'Non exposé directement en API'),
         });
 
         renderKeyValues('serviceInfo', {

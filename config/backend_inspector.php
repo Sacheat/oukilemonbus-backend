@@ -399,10 +399,7 @@ return [
                 'method' => 'autoAssign',
             ],
 
-            'api_controller' => [
-                'class' => 'ReservationAssignmentController',
-                'method' => 'autoAssign',
-            ],
+            'api_controller' => null,
 
             'request' => null,
 
@@ -442,6 +439,7 @@ return [
             ],
 
             'effects' => [
+                'Cette action n’est pas exposée directement en API : elle déclenche une méthode métier interne du service de réservation.',
                 'Le backend calcule la fenêtre réelle d’occupation de la réservation.',
                 'Le backend récupère en SQL les chauffeurs indisponibles ou déjà occupés.',
                 'Le backend récupère en SQL les véhicules indisponibles ou déjà occupés.',

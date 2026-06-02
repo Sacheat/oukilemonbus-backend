@@ -244,10 +244,29 @@ final class DemoReservationController extends DemoBaseController
         $actor = $this->actor($request);
         $validated = $request->validate(['reason' => ['nullable', 'string', 'max:500']]);
 
-        return $this->runDemoAction(function () use ($actor, $reservation, $validated): void {
-            $this->authorizeFor($actor, 'approve', $reservation);
-            $this->reservationService->approve($reservation, $actor, $validated['reason'] ?? 'Validation depuis la demo backend');
-        }, 'Reservation approuvee.');
+        return $this->runDemoAction(
+            function () use ($actor, $reservation, $validated): void {
+                $this->authorizeFor($actor, 'approve', $reservation);
+                $this->reservationService->approve(
+                    $reservation,
+                    $actor,
+                    $validated['reason'] ?? 'Validation depuis la demo backend'
+                );
+            },
+            'Reservation approuvee.',
+            $request,
+            'reservations.approve',
+            [
+                'actor_id' => $actor->id,
+                'reservation_id' => $reservation->id,
+                'organization_id' => $reservation->organization_id,
+                'status_before' => $reservation->status?->value ?? $reservation->status,
+                'driver_id' => $reservation->driver_id,
+                'vehicle_id' => $reservation->vehicle_id,
+                'has_council_decision' => $reservation->councilDecision()->exists(),
+                'reason' => $validated['reason'] ?? 'Validation depuis la demo backend',
+            ]
+        );
     }
 
     public function reject(Request $request, Reservation $reservation): RedirectResponse
