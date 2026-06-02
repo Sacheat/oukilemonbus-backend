@@ -165,10 +165,25 @@ final class DemoReservationController extends DemoBaseController
             'reason' => ['nullable', 'string', 'max:500'],
         ]);
 
-        return $this->runDemoAction(function () use ($actor, $reservation, $validated): void {
-            $this->authorizeFor($actor, 'assign', $reservation);
-            $this->assignmentService->assign($reservation, array_filter($validated, fn ($value) => $value !== null && $value !== ''), $actor);
-        }, 'Affectation mise a jour.');
+        return $this->runDemoAction(
+            function () use ($actor, $reservation, $validated): void {
+                $this->authorizeFor($actor, 'assign', $reservation);
+                $this->assignmentService->assign($reservation, $validated, $actor);
+            },
+            'Affectation mise a jour.',
+            $request,
+            'reservations.assign',
+            [
+                'actor_id' => $actor->id,
+                'reservation_id' => $reservation->id,
+                'organization_id' => $reservation->organization_id,
+                'status_before' => $reservation->status?->value ?? $reservation->status,
+                'driver_id_before' => $reservation->driver_id,
+                'vehicle_id_before' => $reservation->vehicle_id,
+                'driver_id_requested' => $validated['driver_id'] ?? null,
+                'vehicle_id_requested' => $validated['vehicle_id'] ?? null,
+            ]
+        );
     }
 
     public function councilDecision(Request $request, Reservation $reservation): RedirectResponse
