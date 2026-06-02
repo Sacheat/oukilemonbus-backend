@@ -284,10 +284,23 @@ final class DemoReservationController extends DemoBaseController
     {
         $actor = $this->actor($request);
 
-        return $this->runDemoAction(function () use ($actor, $reservation): void {
-            $this->authorizeFor($actor, 'confirm', $reservation);
-            $this->reservationService->confirm($reservation, $actor);
-        }, 'Reservation confirmee.');
+        return $this->runDemoAction(
+            function () use ($actor, $reservation): void {
+                $this->authorizeFor($actor, 'confirm', $reservation);
+                $this->reservationService->confirm($reservation, $actor);
+            },
+            'Reservation confirmee.',
+            $request,
+            'reservations.confirm',
+            [
+                'actor_id' => $actor->id,
+                'reservation_id' => $reservation->id,
+                'organization_id' => $reservation->organization_id,
+                'status_before' => $reservation->status?->value ?? $reservation->status,
+                'driver_id' => $reservation->driver_id,
+                'vehicle_id' => $reservation->vehicle_id,
+            ]
+        );
     }
 
     public function cancel(Request $request, Reservation $reservation): RedirectResponse
