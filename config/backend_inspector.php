@@ -211,6 +211,323 @@ return [
         ],
 
         // _________________________________________________________________________________________RÉSERVATIONS
+        // INDEX
+        'reservations.index' => [
+            'title' => 'Consultation des réservations',
+            'category' => 'Réservations',
+            'scenario' => 'admin',
+            'goal' => 'Afficher les réservations disponibles dans la démo avec leurs affectations et conflits.',
+
+            'route' => [
+                'demo' => 'GET /demo/reservations',
+                'api' => 'GET /api/reservations',
+            ],
+
+            'demo_controller' => [
+                'class' => 'DemoReservationController',
+                'method' => 'index',
+            ],
+
+            'api_controller' => [
+                'class' => 'ReservationController',
+                'method' => 'index',
+            ],
+
+            'request' => null,
+
+            'service' => [
+                'class' => 'Reservation',
+                'method' => 'query',
+                'internal_methods' => [
+                    'with organization/requestedByUser/locations/driver/vehicle/conflicts',
+                    'filtrage éventuel par statut',
+                    'pagination',
+                ],
+            ],
+
+            'related_services' => [
+                'ReservationService',
+                'ReservationAssignmentService',
+            ],
+
+            'tables' => [
+                'reservations',
+                'organizations',
+                'users',
+                'locations',
+                'drivers',
+                'vehicles',
+                'reservation_conflicts',
+            ],
+
+            'effects' => [
+                'La liste des réservations est chargée.',
+                'Les relations utiles sont préchargées.',
+                'Les chauffeurs et véhicules actifs sont chargés pour les formulaires d’affectation.',
+                'Les conflits actifs peuvent être affichés.',
+            ],
+        ],
+
+        // CREATE
+        'reservations.create' => [
+            'title' => 'Ouverture du formulaire de création',
+            'category' => 'Réservations',
+            'scenario' => 'admin',
+            'goal' => 'Afficher le formulaire permettant de créer une nouvelle réservation.',
+
+            'route' => [
+                'demo' => 'GET /demo/reservations/create',
+                'api' => 'Non applicable : l’API ne fournit généralement pas de formulaire HTML.',
+            ],
+
+            'demo_controller' => [
+                'class' => 'DemoReservationController',
+                'method' => 'create',
+            ],
+
+            'api_controller' => null,
+
+            'request' => null,
+
+            'service' => [
+                'class' => 'DemoReservationController',
+                'method' => 'create',
+                'internal_methods' => [
+                    'Récupération de l’acteur courant',
+                    'Vérification du droit de création',
+                    'Chargement des organisations visibles',
+                    'Chargement des lieux disponibles',
+                    'Chargement des types d’activité',
+                    'Affichage du formulaire de création',
+                ],
+            ],
+
+            'related_services' => [
+                'DemoActorResolver',
+                'DemoDataService',
+            ],
+
+            'tables' => [
+                'users',
+                'organizations',
+                'locations',
+            ],
+
+            'effects' => [
+                'Le formulaire de création est affiché.',
+                'Aucune réservation n’est encore créée.',
+                'La création réelle se fait uniquement au clic sur Enregistrer.',
+                'L’action suivante attendue est reservations.store.',
+            ],
+        ],
+
+        // STORE
+        'reservations.store' => [
+            'title' => 'Création d’une réservation',
+            'category' => 'Réservations',
+            'scenario' => 'admin',
+            'goal' => 'Créer une nouvelle réservation à partir des données du formulaire.',
+
+            'route' => [
+                'demo' => 'POST /demo/reservations',
+                'api' => 'POST /api/reservations',
+            ],
+
+            'demo_controller' => [
+                'class' => 'DemoReservationController',
+                'method' => 'store',
+            ],
+
+            'api_controller' => [
+                'class' => 'ReservationController',
+                'method' => 'store',
+            ],
+
+            'request' => [
+                'organization_id',
+                'pickup_location_id',
+                'destination_location_id',
+                'trip_date',
+                'departure_time',
+                'return_time',
+                'nb_children',
+                'nb_adults',
+                'trip_purpose',
+                'activity_type',
+            ],
+
+            'service' => [
+                'class' => 'ReservationService',
+                'method' => 'create',
+                'internal_methods' => [
+                    'Validation du payload de réservation',
+                    'Chargement de l’organisation demandée',
+                    'Vérification du droit de création pour cette organisation',
+                    'Préparation des données métier',
+                    'Calcul du preview de trajet',
+                    'Détection éventuelle de conflits',
+                    'Création de la réservation',
+                    'Création éventuelle des conflits associés',
+                    'Notification éventuelle des acteurs concernés',
+                    'Redirection vers la liste des réservations',
+                ],
+            ],
+
+            'related_services' => [
+                'ReservationService',
+                'ReservationPreviewService',
+                'NotificationDispatchService::dispatch',
+                'DomainEventLogger::log',
+            ],
+
+            'tables' => [
+                'reservations',
+                'organizations',
+                'locations',
+                'reservation_conflicts',
+                'notifications',
+                'notification_deliveries',
+                'domain_events',
+            ],
+
+            'effects' => [
+                'Une nouvelle réservation est créée.',
+                'Les lieux, horaires, participants et motif de trajet sont enregistrés.',
+                'Des conflits peuvent être détectés selon les disponibilités.',
+                'La réservation apparaît ensuite dans la liste des réservations.',
+                'L’inspector conserve l’action POST malgré la redirection.',
+            ],
+        ],
+
+        // EDIT
+        'reservations.edit' => [
+            'title' => 'Ouverture du formulaire de modification',
+            'category' => 'Réservations',
+            'scenario' => 'admin',
+            'goal' => 'Afficher le formulaire permettant de modifier une réservation existante.',
+
+            'route' => [
+                'demo' => 'GET /demo/reservations/{reservation}/edit',
+                'api' => 'Non applicable : l’API ne fournit généralement pas de formulaire HTML.',
+            ],
+
+            'demo_controller' => [
+                'class' => 'DemoReservationController',
+                'method' => 'edit',
+            ],
+
+            'api_controller' => null,
+
+            'request' => null,
+
+            'service' => [
+                'class' => 'Reservation',
+                'method' => 'load/query',
+                'internal_methods' => [
+                    'Récupération de l’acteur courant',
+                    'Vérification du droit de modification',
+                    'Chargement de la réservation',
+                    'Chargement des données nécessaires au formulaire',
+                    'Affichage de la vue de modification',
+                ],
+            ],
+
+            'related_services' => [
+                'DemoActorResolver',
+                'DemoDataService',
+            ],
+
+            'tables' => [
+                'reservations',
+                'organizations',
+                'locations',
+                'drivers',
+                'vehicles',
+            ],
+
+            'effects' => [
+                'Le formulaire de modification est affiché.',
+                'Aucune donnée métier n’est encore modifiée.',
+                'La modification réelle se fait uniquement au clic sur Enregistrer.',
+                'L’action suivante attendue est reservations.update.',
+            ],
+        ],
+
+        // UPDATE
+        'reservations.update' => [
+            'title' => 'Modification d’une réservation',
+            'category' => 'Réservations',
+            'scenario' => 'admin',
+            'goal' => 'Mettre à jour les informations principales d’une réservation existante.',
+
+            'route' => [
+                'demo' => 'PATCH /demo/reservations/{reservation}',
+                'api' => 'PATCH /api/reservations/{reservation}',
+            ],
+
+            'demo_controller' => [
+                'class' => 'DemoReservationController',
+                'method' => 'update',
+            ],
+
+            'api_controller' => [
+                'class' => 'ReservationController',
+                'method' => 'update',
+            ],
+
+            'request' => [
+                'pickup_location_id',
+                'destination_location_id',
+                'trip_date',
+                'departure_time',
+                'return_time',
+                'nb_children',
+                'nb_adults',
+                'trip_purpose',
+                'activity_type',
+            ],
+
+            'service' => [
+                'class' => 'ReservationService',
+                'method' => 'update',
+                'internal_methods' => [
+                    'Validation des champs envoyés',
+                    'Vérification des droits de modification',
+                    'Préparation du nouveau payload de réservation',
+                    'Recalcul du preview de trajet',
+                    'Détection éventuelle de conflits',
+                    'Mise à jour de la réservation',
+                    'Mise à jour éventuelle du statut',
+                    'Réinitialisation et recréation éventuelle des conflits',
+                    'Redirection vers la liste des réservations',
+                ],
+            ],
+
+            'related_services' => [
+                'ReservationService',
+                'ReservationPreviewService',
+                'ReservationConflictService',
+                'DomainEventLogger::log',
+            ],
+
+            'tables' => [
+                'reservations',
+                'locations',
+                'reservation_conflicts',
+                'reservation_status_histories',
+                'domain_events',
+            ],
+
+            'effects' => [
+                'Les informations de la réservation sont mises à jour.',
+                'Le trajet, les horaires et les participants peuvent être modifiés.',
+                'Les conflits sont recalculés selon les nouvelles données.',
+                'Le statut peut évoluer si de nouveaux conflits apparaissent.',
+                'L’inspector conserve l’action PATCH malgré la redirection.',
+            ],
+        ],
+
+        // APPROVE
         'reservations.approve' => [
             'title' => 'Approbation d’une réservation',
             'category' => 'Réservations',
@@ -276,62 +593,7 @@ return [
             ],
         ],
 
-        'reservations.index' => [
-            'title' => 'Consultation des réservations',
-            'category' => 'Réservations',
-            'scenario' => 'admin',
-            'goal' => 'Afficher les réservations disponibles dans la démo avec leurs affectations et conflits.',
-
-            'route' => [
-                'demo' => 'GET /demo/reservations',
-                'api' => 'GET /api/reservations',
-            ],
-
-            'demo_controller' => [
-                'class' => 'DemoReservationController',
-                'method' => 'index',
-            ],
-
-            'api_controller' => [
-                'class' => 'ReservationController',
-                'method' => 'index',
-            ],
-
-            'request' => null,
-
-            'service' => [
-                'class' => 'Reservation',
-                'method' => 'query',
-                'internal_methods' => [
-                    'with organization/requestedByUser/locations/driver/vehicle/conflicts',
-                    'filtrage éventuel par statut',
-                    'pagination',
-                ],
-            ],
-
-            'related_services' => [
-                'ReservationService',
-                'ReservationAssignmentService',
-            ],
-
-            'tables' => [
-                'reservations',
-                'organizations',
-                'users',
-                'locations',
-                'drivers',
-                'vehicles',
-                'reservation_conflicts',
-            ],
-
-            'effects' => [
-                'La liste des réservations est chargée.',
-                'Les relations utiles sont préchargées.',
-                'Les chauffeurs et véhicules actifs sont chargés pour les formulaires d’affectation.',
-                'Les conflits actifs peuvent être affichés.',
-            ],
-        ],
-
+        // AUTO-ASSIGN
         'reservations.auto_assign' => [
             'title' => 'Affectation automatique d’une réservation',
             'category' => 'Réservations',
@@ -400,6 +662,7 @@ return [
             ],
         ],
 
+        // ASSIGN
         'reservations.assign' => [
             'title' => 'Affectation manuelle d’une réservation',
             'category' => 'Réservations',
@@ -466,6 +729,7 @@ return [
             ],
         ],
 
+        // DECISION COLLÈGE
         'reservations.council_decision' => [
             'title' => 'Encodage d’une décision du collège',
             'category' => 'Réservations',
@@ -535,6 +799,7 @@ return [
             ],
         ],
 
+        // CONFIRM
         'reservations.confirm' => [
             'title' => 'Confirmation d’une réservation',
             'category' => 'Réservations',
@@ -598,6 +863,7 @@ return [
             ],
         ],
 
+        // REJECT
         'reservations.reject' => [
             'title' => 'Refus d’une réservation',
             'category' => 'Réservations',
@@ -661,6 +927,7 @@ return [
             ],
         ],
 
+        // CANCEL
         'reservations.cancel' => [
             'title' => 'Annulation d’une réservation',
             'category' => 'Réservations',
