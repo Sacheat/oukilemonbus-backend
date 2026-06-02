@@ -308,10 +308,24 @@ final class DemoReservationController extends DemoBaseController
         $actor = $this->actor($request);
         $validated = $request->validate(['reason' => ['required', 'string', 'max:1000']]);
 
-        return $this->runDemoAction(function () use ($actor, $reservation, $validated): void {
-            $this->authorizeFor($actor, 'cancel', $reservation);
-            $this->reservationService->cancel($reservation, $actor, $validated['reason']);
-        }, 'Reservation annulee.');
+        return $this->runDemoAction(
+            function () use ($actor, $reservation, $validated): void {
+                $this->authorizeFor($actor, 'cancel', $reservation);
+                $this->reservationService->cancel($reservation, $actor, $validated['reason']);
+            },
+            'Reservation annulee.',
+            $request,
+            'reservations.cancel',
+            [
+                'actor_id' => $actor->id,
+                'reservation_id' => $reservation->id,
+                'organization_id' => $reservation->organization_id,
+                'status_before' => $reservation->status?->value ?? $reservation->status,
+                'driver_id' => $reservation->driver_id,
+                'vehicle_id' => $reservation->vehicle_id,
+                'reason' => $validated['reason'],
+            ]
+        );
     }
 
     private function reservationPayload(Request $request): array
