@@ -272,12 +272,28 @@ final class DemoReservationController extends DemoBaseController
     public function reject(Request $request, Reservation $reservation): RedirectResponse
     {
         $actor = $this->actor($request);
-        $validated = $request->validate(['reason' => ['required', 'string', 'max:1000']]);
+        $validated = $request->validate([
+            'reason' => ['required', 'string', 'max:500'],
+        ]);
 
-        return $this->runDemoAction(function () use ($actor, $reservation, $validated): void {
-            $this->authorizeFor($actor, 'reject', $reservation);
-            $this->reservationService->reject($reservation, $actor, $validated['reason']);
-        }, 'Reservation refusee.');
+        return $this->runDemoAction(
+            function () use ($actor, $reservation, $validated): void {
+                $this->authorizeFor($actor, 'reject', $reservation);
+                $this->reservationService->reject($reservation, $actor, $validated['reason']);
+            },
+            'Reservation refusee.',
+            $request,
+            'reservations.reject',
+            [
+                'actor_id' => $actor->id,
+                'reservation_id' => $reservation->id,
+                'organization_id' => $reservation->organization_id,
+                'status_before' => $reservation->status?->value ?? $reservation->status,
+                'driver_id' => $reservation->driver_id,
+                'vehicle_id' => $reservation->vehicle_id,
+                'reason' => $validated['reason'],
+            ]
+        );
     }
 
     public function confirm(Request $request, Reservation $reservation): RedirectResponse

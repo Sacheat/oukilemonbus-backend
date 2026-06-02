@@ -160,6 +160,56 @@ return [
             ],
         ],
 
+        // _________________________________________________________________________________________DASHBOARD
+        'demo.dashboard.viewed' => [
+            'title' => 'Consultation du tableau de bord',
+            'category' => 'Démo',
+            'scenario' => null,
+            'goal' => 'Afficher une vue d’ensemble des données disponibles dans la démo.',
+
+            'route' => [
+                'demo' => 'GET /demo',
+                'api' => null,
+            ],
+            'demo_controller' => [
+                'class' => 'DemoDashboardController',
+                'method' => '__invoke',
+            ],
+
+            'api_controller' => null,
+            'request' => null,
+
+            'service' => [
+                'class' => 'DemoDashboardController',
+                'method' => '__invoke',
+                'internal_methods' => [
+                    'actor',
+                    'shared',
+                    'NotificationHealthService::summary',
+                ],
+            ],
+
+            'related_services' => [
+                'NotificationHealthService',
+            ],
+
+            'tables' => [
+                'users',
+                'organizations',
+                'reservations',
+                'documents',
+                'notifications',
+                'notification_deliveries',
+            ],
+
+            'effects' => [
+                'Les compteurs principaux sont chargés.',
+                'Les dernières réservations sont récupérées.',
+                'Les notifications de l’acteur courant sont affichées.',
+                'Un résumé de santé des notifications est calculé.',
+            ],
+        ],
+
         // _________________________________________________________________________________________RÉSERVATIONS
         'reservations.approve' => [
             'title' => 'Approbation d’une réservation',
@@ -226,55 +276,6 @@ return [
             ],
         ],
 
-        'demo.dashboard.viewed' => [
-            'title' => 'Consultation du tableau de bord',
-            'category' => 'Démo',
-            'scenario' => null,
-            'goal' => 'Afficher une vue d’ensemble des données disponibles dans la démo.',
-
-            'route' => [
-                'demo' => 'GET /demo',
-                'api' => null,
-            ],
-            'demo_controller' => [
-                'class' => 'DemoDashboardController',
-                'method' => '__invoke',
-            ],
-
-            'api_controller' => null,
-            'request' => null,
-
-            'service' => [
-                'class' => 'DemoDashboardController',
-                'method' => '__invoke',
-                'internal_methods' => [
-                    'actor',
-                    'shared',
-                    'NotificationHealthService::summary',
-                ],
-            ],
-
-            'related_services' => [
-                'NotificationHealthService',
-            ],
-
-            'tables' => [
-                'users',
-                'organizations',
-                'reservations',
-                'documents',
-                'notifications',
-                'notification_deliveries',
-            ],
-
-            'effects' => [
-                'Les compteurs principaux sont chargés.',
-                'Les dernières réservations sont récupérées.',
-                'Les notifications de l’acteur courant sont affichées.',
-                'Un résumé de santé des notifications est calculé.',
-            ],
-        ],
-
         'reservations.index' => [
             'title' => 'Consultation des réservations',
             'category' => 'Réservations',
@@ -328,58 +329,6 @@ return [
                 'Les relations utiles sont préchargées.',
                 'Les chauffeurs et véhicules actifs sont chargés pour les formulaires d’affectation.',
                 'Les conflits actifs peuvent être affichés.',
-            ],
-        ],
-
-        'documents.index' => [
-            'title' => 'Consultation des documents',
-            'category' => 'Documents',
-            'scenario' => 'admin',
-            'goal' => 'Afficher les documents générés et les formulaires de génération de feuilles de route.',
-
-            'route' => [
-                'demo' => 'GET /demo/documents',
-                'api' => 'GET /api/documents',
-            ],
-
-            'demo_controller' => [
-                'class' => 'DemoDocumentController',
-                'method' => 'index',
-            ],
-
-            'api_controller' => [
-                'class' => 'DocumentController',
-                'method' => 'index',
-            ],
-
-            'request' => null,
-
-            'service' => [
-                'class' => 'Document',
-                'method' => 'query',
-                'internal_methods' => [
-                    'chargement des documents',
-                    'chargement des véhicules actifs',
-                    'pagination',
-                ],
-            ],
-
-            'related_services' => [
-                'RouteSheetDocumentService',
-            ],
-
-            'tables' => [
-                'documents',
-                'reservations',
-                'organizations',
-                'users',
-                'vehicles',
-            ],
-
-            'effects' => [
-                'Les documents générés sont listés.',
-                'Les véhicules actifs sont proposés pour générer une feuille journalière.',
-                'Les documents disponibles peuvent être téléchargés.',
             ],
         ],
 
@@ -646,6 +595,69 @@ return [
                 'Un historique de statut est créé.',
                 'Le demandeur peut être notifié.',
                 'Un événement métier peut être journalisé.',
+            ],
+        ],
+
+        'reservations.reject' => [
+            'title' => 'Refus d’une réservation',
+            'category' => 'Réservations',
+            'scenario' => 'admin',
+            'goal' => 'Refuser une réservation avec un motif explicite.',
+
+            'route' => [
+                'demo' => 'POST /demo/reservations/{reservation}/reject',
+                'api' => 'PATCH /api/reservations/{reservation}/reject',
+            ],
+
+            'demo_controller' => [
+                'class' => 'DemoReservationController',
+                'method' => 'reject',
+            ],
+
+            'api_controller' => [
+                'class' => 'ReservationController',
+                'method' => 'reject',
+            ],
+
+            'request' => [
+                'reason',
+            ],
+
+            'service' => [
+                'class' => 'ReservationService',
+                'method' => 'reject',
+                'internal_methods' => [
+                    'Validation du motif de refus',
+                    'Vérification des droits de refus',
+                    'Vérification de la transition de statut',
+                    'Passage de la réservation au statut refusé',
+                    'Enregistrement de l’historique de statut',
+                    'Notification éventuelle du demandeur',
+                    'Redirection vers la liste des réservations',
+                ],
+            ],
+
+            'related_services' => [
+                'ReservationService',
+                'NotificationDispatchService::dispatch',
+                'NotificationRecipientResolver',
+                'DomainEventLogger::log',
+            ],
+
+            'tables' => [
+                'reservations',
+                'reservation_status_histories',
+                'notification_deliveries',
+                'notifications',
+                'domain_events',
+            ],
+
+            'effects' => [
+                'La réservation est passée au statut refusé.',
+                'Le motif du refus est conservé dans le flux métier.',
+                'Un historique de changement de statut peut être enregistré.',
+                'Le demandeur peut être notifié du refus.',
+                'L’inspector conserve l’action POST malgré la redirection.',
             ],
         ],
 
@@ -919,6 +931,58 @@ return [
 
         // _________________________________________________________________________________________DOCUMENTS
 
+        'documents.index' => [
+            'title' => 'Consultation des documents',
+            'category' => 'Documents',
+            'scenario' => 'admin',
+            'goal' => 'Afficher les documents générés et les formulaires de génération de feuilles de route.',
+
+            'route' => [
+                'demo' => 'GET /demo/documents',
+                'api' => 'GET /api/documents',
+            ],
+
+            'demo_controller' => [
+                'class' => 'DemoDocumentController',
+                'method' => 'index',
+            ],
+
+            'api_controller' => [
+                'class' => 'DocumentController',
+                'method' => 'index',
+            ],
+
+            'request' => null,
+
+            'service' => [
+                'class' => 'Document',
+                'method' => 'query',
+                'internal_methods' => [
+                    'chargement des documents',
+                    'chargement des véhicules actifs',
+                    'pagination',
+                ],
+            ],
+
+            'related_services' => [
+                'RouteSheetDocumentService',
+            ],
+
+            'tables' => [
+                'documents',
+                'reservations',
+                'organizations',
+                'users',
+                'vehicles',
+            ],
+
+            'effects' => [
+                'Les documents générés sont listés.',
+                'Les véhicules actifs sont proposés pour générer une feuille journalière.',
+                'Les documents disponibles peuvent être téléchargés.',
+            ],
+        ],
+
         'documents.route_sheets.generate' => [
             'title' => 'Génération d’une feuille de route',
             'category' => 'Documents',
@@ -1028,6 +1092,7 @@ return [
             ],
         ],
 
+        // _________________________________________________________________________________________ORGANISATIONS
         'organizations.index' => [
             'title' => 'Consultation des organisations',
             'category' => 'Organisations',
@@ -1081,6 +1146,7 @@ return [
             ],
         ],
 
+        // _________________________________________________________________________________________GESTION (ADMIN)
         'admin.index' => [
             'title' => 'Consultation de la gestion',
             'category' => 'Gestion',
