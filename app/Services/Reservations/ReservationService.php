@@ -2,9 +2,11 @@
 
 namespace App\Services\Reservations;
 
+use App\Enums\ApprovalType;
 use App\Enums\CouncilDecisionStatus;
 use App\Enums\DocumentType;
 use App\Enums\OrganizationType;
+use App\Enums\ReservationConflictType;
 use App\Enums\ReservationStatus;
 use App\Models\Document;
 use App\Models\Organization;
@@ -224,6 +226,8 @@ class ReservationService
                 document: $this->latestDeliberationDocumentForReservation($reservation)
             );
 
+            $this->autoResolveRelatedConflicts($reservation, $actor);
+
             return $reservation->refresh();
         });
     }
@@ -274,6 +278,8 @@ class ReservationService
                 $isLastMinute
             );
 
+            $this->autoResolveRelatedConflicts($reservation, $actor);
+
             return $reservation->refresh();
         });
     }
@@ -315,6 +321,10 @@ class ReservationService
 
     public function resolveConflict(ReservationConflict $conflict, User $actor): ReservationConflict
     {
+        if ($conflict->type === ReservationConflictType::SCHEDULE_OVERLAP) {
+            $this->ensureScheduleOverlapGone($conflict);
+        }
+
         $conflict->update([
             'is_resolved' => true,
             'resolved_by_user_id' => $actor->id,
@@ -322,6 +332,128 @@ class ReservationService
         ]);
 
         return $conflict->refresh();
+    }
+
+    /**
+     * Vérifie que le chevauchement calendaire a réellement disparu avant de permettre
+     * la résolution manuelle du conflit. Bloque si la réservation liée est encore active
+     * et que les créneaux se chevauchent toujours.
+     */
+    private function ensureScheduleOverlapGone(ReservationConflict $conflict): void
+    {
+        if ($conflict->related_reservation_id === null) {
+            return; // La réservation source n'existe plus, aucun chevauchement possible.
+        }
+
+        $related = Reservation::find($conflict->related_reservation_id);
+
+        if ($related === null || $related->status->isTerminal()) {
+            return; // La réservation liée est terminale, plus aucun conflit réel.
+        }
+
+        $reservation = Reservation::findOrFail($conflict->reservation_id);
+
+        $remaining = $this->previewService->detectConflicts([
+            'organization_id'       => $reservation->organization_id,
+            'trip_date'             => $reservation->trip_date->toDateString(),
+            'departure_time'        => $reservation->departure_time->format('H:i:s'),
+            'return_time'           => $reservation->return_time->format('H:i:s'),
+            'ignore_reservation_id' => $reservation->id,
+        ], $reservation->estimated_duration_min);
+
+        $stillOverlaps = collect($remaining)
+            ->contains('type', ReservationConflictType::SCHEDULE_OVERLAP->value);
+
+        if ($stillOverlaps) {
+            throw ValidationException::withMessages([
+                'conflict' => 'Le chevauchement calendaire est toujours actif. La réservation liée doit être annulée ou ses horaires modifiés avant de résoudre ce conflit.',
+            ]);
+        }
+    }
+
+    /**
+     * Résout automatiquement les conflits SCHEDULE_OVERLAP pointant vers une réservation
+     * qui vient de devenir terminale (annulée ou refusée). Si la réservation bloquée
+     * n'a plus de conflit non résolu, elle est retransitionnée vers son statut logique.
+     */
+    private function autoResolveRelatedConflicts(Reservation $terminal, User $actor): void
+    {
+        $relatedConflicts = ReservationConflict::query()
+            ->where('related_reservation_id', $terminal->id)
+            ->where('type', ReservationConflictType::SCHEDULE_OVERLAP->value)
+            ->where('is_resolved', false)
+            ->with('reservation')
+            ->get();
+
+        foreach ($relatedConflicts as $conflict) {
+            /** @var Reservation|null $affected */
+            $affected = $conflict->reservation;
+
+            if ($affected === null || $affected->status->isTerminal()) {
+                continue;
+            }
+
+            $conflict->update([
+                'is_resolved'          => true,
+                'resolved_by_user_id'  => $actor->id,
+                'resolved_at'          => now(),
+            ]);
+
+            $affected->refresh();
+
+            if (! $affected->conflicts()->where('is_resolved', false)->exists()) {
+                $this->autoTransitionFromConflict($affected, $actor);
+            }
+        }
+    }
+
+    /**
+     * Retransitionne une réservation hors de EN_CONFLIT quand tous ses conflits
+     * ont été résolus automatiquement. Les écoles retournent à APPROUVE (puis
+     * tentative de confirmation automatique), les autres à EN_ATTENTE.
+     */
+    private function autoTransitionFromConflict(Reservation $reservation, User $actor): void
+    {
+        if ($reservation->status !== ReservationStatus::EN_CONFLIT) {
+            return;
+        }
+
+        $targetStatus = $reservation->approval_type === ApprovalType::AUTO
+            ? ReservationStatus::APPROUVE
+            : ReservationStatus::EN_ATTENTE;
+
+        if (! $reservation->status->canTransitionTo($targetStatus)) {
+            return;
+        }
+
+        $reason = 'Résolution automatique suite à l\'annulation ou au refus de la réservation en conflit.';
+        $reservation = $this->transition($reservation, $targetStatus, $actor, $reason);
+
+        if ($targetStatus === ReservationStatus::APPROUVE) {
+            $reservation = $this->assignmentService->autoAssign($reservation, $actor);
+
+            if ($this->assignmentService->hasRequiredAssignments($reservation)
+                && ! $reservation->conflicts()->where('is_resolved', false)->exists()
+            ) {
+                $reservation = $this->transition($reservation, ReservationStatus::CONFIRME, $actor, 'Confirmation automatique après résolution de conflit.');
+            }
+
+            $this->notifyRequester(
+                $reservation,
+                'reservation.approved',
+                'reservation_updates',
+                'Reservation disponible',
+                "Votre reservation #{$reservation->id} est de nouveau disponible suite a l annulation du creneau en conflit."
+            );
+        } else {
+            $this->notifyRequester(
+                $reservation,
+                'reservation.conflict_resolved',
+                'reservation_updates',
+                'Conflit resolu',
+                "Le conflit sur votre reservation #{$reservation->id} a ete resolu. Elle est en attente de validation."
+            );
+        }
     }
 
     private function ensureCouncilDecisionAllowsApproval(Reservation $reservation): void
