@@ -227,7 +227,7 @@ class NotificationApiTest extends TestCase
     public function test_agent_can_access_notifications_health_endpoint(): void
     {
         $user = User::factory()->create();
-        $user->assignRole('agent_communal');
+        $user->assignRole('admin');
         Sanctum::actingAs($user);
 
         $this->getJson('/api/notifications/health')
@@ -249,7 +249,7 @@ class NotificationApiTest extends TestCase
     public function test_notifications_health_endpoint_is_rate_limited(): void
     {
         $user = User::factory()->create();
-        $user->assignRole('agent_communal');
+        $user->assignRole('admin');
         Sanctum::actingAs($user);
 
         for ($attempt = 1; $attempt <= 30; $attempt++) {

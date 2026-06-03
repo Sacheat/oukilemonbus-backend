@@ -13,6 +13,9 @@ class PlanningExportService
         private readonly ReservationOccupationService $occupationService
     ) {}
 
+    // Le fichier produit est du HTML servi avec un Content-Type Excel (astuce BIFF).
+    // Excel et LibreOffice l'ouvrent correctement. Ne pas "corriger" en ajoutant
+    // PhpSpreadsheet sans avoir validé que le besoin justifie la dépendance.
     public function download(Collection $reservations, string $startDate, string $endDate): Response
     {
         $fileName = sprintf('planning-%s-%s.xls', $startDate, $endDate);

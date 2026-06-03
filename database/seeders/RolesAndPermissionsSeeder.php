@@ -74,6 +74,13 @@ class RolesAndPermissionsSeeder extends Seeder
         $agentCommunal = Role::findOrCreate('agent_communal', 'web');
         $responsableOrganisation = Role::findOrCreate('responsable_organisation', 'web');
 
+        // admin = toutes les permissions sans exception.
+        // Réservé aux développeurs et au support applicatif, pas aux agents communaux.
+        // Permissions exclusives à admin (non accordées à agent_communal) :
+        //   - users.create        : la création de comptes passe par l'inscription, pas par un agent
+        //   - users.update-status : modération des comptes (bloquer/débloquer), rôle support
+        //   - users.deactivate    : désactivation définitive d'un compte, action destructrice irréversible
+        //   - notifications.monitor : health check système, outil de support/debug
         $admin->givePermissionTo($permissions);
 
         $user->givePermissionTo([
@@ -112,11 +119,14 @@ class RolesAndPermissionsSeeder extends Seeder
             'documents.download',
         ]);
 
+        // agent_communal = rôle opérationnel complet pour les agents de la commune.
+        // Gère tout le flux métier du bus : réservations, planning, documents, organisations,
+        // décisions du conseil, indisponibilités, chauffeurs et véhicules.
+        // Ne peut pas créer/modérer des comptes ni accéder aux outils système (réservés à admin).
+        // Si une nouvelle permission est ajoutée, vérifier si elle est métier (ici) ou système (admin).
         $agentCommunal->givePermissionTo([
             'users.view',
-            'users.create',
             'users.update',
-            'users.update-status',
             'locations.view',
             'locations.create',
             'locations.update',
@@ -159,7 +169,6 @@ class RolesAndPermissionsSeeder extends Seeder
             'documents.download',
             'documents.generate',
             'documents.update',
-            'notifications.monitor',
         ]);
 
         $responsableOrganisation->givePermissionTo([
