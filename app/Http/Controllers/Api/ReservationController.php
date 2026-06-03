@@ -40,16 +40,7 @@ class ReservationController extends Controller
         return ReservationResource::collection(
             Reservation::query()
                 ->with(['organization', 'pickupLocation', 'destinationLocation', 'driver', 'vehicle', 'conflicts'])
-                ->when(! $user->hasAnyRole(['admin', 'agent_communal']), function ($query) use ($user): void {
-                    $query->where(function ($query) use ($user): void {
-                        $query->where('requested_by_user_id', $user->getKey())
-                            ->orWhereHas('organization.users', fn ($query) => $query->whereKey($user->getKey()))
-                            ->when(
-                                $user->hasRole('chauffeur') && $user->driver !== null,
-                                fn ($query) => $query->orWhere('driver_id', $user->driver->getKey())
-                            );
-                    });
-                })
+                ->visibleTo($user)
                 ->when(request('status'), fn ($query, $status) => $query->where('status', $status))
                 ->when(request('organization_id'), fn ($query, $organizationId) => $query->where('organization_id', $organizationId))
                 ->when(request('date_from'), fn ($query, $date) => $query->whereDate('trip_date', '>=', $date))

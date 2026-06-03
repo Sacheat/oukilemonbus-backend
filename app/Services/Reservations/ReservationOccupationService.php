@@ -4,6 +4,7 @@ namespace App\Services\Reservations;
 
 use App\Models\Reservation;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\Eloquent\Builder;
 
 class ReservationOccupationService
 {
@@ -46,6 +47,34 @@ class ReservationOccupationService
             'departure_time' => $departure->format('H:i'),
             'return_time' => $departure->addMinutes($stayDurationMinutes)->format('H:i'),
         ];
+    }
+
+    /**
+     * Requête SQL qui réplique overlaps() pour éviter de charger toutes les
+     * réservations du jour en mémoire. Les buffers sont lus depuis la fenêtre
+     * candidate déjà calculée, garantissant la cohérence avec windowForData().
+     *
+     * @param  list<string>  $statuses
+     */
+    public function overlappingQuery(array $candidateWindow, string $tripDate, array $statuses, ?int $ignoreId = null): Builder
+    {
+        $pickupBuffer    = $candidateWindow['pickup_buffer_min'];
+        $postReturnBuffer = $candidateWindow['post_return_buffer_min'];
+
+        return Reservation::query()
+            ->whereIn('status', $statuses)
+            ->whereDate('trip_date', $tripDate)
+            ->when($ignoreId !== null, fn (Builder $q) => $q->whereKeyNot($ignoreId))
+            // other.window_start < candidate.window_end
+            ->whereRaw(
+                'TIMESTAMPADD(MINUTE, ?, TIMESTAMP(trip_date, departure_time)) < ?',
+                [-$pickupBuffer, $candidateWindow['end']->toDateTimeString()]
+            )
+            // other.window_end > candidate.window_start
+            ->whereRaw(
+                'TIMESTAMPADD(MINUTE, COALESCE(estimated_duration_min, 0) + ?, TIMESTAMP(trip_date, return_time)) > ?',
+                [$postReturnBuffer, $candidateWindow['start']->toDateTimeString()]
+            );
     }
 
     public function overlaps(array $firstWindow, array $secondWindow): bool

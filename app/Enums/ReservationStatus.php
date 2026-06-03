@@ -35,7 +35,7 @@ enum ReservationStatus: string
         };
     }
 
-    public function isFinal(): bool
+    public function isTerminal(): bool
     {
         return match ($this) {
             self::REFUSE, self::ANNULE => true,

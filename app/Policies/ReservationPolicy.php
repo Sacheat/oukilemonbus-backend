@@ -64,7 +64,7 @@ class ReservationPolicy
 
     public function update(User $user, Reservation $reservation): bool
     {
-        if (! $user->can('reservations.update') || $this->isFinalStatus($reservation)) {
+        if (! $user->can('reservations.update') || $reservation->status->isTerminal()) {
             return false;
         }
 
@@ -125,7 +125,7 @@ class ReservationPolicy
     {
         return $user->can('reservations.assign')
             && $this->isInternal($user)
-            && ! $this->isFinalStatus($reservation);
+            && ! $reservation->status->isTerminal();
     }
 
     public function confirm(User $user, Reservation $reservation): bool
@@ -179,14 +179,6 @@ class ReservationPolicy
             ReservationStatus::EN_CONFLIT->value,
             ReservationStatus::APPROUVE->value,
             ReservationStatus::CONFIRME->value,
-        ]);
-    }
-
-    private function isFinalStatus(Reservation $reservation): bool
-    {
-        return $this->hasStatus($reservation, [
-            ReservationStatus::REFUSE->value,
-            ReservationStatus::ANNULE->value,
         ]);
     }
 

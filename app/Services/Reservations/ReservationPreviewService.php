@@ -353,21 +353,17 @@ class ReservationPreviewService
 
     private function findOverlappingReservation(array $candidateWindow, array $data): ?Reservation
     {
-        return Reservation::query()
-            ->whereIn('status', [
+        return $this->occupationService->overlappingQuery(
+            candidateWindow: $candidateWindow,
+            tripDate: $data['trip_date'],
+            statuses: [
                 ReservationStatus::EN_ATTENTE->value,
                 ReservationStatus::EN_CONFLIT->value,
                 ReservationStatus::APPROUVE->value,
                 ReservationStatus::CONFIRME->value,
-            ])
-            ->whereDate('trip_date', $data['trip_date'])
-            ->when(isset($data['ignore_reservation_id']), fn ($query) => $query->whereKeyNot($data['ignore_reservation_id']))
-            ->orderBy('departure_time')
-            ->get()
-            ->first(fn (Reservation $reservation): bool => $this->occupationService->overlaps(
-                $candidateWindow,
-                $this->occupationService->windowForReservation($reservation)
-            ));
+            ],
+            ignoreId: $data['ignore_reservation_id'] ?? null,
+        )->orderBy('departure_time')->first();
     }
 
     private function formatOccupationWindow(array $window): array

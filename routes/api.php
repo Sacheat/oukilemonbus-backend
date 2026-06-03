@@ -258,18 +258,20 @@ Route::name('api.')->group(function (): void {
             ->name('planning.exports.show');
 
         Route::get('/planning', [PlanningController::class, 'index'])
+            ->middleware('throttle:60,1')
             ->middleware('permission:reservations.view')
             ->name('planning.index');
 
         /**
          * Reservations routes
          */
-        Route::middleware('permission:reservations.view')->group(function (): void {
+        Route::middleware('permission:reservations.view')->middleware('throttle:60,1')->group(function (): void {
             Route::get('/reservations', [ReservationController::class, 'index'])->name('reservations.index');
             Route::get('/reservations/{reservation}', [ReservationController::class, 'show'])->name('reservations.show');
         });
 
         Route::post('/reservations/preview', [ReservationController::class, 'preview'])
+            ->middleware('throttle:20,1')
             ->middleware('permission:reservations.create')
             ->name('reservations.preview');
 

@@ -6,6 +6,7 @@ use App\Enums\ApprovalType;
 use App\Enums\ReservationActivityType;
 use App\Enums\ReservationStatus;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -123,6 +124,22 @@ class Reservation extends Model
         return $this->belongsToMany(Document::class, 'document_reservation')
             ->withPivot('position')
             ->withTimestamps();
+    }
+
+    public function scopeVisibleTo(Builder $query, User $user): void
+    {
+        if ($user->hasAnyRole(['admin', 'agent_communal'])) {
+            return;
+        }
+
+        $query->where(function (Builder $query) use ($user): void {
+            $query->where('requested_by_user_id', $user->getKey())
+                ->orWhereHas('organization.users', fn (Builder $q) => $q->whereKey($user->getKey()))
+                ->when(
+                    $user->hasRole('chauffeur') && $user->driver !== null,
+                    fn (Builder $q) => $q->orWhere('driver_id', $user->driver->getKey())
+                );
+        });
     }
 
     protected function casts(): array

@@ -51,19 +51,7 @@ class PlanningService
             ->when(isset($filters['driver_id']), fn ($query) => $query->where('driver_id', $filters['driver_id']))
             ->when(isset($filters['organization_id']), fn ($query) => $query->where('organization_id', $filters['organization_id']))
 
-            // Restriction d'accès :
-            // les rôles internes voient tout le planning ;
-            // les autres utilisateurs ne voient que les réservations qui les concernent.
-            ->when(! $user->hasAnyRole(['admin', 'agent_communal']), function ($query) use ($user): void {
-                $query->where(function ($query) use ($user): void {
-                    $query->where('requested_by_user_id', $user->getKey())
-                        ->orWhereHas('organization.users', fn ($query) => $query->whereKey($user->getKey()))
-                        ->when(
-                            $user->hasRole('chauffeur') && $user->driver !== null,
-                            fn ($query) => $query->orWhere('driver_id', $user->driver->getKey())
-                        );
-                });
-            })
+            ->visibleTo($user)
             ->orderBy('trip_date')
             ->orderBy('departure_time')
             ->get();

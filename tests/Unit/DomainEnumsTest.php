@@ -18,12 +18,12 @@ class DomainEnumsTest extends TestCase
 {
     public function test_reservation_status_behaviour_matches_business_meaning(): void
     {
-        $this->assertFalse(ReservationStatus::EN_ATTENTE->isFinal());
-        $this->assertFalse(ReservationStatus::APPROUVE->isFinal());
-        $this->assertTrue(ReservationStatus::CONFIRME->isFinal());
-        $this->assertTrue(ReservationStatus::REFUSE->isFinal());
-        $this->assertTrue(ReservationStatus::ANNULE->isFinal());
-        $this->assertFalse(ReservationStatus::EN_CONFLIT->isFinal());
+        $this->assertFalse(ReservationStatus::EN_ATTENTE->isTerminal());
+        $this->assertFalse(ReservationStatus::APPROUVE->isTerminal());
+        $this->assertFalse(ReservationStatus::CONFIRME->isTerminal());
+        $this->assertTrue(ReservationStatus::REFUSE->isTerminal());
+        $this->assertTrue(ReservationStatus::ANNULE->isTerminal());
+        $this->assertFalse(ReservationStatus::EN_CONFLIT->isTerminal());
         $this->assertSame('warning', ReservationStatus::EN_ATTENTE->color());
     }
 
