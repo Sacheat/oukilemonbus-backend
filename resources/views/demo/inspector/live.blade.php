@@ -413,6 +413,13 @@
         const service = action.service || {};
 
         const isEnabled = Boolean(data.enabled);
+        const actionKey = data.last_action_key ?? null;
+        const hasActionKey = actionKey !== null && actionKey !== '';
+        const hasDocumentedAction = Object.keys(action).length > 0;
+
+        const missingDocumentationMessage = hasActionKey
+            ? 'Fiche inspector manquante dans config/backend_inspector.php'
+            : 'Aucune donnée.';
 
         element('enabledPill').className = `pill ${isEnabled ? 'ok' : 'ko'}`;
         element('enabledPill').textContent = isEnabled ? 'Inspector actif' : 'Inspector désactivé';
@@ -429,30 +436,57 @@
         renderChips('actorCapabilities', actor.capabilities, true);
         renderChips('actorPermissions', actor.permissions);
 
-        element('actionTitle').textContent = action.title ?? 'Aucune action enregistrée';
-        element('actionKey').textContent = data.last_action_key ?? '—';
-        element('actionGoal').textContent = action.goal ?? 'Aucune description disponible.';
+        if (!hasActionKey) {
+            element('actionTitle').textContent = 'Aucune action enregistrée';
+            element('actionGoal').textContent = 'Aucune action backend n’a encore été capturée dans cette session.';
+        } else if (!hasDocumentedAction) {
+            element('actionTitle').textContent = 'Action enregistrée mais non documentée';
+            element('actionGoal').textContent =
+                `La clé "${actionKey}" a bien été enregistrée par le backend, mais aucune fiche correspondante n’existe encore dans config/backend_inspector.php.`;
+        } else {
+            element('actionTitle').textContent = action.title ?? 'Action backend enregistrée';
+            element('actionGoal').textContent = action.goal ?? 'Aucune description disponible.';
+        }
+
+        element('actionKey').textContent = actionKey ?? '—';
 
         renderKeyValues('routeInfo', {
-            'Démo': route.demo,
-            'API': route.api ?? 'Non exposé directement en API',
+            'Démo': hasDocumentedAction
+                ? route.demo
+                : missingDocumentationMessage,
+            'API': hasDocumentedAction
+                ? (route.api ?? 'Non exposé directement en API')
+                : missingDocumentationMessage,
         });
 
         renderKeyValues('controllerInfo', {
-            'Contrôleur démo': controllerLabel(demoController, 'Aucun contrôleur démo dédié'),
-            'Contrôleur API': controllerLabel(apiController, 'Non exposé directement en API'),
+            'Contrôleur démo': hasDocumentedAction
+                ? controllerLabel(demoController, 'Aucun contrôleur démo dédié')
+                : missingDocumentationMessage,
+            'Contrôleur API': hasDocumentedAction
+                ? controllerLabel(apiController, 'Non exposé directement en API')
+                : missingDocumentationMessage,
         });
 
         renderKeyValues('serviceInfo', {
-            'Classe': service.class,
-            'Méthode': service.method,
-            'Méthodes internes': Array.isArray(service.internal_methods)
+            'Classe': hasDocumentedAction ? service.class : missingDocumentationMessage,
+            'Méthode': hasDocumentedAction ? service.method : missingDocumentationMessage,
+            'Méthodes internes': hasDocumentedAction && Array.isArray(service.internal_methods)
                 ? service.internal_methods.join(' → ')
-                : null,
+                : missingDocumentationMessage,
         });
 
         renderChips('tables', action.tables);
-        renderList('effects', action.effects);
+
+        if (hasActionKey && !hasDocumentedAction) {
+            renderList('effects', [
+                `L’action "${actionKey}" est bien capturée dans la session inspector.`,
+                'La fiche descriptive manque encore dans config/backend_inspector.php.',
+                'Il faut ajouter cette clé dans le tableau flows pour afficher la route, le contrôleur, le service et les effets attendus.',
+            ]);
+        } else {
+            renderList('effects', action.effects);
+        }
 
         renderKeyValues('lastContext', data.last_context || {});
         element('rawState').textContent = JSON.stringify(data, null, 2);

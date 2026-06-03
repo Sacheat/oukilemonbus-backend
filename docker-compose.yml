@@ -50,6 +50,7 @@ services:
       - "3307:3306"
     volumes:
       - bus_communal_mariadb_data:/var/lib/mysql
+      - ./docker/mariadb/init:/docker-entrypoint-initdb.d
 
   adminer:
     image: adminer:latest

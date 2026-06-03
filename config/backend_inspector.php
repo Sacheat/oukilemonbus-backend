@@ -149,7 +149,8 @@ return [
                 'vehicles',
                 'locations',
                 'organizations',
-                'reservation_assignments',
+                'reservation_conflicts',
+                'unavailabilities',
             ],
 
             'effects' => [
@@ -160,7 +161,374 @@ return [
             ],
         ],
 
+        // _________________________________________________________________________________________DASHBOARD
+        'demo.dashboard.viewed' => [
+            'title' => 'Consultation du tableau de bord',
+            'category' => 'Démo',
+            'scenario' => null,
+            'goal' => 'Afficher une vue d’ensemble des données disponibles dans la démo.',
+
+            'route' => [
+                'demo' => 'GET /demo',
+                'api' => null,
+            ],
+            'demo_controller' => [
+                'class' => 'DemoDashboardController',
+                'method' => '__invoke',
+            ],
+
+            'api_controller' => null,
+            'request' => null,
+
+            'service' => [
+                'class' => 'DemoDashboardController',
+                'method' => '__invoke',
+                'internal_methods' => [
+                    'actor',
+                    'shared',
+                    'NotificationHealthService::summary',
+                ],
+            ],
+
+            'related_services' => [
+                'NotificationHealthService',
+            ],
+
+            'tables' => [
+                'users',
+                'organizations',
+                'reservations',
+                'documents',
+                'notifications',
+                'notification_deliveries',
+            ],
+
+            'effects' => [
+                'Les compteurs principaux sont chargés.',
+                'Les dernières réservations sont récupérées.',
+                'Les notifications de l’acteur courant sont affichées.',
+                'Un résumé de santé des notifications est calculé.',
+            ],
+        ],
+
         // _________________________________________________________________________________________RÉSERVATIONS
+        // INDEX
+        'reservations.index' => [
+            'title' => 'Consultation des réservations',
+            'category' => 'Réservations',
+            'scenario' => 'admin',
+            'goal' => 'Afficher les réservations disponibles dans la démo avec leurs affectations et conflits.',
+
+            'route' => [
+                'demo' => 'GET /demo/reservations',
+                'api' => 'GET /api/reservations',
+            ],
+
+            'demo_controller' => [
+                'class' => 'DemoReservationController',
+                'method' => 'index',
+            ],
+
+            'api_controller' => [
+                'class' => 'ReservationController',
+                'method' => 'index',
+            ],
+
+            'request' => null,
+
+            'service' => [
+                'class' => 'Reservation',
+                'method' => 'query',
+                'internal_methods' => [
+                    'with organization/requestedByUser/locations/driver/vehicle/conflicts',
+                    'filtrage éventuel par statut',
+                    'pagination',
+                ],
+            ],
+
+            'related_services' => [
+                'ReservationService',
+                'ReservationAssignmentService',
+            ],
+
+            'tables' => [
+                'reservations',
+                'organizations',
+                'users',
+                'locations',
+                'drivers',
+                'vehicles',
+                'reservation_conflicts',
+            ],
+
+            'effects' => [
+                'La liste des réservations est chargée.',
+                'Les relations utiles sont préchargées.',
+                'Les chauffeurs et véhicules actifs sont chargés pour les formulaires d’affectation.',
+                'Les conflits actifs peuvent être affichés.',
+            ],
+        ],
+
+        // CREATE
+        'reservations.create' => [
+            'title' => 'Ouverture du formulaire de création',
+            'category' => 'Réservations',
+            'scenario' => 'admin',
+            'goal' => 'Afficher le formulaire permettant de créer une nouvelle réservation.',
+
+            'route' => [
+                'demo' => 'GET /demo/reservations/create',
+                'api' => 'Non applicable : l’API ne fournit généralement pas de formulaire HTML.',
+            ],
+
+            'demo_controller' => [
+                'class' => 'DemoReservationController',
+                'method' => 'create',
+            ],
+
+            'api_controller' => null,
+
+            'request' => null,
+
+            'service' => [
+                'class' => 'DemoReservationController',
+                'method' => 'create',
+                'internal_methods' => [
+                    'Récupération de l’acteur courant',
+                    'Vérification du droit de création',
+                    'Chargement des organisations visibles',
+                    'Chargement des lieux disponibles',
+                    'Chargement des types d’activité',
+                    'Affichage du formulaire de création',
+                ],
+            ],
+
+            'related_services' => [
+                'DemoActorResolver',
+                'DemoDataService',
+            ],
+
+            'tables' => [
+                'users',
+                'organizations',
+                'locations',
+            ],
+
+            'effects' => [
+                'Le formulaire de création est affiché.',
+                'Aucune réservation n’est encore créée.',
+                'La création réelle se fait uniquement au clic sur Enregistrer.',
+                'L’action suivante attendue est reservations.store.',
+            ],
+        ],
+
+        // STORE
+        'reservations.store' => [
+            'title' => 'Création d’une réservation',
+            'category' => 'Réservations',
+            'scenario' => 'admin',
+            'goal' => 'Créer une nouvelle réservation à partir des données du formulaire.',
+
+            'route' => [
+                'demo' => 'POST /demo/reservations',
+                'api' => 'POST /api/reservations',
+            ],
+
+            'demo_controller' => [
+                'class' => 'DemoReservationController',
+                'method' => 'store',
+            ],
+
+            'api_controller' => [
+                'class' => 'ReservationController',
+                'method' => 'store',
+            ],
+
+            'request' => [
+                'organization_id',
+                'pickup_location_id',
+                'destination_location_id',
+                'trip_date',
+                'departure_time',
+                'return_time',
+                'nb_children',
+                'nb_adults',
+                'trip_purpose',
+                'activity_type',
+            ],
+
+            'service' => [
+                'class' => 'ReservationService',
+                'method' => 'create',
+                'internal_methods' => [
+                    'Validation du payload de réservation',
+                    'Chargement de l’organisation demandée',
+                    'Vérification du droit de création pour cette organisation',
+                    'Préparation des données métier',
+                    'Calcul du preview de trajet',
+                    'Détection éventuelle de conflits',
+                    'Création de la réservation',
+                    'Création éventuelle des conflits associés',
+                    'Notification éventuelle des acteurs concernés',
+                    'Redirection vers la liste des réservations',
+                ],
+            ],
+
+            'related_services' => [
+                'ReservationService',
+                'ReservationPreviewService',
+                'NotificationDispatchService::dispatch',
+                'DomainEventLogger::log',
+            ],
+
+            'tables' => [
+                'reservations',
+                'organizations',
+                'locations',
+                'reservation_conflicts',
+                'notifications',
+                'notification_deliveries',
+                'domain_events',
+            ],
+
+            'effects' => [
+                'Une nouvelle réservation est créée.',
+                'Les lieux, horaires, participants et motif de trajet sont enregistrés.',
+                'Des conflits peuvent être détectés selon les disponibilités.',
+                'La réservation apparaît ensuite dans la liste des réservations.',
+                'L’inspector conserve l’action POST malgré la redirection.',
+            ],
+        ],
+
+        // EDIT
+        'reservations.edit' => [
+            'title' => 'Ouverture du formulaire de modification',
+            'category' => 'Réservations',
+            'scenario' => 'admin',
+            'goal' => 'Afficher le formulaire permettant de modifier une réservation existante.',
+
+            'route' => [
+                'demo' => 'GET /demo/reservations/{reservation}/edit',
+                'api' => 'Non applicable : l’API ne fournit généralement pas de formulaire HTML.',
+            ],
+
+            'demo_controller' => [
+                'class' => 'DemoReservationController',
+                'method' => 'edit',
+            ],
+
+            'api_controller' => null,
+
+            'request' => null,
+
+            'service' => [
+                'class' => 'Reservation',
+                'method' => 'load/query',
+                'internal_methods' => [
+                    'Récupération de l’acteur courant',
+                    'Vérification du droit de modification',
+                    'Chargement de la réservation',
+                    'Chargement des données nécessaires au formulaire',
+                    'Affichage de la vue de modification',
+                ],
+            ],
+
+            'related_services' => [
+                'DemoActorResolver',
+                'DemoDataService',
+            ],
+
+            'tables' => [
+                'reservations',
+                'organizations',
+                'locations',
+                'drivers',
+                'vehicles',
+            ],
+
+            'effects' => [
+                'Le formulaire de modification est affiché.',
+                'Aucune donnée métier n’est encore modifiée.',
+                'La modification réelle se fait uniquement au clic sur Enregistrer.',
+                'L’action suivante attendue est reservations.update.',
+            ],
+        ],
+
+        // UPDATE
+        'reservations.update' => [
+            'title' => 'Modification d’une réservation',
+            'category' => 'Réservations',
+            'scenario' => 'admin',
+            'goal' => 'Mettre à jour les informations principales d’une réservation existante.',
+
+            'route' => [
+                'demo' => 'PATCH /demo/reservations/{reservation}',
+                'api' => 'PATCH /api/reservations/{reservation}',
+            ],
+
+            'demo_controller' => [
+                'class' => 'DemoReservationController',
+                'method' => 'update',
+            ],
+
+            'api_controller' => [
+                'class' => 'ReservationController',
+                'method' => 'update',
+            ],
+
+            'request' => [
+                'pickup_location_id',
+                'destination_location_id',
+                'trip_date',
+                'departure_time',
+                'return_time',
+                'nb_children',
+                'nb_adults',
+                'trip_purpose',
+                'activity_type',
+            ],
+
+            'service' => [
+                'class' => 'ReservationService',
+                'method' => 'update',
+                'internal_methods' => [
+                    'Validation des champs envoyés',
+                    'Vérification des droits de modification',
+                    'Préparation du nouveau payload de réservation',
+                    'Recalcul du preview de trajet',
+                    'Détection éventuelle de conflits',
+                    'Mise à jour de la réservation',
+                    'Mise à jour éventuelle du statut',
+                    'Réinitialisation et recréation éventuelle des conflits',
+                    'Redirection vers la liste des réservations',
+                ],
+            ],
+
+            'related_services' => [
+                'ReservationService',
+                'ReservationPreviewService',
+                'ReservationConflictService',
+                'DomainEventLogger::log',
+            ],
+
+            'tables' => [
+                'reservations',
+                'locations',
+                'reservation_conflicts',
+                'reservation_status_history',
+                'domain_events',
+            ],
+
+            'effects' => [
+                'Les informations de la réservation sont mises à jour.',
+                'Le trajet, les horaires et les participants peuvent être modifiés.',
+                'Les conflits sont recalculés selon les nouvelles données.',
+                'Le statut peut évoluer si de nouveaux conflits apparaissent.',
+                'L’inspector conserve l’action PATCH malgré la redirection.',
+            ],
+        ],
+
+        // APPROVE
         'reservations.approve' => [
             'title' => 'Approbation d’une réservation',
             'category' => 'Réservations',
@@ -226,163 +594,7 @@ return [
             ],
         ],
 
-        'demo.dashboard.viewed' => [
-            'title' => 'Consultation du tableau de bord',
-            'category' => 'Démo',
-            'scenario' => null,
-            'goal' => 'Afficher une vue d’ensemble des données disponibles dans la démo.',
-
-            'route' => [
-                'demo' => 'GET /demo',
-                'api' => null,
-            ],
-            'demo_controller' => [
-                'class' => 'DemoDashboardController',
-                'method' => '__invoke',
-            ],
-
-            'api_controller' => null,
-            'request' => null,
-
-            'service' => [
-                'class' => 'DemoDashboardController',
-                'method' => '__invoke',
-                'internal_methods' => [
-                    'actor',
-                    'shared',
-                    'NotificationHealthService::summary',
-                ],
-            ],
-
-            'related_services' => [
-                'NotificationHealthService',
-            ],
-
-            'tables' => [
-                'users',
-                'organizations',
-                'reservations',
-                'documents',
-                'notifications',
-                'notification_deliveries',
-            ],
-
-            'effects' => [
-                'Les compteurs principaux sont chargés.',
-                'Les dernières réservations sont récupérées.',
-                'Les notifications de l’acteur courant sont affichées.',
-                'Un résumé de santé des notifications est calculé.',
-            ],
-        ],
-
-        'reservations.index' => [
-            'title' => 'Consultation des réservations',
-            'category' => 'Réservations',
-            'scenario' => 'admin',
-            'goal' => 'Afficher les réservations disponibles dans la démo avec leurs affectations et conflits.',
-
-            'route' => [
-                'demo' => 'GET /demo/reservations',
-                'api' => 'GET /api/reservations',
-            ],
-
-            'demo_controller' => [
-                'class' => 'DemoReservationController',
-                'method' => 'index',
-            ],
-
-            'api_controller' => [
-                'class' => 'ReservationController',
-                'method' => 'index',
-            ],
-
-            'request' => null,
-
-            'service' => [
-                'class' => 'Reservation',
-                'method' => 'query',
-                'internal_methods' => [
-                    'with organization/requestedByUser/locations/driver/vehicle/conflicts',
-                    'filtrage éventuel par statut',
-                    'pagination',
-                ],
-            ],
-
-            'related_services' => [
-                'ReservationService',
-                'ReservationAssignmentService',
-            ],
-
-            'tables' => [
-                'reservations',
-                'organizations',
-                'users',
-                'locations',
-                'drivers',
-                'vehicles',
-                'reservation_conflicts',
-            ],
-
-            'effects' => [
-                'La liste des réservations est chargée.',
-                'Les relations utiles sont préchargées.',
-                'Les chauffeurs et véhicules actifs sont chargés pour les formulaires d’affectation.',
-                'Les conflits actifs peuvent être affichés.',
-            ],
-        ],
-
-        'documents.index' => [
-            'title' => 'Consultation des documents',
-            'category' => 'Documents',
-            'scenario' => 'admin',
-            'goal' => 'Afficher les documents générés et les formulaires de génération de feuilles de route.',
-
-            'route' => [
-                'demo' => 'GET /demo/documents',
-                'api' => 'GET /api/documents',
-            ],
-
-            'demo_controller' => [
-                'class' => 'DemoDocumentController',
-                'method' => 'index',
-            ],
-
-            'api_controller' => [
-                'class' => 'DocumentController',
-                'method' => 'index',
-            ],
-
-            'request' => null,
-
-            'service' => [
-                'class' => 'Document',
-                'method' => 'query',
-                'internal_methods' => [
-                    'chargement des documents',
-                    'chargement des véhicules actifs',
-                    'pagination',
-                ],
-            ],
-
-            'related_services' => [
-                'RouteSheetDocumentService',
-            ],
-
-            'tables' => [
-                'documents',
-                'reservations',
-                'organizations',
-                'users',
-                'vehicles',
-            ],
-
-            'effects' => [
-                'Les documents générés sont listés.',
-                'Les véhicules actifs sont proposés pour générer une feuille journalière.',
-                'Les documents disponibles peuvent être téléchargés.',
-            ],
-        ],
-
+        // AUTO-ASSIGN
         'reservations.auto_assign' => [
             'title' => 'Affectation automatique d’une réservation',
             'category' => 'Réservations',
@@ -451,6 +663,7 @@ return [
             ],
         ],
 
+        // ASSIGN
         'reservations.assign' => [
             'title' => 'Affectation manuelle d’une réservation',
             'category' => 'Réservations',
@@ -517,6 +730,7 @@ return [
             ],
         ],
 
+        // DECISION COLLÈGE
         'reservations.council_decision' => [
             'title' => 'Encodage d’une décision du collège',
             'category' => 'Réservations',
@@ -525,7 +739,7 @@ return [
 
             'route' => [
                 'demo' => 'POST /demo/reservations/{reservation}/council-decision',
-                'api' => 'POST /api/reservations/{reservation}/council-decision',
+                'api' => 'POST /api/council-decisions ou PATCH /api/council-decisions/{councilDecision}',
             ],
 
             'demo_controller' => [
@@ -535,7 +749,7 @@ return [
 
             'api_controller' => [
                 'class' => 'CouncilDecisionController',
-                'method' => 'store',
+                'method' => 'store / update',
             ],
 
             'request' => [
@@ -586,6 +800,7 @@ return [
             ],
         ],
 
+        // CONFIRM
         'reservations.confirm' => [
             'title' => 'Confirmation d’une réservation',
             'category' => 'Réservations',
@@ -649,6 +864,71 @@ return [
             ],
         ],
 
+        // REJECT
+        'reservations.reject' => [
+            'title' => 'Refus d’une réservation',
+            'category' => 'Réservations',
+            'scenario' => 'admin',
+            'goal' => 'Refuser une réservation avec un motif explicite.',
+
+            'route' => [
+                'demo' => 'POST /demo/reservations/{reservation}/reject',
+                'api' => 'PATCH /api/reservations/{reservation}/reject',
+            ],
+
+            'demo_controller' => [
+                'class' => 'DemoReservationController',
+                'method' => 'reject',
+            ],
+
+            'api_controller' => [
+                'class' => 'ReservationController',
+                'method' => 'reject',
+            ],
+
+            'request' => [
+                'reason',
+            ],
+
+            'service' => [
+                'class' => 'ReservationService',
+                'method' => 'reject',
+                'internal_methods' => [
+                    'Validation du motif de refus',
+                    'Vérification des droits de refus',
+                    'Vérification de la transition de statut',
+                    'Passage de la réservation au statut refusé',
+                    'Enregistrement de l’historique de statut',
+                    'Notification éventuelle du demandeur',
+                    'Redirection vers la liste des réservations',
+                ],
+            ],
+
+            'related_services' => [
+                'ReservationService',
+                'NotificationDispatchService::dispatch',
+                'NotificationRecipientResolver',
+                'DomainEventLogger::log',
+            ],
+
+            'tables' => [
+                'reservations',
+                'reservation_status_history',
+                'notification_deliveries',
+                'notifications',
+                'domain_events',
+            ],
+
+            'effects' => [
+                'La réservation est passée au statut refusé.',
+                'Le motif du refus est conservé dans le flux métier.',
+                'Un historique de changement de statut peut être enregistré.',
+                'Le demandeur peut être notifié du refus.',
+                'L’inspector conserve l’action POST malgré la redirection.',
+            ],
+        ],
+
+        // CANCEL
         'reservations.cancel' => [
             'title' => 'Annulation d’une réservation',
             'category' => 'Réservations',
@@ -772,7 +1052,7 @@ return [
 
             'route' => [
                 'demo' => 'POST /demo/notifications/read-all',
-                'api' => 'POST /api/notifications/read-all',
+                'api' => 'PATCH /api/notifications/read-all',
             ],
 
             'demo_controller' => [
@@ -876,7 +1156,7 @@ return [
 
             'route' => [
                 'demo' => 'GET /demo/requests',
-                'api' => null,
+                'api' => 'Composite : GET /api/org-registration-requests + GET /api/user-org-requests',
             ],
 
             'demo_controller' => [
@@ -884,7 +1164,10 @@ return [
                 'method' => 'index',
             ],
 
-            'api_controller' => null,
+            'api_controller' => [
+                'class' => 'OrgRegistrationRequestController / UserOrgRequestController',
+                'method' => 'index',
+            ],
             'request' => null,
 
             'service' => [
@@ -917,7 +1200,430 @@ return [
             ],
         ],
 
+        'requests.organizations.store' => [
+            'title' => 'Création d’une demande d’organisation',
+            'category' => 'Demandes',
+            'scenario' => 'admin',
+            'goal' => 'Créer une demande de création d’organisation depuis la démo.',
+
+            'route' => [
+                'demo' => 'POST /demo/requests/organizations',
+                'api' => 'POST /api/org-registration-requests',
+            ],
+
+            'demo_controller' => [
+                'class' => 'DemoRequestController',
+                'method' => 'storeOrg',
+            ],
+
+            'api_controller' => [
+                'class' => 'OrgRegistrationRequestController',
+                'method' => 'store',
+            ],
+
+            'request' => [
+                'organization_name',
+                'organization_type',
+                'enterprise_number',
+                'official_email',
+                'phone',
+                'location_id',
+                'contact_person_name',
+                'contact_person_role',
+                'proof_document_path',
+                'comment',
+            ],
+
+            'service' => [
+                'class' => 'OrgRegistrationRequestService',
+                'method' => 'create',
+                'internal_methods' => [
+                    'Validation des données de demande',
+                    'Vérification du droit de création',
+                    'Création de la demande en attente',
+                    'Calcul de la note de confiance',
+                    'Notification des utilisateurs internes',
+                    'Redirection vers les demandes administratives',
+                ],
+            ],
+
+            'related_services' => [
+                'OrgRegistrationRequestService',
+                'OrgRegistrationConfidenceScoreService',
+                'NotificationDispatchService',
+                'NotificationRecipientResolver',
+            ],
+
+            'tables' => [
+                'org_registration_requests',
+                'users',
+                'locations',
+                'notifications',
+                'notification_deliveries',
+            ],
+
+            'effects' => [
+                'Une demande de création d’organisation est créée.',
+                'La demande est placée en attente.',
+                'Une note de confiance peut être calculée.',
+                'Les agents internes peuvent être notifiés.',
+                'L’inspector conserve l’action POST malgré la redirection.',
+            ],
+        ],
+
+        'requests.organizations.approve' => [
+            'title' => 'Approbation d’une demande d’organisation',
+            'category' => 'Demandes',
+            'scenario' => 'admin',
+            'goal' => 'Approuver une demande de création d’organisation et créer l’organisation correspondante.',
+
+            'route' => [
+                'demo' => 'POST /demo/requests/organizations/{orgRegistrationRequest}/approve',
+                'api' => 'PATCH /api/org-registration-requests/{orgRegistrationRequest}/approve',
+            ],
+
+            'demo_controller' => [
+                'class' => 'DemoRequestController',
+                'method' => 'approveOrg',
+            ],
+
+            'api_controller' => [
+                'class' => 'OrgRegistrationRequestController',
+                'method' => 'approve',
+            ],
+
+            'request' => null,
+
+            'service' => [
+                'class' => 'OrgRegistrationRequestService',
+                'method' => 'approve',
+                'internal_methods' => [
+                    'Vérification du droit d’approbation',
+                    'Vérification que la demande est encore en attente',
+                    'Création de l’organisation',
+                    'Rattachement du demandeur comme responsable',
+                    'Passage de la demande au statut approuvé',
+                    'Enregistrement de l’utilisateur qui a traité la demande',
+                    'Redirection vers les demandes administratives',
+                ],
+            ],
+
+            'related_services' => [
+                'OrgRegistrationRequestService',
+            ],
+
+            'tables' => [
+                'org_registration_requests',
+                'organizations',
+                'user_organization',
+                'users',
+            ],
+
+            'effects' => [
+                'Une nouvelle organisation est créée.',
+                'Le demandeur est rattaché à cette organisation.',
+                'La demande passe au statut approuvé.',
+                'L’inspector conserve l’action POST malgré la redirection.',
+            ],
+        ],
+
+        'requests.organizations.reject' => [
+            'title' => 'Refus d’une demande d’organisation',
+            'category' => 'Demandes',
+            'scenario' => 'admin',
+            'goal' => 'Refuser une demande de création d’organisation avec un motif explicite.',
+
+            'route' => [
+                'demo' => 'POST /demo/requests/organizations/{orgRegistrationRequest}/reject',
+                'api' => 'PATCH /api/org-registration-requests/{orgRegistrationRequest}/reject',
+            ],
+
+            'demo_controller' => [
+                'class' => 'DemoRequestController',
+                'method' => 'rejectOrg',
+            ],
+
+            'api_controller' => [
+                'class' => 'OrgRegistrationRequestController',
+                'method' => 'reject',
+            ],
+
+            'request' => [
+                'rejection_reason',
+            ],
+
+            'service' => [
+                'class' => 'OrgRegistrationRequestService',
+                'method' => 'reject',
+                'internal_methods' => [
+                    'Validation du motif de refus',
+                    'Vérification du droit de refus',
+                    'Vérification que la demande est encore traitable',
+                    'Passage de la demande au statut refusé',
+                    'Enregistrement du motif de refus',
+                    'Enregistrement de l’utilisateur qui a traité la demande',
+                    'Redirection vers les demandes administratives',
+                ],
+            ],
+
+            'related_services' => [
+                'OrgRegistrationRequestService',
+                'NotificationDispatchService',
+                'NotificationRecipientResolver',
+            ],
+
+            'tables' => [
+                'org_registration_requests',
+                'users',
+                'notifications',
+                'notification_deliveries',
+            ],
+
+            'effects' => [
+                'La demande de création d’organisation est refusée.',
+                'Le motif du refus est conservé.',
+                'La demande ne crée pas d’organisation.',
+                'Le demandeur peut être notifié.',
+                'L’inspector conserve l’action POST malgré la redirection.',
+            ],
+        ],
+
+        'requests.user_organizations.store' => [
+            'title' => 'Création d’une demande de rattachement',
+            'category' => 'Demandes',
+            'scenario' => 'admin',
+            'goal' => 'Créer une demande de rattachement d’un utilisateur à une organisation existante.',
+
+            'route' => [
+                'demo' => 'POST /demo/requests/user-organizations',
+                'api' => 'POST /api/user-org-requests',
+            ],
+
+            'demo_controller' => [
+                'class' => 'DemoRequestController',
+                'method' => 'storeUserOrg',
+            ],
+
+            'api_controller' => [
+                'class' => 'UserOrgRequestController',
+                'method' => 'store',
+            ],
+
+            'request' => [
+                'organization_id',
+                'requested_role',
+                'justification',
+                'proof_document_path',
+            ],
+
+            'service' => [
+                'class' => 'UserOrgRequestService',
+                'method' => 'create',
+                'internal_methods' => [
+                    'Validation des données de rattachement',
+                    'Vérification du droit de création',
+                    'Vérification de l’organisation ciblée',
+                    'Création de la demande de rattachement',
+                    'Passage de la demande au statut en attente',
+                    'Redirection vers les demandes administratives',
+                ],
+            ],
+
+            'related_services' => [
+                'UserOrgRequestService',
+                'NotificationDispatchService',
+                'NotificationRecipientResolver',
+            ],
+
+            'tables' => [
+                'user_org_requests',
+                'organizations',
+                'users',
+                'notifications',
+                'notification_deliveries',
+            ],
+
+            'effects' => [
+                'Une demande de rattachement est créée.',
+                'L’utilisateur demande un rôle dans une organisation existante.',
+                'La demande reste en attente jusqu’à validation ou refus.',
+                'Les responsables internes peuvent être notifiés.',
+                'L’inspector conserve l’action POST malgré la redirection.',
+            ],
+        ],
+
+        'requests.user_organizations.approve' => [
+            'title' => 'Approbation d’une demande de rattachement',
+            'category' => 'Demandes',
+            'scenario' => 'admin',
+            'goal' => 'Approuver une demande de rattachement et associer l’utilisateur à l’organisation.',
+
+            'route' => [
+                'demo' => 'POST /demo/requests/user-organizations/{userOrgRequest}/approve',
+                'api' => 'PATCH /api/user-org-requests/{userOrgRequest}/approve',
+            ],
+
+            'demo_controller' => [
+                'class' => 'DemoRequestController',
+                'method' => 'approveUserOrg',
+            ],
+
+            'api_controller' => [
+                'class' => 'UserOrgRequestController',
+                'method' => 'approve',
+            ],
+
+            'request' => null,
+
+            'service' => [
+                'class' => 'UserOrgRequestService',
+                'method' => 'approve',
+                'internal_methods' => [
+                    'Vérification du droit d’approbation',
+                    'Vérification que la demande est encore en attente',
+                    'Rattachement de l’utilisateur à l’organisation',
+                    'Attribution du rôle demandé',
+                    'Passage de la demande au statut approuvé',
+                    'Enregistrement de l’utilisateur qui a traité la demande',
+                    'Redirection vers les demandes administratives',
+                ],
+            ],
+
+            'related_services' => [
+                'UserOrgRequestService',
+            ],
+
+            'tables' => [
+                'user_org_requests',
+                'user_organization',
+                'organizations',
+                'users',
+                'roles',
+            ],
+
+            'effects' => [
+                'L’utilisateur est rattaché à l’organisation.',
+                'Le rôle demandé peut être attribué.',
+                'La demande passe au statut approuvé.',
+                'L’inspector conserve l’action POST malgré la redirection.',
+            ],
+        ],
+
+        'requests.user_organizations.reject' => [
+            'title' => 'Refus d’une demande de rattachement',
+            'category' => 'Demandes',
+            'scenario' => 'admin',
+            'goal' => 'Refuser une demande de rattachement avec un motif explicite.',
+
+            'route' => [
+                'demo' => 'POST /demo/requests/user-organizations/{userOrgRequest}/reject',
+                'api' => 'PATCH /api/user-org-requests/{userOrgRequest}/reject',
+            ],
+
+            'demo_controller' => [
+                'class' => 'DemoRequestController',
+                'method' => 'rejectUserOrg',
+            ],
+
+            'api_controller' => [
+                'class' => 'UserOrgRequestController',
+                'method' => 'reject',
+            ],
+
+            'request' => [
+                'rejection_reason',
+            ],
+
+            'service' => [
+                'class' => 'UserOrgRequestService',
+                'method' => 'reject',
+                'internal_methods' => [
+                    'Validation du motif de refus',
+                    'Vérification du droit de refus',
+                    'Vérification que la demande est encore traitable',
+                    'Passage de la demande au statut refusé',
+                    'Enregistrement du motif de refus',
+                    'Enregistrement de l’utilisateur qui a traité la demande',
+                    'Redirection vers les demandes administratives',
+                ],
+            ],
+
+            'related_services' => [
+                'UserOrgRequestService',
+                'NotificationDispatchService',
+                'NotificationRecipientResolver',
+            ],
+
+            'tables' => [
+                'user_org_requests',
+                'organizations',
+                'users',
+                'notifications',
+                'notification_deliveries',
+            ],
+
+            'effects' => [
+                'La demande de rattachement est refusée.',
+                'Le motif du refus est conservé.',
+                'L’utilisateur n’est pas rattaché à l’organisation.',
+                'Le demandeur peut être notifié.',
+                'L’inspector conserve l’action POST malgré la redirection.',
+            ],
+        ],
+
         // _________________________________________________________________________________________DOCUMENTS
+
+        'documents.index' => [
+            'title' => 'Consultation des documents',
+            'category' => 'Documents',
+            'scenario' => 'admin',
+            'goal' => 'Afficher les documents générés et les formulaires de génération de feuilles de route.',
+
+            'route' => [
+                'demo' => 'GET /demo/documents',
+                'api' => 'GET /api/documents',
+            ],
+
+            'demo_controller' => [
+                'class' => 'DemoDocumentController',
+                'method' => 'index',
+            ],
+
+            'api_controller' => [
+                'class' => 'DocumentController',
+                'method' => 'index',
+            ],
+
+            'request' => null,
+
+            'service' => [
+                'class' => 'Document',
+                'method' => 'query',
+                'internal_methods' => [
+                    'chargement des documents',
+                    'chargement des véhicules actifs',
+                    'pagination',
+                ],
+            ],
+
+            'related_services' => [
+                'RouteSheetDocumentService',
+            ],
+
+            'tables' => [
+                'documents',
+                'reservations',
+                'organizations',
+                'users',
+                'vehicles',
+            ],
+
+            'effects' => [
+                'Les documents générés sont listés.',
+                'Les véhicules actifs sont proposés pour générer une feuille journalière.',
+                'Les documents disponibles peuvent être téléchargés.',
+            ],
+        ],
 
         'documents.route_sheets.generate' => [
             'title' => 'Génération d’une feuille de route',
@@ -927,7 +1633,7 @@ return [
 
             'route' => [
                 'demo' => 'POST /demo/documents/route-sheets',
-                'api' => 'POST /api/documents/route-sheets',
+                'api' => 'POST /api/documents/route-sheets/generate',
             ],
 
             'demo_controller' => [
@@ -936,8 +1642,8 @@ return [
             ],
 
             'api_controller' => [
-                'class' => 'DocumentController',
-                'method' => 'generateRouteSheet',
+                'class' => 'RouteSheetDocumentController',
+                'method' => 'generate',
             ],
 
             'request' => [
@@ -1028,6 +1734,7 @@ return [
             ],
         ],
 
+        // _________________________________________________________________________________________ORGANISATIONS
         'organizations.index' => [
             'title' => 'Consultation des organisations',
             'category' => 'Organisations',
@@ -1069,7 +1776,7 @@ return [
             'tables' => [
                 'organizations',
                 'users',
-                'user_organizations',
+                'user_organization',
                 'roles',
                 'permissions',
             ],
@@ -1081,6 +1788,7 @@ return [
             ],
         ],
 
+        // _________________________________________________________________________________________GESTION (ADMIN)
         'admin.index' => [
             'title' => 'Consultation de la gestion',
             'category' => 'Gestion',

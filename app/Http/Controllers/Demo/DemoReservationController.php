@@ -80,10 +80,19 @@ final class DemoReservationController extends DemoBaseController
         $actor = $this->actor($request);
         $this->authorizeFor($actor, 'create', Reservation::class);
 
+        $this->recordInspectorView($request, 'reservations.create', [
+            'status' => 'success',
+            'message' => 'Ouverture du formulaire de création d’une réservation.',
+            'actor_id' => $actor->id,
+        ]);
+
         return view('demo.reservations.create', [
             ...$this->shared($request),
             'organizations' => $this->visibleOrganizations($actor),
-            'locations' => Location::query()->orderBy('city')->orderBy('formatted_address')->get(),
+            'locations' => Location::query()
+                ->orderBy('city')
+                ->orderBy('formatted_address')
+                ->get(),
             'activityTypes' => ReservationActivityType::cases(),
         ]);
     }
@@ -94,10 +103,29 @@ final class DemoReservationController extends DemoBaseController
         $validated = $this->reservationPayload($request);
         $organization = Organization::query()->findOrFail($validated['organization_id']);
 
-        return $this->runDemoAction(function () use ($actor, $validated, $organization): void {
-            $this->authorizeFor($actor, 'createForOrganization', [Reservation::class, $organization]);
-            $this->reservationService->create($validated, $actor);
-        }, 'Reservation creee.');
+        return $this->runDemoAction(
+            function () use ($actor, $validated, $organization): void {
+                $this->authorizeFor($actor, 'createForOrganization', [Reservation::class, $organization]);
+                $this->reservationService->create($validated, $actor);
+            },
+            'Reservation creee.',
+            $request,
+            'reservations.store',
+            [
+                'actor_id' => $actor->id,
+                'organization_id' => $organization->id,
+                'organization_name' => $organization->name,
+                'pickup_location_id' => $validated['pickup_location_id'] ?? null,
+                'destination_location_id' => $validated['destination_location_id'] ?? null,
+                'trip_date' => $validated['trip_date'] ?? null,
+                'departure_time' => $validated['departure_time'] ?? null,
+                'return_time' => $validated['return_time'] ?? null,
+                'nb_children' => $validated['nb_children'] ?? null,
+                'nb_adults' => $validated['nb_adults'] ?? null,
+                'activity_type' => $validated['activity_type'] ?? null,
+                'validated_fields' => array_keys($validated),
+            ]
+        );
     }
 
     public function edit(Request $request, Reservation $reservation): View
@@ -105,10 +133,22 @@ final class DemoReservationController extends DemoBaseController
         $actor = $this->actor($request);
         $this->authorizeFor($actor, 'update', $reservation);
 
+        $this->recordInspectorView($request, 'reservations.edit', [
+            'status' => 'success',
+            'message' => 'Ouverture du formulaire de modification d’une réservation.',
+            'actor_id' => $actor->id,
+            'reservation_id' => $reservation->id,
+            'organization_id' => $reservation->organization_id,
+            'reservation_status' => $reservation->status?->value ?? $reservation->status,
+        ]);
+
         return view('demo.reservations.edit', [
             ...$this->shared($request),
-            'reservation' => $reservation->load(['organization', 'pickupLocation', 'destinationLocation']),
-            'locations' => Location::query()->orderBy('city')->orderBy('formatted_address')->get(),
+            'reservation' => $reservation,
+            'locations' => Location::query()
+                ->orderBy('city')
+                ->orderBy('formatted_address')
+                ->get(),
             'activityTypes' => ReservationActivityType::cases(),
         ]);
     }
@@ -128,10 +168,24 @@ final class DemoReservationController extends DemoBaseController
             'activity_type' => ['nullable', new Enum(ReservationActivityType::class)],
         ]);
 
-        return $this->runDemoAction(function () use ($actor, $reservation, $validated): void {
-            $this->authorizeFor($actor, 'update', $reservation);
-            $this->reservationService->update($reservation, $validated, $actor);
-        }, 'Reservation modifiee.');
+        return $this->runDemoAction(
+            function () use ($actor, $reservation, $validated): void {
+                $this->authorizeFor($actor, 'update', $reservation);
+                $this->reservationService->update($reservation, $validated, $actor);
+            },
+            'Reservation mise a jour.',
+            $request,
+            'reservations.update',
+            [
+                'actor_id' => $actor->id,
+                'reservation_id' => $reservation->id,
+                'organization_id' => $reservation->organization_id,
+                'status_before' => $reservation->status?->value ?? $reservation->status,
+                'driver_id_before' => $reservation->driver_id,
+                'vehicle_id_before' => $reservation->vehicle_id,
+                'updated_fields' => array_keys($validated),
+            ]
+        );
     }
 
     public function autoAssign(Request $request, Reservation $reservation): RedirectResponse
@@ -273,22 +327,51 @@ final class DemoReservationController extends DemoBaseController
     public function reject(Request $request, Reservation $reservation): RedirectResponse
     {
         $actor = $this->actor($request);
-        $validated = $request->validate(['reason' => ['required', 'string', 'max:1000']]);
+        $validated = $request->validate([
+            'reason' => ['required', 'string', 'max:500'],
+        ]);
 
-        return $this->runDemoAction(function () use ($actor, $reservation, $validated): void {
-            $this->authorizeFor($actor, 'reject', $reservation);
-            $this->reservationService->reject($reservation, $actor, $validated['reason']);
-        }, 'Reservation refusee.');
+        return $this->runDemoAction(
+            function () use ($actor, $reservation, $validated): void {
+                $this->authorizeFor($actor, 'reject', $reservation);
+                $this->reservationService->reject($reservation, $actor, $validated['reason']);
+            },
+            'Reservation refusee.',
+            $request,
+            'reservations.reject',
+            [
+                'actor_id' => $actor->id,
+                'reservation_id' => $reservation->id,
+                'organization_id' => $reservation->organization_id,
+                'status_before' => $reservation->status?->value ?? $reservation->status,
+                'driver_id' => $reservation->driver_id,
+                'vehicle_id' => $reservation->vehicle_id,
+                'reason' => $validated['reason'],
+            ]
+        );
     }
 
     public function confirm(Request $request, Reservation $reservation): RedirectResponse
     {
         $actor = $this->actor($request);
 
-        return $this->runDemoAction(function () use ($actor, $reservation): void {
-            $this->authorizeFor($actor, 'confirm', $reservation);
-            $this->reservationService->confirm($reservation, $actor);
-        }, 'Reservation confirmee.');
+        return $this->runDemoAction(
+            function () use ($actor, $reservation): void {
+                $this->authorizeFor($actor, 'confirm', $reservation);
+                $this->reservationService->confirm($reservation, $actor);
+            },
+            'Reservation confirmee.',
+            $request,
+            'reservations.confirm',
+            [
+                'actor_id' => $actor->id,
+                'reservation_id' => $reservation->id,
+                'organization_id' => $reservation->organization_id,
+                'status_before' => $reservation->status?->value ?? $reservation->status,
+                'driver_id' => $reservation->driver_id,
+                'vehicle_id' => $reservation->vehicle_id,
+            ]
+        );
     }
 
     public function cancel(Request $request, Reservation $reservation): RedirectResponse
@@ -296,10 +379,24 @@ final class DemoReservationController extends DemoBaseController
         $actor = $this->actor($request);
         $validated = $request->validate(['reason' => ['required', 'string', 'max:1000']]);
 
-        return $this->runDemoAction(function () use ($actor, $reservation, $validated): void {
-            $this->authorizeFor($actor, 'cancel', $reservation);
-            $this->reservationService->cancel($reservation, $actor, $validated['reason']);
-        }, 'Reservation annulee.');
+        return $this->runDemoAction(
+            function () use ($actor, $reservation, $validated): void {
+                $this->authorizeFor($actor, 'cancel', $reservation);
+                $this->reservationService->cancel($reservation, $actor, $validated['reason']);
+            },
+            'Reservation annulee.',
+            $request,
+            'reservations.cancel',
+            [
+                'actor_id' => $actor->id,
+                'reservation_id' => $reservation->id,
+                'organization_id' => $reservation->organization_id,
+                'status_before' => $reservation->status?->value ?? $reservation->status,
+                'driver_id' => $reservation->driver_id,
+                'vehicle_id' => $reservation->vehicle_id,
+                'reason' => $validated['reason'],
+            ]
+        );
     }
 
     public function resolveConflict(Request $request, Reservation $reservation, ReservationConflict $conflict): RedirectResponse

@@ -75,11 +75,17 @@ final class UserInspectorService
 
     private function organization(User $user): ?array
     {
-        if (! method_exists($user, 'organization')) {
+        if (! method_exists($user, 'organizations')) {
             return null;
         }
 
-        $organization = $user->organization;
+        $organizations = $user->relationLoaded('organizations')
+            ? $user->organizations
+            : $user->organizations()->get();
+
+        $organization = $organizations->first(function ($organization): bool {
+            return (bool) ($organization->pivot?->is_default ?? false);
+        }) ?? $organizations->first();
 
         if ($organization === null) {
             return null;
@@ -88,6 +94,8 @@ final class UserInspectorService
         return [
             'id' => $organization->id,
             'name' => $organization->name ?? null,
+            'relationship_type' => $organization->pivot?->relationship_type ?? null,
+            'is_default' => (bool) ($organization->pivot?->is_default ?? false),
         ];
     }
 
@@ -96,7 +104,7 @@ final class UserInspectorService
         $capabilities = [];
 
         if ($this->can($user, 'reservations.view')) {
-            $capabilities[] = 'Consulter les réservations';
+            $capabilities[] = 'Consulter les réservations et le planning';
         }
 
         if ($this->can($user, 'reservations.create')) {
@@ -109,10 +117,6 @@ final class UserInspectorService
 
         if ($this->can($user, 'reservations.assign')) {
             $capabilities[] = 'Assigner un chauffeur ou un véhicule';
-        }
-
-        if ($this->can($user, 'reservations.view')) {
-            $capabilities[] = 'Consulter les réservations et le planning';
         }
 
         if ($this->can($user, 'documents.generate')) {
