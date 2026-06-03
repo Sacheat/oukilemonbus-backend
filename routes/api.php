@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\NotificationPreferenceController;
 use App\Http\Controllers\Api\OrganizationController;
 use App\Http\Controllers\Api\OrgRegistrationRequestController;
 use App\Http\Controllers\Api\PlanningController;
+use App\Http\Controllers\Api\RecurrenceController;
 use App\Http\Controllers\Api\ReservationConflictController;
 use App\Http\Controllers\Api\ReservationController;
 use App\Http\Controllers\Api\RouteSheetDocumentController;
@@ -261,6 +262,31 @@ Route::name('api.')->group(function (): void {
             ->middleware('throttle:60,1')
             ->middleware('permission:reservations.view')
             ->name('planning.index');
+
+        /**
+         * Recurrences routes (écoles communales uniquement)
+         */
+        Route::get('/recurrences', [RecurrenceController::class, 'index'])
+            ->middleware('throttle:60,1')
+            ->middleware('permission:reservations.view')
+            ->name('recurrences.index');
+
+        Route::post('/recurrences/preview', [RecurrenceController::class, 'preview'])
+            ->middleware('throttle:20,1')
+            ->middleware('permission:reservations.create')
+            ->name('recurrences.preview');
+
+        Route::post('/recurrences', [RecurrenceController::class, 'store'])
+            ->middleware('permission:reservations.create')
+            ->name('recurrences.store');
+
+        Route::get('/recurrences/{recurrence}', [RecurrenceController::class, 'show'])
+            ->middleware('permission:reservations.view')
+            ->name('recurrences.show');
+
+        Route::patch('/recurrences/{recurrence}/cancel', [RecurrenceController::class, 'cancel'])
+            ->middleware('permission:recurrences.cancel')
+            ->name('recurrences.cancel');
 
         /**
          * Reservations routes
