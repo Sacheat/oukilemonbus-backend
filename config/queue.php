@@ -17,9 +17,15 @@ return [
 
     'names' => [
         'critical' => env('QUEUE_NAME_CRITICAL', 'critical'),
-        'default' => env('QUEUE_NAME_DEFAULT', 'default'),
-        'low' => env('QUEUE_NAME_LOW', 'low'),
+        'default'  => env('QUEUE_NAME_DEFAULT', 'default'),
+        'low'      => env('QUEUE_NAME_LOW', 'low'),
     ],
+
+    // Queues écoutées par le worker, par ordre de priorité décroissante.
+    // Utilisé par docker-compose.yml (${QUEUE_WORKER_QUEUES}) ET par app:health.
+    // Pour ajouter une queue : modifier QUEUE_WORKER_QUEUES dans le .env,
+    // puis relancer le worker : docker compose up -d --force-recreate queue
+    'worker_queues' => env('QUEUE_WORKER_QUEUES', 'critical,default,low'),
 
     /*
     |--------------------------------------------------------------------------
