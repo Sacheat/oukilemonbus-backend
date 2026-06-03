@@ -65,6 +65,7 @@ class ReservationService
                     'nb_adults',
                     'trip_purpose',
                     'activity_type',
+                    'recurrence_id',
                 ]),
                 'requested_by_user_id' => $requestedByUserId,
                 'distance_km' => $preview['distance_km'],

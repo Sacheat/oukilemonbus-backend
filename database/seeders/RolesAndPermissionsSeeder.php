@@ -62,6 +62,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'documents.generate',
             'documents.update',
             'notifications.monitor',
+            'recurrences.cancel',
         ];
 
         foreach ($permissions as $permission) {
@@ -97,6 +98,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'reservations.create',
             'reservations.update',
             'reservations.cancel',
+            'recurrences.cancel',
             'documents.view',
             'documents.download',
         ]);
@@ -162,6 +164,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'reservations.assign',
             'reservations.confirm',
             'reservations.manage-conflicts',
+            'recurrences.cancel',
             'council-decisions.view',
             'council-decisions.create',
             'council-decisions.update',
@@ -186,6 +189,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'reservations.create',
             'reservations.update',
             'reservations.cancel',
+            'recurrences.cancel',
             'documents.view',
             'documents.download',
         ]);
