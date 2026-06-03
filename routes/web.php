@@ -27,6 +27,7 @@ Route::get('/', function () {
 // =========================================================================================================================================================================
 Route::prefix('demo')->name('demo.')->group(function (): void {
     Route::get('/', DemoDashboardController::class)->name('dashboard');
+    Route::get('/v2', fn () => view('demo.v2'))->name('v2');
     Route::post('/actor', [DemoActorController::class, 'update'])->name('actor');
 
 

@@ -13,7 +13,7 @@ class DomainLogger
 {
     public function reservationCreated(Reservation $reservation, User $actor, array $preview): void
     {
-        $this->reservations()->info('Reservation created.', [
+        $this->safe(fn () => $this->reservations()->info('Reservation created.', [
             ...$this->reservationContext($reservation),
             'actor_id' => $actor->id,
             'status' => $reservation->status?->value ?? $reservation->status,
@@ -21,12 +21,12 @@ class DomainLogger
             'distance_km' => $preview['distance_km'] ?? null,
             'estimated_duration_min' => $preview['estimated_duration_min'] ?? null,
             'occupation' => $preview['estimated_occupation'] ?? null,
-        ]);
+        ]));
     }
 
     public function reservationUpdated(Reservation $reservation, User $actor, array $preview): void
     {
-        $this->reservations()->info('Reservation updated.', [
+        $this->safe(fn () => $this->reservations()->info('Reservation updated.', [
             ...$this->reservationContext($reservation),
             'actor_id' => $actor->id,
             'status' => $reservation->status?->value ?? $reservation->status,
@@ -34,7 +34,7 @@ class DomainLogger
             'distance_km' => $preview['distance_km'] ?? null,
             'estimated_duration_min' => $preview['estimated_duration_min'] ?? null,
             'occupation' => $preview['estimated_occupation'] ?? null,
-        ]);
+        ]));
     }
 
     public function reservationStatusChanged(
@@ -44,18 +44,18 @@ class DomainLogger
         string $newStatus,
         string $reason
     ): void {
-        $this->reservations()->info('Reservation status changed.', [
+        $this->safe(fn () => $this->reservations()->info('Reservation status changed.', [
             ...$this->reservationContext($reservation),
             'actor_id' => $actor->id,
             'old_status' => $oldStatus,
             'new_status' => $newStatus,
             'reason' => $reason,
-        ]);
+        ]));
     }
 
     public function reservationConflictsDetected(array $data, array $conflicts, array $availability): void
     {
-        $this->reservations()->warning('Reservation preview has conflicts.', [
+        $this->safe(fn () => $this->reservations()->warning('Reservation preview has conflicts.', [
             'organization_id' => $data['organization_id'] ?? null,
             'trip_date' => $data['trip_date'] ?? null,
             'departure_time' => $data['departure_time'] ?? null,
@@ -64,85 +64,85 @@ class DomainLogger
             'conflict_types' => collect($conflicts)->pluck('type')->values()->all(),
             'related_reservation_ids' => collect($conflicts)->pluck('related_reservation_id')->filter()->values()->all(),
             'availability' => $availability,
-        ]);
+        ]));
     }
 
     public function routeDistanceCalculated(array $context): void
     {
-        $this->routing()->info('Route distance calculated.', $context);
+        $this->safe(fn () => $this->routing()->info('Route distance calculated.', $context));
     }
 
     public function routeDistanceUnavailable(array $context): void
     {
-        $this->routing()->warning('Route distance unavailable.', $context);
+        $this->safe(fn () => $this->routing()->warning('Route distance unavailable.', $context));
     }
 
     public function routeDistanceCalculationFailed(array $context, Throwable $exception): void
     {
-        $this->routing()->error('Route distance calculation failed.', [
+        $this->safe(fn () => $this->routing()->error('Route distance calculation failed.', [
             ...$context,
             'exception_class' => $exception::class,
             'exception_message' => $exception->getMessage(),
-        ]);
+        ]));
     }
 
     public function routeSheetGenerationStarted(array $context): void
     {
-        $this->documents()->info('Route sheet generation started.', $context);
+        $this->safe(fn () => $this->documents()->info('Route sheet generation started.', $context));
     }
 
     public function routeSheetGenerationSucceeded(Document $document, array $context): void
     {
-        $this->documents()->info('Route sheet generation succeeded.', [
+        $this->safe(fn () => $this->documents()->info('Route sheet generation succeeded.', [
             ...$context,
             'document_id' => $document->id,
             'file_path' => $document->file_path,
             'version' => $document->version,
-        ]);
+        ]));
     }
 
     public function routeSheetGenerationFailed(array $context, Throwable $exception): void
     {
-        $this->documents()->error('Route sheet generation failed.', [
+        $this->safe(fn () => $this->documents()->error('Route sheet generation failed.', [
             ...$context,
             'exception_class' => $exception::class,
             'exception_message' => $exception->getMessage(),
-        ]);
+        ]));
     }
 
     public function routeSheetSkipped(array $context): void
     {
-        $this->jobs()->notice('Route sheet generation skipped.', $context);
+        $this->safe(fn () => $this->jobs()->notice('Route sheet generation skipped.', $context));
     }
 
     public function dailyRouteSheetsStarted(array $context): void
     {
-        $this->jobs()->info('Daily route sheets job started.', $context);
+        $this->safe(fn () => $this->jobs()->info('Daily route sheets job started.', $context));
     }
 
     public function dailyRouteSheetsFinished(array $context): void
     {
-        $this->jobs()->info('Daily route sheets job finished.', $context);
+        $this->safe(fn () => $this->jobs()->info('Daily route sheets job finished.', $context));
     }
 
     public function deliberationGenerationStarted(array $context): void
     {
-        $this->documents()->info('Deliberation generation started.', $context);
+        $this->safe(fn () => $this->documents()->info('Deliberation generation started.', $context));
     }
 
     public function deliberationGenerationSucceeded(Document $document, array $context): void
     {
-        $this->documents()->info('Deliberation generation succeeded.', [
+        $this->safe(fn () => $this->documents()->info('Deliberation generation succeeded.', [
             ...$context,
             'document_id' => $document->id,
             'file_path' => $document->file_path,
             'version' => $document->version,
-        ]);
+        ]));
     }
 
     public function recurrenceCreated(Recurrence $recurrence, User $actor, int $validCount, int $skippedCount): void
     {
-        $this->reservations()->info('Recurrence created.', [
+        $this->safe(fn () => $this->reservations()->info('Recurrence created.', [
             'recurrence_id'      => $recurrence->id,
             'actor_id'           => $actor->id,
             'frequency'          => $recurrence->frequency,
@@ -150,25 +150,25 @@ class DomainLogger
             'end_date'           => $recurrence->end_date?->toDateString(),
             'valid_occurrences'  => $validCount,
             'skipped_occurrences' => $skippedCount,
-        ]);
+        ]));
     }
 
     public function recurrenceCancelled(Recurrence $recurrence, User $actor, int $cancelledCount): void
     {
-        $this->reservations()->info('Recurrence cancelled.', [
+        $this->safe(fn () => $this->reservations()->info('Recurrence cancelled.', [
             'recurrence_id'   => $recurrence->id,
             'actor_id'        => $actor->id,
             'cancelled_count' => $cancelledCount,
-        ]);
+        ]));
     }
 
     public function deliberationGenerationFailed(array $context, Throwable $exception): void
     {
-        $this->documents()->error('Deliberation generation failed.', [
+        $this->safe(fn () => $this->documents()->error('Deliberation generation failed.', [
             ...$context,
             'exception_class' => $exception::class,
             'exception_message' => $exception->getMessage(),
-        ]);
+        ]));
     }
 
     private function reservationContext(Reservation $reservation): array
@@ -211,5 +211,14 @@ class DomainLogger
     private function jobs(): mixed
     {
         return Log::channel('jobs');
+    }
+
+    private function safe(callable $fn): void
+    {
+        try {
+            $fn();
+        } catch (Throwable) {
+            // Log failures must never crash the application
+        }
     }
 }

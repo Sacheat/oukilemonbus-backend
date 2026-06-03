@@ -20,6 +20,23 @@ class LocationService
 
     public function create(array $data): Location
     {
+        // If coordinates were already provided (e.g. from autocomplete), skip geocoding
+        // and reuse an existing location with the same place_id if one exists.
+        if (isset($data['latitude'], $data['longitude'])) {
+            if (!empty($data['place_id'])) {
+                $existing = Location::where('place_id', $data['place_id'])->first();
+                if ($existing) {
+                    return $existing;
+                }
+            }
+
+            return Location::create([
+                ...$data,
+                'provider' => $data['provider'] ?? 'openrouteservice',
+                'is_verified' => true,
+            ]);
+        }
+
         $geocodedData = $this->geocode($data['formatted_address']);
 
         return Location::create([
@@ -40,6 +57,48 @@ class LocationService
         $location->update($data);
 
         return $location->refresh();
+    }
+
+    /**
+     * Retourne des suggestions d'adresses via ORS /geocode/autocomplete.
+     * Retourne un tableau vide si ORS n'est pas configuré ou en cas d'erreur.
+     *
+     * @return array<int, array{label: string, formatted_address: string, street: ?string, street_number: ?string, postal_code: ?string, city: ?string, country: string, latitude: float, longitude: float, place_id: ?string}>
+     */
+    public function suggest(string $query): array
+    {
+        if (blank($this->apiKey) || blank($this->baseUrl)) {
+            return [];
+        }
+
+        $response = Http::timeout(5)->get("{$this->baseUrl}/geocode/autocomplete", [
+            'api_key' => $this->apiKey,
+            'text' => $query,
+            'boundary.country' => 'BE',
+            'size' => 6,
+            'layers' => 'address,street',
+        ]);
+
+        if ($response->failed()) {
+            return [];
+        }
+
+        return collect($response->json('features', []))
+            ->map(fn (array $f): array => [
+                'label'             => $f['properties']['label'] ?? null,
+                'formatted_address' => $f['properties']['label'] ?? null,
+                'street'            => $f['properties']['street'] ?? null,
+                'street_number'     => $f['properties']['housenumber'] ?? null,
+                'postal_code'       => $f['properties']['postalcode'] ?? null,
+                'city'              => $f['properties']['locality'] ?? $f['properties']['county'] ?? null,
+                'country'           => 'Belgique',
+                'latitude'          => $f['geometry']['coordinates'][1],
+                'longitude'         => $f['geometry']['coordinates'][0],
+                'place_id'          => $f['properties']['id'] ?? null,
+            ])
+            ->filter(fn (array $s): bool => !blank($s['label']))
+            ->values()
+            ->all();
     }
 
     /**

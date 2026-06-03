@@ -96,6 +96,11 @@ Route::name('api.')->group(function (): void {
         /**
          * Locations routes
          */
+        // Must be before {location} to avoid route model binding conflict
+        Route::get('/locations/suggest', [LocationController::class, 'suggest'])
+            ->middleware('throttle:30,1')
+            ->name('locations.suggest');
+
         Route::middleware('permission:locations.view')->group(function (): void {
             Route::get('/locations', [LocationController::class, 'index'])->name('locations.index');
             Route::get('/locations/{location}', [LocationController::class, 'show'])->name('locations.show');
