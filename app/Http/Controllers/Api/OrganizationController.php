@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Organizations\BanOrganizationRequest;
 use App\Http\Requests\Organizations\StoreOrganizationRequest;
 use App\Http\Requests\Organizations\UpdateOrganizationRequest;
 use App\Http\Resources\OrganizationResource;
@@ -55,6 +56,22 @@ class OrganizationController extends Controller
     public function update(UpdateOrganizationRequest $request, Organization $organization): OrganizationResource
     {
         $organization = $this->organizationService->update($organization, $request->validated());
+
+        return new OrganizationResource($organization->load('location'));
+    }
+
+    public function ban(BanOrganizationRequest $request, Organization $organization): OrganizationResource
+    {
+        $organization = $this->organizationService->ban($organization, $request->validated('reason'));
+
+        return new OrganizationResource($organization->load('location'));
+    }
+
+    public function unban(Organization $organization): OrganizationResource
+    {
+        Gate::authorize('ban', $organization);
+
+        $organization = $this->organizationService->unban($organization);
 
         return new OrganizationResource($organization->load('location'));
     }

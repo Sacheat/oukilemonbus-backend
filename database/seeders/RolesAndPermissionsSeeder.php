@@ -41,6 +41,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'organizations.view',
             'organizations.create',
             'organizations.update',
+            'organizations.ban',
             'unavailabilities.view',
             'unavailabilities.create',
             'unavailabilities.update',

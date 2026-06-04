@@ -235,6 +235,7 @@ class ReservationService
     public function cancel(Reservation $reservation, User $actor, string $reason): Reservation
     {
         $this->assertCanTransition($reservation, ReservationStatus::ANNULE);
+        $this->ensureCancellationDeadlineNotPassed($reservation, $actor);
 
         return DB::transaction(function () use ($reservation, $actor, $reason): Reservation {
             $reservation->update([
@@ -458,7 +459,7 @@ class ReservationService
 
     private function ensureCouncilDecisionAllowsApproval(Reservation $reservation): void
     {
-        if ($reservation->organization->type === OrganizationType::ECOLE_COMMUNALE) {
+        if ($reservation->organization->type?->isCouncilDecisionExempt()) {
             return;
         }
 
@@ -614,6 +615,39 @@ class ReservationService
             priority: $priority,
             urgent: $urgent
         );
+    }
+
+    private function ensureCancellationDeadlineNotPassed(Reservation $reservation, User $actor): void
+    {
+        $tripDate = $reservation->trip_date?->toDateString();
+        $departureTime = $reservation->departure_time?->format('H:i:s');
+
+        if ($tripDate === null || $departureTime === null) {
+            return;
+        }
+
+        $isInternal = $actor->hasAnyRole(['admin', 'agent_communal']);
+
+        if ($isInternal) {
+            $minDaysBefore = (int) config('reservations.cancellation_commune_min_days_before', 1);
+            $deadline = CarbonImmutable::parse($tripDate)->startOfDay()->subDays($minDaysBefore - 1)->startOfDay();
+
+            if (CarbonImmutable::today()->gte($deadline)) {
+                throw ValidationException::withMessages([
+                    'reservation' => 'La commune ne peut plus annuler cette reservation : le delai d annulation est depasse (jusqu a la veille du trajet).',
+                ]);
+            }
+        } else {
+            $minHoursBefore = (int) config('reservations.cancellation_requester_min_hours_before', 24);
+            $departureAt = CarbonImmutable::parse($tripDate.' '.$departureTime);
+            $deadline = $departureAt->subHours($minHoursBefore);
+
+            if (CarbonImmutable::now()->gte($deadline)) {
+                throw ValidationException::withMessages([
+                    'reservation' => "L annulation n est plus possible : le delai de {$minHoursBefore}h avant le depart est depasse.",
+                ]);
+            }
+        }
     }
 
     private function isLastMinuteCancellation(Reservation $reservation): bool

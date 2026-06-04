@@ -246,6 +246,14 @@ Route::name('api.')->group(function (): void {
             ->middleware('permission:organizations.update')
             ->name('organizations.update');
 
+        Route::post('/organizations/{organization}/ban', [OrganizationController::class, 'ban'])
+            ->middleware('permission:organizations.ban')
+            ->name('organizations.ban');
+
+        Route::post('/organizations/{organization}/unban', [OrganizationController::class, 'unban'])
+            ->middleware('permission:organizations.ban')
+            ->name('organizations.unban');
+
         /**
          * Planning routes
          */

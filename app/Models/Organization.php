@@ -18,6 +18,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'name_contact',
     'location_id',
     'is_priority',
+    'is_banned',
+    'banned_reason',
     'annual_quota',
     'reservations_used_this_year',
     'quota_reset_year',
@@ -55,6 +57,7 @@ class Organization extends Model
         return [
             'type' => OrganizationType::class,
             'is_priority' => 'boolean',
+            'is_banned' => 'boolean',
             'annual_quota' => 'integer',
             'reservations_used_this_year' => 'integer',
             'quota_reset_year' => 'datetime',

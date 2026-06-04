@@ -41,6 +41,12 @@ class OrganizationPolicy
             && $this->isInternal($user);
     }
 
+    public function ban(User $user, Organization $organization): bool
+    {
+        return $user->can('organizations.ban')
+            && $user->hasRole('admin');
+    }
+
     private function isInternal(User $user): bool
     {
         return $user->hasAnyRole(self::INTERNAL_ROLES);

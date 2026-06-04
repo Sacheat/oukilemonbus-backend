@@ -5,27 +5,55 @@ namespace App\Enums;
 enum OrganizationType: string
 {
     case ECOLE_COMMUNALE = 'ecole_communale';
+    case PERSONNEL_COMMUNAL = 'personnel_communal';
+    case CPAS = 'cpas';
     case ASBL = 'asbl';
     case EXTERNE = 'externe';
 
-    /**
-     * Obtenir le label lisible en français
-     */
     public function label(): string
     {
         return match ($this) {
-            self::ECOLE_COMMUNALE => 'Ecole communale',
-            self::ASBL => 'ASBL',
-            self::EXTERNE => 'Externe',
+            self::ECOLE_COMMUNALE    => 'Ecole communale',
+            self::PERSONNEL_COMMUNAL => 'Personnel communal',
+            self::CPAS               => 'CPAS',
+            self::ASBL               => 'ASBL',
+            self::EXTERNE            => 'Externe',
         };
     }
 
-    /**
-     * Vérifier si l'organisation est prioritaire par défaut
-     */
     public function isPriorityByDefault(): bool
     {
-        return $this === self::ECOLE_COMMUNALE;
+        return $this->isInConfig('high_priority_types');
+    }
+
+    public function isAutoApproveType(): bool
+    {
+        return $this->isInConfig('auto_approve_types');
+    }
+
+    public function isQuotaExempt(): bool
+    {
+        return $this->isInConfig('quota_exempt_types');
+    }
+
+    public function isTimeRestrictionExempt(): bool
+    {
+        return $this->isInConfig('time_restriction_exempt_types');
+    }
+
+    public function isCouncilDecisionExempt(): bool
+    {
+        return $this->isInConfig('council_decision_exempt_types');
+    }
+
+    public function canUseRecurrences(): bool
+    {
+        return $this->isInConfig('recurrence_allowed_types');
+    }
+
+    private function isInConfig(string $key): bool
+    {
+        return in_array($this->value, config("reservations.{$key}", []), true);
     }
 
     /**

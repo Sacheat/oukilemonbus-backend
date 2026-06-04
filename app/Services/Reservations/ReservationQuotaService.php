@@ -15,21 +15,19 @@ class ReservationQuotaService
             return;
         }
 
-        $activeStatuses = [
+        $pendingStatuses = [
             ReservationStatus::EN_ATTENTE->value,
             ReservationStatus::EN_CONFLIT->value,
-            ReservationStatus::APPROUVE->value,
-            ReservationStatus::CONFIRME->value,
         ];
 
-        $activeFutureCount = $organization->reservations()
-            ->whereIn('status', $activeStatuses)
+        $pendingFutureCount = $organization->reservations()
+            ->whereIn('status', $pendingStatuses)
             ->whereDate('trip_date', '>=', now()->toDateString())
             ->count();
 
-        if ($activeFutureCount >= config('reservations.max_active_requests', 2)) {
+        if ($pendingFutureCount >= config('reservations.max_pending_requests', 2)) {
             throw ValidationException::withMessages([
-                'organization_id' => 'Cette organisation a deja atteint le maximum de demandes actives.',
+                'organization_id' => 'Cette organisation a deja atteint le maximum de demandes en attente de decision.',
             ]);
         }
 
@@ -63,6 +61,6 @@ class ReservationQuotaService
 
     public function isExempt(Organization $organization): bool
     {
-        return $organization->type === OrganizationType::ECOLE_COMMUNALE;
+        return $organization->type?->isQuotaExempt() ?? false;
     }
 }

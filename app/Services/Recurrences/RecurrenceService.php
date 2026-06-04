@@ -262,9 +262,9 @@ class RecurrenceService
 
     private function ensureSchoolOrganization(Organization $organization): void
     {
-        if ($organization->type !== OrganizationType::ECOLE_COMMUNALE) {
+        if (! $organization->type?->canUseRecurrences()) {
             throw ValidationException::withMessages([
-                'organization_id' => 'Les récurrences sont réservées aux écoles communales.',
+                'organization_id' => 'Les recurrences ne sont pas autorisees pour ce type d organisation.',
             ]);
         }
     }

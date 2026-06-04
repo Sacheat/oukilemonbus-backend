@@ -44,6 +44,26 @@ class OrganizationService
         return $organization->refresh();
     }
 
+    public function ban(Organization $organization, string $reason): Organization
+    {
+        $organization->update([
+            'is_banned' => true,
+            'banned_reason' => $reason,
+        ]);
+
+        return $organization->refresh();
+    }
+
+    public function unban(Organization $organization): Organization
+    {
+        $organization->update([
+            'is_banned' => false,
+            'banned_reason' => null,
+        ]);
+
+        return $organization->refresh();
+    }
+
     private function prepareData(array $data): array
     {
         if (array_key_exists('type', $data) && ! array_key_exists('is_priority', $data)) {

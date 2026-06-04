@@ -30,7 +30,7 @@ export async function renderPlanning(el) {
         el.querySelector('#planning-content').innerHTML = '<div class="loading">Chargement…</div>';
 
         try {
-            const { data } = await api.get('/planning', { params: { date_from: from, date_to: to } });
+            const { data } = await api.get('/planning', { params: { start_date: from, end_date: to } });
             renderWeek(el.querySelector('#planning-content'), data.data ?? [], mon);
         } catch (err) {
             el.querySelector('#planning-content').innerHTML = notice(apiError(err), 'error');

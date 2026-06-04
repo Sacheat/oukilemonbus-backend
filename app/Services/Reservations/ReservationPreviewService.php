@@ -11,6 +11,7 @@ use App\Exceptions\GeocodingException;
 use App\Models\Location;
 use App\Models\Organization;
 use App\Models\Reservation;
+use App\Models\Vehicle;
 use App\Services\Locations\LocationService;
 use App\Services\Logging\DomainLogger;
 use Carbon\CarbonImmutable;
@@ -38,9 +39,11 @@ class ReservationPreviewService
         $pickup = Location::findOrFail($data['pickup_location_id']);
         $destination = Location::findOrFail($data['destination_location_id']);
 
+        $this->ensureOrganizationNotBanned($organization);
         $this->ensureMinimumNotice($data['trip_date']);
         $this->ensureBookableDate($data['trip_date']);
         $this->ensureBelgianTrip($pickup, $destination);
+        $this->ensureVehicleCapacity($data);
         $this->quotaService->ensureCanCreate($organization, $data['trip_date']);
 
         $distance = $this->calculateDistance($pickup, $destination);
@@ -63,7 +66,7 @@ class ReservationPreviewService
 
         $status = count($conflicts) > 0
             ? ReservationStatus::EN_CONFLIT
-            : ($organization->type === OrganizationType::ECOLE_COMMUNALE ? ReservationStatus::APPROUVE : ReservationStatus::EN_ATTENTE);
+            : ($organization->type?->isAutoApproveType() ? ReservationStatus::APPROUVE : ReservationStatus::EN_ATTENTE);
 
         $estimatedOccupation = $this->formatOccupationWindow(
             $this->occupationService->windowForData($data, $estimatedDuration)
@@ -82,7 +85,7 @@ class ReservationPreviewService
             'estimated_occupation' => $estimatedOccupation,
             'availability' => $availability,
             'status' => $status->value,
-            'approval_type' => $organization->type === OrganizationType::ECOLE_COMMUNALE
+            'approval_type' => $organization->type?->isAutoApproveType()
                 ? ApprovalType::AUTO->value
                 : ApprovalType::MANUEL->value,
             'conflicts' => $conflicts,
@@ -162,7 +165,7 @@ class ReservationPreviewService
         $duration = $estimatedDurationMin ?? 0;
         $candidateWindow = $this->occupationService->windowForData($data, $estimatedDurationMin);
 
-        if ($organization->type !== OrganizationType::ECOLE_COMMUNALE) {
+        if (! $organization->type?->isTimeRestrictionExempt()) {
             $minDepartureTime = config('reservations.non_school_min_departure_time', '07:30');
             $maxReturnTime = config('reservations.non_school_max_return_time', '16:00');
             $maxTotalDuration = (int) config('reservations.non_school_max_total_duration_min', 300);
@@ -244,6 +247,35 @@ class ReservationPreviewService
         if (CarbonImmutable::parse($tripDate)->startOfDay()->lessThan($minimumDate)) {
             throw ValidationException::withMessages([
                 'trip_date' => 'La demande doit etre introduite au moins 15 jours avant la date souhaitee.',
+            ]);
+        }
+    }
+
+    private function ensureOrganizationNotBanned(Organization $organization): void
+    {
+        if ($organization->is_banned) {
+            $reason = $organization->banned_reason
+                ? " Motif : {$organization->banned_reason}"
+                : '';
+
+            throw ValidationException::withMessages([
+                'organization_id' => "Cette organisation est interdite d acces au service.{$reason}",
+            ]);
+        }
+    }
+
+    private function ensureVehicleCapacity(array $data): void
+    {
+        $required = ($data['nb_children'] ?? 0) + ($data['nb_adults'] ?? 0) + 1;
+
+        $hasCapacity = Vehicle::query()
+            ->where('is_active', true)
+            ->where('capacity', '>=', $required)
+            ->exists();
+
+        if (! $hasCapacity) {
+            throw ValidationException::withMessages([
+                'nb_children' => "Aucun vehicule de la flotte n'a une capacite suffisante pour {$required} occupants ({$required} = passagers + chauffeur). Verifiez le nombre de participants.",
             ]);
         }
     }
@@ -455,8 +487,8 @@ class ReservationPreviewService
         CarbonImmutable $createdAt
     ): array {
         $priorityLevel = match (true) {
-            $organizationType === OrganizationType::ECOLE_COMMUNALE && $activityType->isSchoolPriorityActivity() => 3,
-            $organizationType === OrganizationType::ECOLE_COMMUNALE => 2,
+            $organizationType->isPriorityByDefault() && $activityType->isSchoolPriorityActivity() => 3,
+            $organizationType->isPriorityByDefault() => 2,
             default => 1,
         };
 
