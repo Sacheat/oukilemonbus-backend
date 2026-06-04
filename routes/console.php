@@ -18,6 +18,11 @@ Schedule::command('notifications:prune')
     ->timezone('Europe/Brussels')
     ->withoutOverlapping();
 
+Schedule::command('documents:prune-orphan-proofs --days=7')
+    ->weeklyOn(0, '03:00')
+    ->timezone('Europe/Brussels')
+    ->withoutOverlapping();
+
 Schedule::command('notifications:send-digests')
     ->hourly()
     ->timezone('Europe/Brussels')

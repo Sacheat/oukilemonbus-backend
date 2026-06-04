@@ -5,6 +5,7 @@ namespace App\Services\UserOrgRequests;
 use App\Enums\RequestStatus;
 use App\Models\User;
 use App\Models\UserOrgRequest;
+use App\Services\Documents\ProofDocumentService;
 use App\Services\Notifications\NotificationDispatchService;
 use App\Services\Notifications\NotificationRecipientResolver;
 use Illuminate\Support\Facades\DB;
@@ -15,7 +16,8 @@ class UserOrgRequestService
     public function __construct(
         private readonly UserOrgRequestConfidenceScoreService $confidenceScoreService,
         private readonly NotificationDispatchService $notificationDispatchService,
-        private readonly NotificationRecipientResolver $notificationRecipientResolver
+        private readonly NotificationRecipientResolver $notificationRecipientResolver,
+        private readonly ProofDocumentService $proofDocumentService,
     ) {}
 
     public function create(User $user, array $data): UserOrgRequest
@@ -83,6 +85,12 @@ class UserOrgRequestService
             'reviewed_at' => now(),
             'rejection_reason' => $reason,
         ]);
+
+        // Supprimer le justificatif : inutile de le conserver après un refus
+        if ($request->proofDocument) {
+            $this->proofDocumentService->delete($request->proofDocument);
+            $request->update(['proof_document_id' => null]);
+        }
 
         return $request->refresh();
     }

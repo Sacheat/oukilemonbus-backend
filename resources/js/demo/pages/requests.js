@@ -62,7 +62,7 @@ async function loadOrgRequests(container) {
             <div class="panel">
                 <table>
                     <thead><tr>
-                        <th>#</th><th>Organisation</th><th>Demandeur</th><th>Type</th><th>Score</th><th>Statut</th><th>Date</th>
+                        <th>#</th><th>Organisation</th><th>Demandeur</th><th>Type</th><th>Justificatif</th><th>Score</th><th>Statut</th><th>Date</th>
                         ${isInternal() ? '<th>Actions</th>' : ''}
                     </tr></thead>
                     <tbody>
@@ -72,6 +72,10 @@ async function loadOrgRequests(container) {
                                 <td>${esc(r.organization_name ?? '—')}</td>
                                 <td>${esc(r.user?.first_name)} ${esc(r.user?.last_name)}</td>
                                 <td>${esc(r.organization_type ?? '—')}</td>
+                                <td>${r.proof_document_id
+                                    ? `<span class="badge ok" title="Fichier joint">📎 Joint</span>`
+                                    : `<span class="muted" style="font-size:11px">—</span>`
+                                }</td>
                                 <td>${r.confidence_score ?? '—'}</td>
                                 <td>${badge(r.status)}</td>
                                 <td style="font-size:12px">${fmtDateTime(r.created_at)}</td>
@@ -241,9 +245,13 @@ function openRequestOrgModal(onSuccess) {
             <label class="full">Commentaire
                 <textarea name="comment" placeholder="Informations complémentaires…"></textarea>
             </label>
+            <label class="full">
+                Pièce jointe justificative <span style="color:var(--muted);font-weight:400">(optionnel — PDF, JPG ou PNG, max 5 Mo)</span>
+                <input id="proof-file-input" type="file" accept=".pdf,.jpg,.jpeg,.png" style="padding:4px">
+            </label>
             <div class="full" id="request-org-error"></div>
             <div class="full actions">
-                <button type="submit" class="primary">Envoyer la demande</button>
+                <button type="submit" class="primary" id="btn-submit-request">Envoyer la demande</button>
             </div>
         </form>
     `;
@@ -252,18 +260,41 @@ function openRequestOrgModal(onSuccess) {
 
     document.getElementById('form-request-org').addEventListener('submit', async e => {
         e.preventDefault();
-        const fd = new FormData(e.target);
-        const payload = Object.fromEntries([...fd.entries()].filter(([, v]) => v !== ''));
-        const errEl = document.getElementById('request-org-error');
+        const fd     = new FormData(e.target);
+        const file   = document.getElementById('proof-file-input').files[0] ?? null;
+        const payload = Object.fromEntries([...fd.entries()].filter(([k, v]) => k !== 'proof_document' && v !== ''));
+        const errEl  = document.getElementById('request-org-error');
+        const btn    = document.getElementById('btn-submit-request');
         errEl.innerHTML = '';
+        btn.disabled = true;
+        btn.textContent = 'Envoi…';
 
         try {
-            await api.post('/org-registration-requests', payload);
-            toast('Demande envoyée. Un agent communal la traitera prochainement.');
+            // Étape 1 : créer la demande
+            const { data } = await api.post('/org-registration-requests', payload);
+            const requestId = data.data?.id ?? data.id;
+
+            // Étape 2 : upload du justificatif si présent
+            if (file && requestId) {
+                try {
+                    const formData = new FormData();
+                    formData.append('proof_document', file);
+                    await api.post(`/org-registration-requests/${requestId}/proof`, formData);
+                    toast('Demande envoyée avec justificatif.');
+                } catch (uploadErr) {
+                    // La demande est créée mais l'upload a échoué — on informe sans bloquer
+                    toast(`Demande créée mais le justificatif n'a pas pu être joint : ${apiError(uploadErr)}`, 'warning');
+                }
+            } else {
+                toast('Demande envoyée. Un agent communal la traitera prochainement.');
+            }
+
             close();
             onSuccess?.();
         } catch (err) {
             errEl.innerHTML = notice(apiError(err), 'error');
+            btn.disabled = false;
+            btn.textContent = 'Envoyer la demande';
         }
     });
 }

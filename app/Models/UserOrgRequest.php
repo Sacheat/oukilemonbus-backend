@@ -6,6 +6,7 @@ use App\Enums\RequestStatus;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use App\Models\Document;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 #[Fillable([
@@ -13,7 +14,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'requested_by_user_id',
     'requested_role',
     'justification',
-    'proof_document_path',
+    'proof_document_id',
     'status',
     'confidence_note',
     'reviewed_by_user_id',
@@ -39,6 +40,11 @@ class UserOrgRequest extends Model
     public function reviewedByUser(): BelongsTo
     {
         return $this->belongsTo(User::class, 'reviewed_by_user_id');
+    }
+
+    public function proofDocument(): BelongsTo
+    {
+        return $this->belongsTo(Document::class, 'proof_document_id');
     }
 
     protected function casts(): array

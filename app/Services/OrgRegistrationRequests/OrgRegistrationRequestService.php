@@ -6,6 +6,7 @@ use App\Enums\RequestStatus;
 use App\Models\Organization;
 use App\Models\OrgRegistrationRequest;
 use App\Models\User;
+use App\Services\Documents\ProofDocumentService;
 use App\Services\Notifications\NotificationDispatchService;
 use App\Services\Notifications\NotificationRecipientResolver;
 use Illuminate\Support\Facades\DB;
@@ -16,7 +17,8 @@ class OrgRegistrationRequestService
     public function __construct(
         private readonly OrgRegistrationConfidenceScoreService $confidenceScoreService,
         private readonly NotificationDispatchService $notificationDispatchService,
-        private readonly NotificationRecipientResolver $notificationRecipientResolver
+        private readonly NotificationRecipientResolver $notificationRecipientResolver,
+        private readonly ProofDocumentService $proofDocumentService,
     ) {}
 
     public function create(User $user, array $data): OrgRegistrationRequest
@@ -58,7 +60,7 @@ class OrgRegistrationRequestService
                 'name_contact' => $request->contact_person_name,
                 'location_id' => $request->location_id,
                 'is_priority' => $organizationType->isPriorityByDefault(),
-                'document_proof_path' => $request->proof_document_path,
+                'proof_document_id' => $request->proof_document_id,
             ])->refresh();
 
             $organization->users()->syncWithoutDetaching([
@@ -89,6 +91,12 @@ class OrgRegistrationRequestService
             'reviewed_at' => now(),
             'rejection_reason' => $reason,
         ]);
+
+        // Supprimer le justificatif : inutile de le conserver après un refus
+        if ($request->proofDocument) {
+            $this->proofDocumentService->delete($request->proofDocument);
+            $request->update(['proof_document_id' => null]);
+        }
 
         return $request->refresh();
     }

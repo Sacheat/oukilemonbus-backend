@@ -208,6 +208,14 @@ Route::name('api.')->group(function (): void {
             ->middleware('permission:org-registration-requests.review')
             ->name('org-registration-requests.reject');
 
+        Route::post('/org-registration-requests/{orgRegistrationRequest}/proof', [OrgRegistrationRequestController::class, 'uploadProof'])
+            ->middleware('permission:org-registration-requests.create')
+            ->name('org-registration-requests.proof.upload');
+
+        Route::delete('/org-registration-requests/{orgRegistrationRequest}/proof', [OrgRegistrationRequestController::class, 'deleteProof'])
+            ->middleware('permission:org-registration-requests.create')
+            ->name('org-registration-requests.proof.delete');
+
         /**
          * User organization requests routes
          */
@@ -229,6 +237,14 @@ Route::name('api.')->group(function (): void {
         Route::patch('/user-org-requests/{userOrgRequest}/reject', [UserOrgRequestController::class, 'reject'])
             ->middleware('permission:user-org-requests.review')
             ->name('user-org-requests.reject');
+
+        Route::post('/user-org-requests/{userOrgRequest}/proof', [UserOrgRequestController::class, 'uploadProof'])
+            ->middleware('permission:user-org-requests.create')
+            ->name('user-org-requests.proof.upload');
+
+        Route::delete('/user-org-requests/{userOrgRequest}/proof', [UserOrgRequestController::class, 'deleteProof'])
+            ->middleware('permission:user-org-requests.create')
+            ->name('user-org-requests.proof.delete');
 
         /**
          * Organizations routes
