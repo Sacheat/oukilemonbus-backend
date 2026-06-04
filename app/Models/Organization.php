@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\OrganizationType;
+use App\Models\Document;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -23,7 +24,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'annual_quota',
     'reservations_used_this_year',
     'quota_reset_year',
-    'document_proof_path',
+    'proof_document_id',
 ])]
 class Organization extends Model
 {
@@ -50,6 +51,11 @@ class Organization extends Model
     public function userOrgRequests(): HasMany
     {
         return $this->hasMany(UserOrgRequest::class);
+    }
+
+    public function proofDocument(): BelongsTo
+    {
+        return $this->belongsTo(Document::class, 'proof_document_id');
     }
 
     protected function casts(): array

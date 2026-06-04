@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use App\Models\Document;
 
 #[Fillable([
     'request_by_user_id',
@@ -19,7 +20,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'location_id',
     'contact_person_name',
     'contact_person_role',
-    'proof_document_path',
+    'proof_document_id',
     'comment',
     'status',
     'confidence_note',
@@ -44,6 +45,11 @@ class OrgRegistrationRequest extends Model
     public function reviewedByUser(): BelongsTo
     {
         return $this->belongsTo(User::class, 'reviewed_by_user_id');
+    }
+
+    public function proofDocument(): BelongsTo
+    {
+        return $this->belongsTo(Document::class, 'proof_document_id');
     }
 
     protected function casts(): array

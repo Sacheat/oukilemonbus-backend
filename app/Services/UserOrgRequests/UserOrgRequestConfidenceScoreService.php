@@ -33,14 +33,14 @@ class UserOrgRequestConfidenceScoreService
         $this->addWhenFilled($request->organization_id, 10, 'Organisation cible selectionnee.', $score, $reasons);
         $this->addWhenFilled($request->requested_role, 15, 'Role demande renseigne.', $score, $reasons);
         $this->addWhenFilled($request->justification, 20, 'Justification fournie.', $score, $reasons);
-        $this->addWhenFilled($request->proof_document_path, 25, 'Document justificatif fourni.', $score, $reasons);
+        $this->addWhenFilled($request->proof_document_id, 25, 'Document justificatif fourni.', $score, $reasons);
 
         if (filled($request->justification) && mb_strlen(trim($request->justification)) >= 30) {
             $score += 10;
             $reasons[] = 'Justification suffisamment detaillee.';
         }
 
-        if (blank($request->justification) && blank($request->proof_document_path)) {
+        if (blank($request->justification) && blank($request->proof_document_id)) {
             $score -= 15;
             $warnings[] = 'Demande sans justification ni justificatif.';
         }
@@ -50,7 +50,7 @@ class UserOrgRequestConfidenceScoreService
             $warnings[] = 'Justification trop courte.';
         }
 
-        if ($this->requiresProof($request->requested_role) && blank($request->proof_document_path)) {
+        if ($this->requiresProof($request->requested_role) && blank($request->proof_document_id)) {
             $score -= 5;
             $warnings[] = 'Role sensible sans justificatif.';
         }

@@ -8,6 +8,7 @@ enum DocumentType: string
     case ATTESTATION = 'attestation';
     case DELIBERATION = 'deliberation';
     case PLANNING = 'planning';
+    case JUSTIFICATIF = 'justificatif';
 
     public function label(): string
     {
@@ -16,6 +17,7 @@ enum DocumentType: string
             self::ATTESTATION => 'Attestation',
             self::DELIBERATION => 'Délibération',
             self::PLANNING => 'Planning',
+            self::JUSTIFICATIF => 'Justificatif',
         };
     }
 
@@ -26,6 +28,7 @@ enum DocumentType: string
             self::ATTESTATION => 'badge-check',
             self::DELIBERATION => 'clipboard-document-check',
             self::PLANNING => 'calendar',
+            self::JUSTIFICATIF => 'paper-clip',
         };
     }
 

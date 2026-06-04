@@ -5,9 +5,12 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\UserOrgRequests\ApproveUserOrgRequest;
 use App\Http\Requests\UserOrgRequests\RejectUserOrgRequest;
+use App\Http\Requests\Documents\StoreProofDocumentRequest;
 use App\Http\Requests\UserOrgRequests\StoreUserOrgRequest;
+use App\Http\Resources\DocumentResource;
 use App\Http\Resources\UserOrgRequestResource;
 use App\Models\UserOrgRequest;
+use App\Services\Documents\ProofDocumentService;
 use App\Services\UserOrgRequests\UserOrgRequestService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -16,7 +19,8 @@ use Illuminate\Support\Facades\Gate;
 class UserOrgRequestController extends Controller
 {
     public function __construct(
-        private readonly UserOrgRequestService $userOrgRequestService
+        private readonly UserOrgRequestService $userOrgRequestService,
+        private readonly ProofDocumentService $proofDocumentService,
     ) {}
 
     public function index(): AnonymousResourceCollection
@@ -93,5 +97,36 @@ class UserOrgRequestController extends Controller
         return new UserOrgRequestResource(
             $userOrgRequest->load(['organization', 'requestedByUser', 'reviewedByUser'])
         );
+    }
+
+    public function uploadProof(StoreProofDocumentRequest $request, UserOrgRequest $userOrgRequest): JsonResponse
+    {
+        Gate::authorize('update', $userOrgRequest);
+
+        if ($userOrgRequest->proofDocument) {
+            $this->proofDocumentService->delete($userOrgRequest->proofDocument);
+        }
+
+        $document = $this->proofDocumentService->store(
+            $request->file('proof_document'),
+            'user-org-requests',
+            $userOrgRequest->request_id
+        );
+
+        $userOrgRequest->update(['proof_document_id' => $document->id]);
+
+        return (new DocumentResource($document))->response()->setStatusCode(201);
+    }
+
+    public function deleteProof(UserOrgRequest $userOrgRequest): JsonResponse
+    {
+        Gate::authorize('update', $userOrgRequest);
+
+        if ($userOrgRequest->proofDocument) {
+            $this->proofDocumentService->delete($userOrgRequest->proofDocument);
+            $userOrgRequest->update(['proof_document_id' => null]);
+        }
+
+        return response()->json(null, 204);
     }
 }
