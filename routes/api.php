@@ -219,6 +219,10 @@ Route::name('api.')->group(function (): void {
         /**
          * User organization requests routes
          */
+        Route::get('/user-org-requests/available-organizations', [UserOrgRequestController::class, 'availableOrganizations'])
+            ->middleware('permission:user-org-requests.create')
+            ->name('user-org-requests.available-organizations');
+
         Route::middleware('permission:user-org-requests.view')->group(function (): void {
             Route::get('/user-org-requests', [UserOrgRequestController::class, 'index'])
                 ->name('user-org-requests.index');

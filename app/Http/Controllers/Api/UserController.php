@@ -26,6 +26,7 @@ class UserController extends Controller
 
         return UserResource::collection(
             User::query()
+                ->with('roles')
                 ->latest()
                 ->paginate()
         );

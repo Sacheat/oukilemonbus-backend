@@ -21,6 +21,7 @@ class DriverController extends Controller
     {
         return DriverResource::collection(
             Driver::query()
+                ->with('user')
                 ->orderBy('licence_expiry_date')
                 ->paginate()
         );

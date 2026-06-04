@@ -2,13 +2,16 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\RequestStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\UserOrgRequests\ApproveUserOrgRequest;
 use App\Http\Requests\UserOrgRequests\RejectUserOrgRequest;
 use App\Http\Requests\Documents\StoreProofDocumentRequest;
 use App\Http\Requests\UserOrgRequests\StoreUserOrgRequest;
 use App\Http\Resources\DocumentResource;
+use App\Http\Resources\OrganizationResource;
 use App\Http\Resources\UserOrgRequestResource;
+use App\Models\Organization;
 use App\Models\UserOrgRequest;
 use App\Services\Documents\ProofDocumentService;
 use App\Services\UserOrgRequests\UserOrgRequestService;
@@ -22,6 +25,33 @@ class UserOrgRequestController extends Controller
         private readonly UserOrgRequestService $userOrgRequestService,
         private readonly ProofDocumentService $proofDocumentService,
     ) {}
+
+    public function availableOrganizations(): AnonymousResourceCollection
+    {
+        $user = request()->user();
+
+        // Seuls les utilisateurs pouvant créer une demande accèdent à cette liste
+        abort_unless($user->can('user-org-requests.create'), 403);
+
+        // Organisations dont l'utilisateur n'est PAS encore membre
+        $memberOrgIds = $user->organizations()->pluck('organizations.id');
+
+        // Organisations pour lesquelles l'utilisateur a déjà une demande en attente
+        $pendingOrgIds = UserOrgRequest::query()
+            ->where('requested_by_user_id', $user->getKey())
+            ->where('status', RequestStatus::EN_ATTENTE)
+            ->pluck('organization_id');
+
+        $excludedIds = $memberOrgIds->merge($pendingOrgIds)->unique();
+
+        return OrganizationResource::collection(
+            Organization::query()
+                ->whereNotIn('id', $excludedIds)
+                ->where('is_banned', false)
+                ->orderBy('name')
+                ->get()
+        );
+    }
 
     public function index(): AnonymousResourceCollection
     {

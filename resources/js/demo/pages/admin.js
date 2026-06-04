@@ -1,17 +1,32 @@
 import { api, apiError } from '../api.js';
 import { esc, badge, fmtDate, fmtDateTime, notice, toast, showModal } from '../ui.js';
+import { hasRole } from '../auth.js';
+
+const isAdmin = () => hasRole('admin');
 
 export async function renderAdmin(el) {
+    const adminTabs = isAdmin()
+        ? `<div class="tab" data-tab="users">Utilisateurs</div>
+           <div class="tab" data-tab="monitoring">Monitoring</div>`
+        : '';
+
+    const adminPanels = isAdmin()
+        ? `<div id="tab-users" class="tab-panel"></div>
+           <div id="tab-monitoring" class="tab-panel"></div>`
+        : '';
+
     el.innerHTML = `
         <h1>Gestion</h1>
         <div class="tabs">
             <div class="tab active" data-tab="drivers">Chauffeurs</div>
             <div class="tab" data-tab="vehicles">Véhicules</div>
             <div class="tab" data-tab="unavailabilities">Indisponibilités</div>
+            ${adminTabs}
         </div>
         <div id="tab-drivers" class="tab-panel active"></div>
         <div id="tab-vehicles" class="tab-panel"></div>
         <div id="tab-unavailabilities" class="tab-panel"></div>
+        ${adminPanels}
     `;
 
     el.querySelectorAll('.tab').forEach(tab => {
@@ -24,13 +39,22 @@ export async function renderAdmin(el) {
     });
 
     await loadDrivers(el.querySelector('#tab-drivers'));
-    // Others load on tab click to avoid unnecessary requests
+
     el.querySelector('[data-tab="vehicles"]').addEventListener('click', () =>
         loadVehicles(el.querySelector('#tab-vehicles'))
     );
     el.querySelector('[data-tab="unavailabilities"]').addEventListener('click', () =>
         loadUnavailabilities(el.querySelector('#tab-unavailabilities'))
     );
+
+    if (isAdmin()) {
+        el.querySelector('[data-tab="users"]').addEventListener('click', () =>
+            loadUsers(el.querySelector('#tab-users'))
+        );
+        el.querySelector('[data-tab="monitoring"]').addEventListener('click', () =>
+            loadMonitoring(el.querySelector('#tab-monitoring'))
+        );
+    }
 }
 
 // ── Drivers ───────────────────────────────────────────────────────────────────
@@ -56,8 +80,8 @@ async function loadDrivers(container) {
                             ${items.map(d => `
                                 <tr>
                                     <td><code>${d.id}</code></td>
-                                    <td>${esc(d.user?.first_name)} ${esc(d.user?.last_name)}</td>
-                                    <td>${esc(d.license_number ?? '—')}</td>
+                                    <td>${esc(d.user?.first_name ?? '')} ${esc(d.user?.last_name ?? '')}</td>
+                                    <td>${esc(d.licence_number ?? '—')}</td>
                                     <td>${d.is_active ? badge('actif', 'ok') : badge('inactif', 'muted')}</td>
                                     <td>
                                         ${d.is_active
@@ -158,7 +182,6 @@ async function loadVehicles(container) {
                                     <td><code>${v.id}</code></td>
                                     <td>${esc(v.licence_plate ?? '—')}</td>
                                     <td>${v.capacity} pl.</td>
-                                    <td>${v.capacity} places</td>
                                     <td>${v.is_active ? badge('actif', 'ok') : badge('inactif', 'muted')}</td>
                                     <td>
                                         ${v.is_active
@@ -258,16 +281,19 @@ async function loadUnavailabilities(container) {
                             <th>#</th><th>Ressource</th><th>Du</th><th>Au</th><th>Motif</th><th>Statut</th><th>Actions</th>
                         </tr></thead>
                         <tbody>
-                            ${items.map(u => `
+                            ${items.map(u => {
+                                const driver  = u.driver_id  ? drivers.find(d => d.id === u.driver_id)   : null;
+                                const vehicle = u.vehicle_id ? vehicles.find(v => v.id === u.vehicle_id) : null;
+                                const resource = driver
+                                    ? esc((driver.user?.first_name ?? '') + ' ' + (driver.user?.last_name ?? ''))
+                                    : vehicle ? esc(vehicle.licence_plate ?? '—') : '—';
+                                return `
                                 <tr>
                                     <td><code>${u.id}</code></td>
-                                    <td>${u.driver
-                                        ? esc(u.driver.user?.first_name + ' ' + u.driver.user?.last_name)
-                                        : esc(u.vehicle?.name ?? '—')
-                                    }</td>
-                                    <td>${fmtDate(u.start_date)}</td>
-                                    <td>${fmtDate(u.end_date)}</td>
-                                    <td>${esc(u.reason ?? '—')}</td>
+                                    <td>${resource}</td>
+                                    <td>${fmtDate(u.start_datetime)}</td>
+                                    <td>${fmtDate(u.end_datetime)}</td>
+                                    <td>${esc(u.reason ?? u.reason_type ?? '—')}</td>
                                     <td>${u.is_active ? badge('actif', 'ok') : badge('annulé', 'muted')}</td>
                                     <td>
                                         ${u.is_active
@@ -276,7 +302,7 @@ async function loadUnavailabilities(container) {
                                         }
                                     </td>
                                 </tr>
-                            `).join('')}
+                            `}).join('')}
                         </tbody>
                     </table>
                 `}
@@ -315,7 +341,7 @@ function openUnavailabilityModal(container, drivers, vehicles) {
             <label id="unav-resource-label">Chauffeur
                 <select id="unav-resource">
                     <optgroup label="Chauffeurs" id="og-drivers">
-                        ${drivers.map(d => `<option value="driver:${d.id}">${esc(d.user?.first_name)} ${esc(d.user?.last_name)}</option>`).join('')}
+                        ${drivers.map(d => `<option value="driver:${d.id}">${esc((d.user?.first_name ?? '') + ' ' + (d.user?.last_name ?? ''))}</option>`).join('')}
                     </optgroup>
                 </select>
             </label>
@@ -336,8 +362,8 @@ function openUnavailabilityModal(container, drivers, vehicles) {
     el.querySelector('#unav-type').addEventListener('change', e => {
         const sel = el.querySelector('#unav-resource');
         sel.innerHTML = e.target.value === 'driver'
-            ? drivers.map(d => `<option value="driver:${d.id}">${esc(d.user?.first_name)} ${esc(d.user?.last_name)}</option>`).join('')
-            : vehicles.map(v => `<option value="vehicle:${v.id}">${esc(v.name)}</option>`).join('');
+            ? drivers.map(d => `<option value="driver:${d.id}">${esc((d.user?.first_name ?? '') + ' ' + (d.user?.last_name ?? ''))}</option>`).join('')
+            : vehicles.map(v => `<option value="vehicle:${v.id}">${esc(v.licence_plate ?? v.id)}</option>`).join('');
     });
 
     const footer = document.createElement('div');
@@ -349,12 +375,13 @@ function openUnavailabilityModal(container, drivers, vehicles) {
     el.querySelector('#unav-save').addEventListener('click', async () => {
         const [type, id] = el.querySelector('#unav-resource').value.split(':');
         const body = {
-            start_date: el.querySelector('#unav-start').value,
-            end_date: el.querySelector('#unav-end').value,
-            reason: el.querySelector('#unav-reason').value,
+            reason_type: type,
+            start_datetime: el.querySelector('#unav-start').value,
+            end_datetime: el.querySelector('#unav-end').value,
+            reason: el.querySelector('#unav-reason').value || null,
         };
-        if (type === 'driver') body.driver_id = id;
-        else body.vehicle_id = id;
+        if (type === 'driver') body.driver_id = parseInt(id);
+        else body.vehicle_id = parseInt(id);
 
         try {
             await api.post('/unavailabilities', body);
@@ -366,4 +393,140 @@ function openUnavailabilityModal(container, drivers, vehicles) {
             el.querySelector('#unav-notice').innerHTML = notice(apiError(err), 'error');
         }
     });
+}
+
+// ── Utilisateurs (admin + agent_communal) ─────────────────────────────────────
+
+async function loadUsers(container) {
+    if (container.dataset.loaded) return;
+    container.dataset.loaded = '1';
+    container.innerHTML = '<div class="loading">Chargement…</div>';
+    try {
+        const { data } = await api.get('/users');
+        const items = data.data ?? [];
+
+        container.innerHTML = `
+            <div class="split" style="margin-bottom:12px">
+                <h2>Utilisateurs (${items.length})</h2>
+            </div>
+            <div class="panel">
+                ${items.length === 0 ? '<p class="muted">Aucun utilisateur.</p>' : `
+                    <table>
+                        <thead><tr>
+                            <th>#</th><th>Nom</th><th>Email</th><th>Rôles</th><th>Statut</th>
+                            ${isAdmin() ? '<th>Actions</th>' : ''}
+                        </tr></thead>
+                        <tbody>
+                            ${items.map(u => `
+                                <tr style="${!u.active ? 'opacity:0.5' : ''}">
+                                    <td><code>${u.id}</code></td>
+                                    <td>${esc(u.full_name ?? `${u.first_name} ${u.last_name}`)}</td>
+                                    <td style="font-size:12px">${esc(u.email)}</td>
+                                    <td>${(u.roles ?? []).map(r => badge(r, r === 'admin' ? 'brand' : '')).join(' ')}</td>
+                                    <td>${u.active ? badge('actif', 'ok') : badge('bloqué', 'danger')}</td>
+                                    ${isAdmin() ? `
+                                        <td><div class="actions">
+                                            ${u.active
+                                                ? `<button class="sm danger" data-block="${u.id}">Bloquer</button>`
+                                                : `<button class="sm" data-unblock="${u.id}">Débloquer</button>`
+                                            }
+                                            <button class="sm danger" data-deactivate-user="${u.id}" title="Désactivation définitive irréversible">Désactiver</button>
+                                        </div></td>
+                                    ` : ''}
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                `}
+            </div>
+        `;
+
+        container.querySelectorAll('[data-block]').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                if (!confirm('Bloquer cet utilisateur ?')) return;
+                try {
+                    await api.patch(`/users/${btn.dataset.block}/status`, { active: false });
+                    toast('Utilisateur bloqué');
+                    delete container.dataset.loaded;
+                    loadUsers(container);
+                } catch (err) { toast(apiError(err), 'error'); }
+            });
+        });
+
+        container.querySelectorAll('[data-unblock]').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                try {
+                    await api.patch(`/users/${btn.dataset.unblock}/status`, { active: true });
+                    toast('Utilisateur débloqué');
+                    delete container.dataset.loaded;
+                    loadUsers(container);
+                } catch (err) { toast(apiError(err), 'error'); }
+            });
+        });
+
+        container.querySelectorAll('[data-deactivate-user]').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                if (!confirm('Désactiver définitivement cet utilisateur ? Cette action est irréversible.')) return;
+                try {
+                    await api.patch(`/users/${btn.dataset.deactivateUser}/deactivate`);
+                    toast('Utilisateur désactivé définitivement');
+                    delete container.dataset.loaded;
+                    loadUsers(container);
+                } catch (err) { toast(apiError(err), 'error'); }
+            });
+        });
+
+    } catch (err) {
+        container.innerHTML = notice(apiError(err), 'error');
+    }
+}
+
+// ── Monitoring notifications (admin uniquement) ───────────────────────────────
+
+async function loadMonitoring(container) {
+    container.innerHTML = '<div class="loading">Chargement…</div>';
+    try {
+        const { data } = await api.get('/notifications/health');
+        const isOk    = data.status === 'ok';
+        const metrics = data.data ?? {};
+
+        const metricRow = (label, value, alertFn) => {
+            const isAlert = alertFn(value);
+            return `
+                <div class="panel" style="padding:14px 16px;display:flex;justify-content:space-between;align-items:center">
+                    <span style="color:var(--muted);font-size:13px">${esc(label)}</span>
+                    <strong style="font-size:20px;color:${isAlert ? 'var(--danger)' : 'var(--text)'}">${value ?? '—'}</strong>
+                </div>
+            `;
+        };
+
+        container.innerHTML = `
+            <div class="split" style="margin-bottom:12px">
+                <h2>Monitoring notifications</h2>
+                <button id="btn-refresh-monitoring" class="sm">↻ Rafraîchir</button>
+            </div>
+
+            <div style="margin-bottom:16px">
+                <div class="notice ${isOk ? '' : 'error'}" style="display:inline-flex;align-items:center;gap:8px;margin:0">
+                    <strong>${isOk ? '✓ Système opérationnel' : '⚠ Alerte détectée'}</strong>
+                </div>
+            </div>
+
+            <div class="grid" style="grid-template-columns:repeat(3,1fr);gap:12px">
+                ${metricRow('Livraisons en attente', metrics.deliveries_pending_total, v => v > 50)}
+                ${metricRow('Échecs dernières 24h', metrics.deliveries_failed_last_24h, v => v > 20)}
+                ${metricRow('Haute priorité bloquée >5min', metrics.deliveries_high_pending_over_5m, v => v > 0)}
+                ${metricRow('Digests prêts à envoyer', metrics.digests_pending_ready, v => v > 100)}
+                ${metricRow('Âge livraison la plus ancienne (s)', metrics.oldest_pending_delivery_age_seconds, v => v > 300)}
+            </div>
+        `;
+
+        container.querySelector('#btn-refresh-monitoring')?.addEventListener('click', () => {
+            delete container.dataset.loaded;
+            loadMonitoring(container);
+        });
+
+    } catch (err) {
+        container.innerHTML = notice(apiError(err), 'error');
+    }
 }

@@ -39,61 +39,57 @@ export async function renderRequests(el) {
 async function loadOrgRequests(container) {
     container.innerHTML = '<div class="loading">Chargement…</div>';
 
-    if (!isInternal() && !document.getElementById('btn-new-org-request')) {
-        const btn = document.createElement('div');
-        btn.style.marginBottom = '12px';
-        btn.innerHTML = '<button id="btn-new-org-request" class="primary">+ Demander la création d\'une organisation</button>';
-        container.before(btn);
-        btn.querySelector('#btn-new-org-request').addEventListener('click', () =>
-            openRequestOrgModal(() => loadOrgRequests(container))
-        );
-    }
-
     try {
         const { data } = await api.get('/org-registration-requests');
         const items = data.data ?? [];
 
+        const btnHtml = !isInternal()
+            ? `<div style="margin-bottom:12px"><button id="btn-new-org-request" class="primary">+ Demander la création d'une organisation</button></div>`
+            : '';
+
         if (!items.length) {
-            container.innerHTML = '<p class="muted">Aucune demande.</p>';
-            return;
+            container.innerHTML = btnHtml + '<p class="muted">Aucune demande.</p>';
+        } else {
+            container.innerHTML = btnHtml + `
+                <div class="panel">
+                    <table>
+                        <thead><tr>
+                            <th>#</th><th>Organisation</th><th>Demandeur</th><th>Type</th><th>Justificatif</th><th>Score</th><th>Statut</th><th>Date</th>
+                            ${isInternal() ? '<th>Actions</th>' : ''}
+                        </tr></thead>
+                        <tbody>
+                            ${items.map(r => `
+                                <tr>
+                                    <td><code>${r.id}</code></td>
+                                    <td>${esc(r.organization_name ?? '—')}</td>
+                                    <td>${esc(r.requested_by_user?.first_name ?? '')} ${esc(r.requested_by_user?.last_name ?? '')}</td>
+                                    <td>${esc(r.organization_type ?? '—')}</td>
+                                    <td>${r.proof_document_id
+                                        ? `<span class="badge ok" title="Fichier joint">📎 Joint</span>`
+                                        : `<span class="muted" style="font-size:11px">—</span>`
+                                    }</td>
+                                    <td>${r.confidence_note ?? '—'}</td>
+                                    <td>${badge(r.status)}</td>
+                                    <td style="font-size:12px">${fmtDateTime(r.created_at)}</td>
+                                    ${isInternal() ? `
+                                        <td><div class="actions">
+                                            ${r.status === 'en_attente' ? `
+                                                <button class="sm primary" data-action="approve-org" data-id="${r.id}">Approuver</button>
+                                                <button class="sm danger" data-action="reject-org" data-id="${r.id}">Refuser</button>
+                                            ` : ''}
+                                        </div></td>
+                                    ` : ''}
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
         }
 
-        container.innerHTML = `
-            <div class="panel">
-                <table>
-                    <thead><tr>
-                        <th>#</th><th>Organisation</th><th>Demandeur</th><th>Type</th><th>Justificatif</th><th>Score</th><th>Statut</th><th>Date</th>
-                        ${isInternal() ? '<th>Actions</th>' : ''}
-                    </tr></thead>
-                    <tbody>
-                        ${items.map(r => `
-                            <tr>
-                                <td><code>${r.id}</code></td>
-                                <td>${esc(r.organization_name ?? '—')}</td>
-                                <td>${esc(r.user?.first_name)} ${esc(r.user?.last_name)}</td>
-                                <td>${esc(r.organization_type ?? '—')}</td>
-                                <td>${r.proof_document_id
-                                    ? `<span class="badge ok" title="Fichier joint">📎 Joint</span>`
-                                    : `<span class="muted" style="font-size:11px">—</span>`
-                                }</td>
-                                <td>${r.confidence_score ?? '—'}</td>
-                                <td>${badge(r.status)}</td>
-                                <td style="font-size:12px">${fmtDateTime(r.created_at)}</td>
-                                ${isInternal() ? `
-                                    <td><div class="actions">
-                                        ${r.status === 'en_attente' ? `
-                                            <button class="sm primary" data-action="approve-org" data-id="${r.id}">Approuver</button>
-                                            <button class="sm danger" data-action="reject-org" data-id="${r.id}">Refuser</button>
-                                        ` : ''}
-                                    </div></td>
-                                ` : ''}
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
-            </div>
-        `;
-
+        container.querySelector('#btn-new-org-request')?.addEventListener('click', () =>
+            openRequestOrgModal(() => loadOrgRequests(container))
+        );
         container.querySelectorAll('[data-action="approve-org"]').forEach(btn => {
             btn.addEventListener('click', () => approveOrg(btn.dataset.id, container));
         });
@@ -133,47 +129,54 @@ async function rejectOrg(id, container) {
 
 async function loadUserOrgRequests(container) {
     container.innerHTML = '<div class="loading">Chargement…</div>';
+
     try {
         const { data } = await api.get('/user-org-requests');
         const items = data.data ?? [];
 
+        const btnHtml = !isInternal()
+            ? `<div style="margin-bottom:12px"><button id="btn-new-uorg-request" class="primary">+ Demander l'adhésion à une organisation</button></div>`
+            : '';
+
         if (!items.length) {
-            container.innerHTML = '<p class="muted">Aucune demande d\'adhésion.</p>';
-            return;
+            container.innerHTML = btnHtml + '<p class="muted">Aucune demande d\'adhésion.</p>';
+        } else {
+            container.innerHTML = btnHtml + `
+                <div class="panel">
+                    <table>
+                        <thead><tr>
+                            <th>#</th><th>Utilisateur</th><th>Organisation</th><th>Rôle demandé</th><th>Score</th><th>Statut</th><th>Date</th>
+                            ${isInternal() ? '<th>Actions</th>' : ''}
+                        </tr></thead>
+                        <tbody>
+                            ${items.map(r => `
+                                <tr>
+                                    <td><code>${r.request_id}</code></td>
+                                    <td>${esc(r.requested_by_user?.first_name ?? '')} ${esc(r.requested_by_user?.last_name ?? '')}</td>
+                                    <td>${esc(r.organization?.name ?? '—')}</td>
+                                    <td>${esc(r.requested_role ?? '—')}</td>
+                                    <td>${r.confidence_note ?? '—'}</td>
+                                    <td>${badge(r.status)}</td>
+                                    <td style="font-size:12px">${fmtDateTime(r.created_at)}</td>
+                                    ${isInternal() ? `
+                                        <td><div class="actions">
+                                            ${r.status === 'en_attente' ? `
+                                                <button class="sm primary" data-action="approve-uorg" data-id="${r.request_id}">Approuver</button>
+                                                <button class="sm danger" data-action="reject-uorg" data-id="${r.request_id}">Refuser</button>
+                                            ` : ''}
+                                        </div></td>
+                                    ` : ''}
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
         }
 
-        container.innerHTML = `
-            <div class="panel">
-                <table>
-                    <thead><tr>
-                        <th>#</th><th>Utilisateur</th><th>Organisation</th><th>Rôle demandé</th><th>Score</th><th>Statut</th><th>Date</th>
-                        ${isInternal() ? '<th>Actions</th>' : ''}
-                    </tr></thead>
-                    <tbody>
-                        ${items.map(r => `
-                            <tr>
-                                <td><code>${r.id}</code></td>
-                                <td>${esc(r.user?.first_name)} ${esc(r.user?.last_name)}</td>
-                                <td>${esc(r.organization?.name ?? '—')}</td>
-                                <td>${esc(r.requested_role ?? '—')}</td>
-                                <td>${r.confidence_score ?? '—'}</td>
-                                <td>${badge(r.status)}</td>
-                                <td style="font-size:12px">${fmtDateTime(r.created_at)}</td>
-                                ${isInternal() ? `
-                                    <td><div class="actions">
-                                        ${r.status === 'en_attente' ? `
-                                            <button class="sm primary" data-action="approve-uorg" data-id="${r.id}">Approuver</button>
-                                            <button class="sm danger" data-action="reject-uorg" data-id="${r.id}">Refuser</button>
-                                        ` : ''}
-                                    </div></td>
-                                ` : ''}
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
-            </div>
-        `;
-
+        container.querySelector('#btn-new-uorg-request')?.addEventListener('click', () =>
+            openJoinOrgModal(() => loadUserOrgRequests(container))
+        );
         container.querySelectorAll('[data-action="approve-uorg"]').forEach(btn => {
             btn.addEventListener('click', () => approveUserOrg(btn.dataset.id, container));
         });
@@ -287,6 +290,103 @@ function openRequestOrgModal(onSuccess) {
                 }
             } else {
                 toast('Demande envoyée. Un agent communal la traitera prochainement.');
+            }
+
+            close();
+            onSuccess?.();
+        } catch (err) {
+            errEl.innerHTML = notice(apiError(err), 'error');
+            btn.disabled = false;
+            btn.textContent = 'Envoyer la demande';
+        }
+    });
+}
+
+// ── Demande d'adhésion à une organisation (utilisateur externe) ───────────────
+
+const REQUESTED_ROLES = [
+    { value: 'responsable', label: 'Responsable' },
+    { value: 'referent',    label: 'Référent' },
+    { value: 'directeur',   label: 'Directeur' },
+    { value: 'prof',        label: 'Professeur' },
+    { value: 'animateur',   label: 'Animateur' },
+];
+
+async function openJoinOrgModal(onSuccess) {
+    // Charger les organisations rejoignables (pas déjà membre, pas de demande en attente)
+    let orgOptions = '<option value="">Chargement…</option>';
+    try {
+        const { data } = await api.get('/user-org-requests/available-organizations');
+        const orgs = data.data ?? [];
+        orgOptions = orgs.length
+            ? orgs.map(o => `<option value="${o.id}">${esc(o.name)} (${esc(o.type ?? '')})</option>`).join('')
+            : '<option value="" disabled>Aucune organisation disponible à rejoindre</option>';
+    } catch {
+        orgOptions = '<option value="" disabled>Impossible de charger les organisations</option>';
+    }
+
+    const roleOptions = REQUESTED_ROLES
+        .map(r => `<option value="${r.value}">${esc(r.label)}</option>`)
+        .join('');
+
+    const body = `
+        <form id="form-join-org" class="form-grid">
+            <label class="full">Organisation <span style="color:var(--danger)">*</span>
+                <select name="organization_id" required>
+                    <option value="">— Choisir —</option>
+                    ${orgOptions}
+                </select>
+            </label>
+            <label class="full">Rôle demandé <span style="color:var(--danger)">*</span>
+                <select name="requested_role" required>
+                    <option value="">— Choisir —</option>
+                    ${roleOptions}
+                </select>
+            </label>
+            <label class="full">Justification
+                <textarea name="justification" placeholder="Expliquez votre lien avec cette organisation…" rows="3"></textarea>
+            </label>
+            <label class="full">
+                Pièce jointe justificative <span style="color:var(--muted);font-weight:400">(optionnel — PDF, JPG ou PNG, max 5 Mo)</span>
+                <input id="join-proof-file-input" type="file" accept=".pdf,.jpg,.jpeg,.png" style="padding:4px">
+            </label>
+            <div class="full" id="join-org-error"></div>
+            <div class="full actions">
+                <button type="submit" class="primary" id="btn-submit-join">Envoyer la demande</button>
+            </div>
+        </form>
+    `;
+
+    const { close } = showModal('Demande d\'adhésion à une organisation', body);
+
+    document.getElementById('form-join-org').addEventListener('submit', async e => {
+        e.preventDefault();
+        const fd      = new FormData(e.target);
+        const file    = document.getElementById('join-proof-file-input').files[0] ?? null;
+        const payload = Object.fromEntries([...fd.entries()].filter(([, v]) => v !== ''));
+        const errEl   = document.getElementById('join-org-error');
+        const btn     = document.getElementById('btn-submit-join');
+        errEl.innerHTML = '';
+        btn.disabled = true;
+        btn.textContent = 'Envoi…';
+
+        try {
+            // Étape 1 : créer la demande d'adhésion
+            const { data } = await api.post('/user-org-requests', payload);
+            const requestId = data.data?.request_id ?? data.request_id;
+
+            // Étape 2 : upload du justificatif si présent
+            if (file && requestId) {
+                try {
+                    const formData = new FormData();
+                    formData.append('proof_document', file);
+                    await api.post(`/user-org-requests/${requestId}/proof`, formData);
+                    toast('Demande envoyée avec justificatif.');
+                } catch (uploadErr) {
+                    toast(`Demande créée mais le justificatif n'a pas pu être joint : ${apiError(uploadErr)}`, 'warning');
+                }
+            } else {
+                toast('Demande d\'adhésion envoyée.');
             }
 
             close();
