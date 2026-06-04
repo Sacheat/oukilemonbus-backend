@@ -12,6 +12,7 @@ export async function renderPlanning(el) {
                 <button id="btn-prev">‹ Semaine préc.</button>
                 <span id="week-label" style="font-size:13px;color:var(--muted)"></span>
                 <button id="btn-next">Semaine suiv. ›</button>
+                <button id="btn-export" title="Exporter la semaine en XLS">⬇ Export XLS</button>
             </div>
         </div>
         <div id="planning-content"><div class="loading">Chargement…</div></div>
@@ -46,6 +47,19 @@ export async function renderPlanning(el) {
         const next = new Date(currentMonday);
         next.setDate(next.getDate() + 7);
         load(next);
+    });
+    el.querySelector('#btn-export').addEventListener('click', () => {
+        const from = toIso(currentMonday);
+        const sun = new Date(currentMonday);
+        sun.setDate(sun.getDate() + 6);
+        const to = toIso(sun);
+        const url = `/api/planning/export?start_date=${from}&end_date=${to}`;
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = '';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
     });
 
     await load(monday);
@@ -112,7 +126,10 @@ function getMonday(d) {
 }
 
 function toIso(d) {
-    return d.toISOString().slice(0, 10);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
 }
 
 function fmtShort(d) {
