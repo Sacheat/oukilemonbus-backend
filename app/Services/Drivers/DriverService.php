@@ -17,6 +17,12 @@ class DriverService
         return $driver->refresh();
     }
 
+    public function activate(Driver $driver): Driver
+    {
+        $driver->update(['is_active' => true]);
+        return $driver->refresh();
+    }
+
     public function deactivate(Driver $driver): Driver
     {
         $driver->update(['is_active' => false]);

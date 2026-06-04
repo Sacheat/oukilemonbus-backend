@@ -77,6 +77,17 @@ class OrgRegistrationRequestService
                 'rejection_reason' => null,
             ]);
 
+            $requester = $request->requestedByUser;
+            if ($requester) {
+                $this->notificationDispatchService->dispatch(
+                    users: collect([$requester]),
+                    eventKey: 'org_registration_request.approved',
+                    category: 'admin_workflow',
+                    title: 'Demande d organisation approuvee',
+                    message: "Votre demande #{$request->id} a ete approuvee. L organisation \"{$organization->name}\" a ete creee."
+                );
+            }
+
             return $organization;
         });
     }
@@ -84,6 +95,8 @@ class OrgRegistrationRequestService
     public function reject(OrgRegistrationRequest $request, User $reviewer, string $reason): OrgRegistrationRequest
     {
         $this->ensurePending($request);
+
+        $requester = $request->requestedByUser;
 
         $request->update([
             'status' => RequestStatus::REFUSE,
@@ -96,6 +109,16 @@ class OrgRegistrationRequestService
         if ($request->proofDocument) {
             $this->proofDocumentService->delete($request->proofDocument);
             $request->update(['proof_document_id' => null]);
+        }
+
+        if ($requester) {
+            $this->notificationDispatchService->dispatch(
+                users: collect([$requester]),
+                eventKey: 'org_registration_request.rejected',
+                category: 'admin_workflow',
+                title: 'Demande d organisation refusee',
+                message: "Votre demande #{$request->id} a ete refusee. Motif : {$reason}"
+            );
         }
 
         return $request->refresh();

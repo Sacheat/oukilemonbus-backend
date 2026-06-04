@@ -3,7 +3,7 @@ import axios from 'axios';
 export const api = axios.create({
     baseURL: '/api',
     withCredentials: true, // needed for session cookie auth (Sanctum SPA)
-    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    headers: { Accept: 'application/json' },
     xsrfCookieName: 'XSRF-TOKEN',
     xsrfHeaderName: 'X-XSRF-TOKEN',
 });

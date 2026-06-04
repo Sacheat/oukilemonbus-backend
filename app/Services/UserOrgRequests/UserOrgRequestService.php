@@ -70,6 +70,15 @@ class UserOrgRequestService
                 'rejection_reason' => null,
             ]);
 
+            $orgName = $request->organization->name ?? "#{$request->organization_id}";
+            $this->notificationDispatchService->dispatch(
+                users: collect([$requester]),
+                eventKey: 'user_org_request.approved',
+                category: 'admin_workflow',
+                title: 'Adhesion approuvee',
+                message: "Votre demande d adhesion a l organisation \"{$orgName}\" a ete approuvee."
+            );
+
             return $request->refresh();
         });
     }
@@ -77,6 +86,8 @@ class UserOrgRequestService
     public function reject(UserOrgRequest $request, User $reviewer, string $reason, ?int $confidenceNote = null): UserOrgRequest
     {
         $this->ensurePending($request);
+
+        $requester = $request->requestedByUser;
 
         $request->update([
             'status' => RequestStatus::REFUSE,
@@ -90,6 +101,17 @@ class UserOrgRequestService
         if ($request->proofDocument) {
             $this->proofDocumentService->delete($request->proofDocument);
             $request->update(['proof_document_id' => null]);
+        }
+
+        if ($requester) {
+            $orgName = $request->organization->name ?? "#{$request->organization_id}";
+            $this->notificationDispatchService->dispatch(
+                users: collect([$requester]),
+                eventKey: 'user_org_request.rejected',
+                category: 'admin_workflow',
+                title: 'Adhesion refusee',
+                message: "Votre demande d adhesion a l organisation \"{$orgName}\" a ete refusee. Motif : {$reason}"
+            );
         }
 
         return $request->refresh();

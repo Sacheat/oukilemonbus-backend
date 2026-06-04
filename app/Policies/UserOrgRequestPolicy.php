@@ -37,6 +37,12 @@ class UserOrgRequestPolicy
         return $user->can('user-org-requests.create');
     }
 
+    public function update(User $user, UserOrgRequest $userOrgRequest): bool
+    {
+        return $this->isRequester($user, $userOrgRequest)
+            || $this->isInternal($user);
+    }
+
     public function approve(User $user, UserOrgRequest $userOrgRequest): bool
     {
         return $user->can('user-org-requests.review')

@@ -162,6 +162,10 @@ Route::name('api.')->group(function (): void {
             ->middleware('permission:vehicles.update')
             ->name('vehicles.update');
 
+        Route::patch('/vehicles/{vehicle}/activate', [VehicleController::class, 'activate'])
+            ->middleware('permission:vehicles.update')
+            ->name('vehicles.activate');
+
         Route::patch('/vehicles/{vehicle}/deactivate', [VehicleController::class, 'deactivate'])
             ->middleware('permission:vehicles.deactivate')
             ->name('vehicles.deactivate');
@@ -181,6 +185,10 @@ Route::name('api.')->group(function (): void {
         Route::patch('/drivers/{driver}', [DriverController::class, 'update'])
             ->middleware('permission:drivers.update')
             ->name('drivers.update');
+
+        Route::patch('/drivers/{driver}/activate', [DriverController::class, 'activate'])
+            ->middleware('permission:drivers.update')
+            ->name('drivers.activate');
 
         Route::patch('/drivers/{driver}/deactivate', [DriverController::class, 'deactivate'])
             ->middleware('permission:drivers.deactivate')

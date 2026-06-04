@@ -1,5 +1,13 @@
 import { api, apiError } from '../api.js';
 import { esc, fmtDateTime, notice, toast } from '../ui.js';
+import { navigate } from '../router.js';
+
+const CATEGORY_META = {
+    reservation_updates:      { icon: '📋', label: 'Réservation' },
+    admin_workflow:           { icon: '⚙️',  label: 'Workflow admin' },
+    driver_planning:          { icon: '🚌', label: 'Planning chauffeur' },
+    last_minute_cancellation: { icon: '🚨', label: 'Annulation urgente' },
+};
 
 export async function renderNotifications(el) {
     el.innerHTML = `
@@ -52,16 +60,40 @@ async function loadNotifications(container) {
 
         container.innerHTML = `
             <div class="stack">
-                ${items.map(n => `
-                    <div style="display:flex;gap:12px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--line);${!n.read_at ? 'background:var(--brand-soft);padding:8px;border-radius:6px;border:none' : ''}">
-                        <div style="flex:1">
-                            <div style="font-weight:${!n.read_at ? '650' : '400'}">${esc(n.data?.title ?? n.type ?? '—')}</div>
-                            <div class="muted" style="font-size:12px;margin-top:2px">${esc(n.data?.message ?? '')}</div>
+                ${items.map(n => {
+                    const d = n.data ?? {};
+                    const isUnread = !n.read_at;
+                    const isUrgent = d.priority === 'high';
+                    const meta = CATEGORY_META[d.category] ?? { icon: '🔔', label: d.category ?? '' };
+                    const borderColor = isUrgent ? 'var(--danger)' : 'var(--brand)';
+                    const rowStyle = isUnread
+                        ? `background:var(--brand-soft);padding:10px 12px;border-radius:6px;border-left:3px solid ${borderColor}`
+                        : `padding:8px 0 8px 3px;border-bottom:1px solid var(--line)`;
+
+                    const actions = [];
+                    if (d.reservation_id) {
+                        actions.push(`<button class="sm" data-goto-reservation="${d.reservation_id}">→ Voir la réservation</button>`);
+                    }
+                    if (d.document_id) {
+                        actions.push(`<button class="sm" data-open-doc="/api/documents/${d.document_id}/download">📄 Voir le document</button>`);
+                    }
+
+                    return `
+                    <div style="display:flex;gap:12px;align-items:flex-start;${rowStyle}">
+                        <div style="font-size:18px;line-height:1;padding-top:2px">${meta.icon}</div>
+                        <div style="flex:1;min-width:0">
+                            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+                                <span style="font-weight:${isUnread ? '650' : '400'}">${esc(d.title ?? n.type ?? '—')}</span>
+                                <span class="badge${isUrgent ? ' danger' : ''}" style="font-size:10px">${esc(meta.label)}</span>
+                                ${isUrgent ? '<span class="badge danger" style="font-size:10px">Urgent</span>' : ''}
+                            </div>
+                            <div class="muted" style="font-size:12px;margin-top:2px">${esc(d.message ?? '')}</div>
+                            ${actions.length ? `<div class="actions" style="margin-top:6px">${actions.join('')}</div>` : ''}
                             <div class="muted" style="font-size:11px;margin-top:4px">${fmtDateTime(n.created_at)}</div>
                         </div>
-                        ${!n.read_at ? `<button class="sm" data-notif-id="${n.id}">Lu</button>` : ''}
+                        ${isUnread ? `<button class="sm" data-notif-id="${n.id}" style="flex-shrink:0">Lu</button>` : ''}
                     </div>
-                `).join('')}
+                `}).join('')}
             </div>
         `;
 
@@ -74,6 +106,14 @@ async function loadNotifications(container) {
                     toast(apiError(err), 'error');
                 }
             });
+        });
+
+        container.querySelectorAll('[data-goto-reservation]').forEach(btn => {
+            btn.addEventListener('click', () => navigate('/reservations'));
+        });
+
+        container.querySelectorAll('[data-open-doc]').forEach(btn => {
+            btn.addEventListener('click', () => window.open(btn.dataset.openDoc, '_blank', 'noopener'));
         });
 
     } catch (err) {

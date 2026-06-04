@@ -65,7 +65,13 @@ async function loadOrgRequests(container) {
                                     <td>${esc(r.requested_by_user?.first_name ?? '')} ${esc(r.requested_by_user?.last_name ?? '')}</td>
                                     <td>${esc(r.organization_type ?? '—')}</td>
                                     <td>${r.proof_document_id
-                                        ? `<span class="badge ok" title="Fichier joint">📎 Joint</span>`
+                                        ? `<div class="actions">
+                                               ${isInternal()
+                                                   ? `<button class="sm" data-open-proof="/api/documents/${r.proof_document_id}/download">📎 Voir</button>`
+                                                   : `<span class="badge ok" title="Fichier joint">📎 Joint</span>`
+                                               }
+                                               ${!isInternal() && r.status === 'en_attente' ? `<button class="sm danger" data-del-proof-org="${r.id}">✕</button>` : ''}
+                                           </div>`
                                         : `<span class="muted" style="font-size:11px">—</span>`
                                     }</td>
                                     <td>${r.confidence_note ?? '—'}</td>
@@ -90,6 +96,19 @@ async function loadOrgRequests(container) {
         container.querySelector('#btn-new-org-request')?.addEventListener('click', () =>
             openRequestOrgModal(() => loadOrgRequests(container))
         );
+        container.querySelectorAll('[data-open-proof]').forEach(btn => {
+            btn.addEventListener('click', () => window.open(btn.dataset.openProof, '_blank', 'noopener'));
+        });
+        container.querySelectorAll('[data-del-proof-org]').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                if (!confirm('Supprimer la pièce jointe ?')) return;
+                try {
+                    await api.delete(`/org-registration-requests/${btn.dataset.delProofOrg}/proof`);
+                    toast('Pièce jointe supprimée');
+                    loadOrgRequests(container);
+                } catch (err) { toast(apiError(err), 'error'); }
+            });
+        });
         container.querySelectorAll('[data-action="approve-org"]').forEach(btn => {
             btn.addEventListener('click', () => approveOrg(btn.dataset.id, container));
         });
@@ -114,10 +133,10 @@ async function approveOrg(id, container) {
 }
 
 async function rejectOrg(id, container) {
-    const reason = prompt('Motif de refus (optionnel)');
-    if (reason === null) return;
+    const reason = prompt('Motif de refus (obligatoire)');
+    if (reason === null || reason.trim() === '') return;
     try {
-        await api.patch(`/org-registration-requests/${id}/reject`, { reason });
+        await api.patch(`/org-registration-requests/${id}/reject`, { rejection_reason: reason.trim() });
         toast('Demande refusée');
         await loadOrgRequests(container);
     } catch (err) {
@@ -145,7 +164,7 @@ async function loadUserOrgRequests(container) {
                 <div class="panel">
                     <table>
                         <thead><tr>
-                            <th>#</th><th>Utilisateur</th><th>Organisation</th><th>Rôle demandé</th><th>Score</th><th>Statut</th><th>Date</th>
+                            <th>#</th><th>Utilisateur</th><th>Organisation</th><th>Rôle demandé</th><th>Justificatif</th><th>Score</th><th>Statut</th><th>Date</th>
                             ${isInternal() ? '<th>Actions</th>' : ''}
                         </tr></thead>
                         <tbody>
@@ -155,6 +174,16 @@ async function loadUserOrgRequests(container) {
                                     <td>${esc(r.requested_by_user?.first_name ?? '')} ${esc(r.requested_by_user?.last_name ?? '')}</td>
                                     <td>${esc(r.organization?.name ?? '—')}</td>
                                     <td>${esc(r.requested_role ?? '—')}</td>
+                                    <td>${r.proof_document_id
+                                        ? `<div class="actions">
+                                               ${isInternal()
+                                                   ? `<button class="sm" data-open-proof="/api/documents/${r.proof_document_id}/download">📎 Voir</button>`
+                                                   : `<span class="badge ok" title="Fichier joint">📎 Joint</span>`
+                                               }
+                                               ${!isInternal() && r.status === 'en_attente' ? `<button class="sm danger" data-del-proof-uorg="${r.request_id}">✕</button>` : ''}
+                                           </div>`
+                                        : `<span class="muted" style="font-size:11px">—</span>`
+                                    }</td>
                                     <td>${r.confidence_note ?? '—'}</td>
                                     <td>${badge(r.status)}</td>
                                     <td style="font-size:12px">${fmtDateTime(r.created_at)}</td>
@@ -177,6 +206,19 @@ async function loadUserOrgRequests(container) {
         container.querySelector('#btn-new-uorg-request')?.addEventListener('click', () =>
             openJoinOrgModal(() => loadUserOrgRequests(container))
         );
+        container.querySelectorAll('[data-open-proof]').forEach(btn => {
+            btn.addEventListener('click', () => window.open(btn.dataset.openProof, '_blank', 'noopener'));
+        });
+        container.querySelectorAll('[data-del-proof-uorg]').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                if (!confirm('Supprimer la pièce jointe ?')) return;
+                try {
+                    await api.delete(`/user-org-requests/${btn.dataset.delProofUorg}/proof`);
+                    toast('Pièce jointe supprimée');
+                    loadUserOrgRequests(container);
+                } catch (err) { toast(apiError(err), 'error'); }
+            });
+        });
         container.querySelectorAll('[data-action="approve-uorg"]').forEach(btn => {
             btn.addEventListener('click', () => approveUserOrg(btn.dataset.id, container));
         });
@@ -201,10 +243,10 @@ async function approveUserOrg(id, container) {
 }
 
 async function rejectUserOrg(id, container) {
-    const reason = prompt('Motif de refus (optionnel)');
-    if (reason === null) return;
+    const reason = prompt('Motif de refus (obligatoire)');
+    if (reason === null || reason.trim() === '') return;
     try {
-        await api.patch(`/user-org-requests/${id}/reject`, { reason });
+        await api.patch(`/user-org-requests/${id}/reject`, { rejection_reason: reason.trim() });
         toast('Adhésion refusée');
         await loadUserOrgRequests(container);
     } catch (err) {

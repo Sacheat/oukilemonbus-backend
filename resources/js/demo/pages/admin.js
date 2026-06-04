@@ -83,12 +83,13 @@ async function loadDrivers(container) {
                                     <td>${esc(d.user?.first_name ?? '')} ${esc(d.user?.last_name ?? '')}</td>
                                     <td>${esc(d.licence_number ?? '—')}</td>
                                     <td>${d.is_active ? badge('actif', 'ok') : badge('inactif', 'muted')}</td>
-                                    <td>
+                                    <td><div class="actions">
+                                        <button class="sm" data-edit-driver="${d.id}" data-driver='${JSON.stringify({id:d.id,licence_number:d.licence_number,licence_expiry_date:d.licence_expiry_date})}'>Modifier</button>
                                         ${d.is_active
                                             ? `<button class="sm danger" data-deactivate="${d.id}">Désactiver</button>`
-                                            : `<button class="sm" data-activate="${d.id}">Activer</button>`
+                                            : `<button class="sm ok" data-activate="${d.id}">Activer</button>`
                                         }
-                                    </td>
+                                    </div></td>
                                 </tr>
                             `).join('')}
                         </tbody>
@@ -98,6 +99,21 @@ async function loadDrivers(container) {
         `;
 
         container.querySelector('#btn-new-driver')?.addEventListener('click', () => openDriverModal(container));
+        container.querySelectorAll('[data-edit-driver]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const driver = JSON.parse(btn.dataset.driver);
+                openEditDriverModal(driver, container);
+            });
+        });
+        container.querySelectorAll('[data-activate]').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                try {
+                    await api.patch(`/drivers/${btn.dataset.activate}/activate`);
+                    toast('Chauffeur activé');
+                    loadDrivers(container);
+                } catch (err) { toast(apiError(err), 'error'); }
+            });
+        });
         container.querySelectorAll('[data-deactivate]').forEach(btn => {
             btn.addEventListener('click', async () => {
                 if (!confirm('Désactiver ce chauffeur ?')) return;
@@ -142,9 +158,9 @@ function openDriverModal(container) {
     el.querySelector('#d-save').addEventListener('click', async () => {
         try {
             await api.post('/drivers', {
-                user_id: el.querySelector('#d-user-id').value,
-                license_number: el.querySelector('#d-license').value,
-                license_expiry_date: el.querySelector('#d-license-exp').value,
+                user_id: parseInt(el.querySelector('#d-user-id').value),
+                licence_number: el.querySelector('#d-license').value || undefined,
+                licence_expiry_date: el.querySelector('#d-license-exp').value || undefined,
             });
             close();
             toast('Chauffeur créé');
@@ -183,12 +199,13 @@ async function loadVehicles(container) {
                                     <td>${esc(v.licence_plate ?? '—')}</td>
                                     <td>${v.capacity} pl.</td>
                                     <td>${v.is_active ? badge('actif', 'ok') : badge('inactif', 'muted')}</td>
-                                    <td>
+                                    <td><div class="actions">
+                                        <button class="sm" data-edit-vehicle="${v.id}" data-vehicle='${JSON.stringify({id:v.id,licence_plate:v.licence_plate,capacity:v.capacity})}'>Modifier</button>
                                         ${v.is_active
                                             ? `<button class="sm danger" data-deact-v="${v.id}">Désactiver</button>`
-                                            : `<button class="sm" data-act-v="${v.id}">Activer</button>`
+                                            : `<button class="sm ok" data-act-v="${v.id}">Activer</button>`
                                         }
-                                    </td>
+                                    </div></td>
                                 </tr>
                             `).join('')}
                         </tbody>
@@ -198,6 +215,22 @@ async function loadVehicles(container) {
         `;
 
         container.querySelector('#btn-new-vehicle')?.addEventListener('click', () => openVehicleModal(container));
+        container.querySelectorAll('[data-edit-vehicle]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const vehicle = JSON.parse(btn.dataset.vehicle);
+                openEditVehicleModal(vehicle, container);
+            });
+        });
+        container.querySelectorAll('[data-act-v]').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                try {
+                    await api.patch(`/vehicles/${btn.dataset.actV}/activate`);
+                    toast('Véhicule activé');
+                    delete container.dataset.loaded;
+                    loadVehicles(container);
+                } catch (err) { toast(apiError(err), 'error'); }
+            });
+        });
         container.querySelectorAll('[data-deact-v]').forEach(btn => {
             btn.addEventListener('click', async () => {
                 if (!confirm('Désactiver ce véhicule ?')) return;
@@ -295,12 +328,12 @@ async function loadUnavailabilities(container) {
                                     <td>${fmtDate(u.end_datetime)}</td>
                                     <td>${esc(u.reason ?? u.reason_type ?? '—')}</td>
                                     <td>${u.is_active ? badge('actif', 'ok') : badge('annulé', 'muted')}</td>
-                                    <td>
-                                        ${u.is_active
-                                            ? `<button class="sm danger" data-cancel-unav="${u.id}">Annuler</button>`
-                                            : ''
-                                        }
-                                    </td>
+                                    <td><div class="actions">
+                                        ${u.is_active ? `
+                                            <button class="sm" data-edit-unav="${u.id}" data-unav='${JSON.stringify({id:u.id,start_datetime:u.start_datetime,end_datetime:u.end_datetime,reason:u.reason})}'>Modifier</button>
+                                            <button class="sm danger" data-cancel-unav="${u.id}">Annuler</button>
+                                        ` : ''}
+                                    </div></td>
                                 </tr>
                             `}).join('')}
                         </tbody>
@@ -312,6 +345,12 @@ async function loadUnavailabilities(container) {
         container.querySelector('#btn-new-unav')?.addEventListener('click', () =>
             openUnavailabilityModal(container, drivers, vehicles)
         );
+        container.querySelectorAll('[data-edit-unav]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const unav = JSON.parse(btn.dataset.unav);
+                openEditUnavailabilityModal(unav, container);
+            });
+        });
         container.querySelectorAll('[data-cancel-unav]').forEach(btn => {
             btn.addEventListener('click', async () => {
                 if (!confirm('Annuler cette indisponibilité ?')) return;
@@ -391,6 +430,129 @@ function openUnavailabilityModal(container, drivers, vehicles) {
             loadUnavailabilities(container);
         } catch (err) {
             el.querySelector('#unav-notice').innerHTML = notice(apiError(err), 'error');
+        }
+    });
+}
+
+// ── Modals d'édition ──────────────────────────────────────────────────────────
+
+function openEditDriverModal(driver, container) {
+    const { el, close } = showModal(`Modifier chauffeur #${driver.id}`, `
+        <div class="form-grid">
+            <label>Numéro de permis
+                <input type="text" id="ed-license" value="${esc(driver.licence_number ?? '')}" placeholder="B-12345">
+            </label>
+            <label>Expiration permis
+                <input type="date" id="ed-license-exp" value="${driver.licence_expiry_date ?? ''}">
+            </label>
+        </div>
+        <div id="ed-notice" style="margin-top:10px"></div>
+    `);
+
+    const footer = document.createElement('div');
+    footer.className = 'modal-footer';
+    footer.innerHTML = `<button type="button" id="ed-cancel">Annuler</button><button type="button" id="ed-save" class="primary">Enregistrer</button>`;
+    el.querySelector('.modal').appendChild(footer);
+
+    el.querySelector('#ed-cancel').addEventListener('click', close);
+    el.querySelector('#ed-save').addEventListener('click', async () => {
+        const body = {};
+        const ln = el.querySelector('#ed-license').value.trim();
+        const exp = el.querySelector('#ed-license-exp').value;
+        if (ln)  body.licence_number      = ln;
+        if (exp) body.licence_expiry_date = exp;
+
+        try {
+            await api.patch(`/drivers/${driver.id}`, body);
+            close();
+            toast('Chauffeur mis à jour');
+            loadDrivers(container);
+        } catch (err) {
+            el.querySelector('#ed-notice').innerHTML = notice(apiError(err), 'error');
+        }
+    });
+}
+
+function openEditVehicleModal(vehicle, container) {
+    const { el, close } = showModal(`Modifier véhicule #${vehicle.id}`, `
+        <div class="form-grid">
+            <label>Immatriculation
+                <input type="text" id="ev-plate" value="${esc(vehicle.licence_plate ?? '')}" placeholder="1-ABC-123">
+            </label>
+            <label>Capacité (places)
+                <input type="number" id="ev-capacity" value="${vehicle.capacity ?? ''}" min="1">
+            </label>
+        </div>
+        <div id="ev-notice" style="margin-top:10px"></div>
+    `);
+
+    const footer = document.createElement('div');
+    footer.className = 'modal-footer';
+    footer.innerHTML = `<button type="button" id="ev-cancel">Annuler</button><button type="button" id="ev-save" class="primary">Enregistrer</button>`;
+    el.querySelector('.modal').appendChild(footer);
+
+    el.querySelector('#ev-cancel').addEventListener('click', close);
+    el.querySelector('#ev-save').addEventListener('click', async () => {
+        const body = {};
+        const plate = el.querySelector('#ev-plate').value.trim();
+        const cap   = el.querySelector('#ev-capacity').value;
+        if (plate) body.licence_plate = plate;
+        if (cap)   body.capacity      = parseInt(cap);
+
+        try {
+            await api.patch(`/vehicles/${vehicle.id}`, body);
+            close();
+            toast('Véhicule mis à jour');
+            delete container.dataset.loaded;
+            loadVehicles(container);
+        } catch (err) {
+            el.querySelector('#ev-notice').innerHTML = notice(apiError(err), 'error');
+        }
+    });
+}
+
+function openEditUnavailabilityModal(unav, container) {
+    const startDate = unav.start_datetime ? unav.start_datetime.slice(0, 10) : '';
+    const endDate   = unav.end_datetime   ? unav.end_datetime.slice(0, 10)   : '';
+
+    const { el, close } = showModal(`Modifier indisponibilité #${unav.id}`, `
+        <div class="form-grid">
+            <label>Date de début
+                <input type="date" id="eu-start" value="${startDate}" required>
+            </label>
+            <label>Date de fin
+                <input type="date" id="eu-end" value="${endDate}" required>
+            </label>
+            <label class="full">Motif
+                <textarea id="eu-reason" placeholder="Maladie, congé…">${esc(unav.reason ?? '')}</textarea>
+            </label>
+            <label class="full">Raison de la modification
+                <input type="text" id="eu-change-reason" placeholder="Optionnel">
+            </label>
+        </div>
+        <div id="eu-notice" style="margin-top:10px"></div>
+    `);
+
+    const footer = document.createElement('div');
+    footer.className = 'modal-footer';
+    footer.innerHTML = `<button type="button" id="eu-cancel">Annuler</button><button type="button" id="eu-save" class="primary">Enregistrer</button>`;
+    el.querySelector('.modal').appendChild(footer);
+
+    el.querySelector('#eu-cancel').addEventListener('click', close);
+    el.querySelector('#eu-save').addEventListener('click', async () => {
+        try {
+            await api.patch(`/unavailabilities/${unav.id}`, {
+                start_datetime: el.querySelector('#eu-start').value,
+                end_datetime:   el.querySelector('#eu-end').value,
+                reason:         el.querySelector('#eu-reason').value || null,
+                change_reason:  el.querySelector('#eu-change-reason').value || null,
+            });
+            close();
+            toast('Indisponibilité mise à jour');
+            delete container.dataset.loaded;
+            loadUnavailabilities(container);
+        } catch (err) {
+            el.querySelector('#eu-notice').innerHTML = notice(apiError(err), 'error');
         }
     });
 }

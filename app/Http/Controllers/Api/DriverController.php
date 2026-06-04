@@ -48,10 +48,17 @@ class DriverController extends Controller
         return new DriverResource($driver);
     }
 
+    public function activate(Driver $driver): DriverResource
+    {
+        $driver = $this->driverService->activate($driver);
+
+        return new DriverResource($driver->load('user'));
+    }
+
     public function deactivate(Driver $driver): DriverResource
     {
         $driver = $this->driverService->deactivate($driver);
 
-        return new DriverResource($driver);
+        return new DriverResource($driver->load('user'));
     }
 }

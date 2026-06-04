@@ -1,6 +1,7 @@
 import { isLoggedIn, getUser, logout, login, DEMO_ACTORS } from './auth.js';
 import { navigate } from './router.js';
 import { esc, roleBadge } from './ui.js';
+import { api } from './api.js';
 
 import { renderLogin } from './pages/login.js';
 import { renderDashboard } from './pages/dashboard.js';
@@ -143,10 +144,31 @@ function renderShell(path) {
             .filter(item => !item.roles || item.roles.some(r => roles.includes(r)))
             .map(({ path: p, label }) => {
                 const active = path === p || path.startsWith(p + '/');
-                return `<a href="#${p}"${active ? ' class="active"' : ''}>${esc(label)}</a>`;
+                const badgeHtml = p === '/notifications' ? ' <span id="notif-badge" style="display:none;background:var(--danger);color:#fff;font-size:10px;font-weight:700;padding:1px 5px;border-radius:10px;vertical-align:middle"></span>' : '';
+                return `<a href="#${p}"${active ? ' class="active"' : ''}>${esc(label)}${badgeHtml}</a>`;
             })
             .join('');
+
+        loadUnreadBadge();
     }
+}
+
+// ── Unread badge ──────────────────────────────────────────────────────────────
+
+async function loadUnreadBadge() {
+    if (!isLoggedIn()) return;
+    try {
+        const { data } = await api.get('/notifications/unread-count');
+        const count = data.data?.unread_count ?? 0;
+        const badge = document.getElementById('notif-badge');
+        if (!badge) return;
+        if (count > 0) {
+            badge.textContent = count > 99 ? '99+' : count;
+            badge.style.display = 'inline';
+        } else {
+            badge.style.display = 'none';
+        }
+    } catch { /* silencieux */ }
 }
 
 // ── Dispatch ──────────────────────────────────────────────────────────────────

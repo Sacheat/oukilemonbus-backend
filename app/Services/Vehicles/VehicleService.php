@@ -17,6 +17,12 @@ class VehicleService
         return $vehicle->refresh();
     }
 
+    public function activate(Vehicle $vehicle): Vehicle
+    {
+        $vehicle->update(['is_active' => true]);
+        return $vehicle->refresh();
+    }
+
     public function deactivate(Vehicle $vehicle): Vehicle
     {
         $vehicle->update(['is_active' => false]);
