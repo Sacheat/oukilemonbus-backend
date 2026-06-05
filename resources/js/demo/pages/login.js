@@ -1,5 +1,5 @@
 import { login, isLoggedIn, DEMO_ACTORS } from '../auth.js';
-import { navigate } from '../router.js';
+import { navigate, currentQuery } from '../router.js';
 import { esc, roleBadge, notice } from '../ui.js';
 
 export async function renderLogin(el) {
@@ -9,13 +9,15 @@ export async function renderLogin(el) {
         return;
     }
 
+    const { verified } = currentQuery();
+
     el.innerHTML = `
         <div class="login-screen">
             <div class="login-card">
                 <div class="login-title">Bus Communal</div>
                 <p class="muted" style="margin:0 0 4px">Démo v2 — connexion via l'API réelle</p>
 
-                <div id="login-notice"></div>
+                <div id="login-notice">${verified ? notice('✓ Email vérifié ! Vous pouvez maintenant vous connecter.') : ''}</div>
 
                 <div class="role-switcher" id="role-switcher">
                     ${DEMO_ACTORS.map((a, i) => `
@@ -37,6 +39,10 @@ export async function renderLogin(el) {
                         <button type="submit" class="primary">Se connecter</button>
                     </form>
                 </details>
+
+                <p style="text-align:center;font-size:12px;color:var(--muted);margin-top:16px">
+                    Pas encore de compte ? <a href="#/register">S'inscrire</a>
+                </p>
             </div>
         </div>
     `;

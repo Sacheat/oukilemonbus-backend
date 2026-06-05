@@ -4,6 +4,7 @@ import { esc, roleBadge } from './ui.js';
 import { api } from './api.js';
 
 import { renderLogin } from './pages/login.js';
+import { renderRegister } from './pages/register.js';
 import { renderDashboard } from './pages/dashboard.js';
 import { renderReservations } from './pages/reservations.js';
 import { renderPlanning } from './pages/planning.js';
@@ -33,6 +34,7 @@ const NAV = [
 
 const ROUTES = [
     ['/login',              null,               renderLogin],
+    ['/register',           null,               renderRegister],
     ['/reservations/create',['admin','agent_communal','responsable_organisation','user'], renderReservations],
     ['/reservations',       ['admin','agent_communal','responsable_organisation','user'], renderReservations],
     ['/planning',           ['admin','agent_communal','chauffeur'],    renderPlanning],
@@ -201,13 +203,14 @@ async function loadUnreadBadge() {
 // ── Dispatch ──────────────────────────────────────────────────────────────────
 
 async function dispatch(path) {
-    // Redirect unauthenticated users to login
-    if (!isLoggedIn() && path !== '/login') {
+    const guestPaths = ['/login', '/register'];
+    // Redirect unauthenticated users to login (except guest pages)
+    if (!isLoggedIn() && !guestPaths.includes(path)) {
         navigate('/login');
         return;
     }
-    // Redirect authenticated users away from login
-    if (isLoggedIn() && path === '/login') {
+    // Redirect authenticated users away from guest pages
+    if (isLoggedIn() && guestPaths.includes(path)) {
         navigate('/dashboard');
         return;
     }

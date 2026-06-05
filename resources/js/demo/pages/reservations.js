@@ -170,6 +170,9 @@ function buildActions(actionsEl, r, container, page, filters) {
     if (internal && status === 'en_conflit') {
         actionsEl.appendChild(btn('Conflits', () => openConflictsModal(r)));
     }
+    if (['en_attente', 'en_conflit'].includes(status)) {
+        actionsEl.appendChild(btn('Modifier', () => openEditModal(r, container, page, filters)));
+    }
     const user = getUser();
     const isRequesterOrResponsable = internal || user?.id === r.requested_by_user_id;
     if (isRequesterOrResponsable && !['refuse', 'annule'].includes(status)) {
@@ -357,6 +360,65 @@ async function openConflictsModal(r) {
             });
         });
     } catch (err) { el.querySelector('.modal-body').innerHTML = notice(apiError(err), 'error'); }
+}
+
+// ── Edit reservation ──────────────────────────────────────────────────────────
+
+function openEditModal(r, container, page, filters) {
+    const tripDate = r.trip_date?.slice(0, 10) ?? '';
+    const dep = r.departure_time?.slice(0, 5) ?? '';
+    const ret = r.return_time?.slice(0, 5) ?? '';
+
+    const { el, close } = showModal(`Modifier la réservation #${r.id}`, `
+        <p class="muted" style="margin-top:0;font-size:12px">
+            Les lieux de départ et destination ne sont pas modifiables ici.
+        </p>
+        <div class="form-grid">
+            <label>Date du trajet
+                <input type="date" id="e-date" value="${tripDate}">
+            </label>
+            <label></label>
+            <label>Heure de départ
+                <input type="time" id="e-dep" value="${dep}">
+            </label>
+            <label>Heure de retour
+                <input type="time" id="e-ret" value="${ret}">
+            </label>
+            <label>Adultes
+                <input type="number" id="e-adults" value="${r.nb_adults ?? 1}" min="1">
+            </label>
+            <label>Enfants
+                <input type="number" id="e-children" value="${r.nb_children ?? 0}" min="0">
+            </label>
+            <label class="full">Objet du trajet
+                <textarea id="e-purpose" style="width:100%">${esc(r.trip_purpose ?? '')}</textarea>
+            </label>
+        </div>
+        <div id="edit-notice" style="margin-top:8px"></div>
+    `);
+    const footer = document.createElement('div');
+    footer.className = 'modal-footer';
+    footer.innerHTML = `<button type="button" id="e-cancel">Annuler</button><button type="button" id="e-ok" class="primary">Enregistrer</button>`;
+    el.querySelector('.modal').appendChild(footer);
+    el.querySelector('#e-cancel').addEventListener('click', close);
+    el.querySelector('#e-ok').addEventListener('click', async () => {
+        const body = {
+            trip_date:      el.querySelector('#e-date').value || undefined,
+            departure_time: el.querySelector('#e-dep').value  || undefined,
+            return_time:    el.querySelector('#e-ret').value  || undefined,
+            nb_adults:      parseInt(el.querySelector('#e-adults').value, 10),
+            nb_children:    parseInt(el.querySelector('#e-children').value, 10),
+            trip_purpose:   el.querySelector('#e-purpose').value.trim() || undefined,
+        };
+        try {
+            await api.patch(`/reservations/${r.id}`, body);
+            close();
+            toast('Réservation modifiée');
+            await loadList(container, page, filters, null);
+        } catch (err) {
+            el.querySelector('#edit-notice').innerHTML = notice(apiError(err), 'error');
+        }
+    });
 }
 
 // ── Passenger confirmation ────────────────────────────────────────────────────

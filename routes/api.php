@@ -20,6 +20,7 @@ use App\Http\Controllers\Api\UnavailabilityController;
 use App\Http\Controllers\Api\UnavailabilityHistoryController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\UserOrgRequestController;
+use App\Http\Controllers\Api\EmailVerificationController;
 use App\Http\Controllers\Api\VehicleController;
 use Illuminate\Support\Facades\Route;
 
@@ -42,16 +43,32 @@ Route::name('api.')->group(function (): void {
     });
 
     // =========================================================================
+    // Vérification email — lien signé, sans authentification requise
+    // =========================================================================
+    Route::get('/email/verify/{id}/{hash}', [EmailVerificationController::class, 'verify'])
+        ->middleware(['signed', 'throttle:6,1'])
+        ->name('verification.verify');
+
+    // =========================================================================
     // Toutes les routes suivantes nécessitent une authentification
     // =========================================================================
     Route::middleware('auth:sanctum')->group(function (): void {
         /**
-         * Authentication routes
+         * Authentication routes — accessibles sans vérification email
          */
         Route::get('/auth/me', [AuthController::class, 'me'])->name('auth.me');
         Route::post('/auth/logout', [AuthController::class, 'logout'])
             ->middleware('throttle:30,1')
             ->name('auth.logout');
+
+        Route::post('/email/verify/resend', [EmailVerificationController::class, 'resend'])
+            ->middleware('throttle:6,1')
+            ->name('verification.send');
+
+        /**
+         * Toutes les routes métier nécessitent un email vérifié
+         */
+        Route::middleware('verified')->group(function (): void {
 
         /**
          * In-app notifications and preferences routes
@@ -455,5 +472,7 @@ Route::name('api.')->group(function (): void {
             Route::get('/unavailabilities/{unavailability}/history/{history}', [UnavailabilityHistoryController::class, 'show'])
                 ->name('unavailabilities.history.show');
         });
+
+        }); // end verified
     });
 });

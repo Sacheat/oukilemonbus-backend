@@ -20,6 +20,7 @@ class TestFleetSeeder extends Seeder
                 'last_name' => 'Second',
                 'phone' => '082100007',
                 'password' => Hash::make('password'),
+                'email_verified_at' => now(),
             ]
         );
 
