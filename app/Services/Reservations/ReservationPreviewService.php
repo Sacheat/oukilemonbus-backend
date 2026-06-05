@@ -55,6 +55,7 @@ class ReservationPreviewService
 
         $estimatedDuration = $distance['estimated_duration_min'];
         $conflicts = $this->detectConflicts($data, $estimatedDuration, $organization);
+        $warnings  = $this->detectDerogationWarnings($data, $estimatedDuration, $organization);
 
         if ($distance['distance_km'] === null) {
             $conflicts[] = [
@@ -64,6 +65,8 @@ class ReservationPreviewService
             ];
         }
 
+        // Le statut n'est affecté que par les conflits bloquants, pas par les avertissements
+        // de dérogation (horaire / durée) qui restent EN_ATTENTE et sont traités par le collège.
         $status = count($conflicts) > 0
             ? ReservationStatus::EN_CONFLIT
             : ($organization->type?->isAutoApproveType() ? ReservationStatus::APPROUVE : ReservationStatus::EN_ATTENTE);
@@ -89,6 +92,7 @@ class ReservationPreviewService
                 ? ApprovalType::AUTO->value
                 : ApprovalType::MANUEL->value,
             'conflicts' => $conflicts,
+            'warnings' => $warnings,
         ];
     }
 
@@ -165,36 +169,6 @@ class ReservationPreviewService
         $duration = $estimatedDurationMin ?? 0;
         $candidateWindow = $this->occupationService->windowForData($data, $estimatedDurationMin);
 
-        if (! $organization->type?->isTimeRestrictionExempt()) {
-            $minDepartureTime = config('reservations.non_school_min_departure_time', '07:30');
-            $maxReturnTime = config('reservations.non_school_max_return_time', '16:00');
-            $maxTotalDuration = (int) config('reservations.non_school_max_total_duration_min', 300);
-
-            if ($departure->format('H:i') < $minDepartureTime) {
-                $conflicts[] = [
-                    'type' => ReservationConflictType::DEPARTURE_BEFORE_ALLOWED_TIME->value,
-                    'message' => "L heure de depart est avant {$minDepartureTime}. Une derogation du college est necessaire.",
-                    'related_reservation_id' => null,
-                ];
-            }
-
-            if ($returnDeparture->format('H:i') > $maxReturnTime) {
-                $conflicts[] = [
-                    'type' => ReservationConflictType::RETURN_AFTER_ALLOWED_TIME->value,
-                    'message' => "L heure de retour demandee depasse {$maxReturnTime}. Une derogation du college est necessaire.",
-                    'related_reservation_id' => null,
-                ];
-            }
-
-            if ($estimatedDurationMin !== null && $candidateWindow['duration_min'] > $maxTotalDuration) {
-                $conflicts[] = [
-                    'type' => ReservationConflictType::DURATION_OVER_ALLOWED_LIMIT->value,
-                    'message' => 'La duree totale d utilisation depasse 5 heures. Une derogation du college est necessaire.',
-                    'related_reservation_id' => null,
-                ];
-            }
-        }
-
         if ($estimatedDurationMin !== null && $departure->addMinutes($duration)->greaterThan($returnDeparture)) {
             $conflicts[] = [
                 'type' => ReservationConflictType::IMPOSSIBLE_TIME_WINDOW->value,
@@ -221,6 +195,54 @@ class ReservationPreviewService
         }
 
         return $conflicts;
+    }
+
+    /**
+     * Détecte les avertissements de dérogation (horaire / durée) qui ne bloquent pas
+     * la réservation mais nécessitent une motivation et une décision du collège.
+     * Ces warnings sont informatifs uniquement : ils n'affectent pas le statut
+     * et ne créent pas d'enregistrement ReservationConflict en base.
+     */
+    public function detectDerogationWarnings(array $data, ?int $estimatedDurationMin, ?Organization $organization = null): array
+    {
+        $warnings = [];
+        $organization ??= Organization::findOrFail($data['organization_id']);
+
+        if ($organization->type?->isTimeRestrictionExempt()) {
+            return [];
+        }
+
+        $departure = $this->dateTime($data['trip_date'], $data['departure_time']);
+        $returnDeparture = $this->dateTime($data['trip_date'], $data['return_time']);
+        $minDepartureTime = config('reservations.non_school_min_departure_time', '07:30');
+        $maxReturnTime = config('reservations.non_school_max_return_time', '16:00');
+        $maxTotalDuration = (int) config('reservations.non_school_max_total_duration_min', 300);
+
+        if ($departure->format('H:i') < $minDepartureTime) {
+            $warnings[] = [
+                'type' => ReservationConflictType::DEPARTURE_BEFORE_ALLOWED_TIME->value,
+                'message' => "L heure de depart est avant {$minDepartureTime}. Une motivation est requise — soumis a decision du college.",
+            ];
+        }
+
+        if ($returnDeparture->format('H:i') > $maxReturnTime) {
+            $warnings[] = [
+                'type' => ReservationConflictType::RETURN_AFTER_ALLOWED_TIME->value,
+                'message' => "L heure de retour depasse {$maxReturnTime}. Une motivation est requise — soumis a decision du college.",
+            ];
+        }
+
+        if ($estimatedDurationMin !== null) {
+            $window = $this->occupationService->windowForData($data, $estimatedDurationMin);
+            if ($window['duration_min'] > $maxTotalDuration) {
+                $warnings[] = [
+                    'type' => ReservationConflictType::DURATION_OVER_ALLOWED_LIMIT->value,
+                    'message' => "La duree totale d utilisation depasse {$maxTotalDuration} minutes. Une motivation est requise — soumis a decision du college.",
+                ];
+            }
+        }
+
+        return $warnings;
     }
 
     public function ensureBookableDate(string $tripDate): void
@@ -401,8 +423,8 @@ class ReservationPreviewService
     private function formatOccupationWindow(array $window): array
     {
         return [
-            'start_at' => $window['start']->toISOString(),
-            'end_at' => $window['end']->toISOString(),
+            'start_at' => $window['start']->format('Y-m-d\TH:i:s'),
+            'end_at' => $window['end']->format('Y-m-d\TH:i:s'),
             'duration_min' => $window['duration_min'],
             'return_trip_duration_min' => $window['return_trip_duration_min'],
             'pickup_buffer_min' => $window['pickup_buffer_min'],

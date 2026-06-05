@@ -41,7 +41,7 @@ class UnavailabilityController extends Controller
         try {
             $unavailability = $this->unavailabilityService->create(
                 $request->validated(),
-                $request->user()->id
+                $request->user()
             );
         } catch (UnavailabilityException $e) {
             return response()->json(['message' => $e->getMessage()], 422);
@@ -72,7 +72,7 @@ class UnavailabilityController extends Controller
             $unavailability = $this->unavailabilityService->update(
                 $unavailability,
                 $validated,
-                $request->user()->id,
+                $request->user(),
                 $changeReason
             );
         } catch (UnavailabilityException $e) {
@@ -91,7 +91,7 @@ class UnavailabilityController extends Controller
 
         $unavailability = $this->unavailabilityService->cancel(
             $unavailability,
-            request()->user()->id
+            request()->user()
         );
 
         return new UnavailabilityResource($unavailability);

@@ -41,10 +41,17 @@ export async function renderNotifications(el) {
         }
     });
 
+    const notifsContainer = el.querySelector('#notifs-list');
+
     await Promise.all([
-        loadNotifications(el.querySelector('#notifs-list')),
+        loadNotifications(notifsContainer),
         loadPreferences(el.querySelector('#prefs-container')),
     ]);
+
+    const refreshInterval = setInterval(() => {
+        if (!document.contains(notifsContainer)) { clearInterval(refreshInterval); return; }
+        loadNotifications(notifsContainer);
+    }, 30_000);
 }
 
 async function loadNotifications(container) {
@@ -109,7 +116,7 @@ async function loadNotifications(container) {
         });
 
         container.querySelectorAll('[data-goto-reservation]').forEach(btn => {
-            btn.addEventListener('click', () => navigate('/reservations'));
+            btn.addEventListener('click', () => navigate(`/reservations?highlight=${btn.dataset.gotoReservation}`));
         });
 
         container.querySelectorAll('[data-open-doc]').forEach(btn => {

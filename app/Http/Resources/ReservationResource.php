@@ -37,6 +37,7 @@ class ReservationResource extends JsonResource
             'cancelled_at' => $this->cancelled_at?->toISOString(),
             'rejection_reason' => $this->rejection_reason,
             'cancellation_reason' => $this->cancellation_reason,
+            'passengers_confirmed_at' => $this->passengers_confirmed_at?->toISOString(),
             'created_at' => $this->created_at?->toISOString(),
             'updated_at' => $this->updated_at?->toISOString(),
             'organization' => new OrganizationResource($this->whenLoaded('organization')),
@@ -57,8 +58,8 @@ class ReservationResource extends JsonResource
         $window = app(ReservationOccupationService::class)->windowForReservation($this->resource);
 
         return [
-            'start_at' => $window['start']->toISOString(),
-            'end_at' => $window['end']->toISOString(),
+            'start_at' => $window['start']->format('Y-m-d\TH:i:s'),
+            'end_at' => $window['end']->format('Y-m-d\TH:i:s'),
             'duration_min' => $window['duration_min'],
             'return_trip_duration_min' => $window['return_trip_duration_min'],
             'pickup_buffer_min' => $window['pickup_buffer_min'],

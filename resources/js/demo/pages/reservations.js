@@ -1,6 +1,7 @@
 import { api, apiError } from '../api.js';
 import { getUser, isInternal } from '../auth.js';
 import { esc, badge, fmtDate, fmtTime, fmtDateTime, showModal, notice, noticeHtml, toast, paginationHtml } from '../ui.js';
+import { currentQuery } from '../router.js';
 
 const isCreate = () => window.location.hash.includes('/create');
 
@@ -8,13 +9,14 @@ export async function renderReservations(el) {
     if (isCreate()) {
         await renderCreateForm(el);
     } else {
-        await renderList(el, 1);
+        const { highlight } = currentQuery();
+        await renderList(el, 1, {}, highlight ? parseInt(highlight, 10) : null);
     }
 }
 
 // ── List ──────────────────────────────────────────────────────────────────────
 
-async function renderList(el, page, filters = {}) {
+async function renderList(el, page, filters = {}, highlightId = null) {
     let orgs = [];
     try { const r = await api.get('/organizations'); orgs = r.data.data ?? []; } catch {}
 
@@ -62,14 +64,14 @@ async function renderList(el, page, filters = {}) {
             date_to: el.querySelector('#f-to')?.value || undefined,
             organization_id: el.querySelector('#f-org')?.value || undefined,
         };
-        loadList(el.querySelector('#list-container'), 1, newFilters);
+        loadList(el.querySelector('#list-container'), 1, newFilters, null);
     });
 
     if (filters.status) el.querySelector('#f-status').value = filters.status;
-    await loadList(el.querySelector('#list-container'), page, filters);
+    await loadList(el.querySelector('#list-container'), page, filters, highlightId);
 }
 
-async function loadList(container, page, filters = {}) {
+async function loadList(container, page, filters = {}, highlightId = null) {
     container.innerHTML = '<div class="loading">Chargement…</div>';
 
     try {
@@ -110,12 +112,25 @@ async function loadList(container, page, filters = {}) {
                     <td>${esc(r.driver ? (r.driver.licence_number ?? '#' + r.driver.id) : '—')}</td>
                     <td>${esc(r.vehicle ? (r.vehicle.licence_plate ?? '#' + r.vehicle.id) : '—')}</td>
                 ` : ''}
-                <td>${badge(r.status)}</td>
+                <td>
+                    ${badge(r.status)}
+                    ${passengerConfirmationBadge(r)}
+                </td>
                 <td><div class="actions" id="acts-${r.id}"></div></td>
             `;
             tbody.appendChild(tr);
             buildActions(tr.querySelector(`#acts-${r.id}`), r, container, page, filters);
         });
+
+        if (highlightId) {
+            tbody.querySelectorAll('tr').forEach(tr => {
+                if (tr.querySelector('code')?.textContent.trim() === String(highlightId)) {
+                    tr.style.outline = '2px solid var(--brand)';
+                    tr.style.borderRadius = '4px';
+                    setTimeout(() => tr.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50);
+                }
+            });
+        }
 
         const pag = paginationHtml(meta, p => loadList(container, p, filters));
         if (pag instanceof Element) container.appendChild(pag);
@@ -154,6 +169,11 @@ function buildActions(actionsEl, r, container, page, filters) {
     }
     if (internal && status === 'en_conflit') {
         actionsEl.appendChild(btn('Conflits', () => openConflictsModal(r)));
+    }
+    const user = getUser();
+    const isRequesterOrResponsable = internal || user?.id === r.requested_by_user_id;
+    if (isRequesterOrResponsable && !['refuse', 'annule'].includes(status)) {
+        actionsEl.appendChild(btn('Passagers ✓', () => openConfirmPassengersModal(r, container, page, filters)));
     }
     if (!['refuse', 'annule'].includes(status)) {
         actionsEl.appendChild(btn('Annuler', () => openCancelModal(r, container, page, filters), 'danger'));
@@ -339,6 +359,61 @@ async function openConflictsModal(r) {
     } catch (err) { el.querySelector('.modal-body').innerHTML = notice(apiError(err), 'error'); }
 }
 
+// ── Passenger confirmation ────────────────────────────────────────────────────
+
+function passengerConfirmationBadge(r) {
+    if (['refuse', 'annule'].includes(r.status)) return '';
+    if (r.passengers_confirmed_at) {
+        const d = new Date(r.passengers_confirmed_at);
+        const label = d.toLocaleDateString('fr-BE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        return `<span class="badge ok" style="font-size:10px;display:block;margin-top:3px" title="Confirmé le ${label}">✓ Passagers confirmés</span>`;
+    }
+    if (['approuve', 'confirme'].includes(r.status)) {
+        return `<span class="badge warning" style="font-size:10px;display:block;margin-top:3px">⚠ À confirmer</span>`;
+    }
+    return '';
+}
+
+function openConfirmPassengersModal(r, container, page, filters) {
+    const { el, close } = showModal(`Passagers — Réservation #${r.id}`, `
+        <p class="muted" style="margin-top:0;font-size:12px">
+            Mettez à jour si besoin, puis confirmez. La feuille de route sera régénérée si le trajet est aujourd'hui.
+        </p>
+        <div class="form-grid">
+            <label>Adultes
+                <input type="number" id="cp-adults" value="${r.nb_adults ?? 1}" min="1">
+            </label>
+            <label>Enfants
+                <input type="number" id="cp-children" value="${r.nb_children ?? 0}" min="0">
+            </label>
+            <label class="full">Objet du trajet
+                <textarea id="cp-purpose" style="width:100%">${esc(r.trip_purpose ?? '')}</textarea>
+            </label>
+        </div>
+        <div id="cp-notice" style="margin-top:8px"></div>
+    `);
+    const footer = document.createElement('div');
+    footer.className = 'modal-footer';
+    footer.innerHTML = `<button type="button" id="cp-cancel">Annuler</button><button type="button" id="cp-ok" class="primary">✓ Confirmer les passagers</button>`;
+    el.querySelector('.modal').appendChild(footer);
+    el.querySelector('#cp-cancel').addEventListener('click', close);
+    el.querySelector('#cp-ok').addEventListener('click', async () => {
+        const body = {
+            nb_adults: parseInt(el.querySelector('#cp-adults').value, 10),
+            nb_children: parseInt(el.querySelector('#cp-children').value, 10),
+            trip_purpose: el.querySelector('#cp-purpose').value.trim() || null,
+        };
+        try {
+            await api.patch(`/reservations/${r.id}/confirm-passengers`, body);
+            close();
+            toast('Passagers confirmés ✓');
+            await loadList(container, page, filters, null);
+        } catch (err) {
+            el.querySelector('#cp-notice').innerHTML = notice(apiError(err), 'error');
+        }
+    });
+}
+
 // ── Location autocomplete (ORS-powered) ──────────────────────────────────────
 //
 // Flow:
@@ -455,13 +530,44 @@ function createLocationSearch(parentEl, inputId) {
 
 // ── Preview display ───────────────────────────────────────────────────────────
 
+const CONFLICT_TYPE_LABELS = {
+    schedule_overlap:              'Chevauchement de planning',
+    no_driver_available:           'Aucun chauffeur disponible',
+    no_vehicle_available:          'Aucun véhicule disponible',
+    departure_before_allowed_time: 'Départ avant l\'heure autorisée',
+    return_after_allowed_time:     'Retour après l\'heure autorisée',
+    duration_over_allowed_limit:   'Durée maximale dépassée',
+    impossible_time_window:        'Créneau impossible',
+    distance_not_calculated:       'Distance non calculée',
+    quota_exceeded:                'Quota dépassé',
+    vehicle_capacity_unavailable:  'Aucun véhicule de capacité suffisante',
+    departure_before_08h:          'Départ avant 08h00',
+    return_after_17h:              'Retour après 17h00',
+};
+
+// Renvoie true si le créneau suggéré dépasse les horaires autorisés pour les
+// organisations soumises aux restrictions (toutes sauf ecole_communale).
+// approval_type === 'auto' identifie les orgs exemptées (écoles, personnel communal).
+function nextSlotExceedsAllowedHours(approval_type, nextDeparture, nextReturn) {
+    if (approval_type === 'auto') return false;
+    const MAX_RETURN = '16:00';
+    const MIN_DEPART = '07:30';
+    const dep = (nextDeparture ?? '').slice(0, 5);
+    const ret = (nextReturn   ?? '').slice(0, 5);
+    return (dep && dep < MIN_DEPART) || (ret && ret > MAX_RETURN);
+}
+
 function renderPreview(data, isRecurrence = false) {
     if (isRecurrence) return renderRecurrencePreview(data);
 
-    const { is_allowed, distance_km, estimated_duration_min, availability, conflicts = [], status, approval_type, estimated_occupation } = data;
+    const { is_allowed, distance_km, estimated_duration_min, availability, conflicts = [], warnings = [], status, approval_type, estimated_occupation } = data;
 
     const statusColor = { en_attente: 'warning', approuve: 'ok', en_conflit: 'danger' };
     const statusLabel = { en_attente: 'En attente de validation', approuve: 'Approbation automatique', en_conflit: 'Créée avec conflits' };
+
+    const nextDep = availability?.next_available_departure_time;
+    const nextRet = availability?.next_available_return_time;
+    const slotExceedsHours = nextSlotExceedsAllowedHours(approval_type, nextDep, nextRet);
 
     return `
         <div class="preview-box">
@@ -487,26 +593,43 @@ function renderPreview(data, isRecurrence = false) {
                 <div class="next-slot-box">
                     <strong>⚠ Bus non disponible à ce créneau</strong>
                     ${availability.message ? `<p style="margin:4px 0 0">${esc(availability.message)}</p>` : ''}
-                    ${availability.next_available_departure_time ? `
+                    ${nextDep ? `
                     <p style="margin:6px 0 0">
-                        Prochain départ disponible : <strong>${esc(availability.next_available_departure_time)}</strong>
-                        ${availability.next_available_return_time ? ` – retour : <strong>${esc(availability.next_available_return_time)}</strong>` : ''}
-                    </p>` : ''}
+                        Prochain départ disponible : <strong>${esc(nextDep)}</strong>
+                        ${nextRet ? ` – retour : <strong>${esc(nextRet)}</strong>` : ''}
+                    </p>
+                    ${slotExceedsHours ? `
+                    <p style="margin:6px 0 0;color:var(--warning);font-size:12px">
+                        ⚠ Ce créneau dépasse les horaires autorisés (départ ≥ 07h30, retour ≤ 16h00).
+                        Il peut être accepté moyennant motivation auprès du collège communal.
+                    </p>` : ''}` : ''}
                 </div>
+            </div>` : ''}
+
+            ${warnings.length ? `
+            <div class="preview-section">
+                <div class="preview-section-title" style="color:var(--warning)">⚠ ${warnings.length} avertissement(s) — motivation requise</div>
+                ${warnings.map(w => `
+                    <div style="border-left:3px solid var(--warning);padding:6px 10px;background:var(--warning-soft);border-radius:0 4px 4px 0;font-size:12px;margin-bottom:4px">
+                        <strong>${esc(CONFLICT_TYPE_LABELS[w.type] ?? w.type ?? '—')}</strong>
+                        ${w.message ? `<div style="margin-top:2px">${esc(w.message)}</div>` : ''}
+                    </div>
+                `).join('')}
+                <div style="font-size:11px;color:var(--warning);margin-top:4px">La réservation sera créée en attente. La décision du collège communal est requise pour approbation.</div>
             </div>` : ''}
 
             ${conflicts.length ? `
             <div class="preview-section">
-                <div class="preview-section-title">${conflicts.length} conflit(s) détecté(s)</div>
+                <div class="preview-section-title">${conflicts.length} conflit(s) bloquant(s) détecté(s)</div>
                 ${conflicts.map(c => `
                     <div class="conflict-item">
-                        <strong>${esc(c.type ?? '—')}</strong>
+                        <strong>${esc(CONFLICT_TYPE_LABELS[c.type] ?? c.type ?? '—')}</strong>
                         ${c.message ? `<div>${esc(c.message)}</div>` : ''}
                     </div>
                 `).join('')}
             </div>` : `
             <div class="preview-section">
-                <div style="color:var(--ok)">✓ Aucun conflit — réservation possible</div>
+                <div style="color:var(--ok)">✓ Aucun conflit bloquant — réservation possible</div>
             </div>`}
         </div>
     `;

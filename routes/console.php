@@ -32,3 +32,8 @@ Schedule::command('notifications:health --json')
     ->everyFifteenMinutes()
     ->timezone('Europe/Brussels')
     ->withoutOverlapping();
+
+Schedule::command('reservations:send-passenger-reminders')
+    ->dailyAt('08:00')
+    ->timezone('Europe/Brussels')
+    ->withoutOverlapping();

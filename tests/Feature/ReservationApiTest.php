@@ -601,7 +601,7 @@ class ReservationApiTest extends TestCase
             ->assertJsonPath('data.status', ReservationStatus::CONFIRME->value);
     }
 
-    public function test_non_school_reservation_after_allowed_return_time_creates_derogation_conflict_resolved_by_council(): void
+    public function test_non_school_reservation_after_allowed_return_time_stays_pending_and_requires_council_decision(): void
     {
         Http::fake([
             'https://ors.test/*' => Http::response([
@@ -619,19 +619,24 @@ class ReservationApiTest extends TestCase
 
         Sanctum::actingAs($agent);
 
+        // Le dépassement d'horaire est un avertissement, pas un conflit bloquant :
+        // la réservation est créée EN_ATTENTE (pas EN_CONFLIT).
         $reservationId = $this->postJson('/api/reservations', [
             ...$this->payload($organization),
             'return_time' => '16:30',
         ])
             ->assertCreated()
-            ->assertJsonPath('data.status', ReservationStatus::EN_CONFLIT->value)
+            ->assertJsonPath('data.status', ReservationStatus::EN_ATTENTE->value)
             ->json('data.id');
 
-        $this->assertDatabaseHas('reservation_conflicts', [
+        $this->assertDatabaseMissing('reservation_conflicts', [
             'reservation_id' => $reservationId,
             'type' => ReservationConflictType::RETURN_AFTER_ALLOWED_TIME->value,
-            'is_resolved' => false,
         ]);
+
+        // L'approbation nécessite toujours une décision favorable du collège pour les non-exemptés.
+        $this->patchJson("/api/reservations/{$reservationId}/approve")
+            ->assertUnprocessable();
 
         $this->postJson('/api/council-decisions', [
             'reservation_id' => $reservationId,
@@ -640,13 +645,6 @@ class ReservationApiTest extends TestCase
             'decision_reference' => 'COL-2026-002',
             'notes' => 'Derogation horaire acceptee.',
         ])->assertCreated();
-
-        $this->assertDatabaseHas('reservation_conflicts', [
-            'reservation_id' => $reservationId,
-            'type' => ReservationConflictType::RETURN_AFTER_ALLOWED_TIME->value,
-            'is_resolved' => true,
-            'resolved_by_user_id' => $agent->id,
-        ]);
 
         $this->patchJson("/api/reservations/{$reservationId}/approve")
             ->assertOk()

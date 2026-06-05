@@ -88,6 +88,7 @@ class RolesAndPermissionsSeeder extends Seeder
         $user->givePermissionTo([
             'users.view',
             'locations.view',
+            'locations.create',
             'municipalities.view',
             'org-registration-requests.view',
             'org-registration-requests.create',

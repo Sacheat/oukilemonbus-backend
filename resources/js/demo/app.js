@@ -12,6 +12,7 @@ import { renderAdmin } from './pages/admin.js';
 import { renderOrganizations } from './pages/organizations.js';
 import { renderDocuments } from './pages/documents.js';
 import { renderNotifications } from './pages/notifications.js';
+import { renderConflicts, loadConflictsBadge } from './pages/conflicts.js';
 
 // ── Nav config ────────────────────────────────────────────────────────────────
 
@@ -22,6 +23,7 @@ const NAV = [
     { path: '/organizations', label: 'Organisations', roles: ['admin', 'agent_communal'] },
     { path: '/requests',      label: 'Demandes',      roles: ['admin', 'agent_communal', 'responsable_organisation', 'user'] },
     { path: '/admin',         label: 'Gestion',       roles: ['admin', 'agent_communal'] },
+    { path: '/conflicts',     label: 'Conflits',      roles: ['admin', 'agent_communal'] },
     { path: '/documents',     label: 'Documents',     roles: ['admin', 'agent_communal'] },
     { path: '/notifications', label: 'Notifications', roles: null },
 ];
@@ -37,6 +39,7 @@ const ROUTES = [
     ['/organizations',      ['admin','agent_communal'],                renderOrganizations],
     ['/requests',           ['admin','agent_communal','responsable_organisation','user'], renderRequests],
     ['/admin',              ['admin','agent_communal'],                renderAdmin],
+    ['/conflicts',          ['admin','agent_communal'],                renderConflicts],
     ['/documents',          ['admin','agent_communal'],                renderDocuments],
     ['/notifications',      null,               renderNotifications],
     ['/dashboard',          null,               renderDashboard],
@@ -130,6 +133,7 @@ function renderShell(path) {
         });
 
         document.getElementById('btn-logout').addEventListener('click', async () => {
+            stopBadgePolling();
             await logout();
             _shellAuth = null;
             navigate('/login');
@@ -144,16 +148,39 @@ function renderShell(path) {
             .filter(item => !item.roles || item.roles.some(r => roles.includes(r)))
             .map(({ path: p, label }) => {
                 const active = path === p || path.startsWith(p + '/');
-                const badgeHtml = p === '/notifications' ? ' <span id="notif-badge" style="display:none;background:var(--danger);color:#fff;font-size:10px;font-weight:700;padding:1px 5px;border-radius:10px;vertical-align:middle"></span>' : '';
+                const badgeHtml = p === '/notifications'
+                    ? ' <span id="notif-badge" style="display:none;background:var(--danger);color:#fff;font-size:10px;font-weight:700;padding:1px 5px;border-radius:10px;vertical-align:middle"></span>'
+                    : p === '/conflicts'
+                    ? ' <span id="conflicts-badge" style="display:none;background:var(--danger);color:#fff;font-size:10px;font-weight:700;padding:1px 5px;border-radius:10px;vertical-align:middle"></span>'
+                    : '';
                 return `<a href="#${p}"${active ? ' class="active"' : ''}>${esc(label)}${badgeHtml}</a>`;
             })
             .join('');
 
         loadUnreadBadge();
+        loadConflictsBadge();
+        startBadgePolling();
     }
 }
 
 // ── Unread badge ──────────────────────────────────────────────────────────────
+
+let _badgeInterval = null;
+
+function startBadgePolling() {
+    stopBadgePolling();
+    _badgeInterval = setInterval(() => {
+        loadUnreadBadge();
+        loadConflictsBadge();
+    }, 30_000);
+}
+
+function stopBadgePolling() {
+    if (_badgeInterval !== null) {
+        clearInterval(_badgeInterval);
+        _badgeInterval = null;
+    }
+}
 
 async function loadUnreadBadge() {
     if (!isLoggedIn()) return;

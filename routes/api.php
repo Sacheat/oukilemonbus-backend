@@ -370,6 +370,14 @@ Route::name('api.')->group(function (): void {
             ->middleware('permission:reservations.confirm')
             ->name('reservations.confirm');
 
+        Route::patch('/reservations/{reservation}/retry-assign', [ReservationController::class, 'retryAutoAssign'])
+            ->middleware('permission:reservations.assign')
+            ->name('reservations.retry-assign');
+
+        Route::patch('/reservations/{reservation}/confirm-passengers', [ReservationController::class, 'confirmPassengers'])
+            ->middleware('permission:reservations.update')
+            ->name('reservations.confirm-passengers');
+
         Route::get('/reservations/{reservation}/conflicts', [ReservationConflictController::class, 'index'])
             ->middleware('permission:reservations.manage-conflicts')
             ->name('reservations.conflicts.index');
