@@ -14,6 +14,14 @@ use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Str;
 use Throwable;
 
+/**
+ * Envoie le digest de notifications par email pour un utilisateur donné.
+ * Traite uniquement les entrées NotificationDigestQueue non envoyées et dont `available_at`
+ * est passé (null = immédiat, sinon heure de fin de plage de silence).
+ * Crée un NotificationDelivery pour traçabilité avant d'envoyer, puis le met à jour selon le résultat.
+ * Un job par utilisateur : l'isolement évite qu'une erreur pour un utilisateur bloque les autres.
+ * Les items sont agrégés en un seul email via OperationalDigestNotification.
+ */
 class SendUserDigestJob implements ShouldQueue
 {
     use Dispatchable;
@@ -40,6 +48,7 @@ class SendUserDigestJob implements ShouldQueue
 
     public function handle(): void
     {
+        // available_at null = immédiat ; sinon on attend la fin de la plage de silence.
         $items = NotificationDigestQueue::query()
             ->where('user_id', $this->userId)
             ->whereNull('sent_at')
@@ -68,9 +77,11 @@ class SendUserDigestJob implements ShouldQueue
             'priority' => $item->priority,
         ])->values()->all();
 
+        // Delivery créé avant l'envoi pour traçabilité même en cas d'échec.
         $delivery = NotificationDelivery::create([
             'event_id' => $eventId,
             'event_key' => 'notifications.digest',
+            // Clé de déduplication à la minute pour éviter les doubles envois en cas de retry rapide.
             'dedupe_key' => hash('sha256', 'digest|'.$this->userId.'|'.now()->format('YmdHi')),
             'attempt_id' => $attemptId,
             'attempt_number' => 1,

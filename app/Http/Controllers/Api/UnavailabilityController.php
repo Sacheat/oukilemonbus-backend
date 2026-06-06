@@ -13,6 +13,11 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\Gate;
 
+/**
+ * Gère les indisponibilités des chauffeurs et véhicules.
+ * Les chauffeurs ne voient que leurs propres indisponibilités.
+ * Les annulations ne suppriment pas la ligne : elles la marquent inactive pour conserver l'historique.
+ */
 class UnavailabilityController extends Controller
 {
     public function __construct(
@@ -29,6 +34,8 @@ class UnavailabilityController extends Controller
             Unavailability::query()
                 ->when(
                     ! $user->hasAnyRole(['admin', 'agent_communal']),
+                    // Le chauffeur ne voit que ses indisponibilités ; le fallback à 0 évite
+                    // qu'un utilisateur sans profil chauffeur ne voie toutes les indisponibilités sans driver_id.
                     fn ($query) => $query->where('driver_id', $user->driver?->getKey() ?? 0)
                 )
                 ->orderBy('start_datetime')

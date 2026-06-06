@@ -7,6 +7,12 @@ use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
+/**
+ * Requête de connexion.
+ * Expose les méthodes de rate limiting (ensureIsNotRateLimited, hitRateLimiter, clearRateLimiter)
+ * utilisées par AuthController — elles ne font pas partie du cycle FormRequest standard.
+ * La clé de throttle combine l'email normalisé et l'IP pour isoler les tentatives par utilisateur.
+ */
 class LoginRequest extends FormRequest
 {
     public function authorize(): bool

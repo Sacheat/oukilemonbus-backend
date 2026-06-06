@@ -7,6 +7,19 @@ use App\Models\NotificationDelivery;
 use App\Models\NotificationDigestQueue;
 use Carbon\CarbonInterface;
 
+/**
+ * Calcule les métriques d'observabilité du pipeline de notifications.
+ *
+ * `summary()` retourne un instantané des compteurs clés :
+ *   - deliveries_pending_total         : envois en attente (tous canaux)
+ *   - deliveries_failed_last_24h       : échecs récents
+ *   - deliveries_high_pending_over_5m  : notifications urgentes bloquées > 5 min
+ *   - digests_pending_ready            : digests dont available_at est passé mais non envoyés
+ *   - digests_late_over_30m            : digests en retard de plus de 30 min (worker peut être mort)
+ *
+ * `isHealthy()` compare ces compteurs aux seuils configurés dans notifications.observability.
+ * Utilisé par SystemHealthService pour la route /api/health.
+ */
 class NotificationHealthService
 {
     public function summary(?CarbonInterface $now = null): array

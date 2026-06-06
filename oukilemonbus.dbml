@@ -1,18 +1,9 @@
 // ============================================================
-// OuKiLéMonBus — Schéma DBML v6 FINAL READY FOR MIGRATIONS
-// Base : fusion v5 consolidée pour génération IA Laravel
+// OuKiLéMonBus — Schéma DBML v7
+// Mis à jour pour refléter l'état réel de la base de données
+// après le merge de feature/backend-inspector dans main (juin 2026)
+//
 // Projet : Application de réservation du bus communal — Dinant
-//
-// Objectif : servir de source unique pour générer :
-// 1) migrations Laravel
-// 2) models Eloquent
-//
-// Recommandations IA :
-// - respecter strictement les noms de tables / colonnes
-// - respecter l'ordre de migration indiqué
-// - traduire les notes "CHECK" via DB::statement() si nécessaire
-// - ajouter les foreign keys avec onDelete/onUpdate selon les Ref
-// - ne pas renommer request_id en id dans user_org_requests
 // ============================================================
 
 Project oukilemonbus {
@@ -25,96 +16,99 @@ Project oukilemonbus {
 // ============================================================
 
 Enum organization_type {
-  ecole_communale
-  asbl
-  externe
+  ecole_communale     [note: 'Prioritaire par défaut, quota exempt, auto-approuvé, récurrences autorisées']
+  personnel_communal  [note: 'Personnel de la commune']
+  cpas                [note: 'Centre Public d'Action Sociale']
+  asbl                [note: 'Association sans but lucratif']
+  externe             [note: 'Organisme externe à la commune']
 }
 
 Enum reservation_status {
-  en_attente
-  approuve
-  confirme
-  refuse
-  annule
-  en_conflit
+  en_attente  [note: 'Créée, en attente de validation manuelle ou automatique']
+  approuve    [note: 'Validée par un agent, chauffeur/véhicule assignés']
+  confirme    [note: 'Confirmée (écoles auto-approuvées)']
+  refuse      [note: 'Refusée définitivement']
+  annule      [note: 'Annulée après création']
+  en_conflit  [note: 'Créée mais bloquée par au moins un conflit non résolu']
 }
 
 Enum reservation_conflict_type {
-  distance_not_calculated
-  schedule_overlap
-  departure_before_08h
-  return_after_17h
-  departure_before_allowed_time
-  return_after_allowed_time
-  impossible_time_window
-  duration_over_allowed_limit
-  quota_exceeded
-  no_driver_available
-  no_vehicle_available
-  vehicle_capacity_unavailable
+  distance_not_calculated     [note: 'Distance non calculée via ORS (fallback Haversine échoué ou coordonnées manquantes)']
+  schedule_overlap            [note: 'Chevauchement de planning avec une autre réservation']
+  departure_before_08h        [note: 'Départ avant 08h00']
+  return_after_17h            [note: 'Retour après 17h00']
+  departure_before_allowed_time [note: 'Départ avant l heure autorisée configurable']
+  return_after_allowed_time   [note: 'Retour après l heure autorisée — avertissement dérogation, pas hard-block']
+  impossible_time_window      [note: 'Créneau impossible (aller-retour incohérent)']
+  duration_over_allowed_limit [note: 'Durée maximale dépassée']
+  quota_exceeded              [note: 'Quota annuel de l organisation dépassé']
+  no_driver_available         [note: 'Aucun chauffeur disponible sur le créneau']
+  no_vehicle_available        [note: 'Aucun véhicule disponible sur le créneau']
+  vehicle_capacity_unavailable [note: 'Aucun véhicule de capacité suffisante disponible']
 }
 
 Enum reservation_activity_type {
-  standard
-  gymnastique
-  psychomotricite
+  standard        [note: 'Sortie standard']
+  gymnastique     [note: 'Activité gym — priorité interne entre écoles']
+  psychomotricite [note: 'Psychomotricité — priorité interne entre écoles']
 }
 
 Enum approval_type_enum {
-  auto
-  manuel
+  auto    [note: 'Approuvé automatiquement (écoles communales)']
+  manuel  [note: 'Approuvé manuellement par un agent']
 }
 
 Enum council_decision_status {
-  approuve
-  refuse
-  en_attente
+  en_attente [note: 'Décision du Collège en attente']
+  approuve   [note: 'Décision favorable']
+  refuse     [note: 'Décision défavorable']
 }
 
 Enum document_type_enum {
-  feuille_route
-  attestation
-  deliberation
-  planning
+  feuille_route  [note: 'Feuille de route hebdomadaire ou journalière']
+  attestation    [note: 'Attestation officielle']
+  deliberation   [note: 'Délibération du Collège communal']
+  planning       [note: 'Export planning']
+  justificatif   [note: 'Pièce justificative téléversée (ASBL, demandes...)']
 }
 
 Enum request_status {
-  en_attente
-  approuve
-  refuse
+  en_attente [note: 'En attente de traitement par un agent']
+  approuve   [note: 'Acceptée']
+  refuse     [note: 'Refusée']
 }
 
 Enum unavailability_reason_type {
-  driver
-  vehicle
+  driver  [note: 'Indisponibilité d un chauffeur']
+  vehicle [note: 'Indisponibilité d un véhicule']
 }
 
 Enum assignment_type_enum {
-  driver
-  vehicle
+  driver  [note: 'Changement de chauffeur']
+  vehicle [note: 'Changement de véhicule']
 }
 
 Enum delivery_status {
-  pending
-  sent
-  failed
+  pending [note: 'En attente d envoi']
+  sent    [note: 'Envoyé avec succès']
+  failed  [note: 'Échec d envoi']
 }
 
 // ============================================================
-// TABLES
+// TABLES — DOMAINE MÉTIER
 // ============================================================
 
 // ─── 1. USERS ────────────────────────────────────────────────
 Table users {
   id                bigint       [pk, increment, not null]
-  first_name        varchar(100) [not null, note: 'Prénom']
-  last_name         varchar(255) [not null, note: 'Nom de famille']
-  email             varchar(255) [not null, unique, note: 'Identifiant de connexion Laravel Auth']
-  password          varchar(255) [not null, note: 'Hash bcrypt']
+  first_name        varchar(100) [not null]
+  last_name         varchar(255) [not null]
+  email             varchar(255) [not null, unique]
+  password          varchar(255) [not null]
   phone             varchar(20)
   active            boolean      [not null, default: true]
   email_verified_at timestamp
-  remember_token    varchar(100) [note: 'Compatibilite Laravel Breeze / remember me']
+  remember_token    varchar(100)
   created_at        timestamp    [not null]
   updated_at        timestamp    [not null]
 
@@ -122,7 +116,8 @@ Table users {
     (email)  [unique, name: 'uq_users_email']
     (active) [name: 'idx_users_active']
   }
-  Note: 'Authentification Laravel sur email + mot de passe. Roles systeme actuels (admin, agent_communal, responsable_organisation, user, chauffeur) geres via Spatie laravel-permission.'
+
+  Note: 'Authentification Laravel sur email + mot de passe. Rôles gérés via Spatie laravel-permission : admin, agent_communal, responsable_organisation, user, chauffeur.'
 }
 
 // ─── 2. DRIVERS ──────────────────────────────────────────────
@@ -146,8 +141,8 @@ Table drivers {
 // ─── 3. VEHICLES ─────────────────────────────────────────────
 Table vehicles {
   id            bigint      [pk, increment, not null]
-  licence_plate varchar(20) [not null, unique, note: '1-VJX-649']
-  capacity      int         [not null, note: '41 places chauffeur compris']
+  licence_plate varchar(20) [not null, unique, note: 'Ex: 1-VJX-649']
+  capacity      int         [not null, note: 'Nombre de places chauffeur compris']
   is_active     boolean     [not null, default: true]
   created_at    timestamp   [not null]
   updated_at    timestamp   [not null]
@@ -161,31 +156,29 @@ Table vehicles {
 
 // ─── 4. LOCATIONS ────────────────────────────────────────────
 Table locations {
-  id                bigint       [pk, increment, not null]
-  formatted_address varchar(500) [not null]
+  id                bigint        [pk, increment, not null]
+  formatted_address varchar(500)  [not null]
   street            varchar(255)
   street_number     varchar(20)
   postal_code       varchar(20)
-  city              varchar(100) [not null]
-  country           varchar(100) [not null, default: 'Belgique']
+  city              varchar(100)  [not null]
+  country           varchar(100)  [not null, default: 'Belgique']
   latitude          decimal(11,8)
   longitude         decimal(11,8)
-  place_id          varchar(255) [note: 'ID Google Maps / ORS — cache distances : pas de nouvel appel API si déjà géocodé']
-  provider          varchar(50)  [note: 'google | openrouteservice']
-  is_verified       boolean      [not null, default: false]
-  created_at        timestamp    [not null]
-  updated_at        timestamp    [not null]
+  place_id          varchar(255)  [note: 'ID ORS / Google Maps — évite les doublons de géocodage']
+  provider          varchar(50)   [note: 'openrouteservice | google']
+  is_verified       boolean       [not null, default: false]
+  created_at        timestamp     [not null]
+  updated_at        timestamp     [not null]
 
   indexes {
-    (city)                    [name: 'idx_locations_city']
-    (postal_code, city)       [name: 'idx_locations_postal_city']
-    (latitude, longitude)     [name: 'idx_locations_lat_lng']
-    (place_id)                [name: 'idx_locations_place_id']
-    (provider, place_id)      [name: 'idx_locations_provider_place_id']
-    (is_verified)             [name: 'idx_locations_is_verified']
+    (city)                [name: 'idx_locations_city']
+    (postal_code, city)   [name: 'idx_locations_postal_city']
+    (latitude, longitude) [name: 'idx_locations_lat_lng']
+    (place_id)            [name: 'idx_locations_place_id']
+    (provider, place_id)  [name: 'idx_locations_provider_place_id']
+    (is_verified)         [name: 'idx_locations_is_verified']
   }
-
-  Note: 'Possibilité d’ajouter une contrainte unique métier sur (provider, place_id) si place_id est toujours fiable et non null'
 }
 
 // ─── 5. ORGANIZATIONS ────────────────────────────────────────
@@ -197,25 +190,26 @@ Table organizations {
   phone_contact               varchar(20)
   name_contact                varchar(255)
   location_id                 bigint            [note: 'Siège social géocodé']
-  is_priority                 boolean           [not null, default: false, note: 'true si type = ecole_communale']
+  is_priority                 boolean           [not null, default: false, note: 'Prioritaire dans l ordonnancement']
+  is_banned                   boolean           [not null, default: false, note: 'Organisation bannie — réservations bloquées']
+  banned_reason               varchar(500)
+  proof_document_id           bigint            [note: 'FK vers documents.id — justificatif statuts']
   annual_quota                int               [not null, default: 5, note: 'Max réservations/an — surtout asbl/externe']
-  reservations_used_this_year int               [not null, default: 0, note: 'Cache métier — reset automatique 1er janvier par Scheduler']
-  quota_reset_year            timestamp         [not null, default: `now()`, note: 'Horodatage du dernier reset']
-  document_proof_path         varchar(500)      [note: 'Justificatif statuts ASBL...']
+  reservations_used_this_year int               [not null, default: 0, note: 'Cache métier — reset automatique 1er janvier']
+  quota_reset_year            timestamp         [not null, default: `now()`]
   created_at                  timestamp         [not null]
   updated_at                  timestamp         [not null]
 
   indexes {
-    (name)                     [name: 'idx_organizations_name']
-    (type)                     [name: 'idx_organizations_type']
-    (location_id)              [name: 'idx_organizations_location_id']
-    (is_priority)              [name: 'idx_organizations_is_priority']
-    (official_email)           [name: 'idx_organizations_official_email']
-    (type, is_priority)        [name: 'idx_organizations_type_priority']
-    (quota_reset_year)         [name: 'idx_organizations_quota_reset_year']
+    (name)              [name: 'idx_organizations_name']
+    (type)              [name: 'idx_organizations_type']
+    (location_id)       [name: 'idx_organizations_location_id']
+    (is_priority)       [name: 'idx_organizations_is_priority']
+    (is_banned)         [name: 'idx_organizations_is_banned']
+    (official_email)    [name: 'idx_organizations_official_email']
+    (type, is_priority) [name: 'idx_organizations_type_priority']
+    (quota_reset_year)  [name: 'idx_organizations_quota_reset_year']
   }
-
-  Note: 'CHECK métier à faire côté app/DB : annual_quota >= 0 AND reservations_used_this_year >= 0'
 }
 
 // ─── 6. USER_ORGANIZATION ────────────────────────────────────
@@ -228,14 +222,14 @@ Table user_organization {
   updated_at        timestamp   [not null]
 
   indexes {
-    (user_id, organization_id) [pk]
-    (user_id)                  [name: 'idx_user_organization_user_id']
-    (organization_id)          [name: 'idx_user_organization_organization_id']
-    (user_id, is_default)      [name: 'idx_user_organization_user_default']
+    (user_id, organization_id)          [pk]
+    (user_id)                           [name: 'idx_user_organization_user_id']
+    (organization_id)                   [name: 'idx_user_organization_organization_id']
+    (user_id, is_default)               [name: 'idx_user_organization_user_default']
     (organization_id, relationship_type) [name: 'idx_user_organization_org_role']
   }
 
-  Note: 'Pivot Many-to-Many enrichi — clé composite (user_id, organization_id). CHECK métier possible : un seul is_default = true par user'
+  Note: 'Pivot Many-to-Many enrichi — clé primaire composite (user_id, organization_id).'
 }
 
 // ─── 7. RECURRENCES ──────────────────────────────────────────
@@ -252,43 +246,42 @@ Table recurrences {
   updated_at       timestamp   [not null]
 
   indexes {
-    (frequency)                [name: 'idx_recurrences_frequency']
-    (start_date, end_date)     [name: 'idx_recurrences_start_end']
-    (is_active)                [name: 'idx_recurrences_is_active']
+    (frequency)            [name: 'idx_recurrences_frequency']
+    (start_date, end_date) [name: 'idx_recurrences_start_end']
+    (is_active)            [name: 'idx_recurrences_is_active']
   }
-
-  Note: 'CHECK : interval_value > 0 ; CHECK : end_date >= start_date ; CHECK : occurrence_count IS NULL OR occurrence_count > 0'
 }
 
 // ─── 8. RESERVATIONS ─────────────────────────────────────────
 Table reservations {
-  id                      bigint              [pk, increment, not null]
-  requested_by_user_id    bigint              [not null]
-  organization_id         bigint              [not null]
-  pickup_location_id      bigint              [not null]
-  destination_location_id bigint              [not null]
-  driver_id               bigint              [note: 'Assigné après validation']
-  vehicle_id              bigint              [note: 'Assigné après validation']
+  id                      bigint                    [pk, increment, not null]
+  requested_by_user_id    bigint                    [not null]
+  organization_id         bigint                    [not null]
+  pickup_location_id      bigint                    [not null]
+  destination_location_id bigint                    [not null]
+  driver_id               bigint
+  vehicle_id              bigint
   recurrence_id           bigint
-  trip_date               date                [not null]
-  departure_time          time                [not null]
-  return_time             time                [not null, note: 'Heure de retour souhaitée ≤ 17h00']
-  nb_children             int                 [not null, default: 0]
-  nb_adults               int                 [not null, note: 'Min 1 — nb_children + nb_adults + 1 chauffeur ≤ 41']
-  trip_purpose            varchar(500)        [not null, note: 'Objet du déplacement']
-  activity_type           reservation_activity_type [not null, default: 'standard', note: 'Priorite interne entre ecoles communales']
-  distance_km             decimal(6,2)        [note: 'Calculé via API — bloqué si > 50 km']
-  estimated_duration_min  int                 [note: 'Durée estimée API + marge configurable']
-  status                  reservation_status  [not null]
-  approval_type           approval_type_enum  [not null]
+  trip_date               date                      [not null]
+  departure_time          time                      [not null]
+  return_time             time                      [not null]
+  nb_children             int                       [not null, default: 0]
+  nb_adults               int                       [not null]
+  trip_purpose            varchar(500)              [not null]
+  activity_type           reservation_activity_type [not null, default: 'standard']
+  distance_km             decimal(6,2)
+  estimated_duration_min  int
+  status                  reservation_status        [not null]
+  approval_type           approval_type_enum        [not null]
   validated_by_user_id    bigint
   validated_at            timestamp
   cancelled_by_user_id    bigint
   cancelled_at            timestamp
   rejection_reason        text
   cancellation_reason     text
-  created_at              timestamp           [not null]
-  updated_at              timestamp           [not null]
+  passengers_confirmed_at timestamp                 [note: 'Horodatage de la confirmation des passagers réels']
+  created_at              timestamp                 [not null]
+  updated_at              timestamp                 [not null]
 
   indexes {
     (trip_date, status)                  [name: 'idx_reservations_date_status']
@@ -309,27 +302,21 @@ Table reservations {
   }
 
   Note: '''
-  Règles métier importantes à traduire en CHECK / validation applicative :
+  Règles métier :
   - return_time > departure_time
-  - return_time <= 17:00:00 pour les cas standards ; des derogations existent pour certaines reservations non scolaires via decision du college
   - nb_adults >= 1
-  - nb_children >= 0
-  - nb_children + nb_adults >= 1
-  - distance_km IS NULL OR distance_km <= 50.00
-  - estimated_duration_min IS NULL OR estimated_duration_min > 0
-  - pickup_location_id <> destination_location_id
-  - status='refuse' => rejection_reason potentiellement requis côté app
-  - status='annule' => cancellation_reason potentiellement requis côté app
+  - pickup_location_id != destination_location_id
+  - Les dérogations (retour > 17h) sont gérées via CouncilDecision
   '''
 }
 
-// --- 9. RESERVATION_CONFLICTS ------------------------------------------------
+// ─── 9. RESERVATION_CONFLICTS ────────────────────────────────
 Table reservation_conflicts {
   id                     bigint                    [pk, increment, not null]
   reservation_id         bigint                    [not null]
-  type                   reservation_conflict_type [not null, note: 'Type de blocage ou point a arbitrer']
+  type                   reservation_conflict_type [not null]
   message                varchar(500)              [not null]
-  related_reservation_id bigint                    [note: 'Reservation qui chevauche, si applicable']
+  related_reservation_id bigint                    [note: 'Réservation en chevauchement, si applicable']
   is_resolved            boolean                   [not null, default: false]
   resolved_by_user_id    bigint
   resolved_at            timestamp
@@ -343,22 +330,17 @@ Table reservation_conflicts {
     (resolved_by_user_id)    [name: 'idx_reservation_conflicts_resolved_by_user_id']
   }
 
-  Note: '''
-  Table de suivi des conflits detectes a la creation/validation d'une reservation.
-  Pas de updated_at dans la migration actuelle.
-  related_reservation_id est renseigne pour les chevauchements de planning.
-  Les conflits non resolus expliquent le statut en_conflit cote API/admin.
-  '''
+  Note: 'Pas de updated_at — immuable sauf is_resolved/resolved_at/resolved_by_user_id.'
 }
 
-// --- 10. COUNCIL_DECISIONS ---------------------------------------------------
+// ─── 10. COUNCIL_DECISIONS ───────────────────────────────────
 Table council_decisions {
   id                  bigint                  [pk, increment, not null]
   reservation_id      bigint                  [not null, unique, note: 'Max 1 décision par réservation']
   decision_status     council_decision_status [not null]
-  decision_date       date                    [note: 'Date de la séance du Collège']
+  decision_date       date
   recorded_by_user_id bigint                  [not null]
-  decision_reference  varchar(100)            [note: 'Numéro officiel de délibération']
+  decision_reference  varchar(100)
   validated_at        timestamp
   notes               varchar(500)
   created_at          timestamp               [not null]
@@ -373,51 +355,69 @@ Table council_decisions {
   }
 }
 
-// ─── 10. DOCUMENTS ───────────────────────────────────────────
+// ─── 11. DOCUMENTS ───────────────────────────────────────────
 Table documents {
-  id              bigint             [pk, increment, not null]
-  reservation_id  bigint
-  user_id         bigint
-  document_type   document_type_enum [not null]
-  file_name       varchar(255)       [not null]
-  file_path       varchar(500)       [not null, note: 'Chemin storage/app/private/...']
-  mime_type       varchar(100)       [not null]
-  file_size       int
-  generation_mode varchar(50)        [not null, note: 'auto | manuel']
-  generated_at    timestamp          [note: 'Horodatage effectif']
-  is_official     boolean            [not null, default: false]
-  version         int                [not null, default: 1]
-  is_available    boolean            [not null, default: true, note: 'false = expiré ou supprimé']
-  created_at      timestamp          [not null]
-  updated_at      timestamp          [not null]
+  id                 bigint             [pk, increment, not null]
+  reservation_id     bigint             [note: 'Null pour les feuilles de route (lien via document_reservation)']
+  user_id            bigint
+  document_type      document_type_enum [not null]
+  file_name          varchar(255)       [not null]
+  file_path          varchar(500)       [not null, note: 'Chemin storage/app/private/...']
+  mime_type          varchar(100)       [not null]
+  file_size          int
+  checksum           varchar(128)       [note: 'Hash du fichier pour détecter les doublons']
+  generation_mode    varchar(50)        [not null, note: 'auto | manuel']
+  generation_context json               [note: 'Snapshot des paramètres de génération (org, trip_date, etc.)']
+  template_key       varchar(100)       [note: 'Ex: deliberations.school | route_sheets.weekly']
+  template_version   varchar(30)        [note: 'Version du template utilisé']
+  generated_at       timestamp
+  is_official        boolean            [not null, default: false]
+  version            int                [not null, default: 1]
+  is_available       boolean            [not null, default: true, note: 'false = expiré ou supprimé']
+  created_at         timestamp          [not null]
+  updated_at         timestamp          [not null]
 
   indexes {
-    (reservation_id)                  [name: 'idx_documents_reservation_id']
-    (user_id)                         [name: 'idx_documents_user_id']
-    (document_type)                   [name: 'idx_documents_document_type']
-    (generated_at)                    [name: 'idx_documents_generated_at']
-    (is_official)                     [name: 'idx_documents_is_official']
-    (is_available)                    [name: 'idx_documents_is_available']
-    (reservation_id, document_type)   [name: 'idx_documents_reservation_type']
-    (document_type, is_available)     [name: 'idx_documents_type_available']
-    (mime_type)                       [name: 'idx_documents_mime_type']
+    (reservation_id)                [name: 'idx_documents_reservation_id']
+    (user_id)                       [name: 'idx_documents_user_id']
+    (document_type)                 [name: 'idx_documents_document_type']
+    (generated_at)                  [name: 'idx_documents_generated_at']
+    (is_official)                   [name: 'idx_documents_is_official']
+    (is_available)                  [name: 'idx_documents_is_available']
+    (reservation_id, document_type) [name: 'idx_documents_reservation_type']
+    (document_type, is_available)   [name: 'idx_documents_type_available']
+    (mime_type)                     [name: 'idx_documents_mime_type']
+    (checksum)                      [name: 'idx_documents_checksum']
+    (template_key)                  [name: 'idx_documents_template_key']
   }
 
-  Note: '''
-  CHECK métier :
-  - file_size IS NULL OR file_size >= 0
-  - version >= 1
-  Archivage recommandé : feuilles de route conservées 3 ans minimum
-  '''
+  Note: 'CHECK : file_size IS NULL OR file_size >= 0 ; version >= 1. Archivage recommandé : feuilles de route 3 ans minimum.'
 }
 
-// ─── 11. NOTIFICATIONS ───────────────────────────────────────
+// ─── 11b. DOCUMENT_RESERVATION ───────────────────────────────
+Table document_reservation {
+  document_id    bigint [not null]
+  reservation_id bigint [not null]
+  position       int    [not null, note: 'Ordre de la réservation dans le document']
+  created_at     timestamp
+  updated_at     timestamp
+
+  indexes {
+    (document_id, reservation_id) [pk]
+    (document_id, position)       [unique, name: 'uq_document_reservation_document_position']
+    (reservation_id)              [name: 'idx_document_reservation_reservation_id']
+  }
+
+  Note: 'Pivot Many-to-Many entre feuilles de route et réservations. Position conserve l ordre dans le document généré.'
+}
+
+// ─── 12. NOTIFICATIONS ───────────────────────────────────────
 Table notifications {
   id              uuid         [pk, not null]
-  type            varchar(255) [not null, note: 'Classe de notification Laravel (FQCN)']
+  type            varchar(255) [not null, note: 'FQCN de la classe de notification Laravel']
   notifiable_type varchar(255) [not null, note: 'Morph target, ex: App\\Models\\User']
-  notifiable_id   bigint       [not null, note: 'Cle du modele notifiable']
-  data            text         [not null, note: 'Payload JSON genere par Laravel']
+  notifiable_id   bigint       [not null]
+  data            text         [not null, note: 'Payload JSON']
   read_at         timestamp
   created_at      timestamp    [not null]
   updated_at      timestamp    [not null]
@@ -425,26 +425,31 @@ Table notifications {
   indexes {
     (notifiable_type, notifiable_id) [name: 'notifications_notifiable_type_notifiable_id_index']
   }
-  Note: 'Table native Laravel pour le canal database. Les references metier doivent etre portees par la classe de notification et/ou stockees dans le payload JSON data.'
+
+  Note: 'Table native Laravel pour le canal database.'
 }
 
+// ─── 12b. NOTIFICATION_DELIVERIES ────────────────────────────
 Table notification_deliveries {
   id                  bigint          [pk, increment, not null]
-  event_id            uuid            [not null, note: 'UUID commun aux livraisons declenchees par le meme evenement']
-  attempt_id          uuid            [not null, note: 'UUID unique de cette tentative de livraison']
+  event_id            uuid            [not null, note: 'UUID commun aux livraisons du même événement']
+  event_key           varchar(120)    [note: 'Clé métier de déduplication d événement']
+  dedupe_key          varchar(191)    [unique, note: 'Clé unique de déduplication de cette livraison']
+  attempt_id          uuid            [not null, unique]
   attempt_number      int             [not null, default: 1]
-  notification_id     uuid            [note: 'ID de notifications.id si le canal database est utilise']
-  notification_type   varchar(255)    [not null, note: 'Classe de notification Laravel (FQCN)']
-  notifiable_type     varchar(255)    [not null, note: 'Morph target, ex: App\\Models\\User']
-  notifiable_id       bigint          [not null, note: 'Cle du modele notifiable']
+  notification_id     uuid            [note: 'FK logique vers notifications.id (canal database uniquement)']
+  notification_type   varchar(255)    [not null]
+  notifiable_type     varchar(255)    [not null]
+  notifiable_id       bigint          [not null]
   reservation_id      bigint
   document_id         bigint
-  channel             varchar(50)     [not null, note: 'mail | database | broadcast | slack | sms | custom']
-  recipient_email     varchar(255)    [note: 'Destinataire email si applicable']
+  channel             varchar(50)     [not null, note: 'mail | database | broadcast | slack | sms']
+  priority            varchar(20)     [not null, default: 'normal', note: 'critical | high | normal | low']
+  recipient_email     varchar(255)
   status              delivery_status [not null]
-  provider            varchar(50)     [note: 'smtp | ses | postmark | database | broadcast | custom']
-  provider_message_id varchar(255)    [note: 'ID retourne par le provider ou trace technique']
-  payload             json            [note: 'Snapshot du contexte d''envoi : sujet, pieces jointes, metadata']
+  provider            varchar(50)
+  provider_message_id varchar(255)
+  payload             json
   sent_at             timestamp
   failed_at           timestamp
   error_message       text
@@ -453,32 +458,86 @@ Table notification_deliveries {
 
   indexes {
     (attempt_id)                     [unique, name: 'uq_notification_deliveries_attempt_id']
+    (dedupe_key)                     [unique, name: 'uq_notification_deliveries_dedupe_key']
     (event_id, channel, notifiable_type, notifiable_id, attempt_number) [unique, name: 'uq_notification_deliveries_event_channel_notifiable_attempt']
     (event_id)                       [name: 'idx_notification_deliveries_event_id']
-    (notification_id)                 [name: 'idx_notification_deliveries_notification_id']
-    (notification_type)               [name: 'idx_notification_deliveries_notification_type']
-    (notifiable_type, notifiable_id)  [name: 'idx_notification_deliveries_notifiable']
-    (reservation_id)                  [name: 'idx_notification_deliveries_reservation_id']
-    (document_id)                     [name: 'idx_notification_deliveries_document_id']
-    (channel)                         [name: 'idx_notification_deliveries_channel']
-    (status)                          [name: 'idx_notification_deliveries_status']
-    (recipient_email)                 [name: 'idx_notification_deliveries_recipient_email']
-    (channel, status)                 [name: 'idx_notification_deliveries_channel_status']
-    (sent_at)                         [name: 'idx_notification_deliveries_sent_at']
-    (failed_at)                       [name: 'idx_notification_deliveries_failed_at']
-    (created_at)                      [name: 'idx_notification_deliveries_created_at']
+    (event_key)                      [name: 'idx_notification_deliveries_event_key']
+    (notification_id)                [name: 'idx_notification_deliveries_notification_id']
+    (notification_type)              [name: 'idx_notification_deliveries_notification_type']
+    (notifiable_type, notifiable_id) [name: 'idx_notification_deliveries_notifiable']
+    (reservation_id)                 [name: 'idx_notification_deliveries_reservation_id']
+    (document_id)                    [name: 'idx_notification_deliveries_document_id']
+    (channel)                        [name: 'idx_notification_deliveries_channel']
+    (priority)                       [name: 'idx_notification_deliveries_priority']
+    (status)                         [name: 'idx_notification_deliveries_status']
+    (recipient_email)                [name: 'idx_notification_deliveries_recipient_email']
+    (channel, status)                [name: 'idx_notification_deliveries_channel_status']
+    (sent_at)                        [name: 'idx_notification_deliveries_sent_at']
+    (failed_at)                      [name: 'idx_notification_deliveries_failed_at']
+    (created_at)                     [name: 'idx_notification_deliveries_created_at']
   }
 
-  Note: 'Journal d''audit des envois. Table distincte du systeme natif Laravel pour conserver les preuves d''envoi, y compris emails avec documents joints. Pas de FK sur notification_id afin de permettre le logging meme hors canal database et de survivre a un eventuel nettoyage de notifications.'
+  Note: 'Journal d audit des envois. Pas de FK sur notification_id pour survivre au nettoyage des notifications.'
 }
 
-// ─── 12. UNAVAILABILITIES ────────────────────────────────────
+// ─── 12c. USER_NOTIFICATION_PREFERENCES ──────────────────────
+Table user_notification_preferences {
+  id                                      bigint  [pk, increment, not null]
+  user_id                                 bigint  [not null, unique]
+  notify_reservation_updates_in_app       boolean [not null, default: true]
+  notify_reservation_updates_email        boolean [not null, default: true]
+  notify_driver_planning_in_app           boolean [not null, default: true]
+  notify_driver_planning_email            boolean [not null, default: true]
+  notify_admin_workflow_in_app            boolean [not null, default: true]
+  notify_admin_workflow_email             boolean [not null, default: true]
+  notify_last_minute_cancellation_in_app  boolean [not null, default: true]
+  notify_last_minute_cancellation_email   boolean [not null, default: true]
+  digest_frequency                        varchar(20) [not null, default: 'none', note: 'none | daily | weekly']
+  quiet_hours_start                       tinyint unsigned [note: 'Heure de début des heures silencieuses (0-23)']
+  quiet_hours_end                         tinyint unsigned [note: 'Heure de fin des heures silencieuses (0-23)']
+  created_at                              timestamp
+  updated_at                              timestamp
+
+  indexes {
+    (user_id) [unique, name: 'user_notification_preferences_user_id_unique']
+  }
+
+  Note: '1 ligne par utilisateur — créée à la demande.'
+}
+
+// ─── 12d. NOTIFICATION_DIGEST_QUEUES ─────────────────────────
+Table notification_digest_queues {
+  id             bigint       [pk, increment, not null]
+  user_id        bigint       [not null]
+  event_key      varchar(120) [not null]
+  category       varchar(100) [not null]
+  priority       varchar(20)  [not null, default: 'normal']
+  title          varchar(255) [not null]
+  message        text         [not null]
+  reservation_id bigint
+  document_id    bigint
+  payload        json
+  available_at   timestamp
+  sent_at        timestamp
+  created_at     timestamp
+  updated_at     timestamp
+
+  indexes {
+    (user_id, sent_at)       [name: 'idx_notification_digest_queues_user_sent']
+    (available_at, sent_at)  [name: 'idx_notification_digest_queues_available_sent']
+    (category, priority)     [name: 'idx_notification_digest_queues_category_priority']
+  }
+
+  Note: 'File d attente pour l agrégation et l envoi différé des notifications digest.'
+}
+
+// ─── 13. UNAVAILABILITIES ────────────────────────────────────
 Table unavailabilities {
   id                 bigint                     [pk, increment, not null]
   reason_type        unavailability_reason_type [not null]
   reason             varchar(500)
-  driver_id          bigint                     [note: 'Renseigné si reason_type = driver']
-  vehicle_id         bigint                     [note: 'Renseigné si reason_type = vehicle']
+  driver_id          bigint
+  vehicle_id         bigint
   start_datetime     datetime                   [not null]
   end_datetime       datetime                   [not null]
   is_active          boolean                    [not null, default: true]
@@ -497,16 +556,10 @@ Table unavailabilities {
     (vehicle_id, start_datetime)   [name: 'idx_unavailabilities_vehicle_start']
   }
 
-  Note: '''
-  CHECK à traduire en DB::statement :
-  - end_datetime > start_datetime
-  - (driver_id IS NOT NULL AND vehicle_id IS NULL AND reason_type = 'driver')
-    OR
-    (driver_id IS NULL AND vehicle_id IS NOT NULL AND reason_type = 'vehicle')
-  '''
+  Note: 'CHECK : (driver_id IS NOT NULL AND vehicle_id IS NULL AND reason_type = driver) OR (driver_id IS NULL AND vehicle_id IS NOT NULL AND reason_type = vehicle)'
 }
 
-// ─── 13. UNAVAILABILITIES_HISTORY ────────────────────────────
+// ─── 14. UNAVAILABILITIES_HISTORY ────────────────────────────
 Table unavailabilities_history {
   id                 bigint                     [pk, increment, not null]
   unavailability_id  bigint                     [not null]
@@ -529,10 +582,10 @@ Table unavailabilities_history {
     (unavailability_id, created_at) [name: 'idx_unavailabilities_history_unavailability_created_at']
   }
 
-  Note: 'Table immuable — created_at seul, jamais de updated_at'
+  Note: 'Table immuable — created_at uniquement, jamais de updated_at.'
 }
 
-// ─── 14. RESERVATION_STATUS_HISTORY ──────────────────────────
+// ─── 15. RESERVATION_STATUS_HISTORY ──────────────────────────
 Table reservation_status_history {
   id                 bigint             [pk, increment, not null]
   reservation_id     bigint             [not null]
@@ -550,10 +603,10 @@ Table reservation_status_history {
     (new_status)                 [name: 'idx_reservation_status_history_new_status']
   }
 
-  Note: 'Table immuable — created_at seul, jamais de updated_at'
+  Note: 'Table immuable — created_at uniquement.'
 }
 
-// ─── 15. RESERVATION_ASSIGNMENT_HISTORY ──────────────────────
+// ─── 16. RESERVATION_ASSIGNMENT_HISTORY ──────────────────────
 Table reservation_assignment_history {
   id                 bigint               [pk, increment, not null]
   reservation_id     bigint               [not null]
@@ -576,30 +629,25 @@ Table reservation_assignment_history {
     (new_vehicle_id)             [name: 'idx_reservation_assignment_history_new_vehicle_id']
   }
 
-  Note: '''
-  Table immuable — created_at seul
-  CHECK métier :
-  - assignment_type = 'driver'  => new_driver_id ou old_driver_id renseigné, vehicle_id nulls
-  - assignment_type = 'vehicle' => new_vehicle_id ou old_vehicle_id renseigné, driver_id nulls
-  '''
+  Note: 'Table immuable — created_at uniquement.'
 }
 
-// ─── 16. ORG_REGISTRATION_REQUESTS ───────────────────────────
+// ─── 17. ORG_REGISTRATION_REQUESTS ───────────────────────────
 Table org_registration_requests {
   id                  bigint            [pk, increment, not null]
   request_by_user_id  bigint            [not null]
   organization_name   varchar(255)      [not null]
   organization_type   organization_type [not null]
-  enterprise_number   varchar(50)       [note: 'Numéro BCE (ASBL)']
+  enterprise_number   varchar(50)       [note: 'Numéro BCE — recommandé pour les ASBL']
   official_email      varchar(255)      [not null]
   phone               varchar(20)
   location_id         bigint
   contact_person_name varchar(100)
   contact_person_role varchar(100)
-  proof_document_path varchar(500)
+  proof_document_id   bigint            [note: 'FK vers documents.id — justificatif joint']
   comment             text
   status              request_status    [not null]
-  confidence_note     int               [note: 'Score de confiance calcule automatiquement']
+  confidence_note     int               [note: 'Score de confiance calculé automatiquement (0-100). Le détail est calculé à la volée par l API, non stocké.']
   reviewed_by_user_id bigint
   reviewed_at         timestamp
   rejection_reason    text
@@ -607,31 +655,29 @@ Table org_registration_requests {
   updated_at          timestamp         [not null]
 
   indexes {
-    (request_by_user_id)          [name: 'idx_org_registration_requests_request_by_user_id']
-    (organization_type)           [name: 'idx_org_registration_requests_organization_type']
-    (official_email)              [name: 'idx_org_registration_requests_official_email']
-    (location_id)                 [name: 'idx_org_registration_requests_location_id']
-    (status)                      [name: 'idx_org_registration_requests_status']
-    (confidence_note)             [name: 'idx_org_registration_requests_confidence_note']
-    (reviewed_by_user_id)         [name: 'idx_org_registration_requests_reviewed_by_user_id']
-    (created_at)                  [name: 'idx_org_registration_requests_created_at']
-    (status, created_at)          [name: 'idx_org_registration_requests_status_created_at']
-    (enterprise_number)           [name: 'idx_org_registration_requests_enterprise_number']
+    (request_by_user_id)  [name: 'idx_org_registration_requests_request_by_user_id']
+    (organization_type)   [name: 'idx_org_registration_requests_organization_type']
+    (official_email)      [name: 'idx_org_registration_requests_official_email']
+    (location_id)         [name: 'idx_org_registration_requests_location_id']
+    (status)              [name: 'idx_org_registration_requests_status']
+    (confidence_note)     [name: 'idx_org_registration_requests_confidence_note']
+    (reviewed_by_user_id) [name: 'idx_org_registration_requests_reviewed_by_user_id']
+    (created_at)          [name: 'idx_org_registration_requests_created_at']
+    (status, created_at)  [name: 'idx_org_registration_requests_status_created_at']
+    (enterprise_number)   [name: 'idx_org_registration_requests_enterprise_number']
   }
-
-  Note: 'CHECK métier possible : si organization_type = asbl, enterprise_number recommandé/obligatoire côté app'
 }
 
-// ─── 17. USER_ORG_REQUESTS ───────────────────────────────────
+// ─── 18. USER_ORG_REQUESTS ───────────────────────────────────
 Table user_org_requests {
-  request_id           bigint         [pk, increment, not null]
+  request_id           bigint         [pk, increment, not null, note: 'PK nommée request_id (ne pas renommer en id)']
   organization_id      bigint         [not null]
   requested_by_user_id bigint         [not null]
-  requested_role       varchar(50)    [not null, note: 'prof | directeur | animateur | responsable']
+  requested_role       varchar(50)    [not null, note: 'prof | directeur | animateur | responsable | referent']
   justification        text
-  proof_document_path  varchar(500)
+  proof_document_id    bigint         [note: 'FK vers documents.id — pièce jointe optionnelle']
   status               request_status [not null]
-  confidence_note      int            [note: 'Note interne admin (optionnel)']
+  confidence_note      int            [note: 'Score de confiance calculé automatiquement (0-100). Le détail est calculé à la volée par l API, non stocké.']
   reviewed_by_user_id  bigint
   reviewed_at          timestamp
   rejection_reason     text
@@ -639,31 +685,26 @@ Table user_org_requests {
   updated_at           timestamp      [not null]
 
   indexes {
-    (organization_id)                 [name: 'idx_user_org_requests_organization_id']
-    (requested_by_user_id)            [name: 'idx_user_org_requests_requested_by_user_id']
-    (status)                          [name: 'idx_user_org_requests_status']
-    (reviewed_by_user_id)             [name: 'idx_user_org_requests_reviewed_by_user_id']
-    (created_at)                      [name: 'idx_user_org_requests_created_at']
-    (organization_id, status)         [name: 'idx_user_org_requests_org_status']
-    (requested_by_user_id, status)    [name: 'idx_user_org_requests_user_status']
+    (organization_id)              [name: 'idx_user_org_requests_organization_id']
+    (requested_by_user_id)         [name: 'idx_user_org_requests_requested_by_user_id']
+    (status)                       [name: 'idx_user_org_requests_status']
+    (reviewed_by_user_id)          [name: 'idx_user_org_requests_reviewed_by_user_id']
+    (created_at)                   [name: 'idx_user_org_requests_created_at']
+    (organization_id, status)      [name: 'idx_user_org_requests_org_status']
+    (requested_by_user_id, status) [name: 'idx_user_org_requests_user_status']
   }
-
-  Note: '''
-  PK = request_id (ne pas renommer en id)
-  CHECK métier possible : confidence_note IS NULL OR confidence_note BETWEEN 0 AND 100
-  '''
 }
 
-// --- 18. MUNICIPALITIES ------------------------------------------------------
+// ─── 19. MUNICIPALITIES ──────────────────────────────────────
 Table municipalities {
   id          bigint       [pk, increment, not null]
   name        varchar(100) [not null]
-  external_id varchar(500)
-  nis_code    varchar(20)
+  external_id varchar(500) [note: 'GeonameId GeoNames']
+  nis_code    varchar(20)  [note: 'Code NIS INS belge']
   country     varchar(2)   [not null, default: 'BE']
   postal_code varchar(20)
   source      varchar(50)  [note: 'manual | geonames | statbel']
-  is_active   boolean      [not null, default: false]
+  is_active   boolean      [not null, default: false, note: 'Une seule commune active à la fois']
   synced_at   timestamp
   created_at  timestamp    [not null]
   updated_at  timestamp    [not null]
@@ -675,17 +716,15 @@ Table municipalities {
     (country)     [name: 'idx_municipalities_country']
     (is_active)   [name: 'idx_municipalities_is_active']
   }
-
-  Note: 'Configuration dynamique de la commune active pour le scoring et la validation des localites.'
 }
 
-// --- 19. MUNICIPALITY_LOCALITIES --------------------------------------------
+// ─── 20. MUNICIPALITY_LOCALITIES ─────────────────────────────
 Table municipality_localities {
   id              bigint       [pk, increment, not null]
   municipality_id bigint       [not null]
   name            varchar(100) [not null]
-  normalized_name varchar(120) [not null]
-  external_id     varchar(500)
+  normalized_name varchar(120) [not null, note: 'Nom normalisé (sans accents, minuscules) pour le scoring']
+  external_id     varchar(500) [note: 'GeonameId GeoNames']
   source          varchar(50)  [note: 'manual | geonames | statbel']
   is_active       boolean      [not null, default: true]
   created_at      timestamp    [not null]
@@ -700,19 +739,281 @@ Table municipality_localities {
   }
 }
 
+// ─── 21. DOCUMENT_ACCESS_TOKENS ──────────────────────────────
+Table document_access_tokens {
+  id          bigint       [pk, increment, not null]
+  document_id bigint       [not null]
+  user_id     bigint
+  token       varchar(100) [not null, unique, note: 'Token signé transmis dans l URL de téléchargement']
+  expires_at  timestamp    [not null]
+  used_at     timestamp
+  revoked_at  timestamp
+  created_at  timestamp
+  updated_at  timestamp
+
+  indexes {
+    (token)                  [unique, name: 'document_access_tokens_token_unique']
+    (document_id, used_at)   [name: 'idx_document_access_tokens_document_used']
+    (expires_at, used_at)    [name: 'idx_document_access_tokens_expires_used']
+  }
+
+  Note: 'Liens de téléchargement à durée limitée pour les documents. Révocables explicitement.'
+}
+
+// ─── 22. DOCUMENT_ACCESS_LOGS ────────────────────────────────
+Table document_access_logs {
+  id                      bigint       [pk, increment, not null]
+  document_id             bigint       [not null]
+  document_access_token_id bigint
+  user_id                 bigint
+  ip_address              varchar(45)
+  user_agent              text
+  is_success              boolean      [not null]
+  failure_reason          varchar(120)
+  created_at              timestamp
+  updated_at              timestamp
+
+  indexes {
+    (document_id, is_success) [name: 'idx_document_access_logs_document_success']
+  }
+
+  Note: 'Audit de tous les accès aux documents (réussis et échoués).'
+}
+
+// ─── 23. API_IDEMPOTENCY_KEYS ────────────────────────────────
+Table api_idempotency_keys {
+  id                bigint       [pk, increment, not null]
+  user_id           bigint       [not null]
+  idempotency_key   varchar(128) [not null]
+  method            varchar(10)  [not null]
+  route_name        varchar(191) [not null]
+  request_hash      varchar(64)  [not null]
+  response_status   smallint unsigned
+  response_body     json
+  completed_at      timestamp
+  created_at        timestamp
+  updated_at        timestamp
+
+  indexes {
+    (user_id, idempotency_key, method, route_name) [unique, name: 'uq_api_idempotency_user_key_method_route']
+    (user_id, created_at)                          [name: 'idx_api_idempotency_user_created_at']
+    (completed_at)                                 [name: 'idx_api_idempotency_completed_at']
+  }
+
+  Note: 'Garantit l idempotence des requêtes POST/PATCH critiques. Nettoyage périodique recommandé.'
+}
+
+// ─── 24. DOMAIN_EVENTS ───────────────────────────────────────
+Table domain_events {
+  id             bigint       [pk, increment, not null]
+  aggregate_type varchar(100) [not null, note: 'Ex: reservation | organization | driver']
+  aggregate_id   bigint       [not null]
+  event_type     varchar(150) [not null, note: 'Ex: reservation.created | reservation.approved']
+  actor_user_id  bigint
+  old_values     json
+  new_values     json
+  context        json
+  created_at     timestamp    [not null, default: `CURRENT_TIMESTAMP`]
+
+  indexes {
+    (aggregate_type, aggregate_id) [name: 'idx_domain_events_aggregate']
+    (event_type)                   [name: 'idx_domain_events_event_type']
+    (created_at)                   [name: 'idx_domain_events_created_at']
+  }
+
+  Note: 'Journal immuable des événements métier. Pas de updated_at. Source de vérité pour l audit.'
+}
+
+// ─── 25. PLANNING_EXPORT_REQUESTS ────────────────────────────
+Table planning_export_requests {
+  id                   bigint      [pk, increment, not null]
+  requested_by_user_id bigint      [not null]
+  start_date           date        [not null]
+  end_date             date        [not null]
+  statuses             json        [note: 'Filtres de statut à inclure dans l export']
+  filters              json        [note: 'Filtres additionnels (org, driver, vehicle...)']
+  status               varchar(32) [not null, default: 'pending', note: 'pending | processing | completed | failed']
+  document_id          bigint      [note: 'Document généré une fois complété']
+  error_message        text
+  requested_at         timestamp
+  started_at           timestamp
+  completed_at         timestamp
+  failed_at            timestamp
+  created_at           timestamp
+  updated_at           timestamp
+
+  indexes {
+    (requested_by_user_id, status) [name: 'idx_planning_exports_user_status']
+    (requested_at)                 [name: 'idx_planning_exports_requested_at']
+  }
+
+  Note: 'Export asynchrone du planning en Excel. Créé en pending, traité par une job queue.'
+}
+
 // ============================================================
-// RELATIONS / FOREIGN KEYS / ON DELETE / ON UPDATE
+// TABLES — INFRASTRUCTURE LARAVEL
 // ============================================================
 
-// drivers
+// ─── Spatie laravel-permission ───────────────────────────────
+Table permissions {
+  id         bigint       [pk, increment, not null]
+  name       varchar(255) [not null]
+  guard_name varchar(255) [not null]
+  created_at timestamp
+  updated_at timestamp
+
+  indexes {
+    (name, guard_name) [unique]
+  }
+
+  Note: 'Permissions granulaires Spatie. 44 permissions définies dans RolesAndPermissionsSeeder.'
+}
+
+Table roles {
+  id         bigint       [pk, increment, not null]
+  name       varchar(255) [not null]
+  guard_name varchar(255) [not null]
+  created_at timestamp
+  updated_at timestamp
+
+  indexes {
+    (name, guard_name) [unique]
+  }
+
+  Note: '5 rôles : admin, agent_communal, responsable_organisation, user, chauffeur.'
+}
+
+Table model_has_permissions {
+  permission_id bigint       [not null]
+  model_type    varchar(255) [not null]
+  model_id      bigint       [not null]
+
+  indexes {
+    (permission_id, model_id, model_type) [pk, name: 'model_has_permissions_permission_model_type_primary']
+    (model_id, model_type)                [name: 'model_has_permissions_model_id_model_type_index']
+  }
+}
+
+Table model_has_roles {
+  role_id    bigint       [not null]
+  model_type varchar(255) [not null]
+  model_id   bigint       [not null]
+
+  indexes {
+    (role_id, model_id, model_type) [pk, name: 'model_has_roles_role_model_type_primary']
+    (model_id, model_type)          [name: 'model_has_roles_model_id_model_type_index']
+  }
+}
+
+Table role_has_permissions {
+  permission_id bigint [not null]
+  role_id       bigint [not null]
+
+  indexes {
+    (permission_id, role_id) [pk, name: 'role_has_permissions_permission_id_role_id_primary']
+  }
+}
+
+Table sessions {
+  id            varchar(255) [pk, not null]
+  user_id       bigint
+  ip_address    varchar(45)
+  user_agent    text
+  payload       longtext     [not null]
+  last_activity int          [not null]
+
+  indexes {
+    (user_id)       [name: 'sessions_user_id_index']
+    (last_activity) [name: 'sessions_last_activity_index']
+  }
+
+  Note: 'Sessions Laravel (utilisées pour la démo web et l interface backend inspector).'
+}
+
+Table personal_access_tokens {
+  id             bigint       [pk, increment, not null]
+  tokenable_type varchar(255) [not null]
+  tokenable_id   bigint       [not null]
+  name           varchar(255) [not null]
+  token          varchar(64)  [not null, unique]
+  abilities      text
+  last_used_at   timestamp
+  expires_at     timestamp
+  created_at     timestamp
+  updated_at     timestamp
+
+  indexes {
+    (tokenable_type, tokenable_id) [name: 'personal_access_tokens_tokenable_type_tokenable_id_index']
+  }
+
+  Note: 'Tokens Sanctum pour l authentification API.'
+}
+
+Table jobs {
+  id           bigint   [pk, increment, not null]
+  queue        varchar  [not null]
+  payload      longtext [not null]
+  attempts     tinyint  [not null]
+  reserved_at  int
+  available_at int      [not null]
+  created_at   int      [not null]
+
+  indexes {
+    (queue) [name: 'jobs_queue_index']
+  }
+}
+
+Table job_batches {
+  id             varchar  [pk, not null]
+  name           varchar  [not null]
+  total_jobs     int      [not null]
+  pending_jobs   int      [not null]
+  failed_jobs    int      [not null]
+  failed_job_ids longtext [not null]
+  options        mediumtext
+  cancelled_at   int
+  created_at     int      [not null]
+  finished_at    int
+}
+
+Table failed_jobs {
+  id         bigint    [pk, increment, not null]
+  uuid       varchar   [not null, unique]
+  connection text      [not null]
+  queue      text      [not null]
+  payload    longtext  [not null]
+  exception  longtext  [not null]
+  failed_at  timestamp [not null]
+}
+
+Table cache {
+  key        varchar(255) [pk, not null]
+  value      mediumtext   [not null]
+  expiration bigint       [not null]
+}
+
+Table cache_locks {
+  key        varchar(255) [pk, not null]
+  owner      varchar(255) [not null]
+  expiration bigint       [not null]
+}
+
+// ============================================================
+// RELATIONS / FOREIGN KEYS
+// ============================================================
+
+// users
 Ref: drivers.user_id > users.id [delete: cascade, update: cascade]
 
 // organizations
 Ref: organizations.location_id > locations.id [delete: set null, update: cascade]
+Ref: organizations.proof_document_id > documents.id [delete: set null, update: cascade]
 
 // user_organization
 Ref: user_organization.user_id > users.id [delete: cascade, update: cascade]
 Ref: user_organization.organization_id > organizations.id [delete: cascade, update: cascade]
+
+// recurrences (pas de FK — table autonome)
 
 // reservations
 Ref: reservations.requested_by_user_id > users.id [delete: restrict, update: cascade]
@@ -738,10 +1039,21 @@ Ref: council_decisions.recorded_by_user_id > users.id [delete: restrict, update:
 Ref: documents.reservation_id > reservations.id [delete: set null, update: cascade]
 Ref: documents.user_id > users.id [delete: set null, update: cascade]
 
+// document_reservation (pivot)
+Ref: document_reservation.document_id > documents.id [delete: cascade, update: cascade]
+Ref: document_reservation.reservation_id > reservations.id [delete: cascade, update: cascade]
+
 // notification_deliveries
 Ref: notification_deliveries.reservation_id > reservations.id [delete: set null, update: cascade]
 Ref: notification_deliveries.document_id > documents.id [delete: set null, update: cascade]
 
+// user_notification_preferences
+Ref: user_notification_preferences.user_id > users.id [delete: cascade, update: cascade]
+
+// notification_digest_queues
+Ref: notification_digest_queues.user_id > users.id [delete: cascade, update: cascade]
+Ref: notification_digest_queues.reservation_id > reservations.id [delete: set null, update: cascade]
+Ref: notification_digest_queues.document_id > documents.id [delete: set null, update: cascade]
 
 // unavailabilities
 Ref: unavailabilities.driver_id > drivers.id [delete: restrict, update: cascade]
@@ -767,53 +1079,42 @@ Ref: reservation_assignment_history.changed_by_user_id > users.id [delete: restr
 // org_registration_requests
 Ref: org_registration_requests.request_by_user_id > users.id [delete: restrict, update: cascade]
 Ref: org_registration_requests.location_id > locations.id [delete: set null, update: cascade]
+Ref: org_registration_requests.proof_document_id > documents.id [delete: set null, update: cascade]
 Ref: org_registration_requests.reviewed_by_user_id > users.id [delete: set null, update: cascade]
 
 // user_org_requests
 Ref: user_org_requests.organization_id > organizations.id [delete: restrict, update: cascade]
 Ref: user_org_requests.requested_by_user_id > users.id [delete: restrict, update: cascade]
+Ref: user_org_requests.proof_document_id > documents.id [delete: set null, update: cascade]
 Ref: user_org_requests.reviewed_by_user_id > users.id [delete: set null, update: cascade]
 
-// municipality_localities
+// municipalities / localities
 Ref: municipality_localities.municipality_id > municipalities.id [delete: cascade, update: cascade]
 
-// ============================================================
-// ORDRE DE MIGRATION RECOMMANDÉ
-// ============================================================
-//
-// 1. users
-// 2. drivers
-// 3. vehicles
-// 4. locations
-// 5. organizations
-// 6. user_organization
-// 7. recurrences
-// 8. reservations
-// 9. reservation_conflicts
-// 10. council_decisions
-// 11. documents
-// 12. notifications
-// 13. notification_deliveries
-// 14. unavailabilities
-// 15. unavailabilities_history
-// 16. reservation_status_history
-// 17. reservation_assignment_history
-// 18. org_registration_requests
-// 19. user_org_requests
-// 20. municipalities
-// 21. municipality_localities
-//
-// ============================================================
-// NOTES IMPORTANTES POUR L'IA QUI GÉNÈRE LES MIGRATIONS
-// ============================================================
-//
-// 1. Générer explicitement tous les indexes listés ci-dessus.
-// 2. Générer les enums MySQL/Laravel tels qu’ils sont déclarés.
-// 3. Traduire les CHECK complexes via DB::statement() si le builder Laravel
-//    ne suffit pas.
-// 4. Pour les tables d'historique : pas de updated_at.
-// 5. Pour user_org_requests : clé primaire = request_id.
-// 6. Pour user_organization : clé primaire composite (user_id, organization_id).
-// 7. Utiliser unsignedBigInteger/bigIncrements selon conventions Laravel.
-// 8. Respecter les onDelete / onUpdate définis dans les Ref.
-// ============================================================
+// document_access_tokens
+Ref: document_access_tokens.document_id > documents.id [delete: cascade, update: cascade]
+Ref: document_access_tokens.user_id > users.id [delete: set null, update: cascade]
+
+// document_access_logs
+Ref: document_access_logs.document_id > documents.id [delete: cascade, update: cascade]
+Ref: document_access_logs.document_access_token_id > document_access_tokens.id [delete: set null, update: cascade]
+Ref: document_access_logs.user_id > users.id [delete: set null, update: cascade]
+
+// api_idempotency_keys
+Ref: api_idempotency_keys.user_id > users.id [delete: cascade, update: cascade]
+
+// domain_events
+Ref: domain_events.actor_user_id > users.id [delete: set null, update: cascade]
+
+// planning_export_requests
+Ref: planning_export_requests.requested_by_user_id > users.id [delete: cascade, update: cascade]
+Ref: planning_export_requests.document_id > documents.id [delete: set null, update: cascade]
+
+// sessions
+Ref: sessions.user_id > users.id [delete: set null, update: cascade]
+
+// spatie permissions
+Ref: model_has_permissions.permission_id > permissions.id [delete: cascade]
+Ref: model_has_roles.role_id > roles.id [delete: cascade]
+Ref: role_has_permissions.permission_id > permissions.id [delete: cascade]
+Ref: role_has_permissions.role_id > roles.id [delete: cascade]

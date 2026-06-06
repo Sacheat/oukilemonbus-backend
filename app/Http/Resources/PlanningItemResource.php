@@ -7,11 +7,19 @@ use App\Services\Reservations\ReservationOccupationService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
+/**
+ * Resource planning. Enrichit chaque réservation avec :
+ * - occupation : fenêtre complète calculée par ReservationOccupationService (buffers inclus)
+ * - display : titre, libellé horaire, statut, affectation — prêts à l'emploi pour le frontend
+ * - availability : attribut personnalisé injecté par PlanningService, présent seulement si
+ *   `include_availability` est demandé (admin/agent uniquement)
+ */
 class PlanningItemResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
         $occupation = app(ReservationOccupationService::class)->windowForReservation($this->resource);
+        // Attribut dynamique injecté par PlanningService::forPeriod() quand include_availability=true.
         $availability = $this->resource->getAttribute('planning_availability');
 
         return [

@@ -16,6 +16,23 @@ use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
+/**
+ * Gère la création et l'annulation de récurrences de réservations.
+ *
+ * Réservées aux organisations pouvant utiliser les récurrences (ex. écoles — canUseRecurrences()).
+ * Fréquences supportées : HEBDOMADAIRE, BIHEBDOMADAIRE (semaines paires depuis le lundi de départ),
+ * MENSUEL (même jour du mois, addMonthNoOverflow pour éviter les débordements).
+ *
+ * `preview()` génère la liste des dates valides / ignorées (week-ends, jours fériés, délai minimum)
+ * et détecte les conflits de façon approximative (sans appel ORS par occurrence).
+ *
+ * `create()` crée la Recurrence puis tente de créer chaque occurrence via ReservationService.
+ * Les échecs individuels sont loggués et ignorés (resilient) ; `occurrence_count` est mis à jour
+ * après coup pour refléter le nombre réellement créé (NULL si aucune réussite).
+ *
+ * `cancelRemaining()` annule toutes les réservations futures non terminales et passe
+ * la Recurrence en is_active = false.
+ */
 class RecurrenceService
 {
     public function __construct(

@@ -18,6 +18,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'changed_by_user_id',
     'reason',
 ])]
+/**
+ * Historique immuable des changements d'affectation chauffeur/véhicule d'une réservation.
+ * `UPDATED_AT = null` : ajout seul. `assignment_type` indique ce qui a changé (DRIVER_ONLY, VEHICLE_ONLY, BOTH).
+ * `old_*` / `new_*` : snapshot avant/après permettant de retracer toutes les réaffectations.
+ */
 class ReservationAssignmentHistory extends Model
 {
     use HasFactory;

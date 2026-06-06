@@ -26,6 +26,22 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\ValidationException;
 
+/**
+ * Orchestre le cycle de vie complet d'une réservation.
+ *
+ * Responsabilités principales :
+ * - Création : PreviewService valide le créneau, puis transition initiale vers
+ *   EN_ATTENTE, APPROUVE ou EN_CONFLIT selon le type d'organisation et les conflits.
+ * - Transitions : approve(), reject(), cancel(), confirm() — chacune émet un DomainEvent
+ *   et notifie le demandeur / le chauffeur selon la situation.
+ * - Résolution de conflits : ensureScheduleOverlapGone() vérifie que le chevauchement a
+ *   réellement disparu avant de marquer le conflit résolu ; autoTransitionFromConflict()
+ *   retransitionne ensuite vers CONFIRME ou APPROUVE selon l'historique.
+ * - Impact d'indisponibilité : applyUnavailabilityImpact() désassigne le chauffeur ou
+ *   le véhicule indisponible et passe les réservations concernées EN_CONFLIT.
+ * - Annulation last-minute : catégorie séparée (priorité high, last_minute_cancellation).
+ * - Délais d'annulation : configurable — heures pour le demandeur, jours pour la commune.
+ */
 class ReservationService
 {
     private DomainLogger $logger;

@@ -10,6 +10,19 @@ use Illuminate\Notifications\Notification;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
+/**
+ * Notification opérationnelle unitaire envoyée via le pipeline NotificationDispatchService.
+ *
+ * Canaux supportés : 'database' (synchrone via sendNow) et/ou 'mail' (mis en queue).
+ * Le canal effectif est déterminé à l'extérieur et passé dans $channels au constructeur.
+ *
+ * Pièce jointe mail : le document est attaché uniquement si $attachDocumentIfSmall est vrai,
+ * que le fichier existe sur le disque et que sa taille ne dépasse pas
+ * notifications.mail.max_attachment_bytes (défaut 5 Mo). Au-delà, seul un lien actionUrl est fourni.
+ *
+ * Retry : 3 tentatives avec backoff exponentiel (30 s / 120 s / 600 s).
+ * L'UUID du job est forcé dès le constructeur pour garantir l'unicité de l'entrée 'database'.
+ */
 class OperationalNotification extends Notification implements ShouldQueue
 {
     use Queueable;

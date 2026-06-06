@@ -5,6 +5,10 @@ namespace App\Console\Commands;
 use App\Services\Backups\BackupService;
 use Illuminate\Console\Command;
 
+/**
+ * Affiche la liste des backups disponibles dans le répertoire de stockage configuré.
+ * Utile pour vérifier qu'un backup récent existe avant une migration ou une mise à jour.
+ */
 class ListBackupsCommand extends Command
 {
     protected $signature = 'backup:list';

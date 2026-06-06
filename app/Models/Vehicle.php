@@ -8,6 +8,11 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable(['licence_plate', 'capacity', 'is_active'])]
+/**
+ * Véhicule de transport.
+ * `is_active = false` : véhicule hors service — ne peut plus être assigné, historique conservé.
+ * `oldAssignmentHistory` / `newAssignmentHistory` : accès aux affectations avant/après changement.
+ */
 class Vehicle extends Model
 {
     use HasFactory;

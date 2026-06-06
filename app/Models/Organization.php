@@ -26,6 +26,12 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'quota_reset_year',
     'proof_document_id',
 ])]
+/**
+ * Organisation cliente (école, association, etc.).
+ * `annual_quota` + `reservations_used_this_year` : suivi du quota annuel de réservations.
+ * `is_banned` / `banned_reason` : exclusion administrative sans suppression.
+ * `proof_document_id` FK : remplace l'ancien champ varchar `document_proof_path`.
+ */
 class Organization extends Model
 {
     use HasFactory;

@@ -20,6 +20,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'completed_at',
     'failed_at',
 ])]
+/**
+ * Demande d'export du planning (workflow asynchrone).
+ * Cycle de statut : pending → processing → succeeded | failed.
+ * Le client crée la demande (POST → 202), poll l'état (GET), puis télécharge via `document_id`.
+ * Traité par GeneratePlanningExportJob qui met à jour le statut et notifie le demandeur.
+ */
 class PlanningExportRequest extends Model
 {
     public function requester(): BelongsTo

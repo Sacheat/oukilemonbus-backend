@@ -7,6 +7,18 @@ use App\Models\Reservation;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Collection;
 
+/**
+ * Construit la vue planning pour une période donnée selon le rôle de l'utilisateur.
+ *
+ * Par défaut, seules les réservations APPROUVE, CONFIRME et EN_CONFLIT sont incluses.
+ * Les réservations REFUSE / ANNULE sont volontairement exclues : elles n'ont plus d'impact
+ * sur l'organisation du service.
+ *
+ * `includeAvailability = true` injecte sur chaque réservation l'attribut dynamique
+ * `planning_availability` (chauffeurs et véhicules disponibles / indisponibles).
+ * Cet attribut n'est accessible qu'aux rôles internes (admin, agent_communal).
+ * Il est calculé à la volée par PlanningAvailabilityService et n'est jamais stocké en DB.
+ */
 class PlanningService
 {
     public function __construct(

@@ -16,6 +16,23 @@ use App\Services\Audit\DomainEventLogger;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
+/**
+ * Gère l'affectation des chauffeurs et véhicules aux réservations.
+ *
+ * `autoAssign()` : sélectionne le premier chauffeur actif disponible (tri par id)
+ * et le plus petit véhicule actif ayant la capacité suffisante (passagers + 1 chauffeur).
+ * Si aucun n'est trouvé, crée un conflit NO_DRIVER_AVAILABLE / NO_VEHICLE_AVAILABLE.
+ *
+ * `assign()` : affectation manuelle avec vérification de disponibilité ; rejette si
+ * le chauffeur ou le véhicule est occupé sur la fenêtre d'occupation.
+ *
+ * La disponibilité combine deux sources :
+ *   1. Indisponibilités explicites (unavailabilities, is_active = true).
+ *   2. Réservations APPROUVE/CONFIRME dont la fenêtre d'occupation chevauche le créneau.
+ *
+ * `overlappingReservationsQuery()` réplique le calcul de fenêtre en SQL (TIMESTAMPADD)
+ * pour éviter de charger toutes les réservations du jour en mémoire.
+ */
 class ReservationAssignmentService
 {
     public function __construct(

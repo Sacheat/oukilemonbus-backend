@@ -17,6 +17,25 @@ use App\Services\Logging\DomainLogger;
 use Carbon\CarbonImmutable;
 use Illuminate\Validation\ValidationException;
 
+/**
+ * Calcule l'aperçu d'une réservation avant sa création ou sa mise à jour.
+ *
+ * Pipeline de vérifications dans l'ordre :
+ *   1. Organisation non bannie
+ *   2. Délai minimum de préavis (configurable, défaut 15 j)
+ *   3. Date réservable (pas de week-end, pas de date fermée)
+ *   4. Trajet belge uniquement
+ *   5. Capacité fleet suffisante pour les passagers demandés
+ *   6. Quota organisation via ReservationQuotaService
+ *   7. Distance ≤ max_distance_km (via ORS ; fallback haversine × 1.25 si ORS indisponible)
+ *   8. Conflits bloquants (IMPOSSIBLE_TIME_WINDOW, SCHEDULE_OVERLAP)
+ *   9. Avertissements de dérogation (horaire / durée — non bloquants, soumis au collège)
+ *
+ * `is_hard_block = true` empêche la création même pour un agent.
+ * Les avertissements de dérogation n'affectent pas le statut et ne créent pas de ReservationConflict.
+ * `detectConflicts()` est publique pour être réutilisée par RecurrenceService (estimation approximative).
+ * `availabilityForData()` itère jusqu'à 50 fois pour trouver le prochain créneau libre sur la journée.
+ */
 class ReservationPreviewService
 {
     private const float DISTANCE_FALLBACK_ROUTE_FACTOR = 1.25;

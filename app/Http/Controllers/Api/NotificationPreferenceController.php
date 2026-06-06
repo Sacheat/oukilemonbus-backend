@@ -9,6 +9,11 @@ use App\Services\Notifications\NotificationPreferenceService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
+/**
+ * Gère les préférences de notification de l'utilisateur authentifié.
+ * Toujours scopé sur l'utilisateur courant — pas de route paramétrée par ID.
+ * Crée automatiquement les préférences par défaut si elles n'existent pas encore.
+ */
 class NotificationPreferenceController extends Controller
 {
     public function __construct(

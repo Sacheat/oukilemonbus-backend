@@ -7,6 +7,16 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
+/**
+ * Notification de digest regroupant plusieurs notifications en un seul e-mail.
+ *
+ * Envoyée uniquement par mail (pas de canal 'database') après expiration de la
+ * fenêtre de quiet hours. Chaque item du digest est affiché sur une ligne
+ * au format "- titre : message".
+ *
+ * Retry : 3 tentatives avec backoff (60 s / 300 s / 900 s) — délais plus longs
+ * qu'OperationalNotification car le digest agrège plusieurs notifications importantes.
+ */
 class OperationalDigestNotification extends Notification implements ShouldQueue
 {
     use Queueable;

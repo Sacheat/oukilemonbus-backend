@@ -11,6 +11,20 @@ use Carbon\CarbonImmutable;
 use InvalidArgumentException;
 use Throwable;
 
+/**
+ * Génère et enregistre les feuilles de route PDF.
+ *
+ * Deux modes de génération :
+ *   - `generateForPeriod()` : toutes les réservations CONFIRME sur une plage de dates
+ *     (template hebdomadaire).
+ *   - `generateForServiceDateVehicle()` : réservations CONFIRME d'un véhicule à une date
+ *     donnée (template journalier, régénéré après confirmPassengers() si c'est aujourd'hui).
+ *
+ * Chaque génération incrémente le numéro de version (max(version) + 1 pour le même répertoire)
+ * et attache les réservations concernées via la table pivot route_sheet_reservations (avec position).
+ * Le fichier physique est stocké sur le disque 'local' (privé) via DocumentStorageService.
+ * En cas d'échec après stockage, le fichier orphelin est supprimé par DocumentService.
+ */
 class RouteSheetDocumentService
 {
     private const DIRECTORY_PREFIX = 'documents/route-sheets';

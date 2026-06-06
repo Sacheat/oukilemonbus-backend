@@ -16,6 +16,12 @@ use App\Models\Document;
 use App\Services\Documents\DeliberationDocumentService;
 use InvalidArgumentException;
 
+/**
+ * Gère les décisions de conseil municipal liées aux réservations en conflit.
+ * Les admins et agents voient toutes les décisions ; les autres sont filtrés :
+ * réservation faite par eux, organisation dont ils sont membres, ou chauffeur assigné.
+ * `generateDocument` produit le PDF de délibération via DeliberationDocumentService.
+ */
 class CouncilDecisionController extends Controller
 {
     public function __construct(
@@ -32,6 +38,7 @@ class CouncilDecisionController extends Controller
             CouncilDecision::query()
                 ->with(['reservation.organization', 'recordedByUser'])
                 ->when(! $user->hasAnyRole(['admin', 'agent_communal']), function ($query) use ($user): void {
+                    // Filtre multi-critères : demandeur OU organisation OU chauffeur assigné.
                     $query->whereHas('reservation', function ($query) use ($user): void {
                         $query->where('requested_by_user_id', $user->getKey())
                             ->orWhereHas('organization.users', fn ($query) => $query->whereKey($user->getKey()))

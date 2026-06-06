@@ -4,6 +4,16 @@ namespace App\Policies;
 
 use App\Models\User;
 
+/**
+ * Contrôle l'accès aux profils utilisateur.
+ *
+ * view() : un utilisateur voit toujours son propre profil ; les internes voient tout
+ *          le monde ; un responsable_organisation peut voir les membres de son org.
+ * update() : self-edit autorisé, ou interne avec permission.
+ * updatePassword() : self-only, sans vérification de permission — le mot de passe
+ *                    n'est modifiable que par l'utilisateur lui-même.
+ * updateStatus() / deactivate() : réservés aux internes.
+ */
 class UserPolicy
 {
     private const array INTERNAL_ROLES = ['admin', 'agent_communal'];

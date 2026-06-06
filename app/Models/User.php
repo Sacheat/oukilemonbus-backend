@@ -18,11 +18,18 @@ use Spatie\Permission\Traits\HasRoles;
 
 #[Fillable(['first_name', 'last_name', 'email', 'password', 'phone', 'active'])]
 #[Hidden(['password', 'remember_token'])]
+/**
+ * Utilisateur de l'application.
+ * Implémente MustVerifyEmail — l'email doit être vérifié avant d'accéder aux routes protégées.
+ * `guard_name = 'web'` force Spatie Permission à utiliser le guard web même pour les requêtes API
+ * (Sanctum s'appuie sur le guard web pour les sessions SPA cookie).
+ */
 class User extends Authenticatable implements MustVerifyEmail
 {
     /** @use HasFactory<UserFactory> */
     use HasApiTokens, HasFactory, HasRoles, Notifiable;
 
+    // Spatie Permission doit utiliser le guard web même dans un contexte API Sanctum SPA.
     protected string $guard_name = 'web';
 
     public function driver(): HasOne

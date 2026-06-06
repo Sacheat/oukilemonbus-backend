@@ -13,6 +13,11 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\Gate;
 
+/**
+ * Gère les organisations demandeuses du bus communal.
+ * Les agents et admins voient toutes les organisations ;
+ * les autres utilisateurs ne voient que celles auxquelles ils sont rattachés.
+ */
 class OrganizationController extends Controller
 {
     public function __construct(
@@ -29,6 +34,7 @@ class OrganizationController extends Controller
             Organization::query()
                 ->with('location')
                 ->when(
+                    // Les non-internes ne voient que leurs organisations rattachées via user_organization.
                     ! $user->hasAnyRole(['admin', 'agent_communal']),
                     fn ($query) => $query->whereHas('users', fn ($query) => $query->whereKey($user->getKey()))
                 )
@@ -62,6 +68,7 @@ class OrganizationController extends Controller
 
     public function ban(BanOrganizationRequest $request, Organization $organization): OrganizationResource
     {
+        // La policy BanOrganizationRequest vérifie déjà la permission organizations.ban (admin uniquement).
         $organization = $this->organizationService->ban($organization, $request->validated('reason'));
 
         return new OrganizationResource($organization->load('location'));
@@ -69,6 +76,7 @@ class OrganizationController extends Controller
 
     public function unban(Organization $organization): OrganizationResource
     {
+        // Réutilise la permission 'ban' pour le débannissement (même niveau d'accès requis).
         Gate::authorize('ban', $organization);
 
         $organization = $this->organizationService->unban($organization);

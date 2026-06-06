@@ -14,6 +14,11 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\Gate;
 
+/**
+ * CRUD utilisateurs.
+ * `updateStatus` active ou désactive un compte sans le supprimer.
+ * `deactivate` est une action sémantiquement distincte, contrôlée par une Policy dédiée.
+ */
 class UserController extends Controller
 {
     public function __construct(

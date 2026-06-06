@@ -21,6 +21,13 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'quiet_hours_start',
     'quiet_hours_end',
 ])]
+/**
+ * Préférences de notification d'un utilisateur.
+ * Créée automatiquement par NotificationPreferenceService::forUser() si elle n'existe pas encore.
+ * `digest_frequency` : none | daily | weekly — détermine la fréquence des emails récapitulatifs.
+ * `quiet_hours_start` / `quiet_hours_end` : plage horaire pendant laquelle les notifications
+ * sont mises en file d'attente plutôt qu'envoyées immédiatement (0–23h).
+ */
 class UserNotificationPreference extends Model
 {
     use HasFactory;

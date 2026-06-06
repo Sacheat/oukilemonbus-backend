@@ -7,20 +7,17 @@ use App\Models\Unavailability;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
+/**
+ * Requête de création d'indisponibilité.
+ * La cohérence entre reason_type et driver_id/vehicle_id n'est pas validée ici —
+ * elle est vérifiée par UnavailabilityService qui lance UnavailabilityException si incohérent.
+ */
 class StoreUnavailabilityRequest extends FormRequest
 {
     public function authorize(): bool
     {
         return $this->user()?->can('create', Unavailability::class) ?? false;
     }
-
-    // Si reason_type = driver
-    // → driver_id doit être renseigné
-    // → vehicle_id doit être null
-
-    // Si reason_type = vehicle
-    // → vehicle_id doit être renseigné
-    // → driver_id doit être null
 
     public function rules(): array
     {

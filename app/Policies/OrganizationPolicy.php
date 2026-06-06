@@ -5,6 +5,14 @@ namespace App\Policies;
 use App\Models\Organization;
 use App\Models\User;
 
+/**
+ * Contrôle l'accès aux organisations.
+ *
+ * view() : les internes (admin, agent_communal) voient toutes les organisations ;
+ *          les autres utilisateurs ne voient que celles auxquelles ils appartiennent.
+ * create() / update() : réservés aux internes.
+ * ban() : réservé au rôle admin uniquement — agent_communal exclu même avec permission.
+ */
 class OrganizationPolicy
 {
     private const array INTERNAL_ROLES = ['admin', 'agent_communal'];

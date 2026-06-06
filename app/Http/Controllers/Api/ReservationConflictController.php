@@ -10,6 +10,10 @@ use App\Services\Reservations\ReservationService;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\Gate;
 
+/**
+ * Gère la consultation et la résolution manuelle des conflits d'une réservation.
+ * Réservé aux agents et admins (permission reservations.manage-conflicts).
+ */
 class ReservationConflictController extends Controller
 {
     public function __construct(
@@ -30,6 +34,8 @@ class ReservationConflictController extends Controller
     public function resolve(Reservation $reservation, ReservationConflict $conflict): ReservationConflictResource
     {
         Gate::authorize('resolveConflict', $reservation);
+
+        // Vérifie que le conflit appartient bien à cette réservation et non à une autre.
         abort_unless($conflict->reservation_id === $reservation->id, 404);
 
         return new ReservationConflictResource(

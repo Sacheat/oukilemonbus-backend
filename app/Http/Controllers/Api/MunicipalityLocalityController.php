@@ -11,6 +11,10 @@ use App\Models\MunicipalityLocality;
 use App\Services\Municipalities\MunicipalitySettingsService;
 use Illuminate\Http\JsonResponse;
 
+/**
+ * Gestion des localités d'une municipalité.
+ * `deactivate` désactive sans supprimer pour conserver l'historique des rattachements passés.
+ */
 class MunicipalityLocalityController extends Controller
 {
     public function __construct(

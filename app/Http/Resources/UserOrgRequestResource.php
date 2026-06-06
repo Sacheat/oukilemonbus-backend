@@ -7,6 +7,11 @@ use App\Services\UserOrgRequests\UserOrgRequestConfidenceScoreService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
+/**
+ * Resource demande de rattachement utilisateur-organisation.
+ * `confidence_details` est calculé à chaque appel par UserOrgRequestConfidenceScoreService::explain()
+ * et n'est pas stocké en base — il détaille les critères ayant contribué au score `confidence_note`.
+ */
 class UserOrgRequestResource extends JsonResource
 {
     public function toArray(Request $request): array

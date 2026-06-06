@@ -7,6 +7,11 @@ use App\Models\Reservation;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rules\Enum;
 
+/**
+ * Requête de prévisualisation de réservation.
+ * Sert de classe de base pour StoreReservationRequest qui hérite de ces règles
+ * et y ajoute le champ optionnel `requested_by_user_id`.
+ */
 class PreviewReservationRequest extends FormRequest
 {
     public function authorize(): bool

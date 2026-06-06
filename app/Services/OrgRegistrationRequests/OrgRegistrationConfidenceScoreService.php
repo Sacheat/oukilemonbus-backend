@@ -8,6 +8,21 @@ use App\Models\Organization;
 use App\Models\OrgRegistrationRequest;
 use App\Services\Locations\MunicipalityService;
 
+/**
+ * Calcule et explique le score de confiance (0–100) d'une demande de création d'organisation.
+ *
+ * Le score est composé de quatre axes :
+ *   1. Complétude (email, téléphone, contact, justificatif, adresse) → jusqu'à +51 pts
+ *   2. Cohérence du type (numéro BCE obligatoire pour ASBL) → ±15 pts
+ *   3. Localisation (adresse vérifiée ORS, dans la commune) → jusqu'à +15 pts / −5 hors commune
+ *   4. Signaux demandeur (compte actif, email vérifié) → jusqu'à +15 pts
+ *
+ * Pénalités appliquées par applyWarnings() : nom trop court, email déjà utilisé,
+ * autre demande en attente du même utilisateur.
+ *
+ * `calculate()` retourne uniquement le score ; `explain()` retourne le détail complet
+ * (score, raisons positives, avertissements) — utilisé par les Resources pour l'affichage.
+ */
 class OrgRegistrationConfidenceScoreService
 {
     public function __construct(

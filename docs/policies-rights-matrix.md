@@ -279,6 +279,7 @@ Permissions Spatie existantes :
 - `organizations.view`
 - `organizations.create`
 - `organizations.update`
+- `organizations.ban` — **admin uniquement**
 
 | Action | Admin | Agent communal | Responsable organisation | User | Chauffeur |
 | --- | --- | --- | --- | --- | --- |
@@ -286,12 +287,14 @@ Permissions Spatie existantes :
 | Voir organisation | Oui | Oui | Oui si rattache | Oui si rattache | Oui si rattache si pertinent |
 | Creer | Oui | Oui | Non, passer par demande d'enregistrement | Non, passer par demande d'enregistrement | Non |
 | Modifier | Oui | Oui | Non en V1 | Non | Non |
+| Bannir / debannir | Oui | Non | Non | Non | Non |
 
 Regles recommandees :
 
 - `viewAny` : `organizations.view`.
 - `view` : internes voient tout ; autres utilisateurs voient seulement les organisations auxquelles ils sont rattaches.
 - `create` et `update` : admin / agent communal uniquement.
+- `ban` / `unban` : admin uniquement (`organizations.ban`). Un agent communal ne peut pas bannir une organisation.
 
 ## UnavailabilityPolicy
 

@@ -17,6 +17,11 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\Gate;
 
+/**
+ * Gère les demandes d'inscription d'organisation.
+ * L'approbation crée l'organisation et retourne un 201 avec OrganizationResource.
+ * Le justificatif (proof_document) remplace l'ancien fichier si un upload précédent existe déjà.
+ */
 class OrgRegistrationRequestController extends Controller
 {
     public function __construct(
@@ -34,9 +39,11 @@ class OrgRegistrationRequestController extends Controller
             OrgRegistrationRequest::query()
                 ->with(['requestedByUser', 'reviewedByUser', 'location'])
                 ->when(
+                    // Les non-internes ne voient que leurs propres demandes.
                     ! $user->hasAnyRole(['admin', 'agent_communal']),
                     fn ($query) => $query->where('request_by_user_id', $user->getKey())
                 )
+                // Triées par score de confiance décroissant pour que les demandes les plus fiables remontent.
                 ->orderByDesc('confidence_note')
                 ->latest()
                 ->paginate()
