@@ -112,10 +112,10 @@ class ModelConfigurationTest extends TestCase
             [Location::class, ['formatted_address', 'street', 'street_number', 'postal_code', 'city', 'country', 'latitude', 'longitude', 'place_id', 'provider', 'is_verified']],
             [Municipality::class, ['name', 'external_id', 'nis_code', 'country', 'postal_code', 'source', 'is_active', 'synced_at']],
             [MunicipalityLocality::class, ['municipality_id', 'name', 'normalized_name', 'external_id', 'source', 'is_active']],
-            [Organization::class, ['name', 'type', 'official_email', 'phone_contact', 'name_contact', 'location_id', 'is_priority', 'annual_quota', 'reservations_used_this_year', 'quota_reset_year', 'document_proof_path']],
+            [Organization::class, ['name', 'type', 'official_email', 'phone_contact', 'name_contact', 'location_id', 'is_priority', 'is_banned', 'banned_reason', 'annual_quota', 'reservations_used_this_year', 'quota_reset_year', 'proof_document_id']],
             [UserOrganization::class, ['user_id', 'organization_id', 'relationship_type', 'is_default']],
             [Recurrence::class, ['frequency', 'interval_value', 'days_of_week', 'start_date', 'end_date', 'occurrence_count', 'is_active']],
-            [Reservation::class, ['requested_by_user_id', 'organization_id', 'pickup_location_id', 'destination_location_id', 'driver_id', 'vehicle_id', 'recurrence_id', 'trip_date', 'departure_time', 'return_time', 'nb_children', 'nb_adults', 'trip_purpose', 'activity_type', 'distance_km', 'estimated_duration_min', 'status', 'approval_type', 'validated_by_user_id', 'validated_at', 'cancelled_by_user_id', 'cancelled_at', 'rejection_reason', 'cancellation_reason']],
+            [Reservation::class, ['requested_by_user_id', 'organization_id', 'pickup_location_id', 'destination_location_id', 'driver_id', 'vehicle_id', 'recurrence_id', 'trip_date', 'departure_time', 'return_time', 'nb_children', 'nb_adults', 'trip_purpose', 'activity_type', 'distance_km', 'estimated_duration_min', 'status', 'approval_type', 'validated_by_user_id', 'validated_at', 'cancelled_by_user_id', 'cancelled_at', 'rejection_reason', 'cancellation_reason', 'passengers_confirmed_at']],
             [CouncilDecision::class, ['reservation_id', 'decision_status', 'decision_date', 'recorded_by_user_id', 'decision_reference', 'validated_at', 'notes']],
             [Document::class, ['reservation_id', 'user_id', 'document_type', 'file_name', 'file_path', 'mime_type', 'file_size', 'checksum', 'generation_mode', 'generation_context', 'template_key', 'template_version', 'generated_at', 'is_official', 'version', 'is_available']],
             [NotificationDelivery::class, ['event_id', 'event_key', 'dedupe_key', 'attempt_id', 'attempt_number', 'notification_id', 'notification_type', 'notifiable_type', 'notifiable_id', 'reservation_id', 'document_id', 'channel', 'priority', 'recipient_email', 'status', 'provider', 'provider_message_id', 'payload', 'sent_at', 'failed_at', 'error_message']],
@@ -124,8 +124,8 @@ class ModelConfigurationTest extends TestCase
             [ReservationStatusHistory::class, ['reservation_id', 'old_status', 'new_status', 'changed_by_user_id', 'reason']],
             [ReservationAssignmentHistory::class, ['reservation_id', 'assignment_type', 'old_driver_id', 'new_driver_id', 'old_vehicle_id', 'new_vehicle_id', 'changed_by_user_id', 'reason']],
             [ReservationConflict::class, ['reservation_id', 'type', 'message', 'related_reservation_id', 'is_resolved', 'resolved_by_user_id', 'resolved_at']],
-            [OrgRegistrationRequest::class, ['request_by_user_id', 'organization_name', 'organization_type', 'enterprise_number', 'official_email', 'phone', 'location_id', 'contact_person_name', 'contact_person_role', 'proof_document_path', 'comment', 'status', 'confidence_note', 'reviewed_by_user_id', 'reviewed_at', 'rejection_reason']],
-            [UserOrgRequest::class, ['organization_id', 'requested_by_user_id', 'requested_role', 'justification', 'proof_document_path', 'status', 'confidence_note', 'reviewed_by_user_id', 'reviewed_at', 'rejection_reason']],
+            [OrgRegistrationRequest::class, ['request_by_user_id', 'organization_name', 'organization_type', 'enterprise_number', 'official_email', 'phone', 'location_id', 'contact_person_name', 'contact_person_role', 'proof_document_id', 'comment', 'status', 'confidence_note', 'reviewed_by_user_id', 'reviewed_at', 'rejection_reason']],
+            [UserOrgRequest::class, ['organization_id', 'requested_by_user_id', 'requested_role', 'justification', 'proof_document_id', 'status', 'confidence_note', 'reviewed_by_user_id', 'reviewed_at', 'rejection_reason']],
         ];
     }
 

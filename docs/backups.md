@@ -14,36 +14,7 @@ Pouvoir creer un backup manuel ou planifie contenant :
 - un fichier `metadata.json` de description ;
 - les logs uniquement si l'option explicite est activee.
 
-## Commandes
 
-Backup complet :
-
-```bash
-php artisan backup:run
-```
-
-Backup base de donnees uniquement :
-
-```bash
-php artisan backup:run --only=db
-```
-
-Backup fichiers uniquement :
-
-```bash
-php artisan backup:run --only=files
-```
-
-Backup complet avec logs :
-
-```bash
-php artisan backup:run --include-logs
-```
-
-Lister les backups disponibles :
-
-```bash
-php artisan backup:list
 ```
 
 ## Format

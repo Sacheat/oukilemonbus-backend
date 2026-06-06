@@ -97,11 +97,10 @@ class OrgRegistrationRequestApiTest extends TestCase
             'location_id' => $location->id,
             'contact_person_name' => 'Alice Martin',
             'contact_person_role' => 'Responsable',
-            'proof_document_path' => 'proofs/asbl-dinant.pdf',
         ])
             ->assertCreated()
-            ->assertJsonPath('data.confidence_note', 96)
-            ->assertJsonPath('data.confidence_details.score', 96)
+            ->assertJsonPath('data.confidence_note', 81)
+            ->assertJsonPath('data.confidence_details.score', 81)
             ->assertJsonFragment([
                 'Adresse situee dans la commune de Dinant.',
             ]);

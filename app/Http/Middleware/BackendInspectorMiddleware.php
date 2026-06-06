@@ -41,7 +41,8 @@ final class BackendInspectorMiddleware
 
         $status = $response->getStatusCode();
 
-        return $status >= 200 && $status < 300;
+        return ($status >= 200 && $status < 300)
+            || in_array($status, [403, 422, 500], true);
     }
 
     private function resolveActionKey(Request $request): ?string
@@ -59,7 +60,9 @@ final class BackendInspectorMiddleware
 
     private function buildContext(Request $request, Response $response): array
     {
-        $user = $request->user();
+        $user       = $request->user();
+        $httpStatus = $response->getStatusCode();
+        $isError    = $httpStatus >= 400;
 
         $routeParams = [];
         foreach ($request->route()?->parameters() ?? [] as $key => $value) {
@@ -72,6 +75,7 @@ final class BackendInspectorMiddleware
 
         $responseActorId = null;
         $responseStatus  = null;
+        $errorMessage    = null;
 
         try {
             $content = $response->getContent();
@@ -79,6 +83,12 @@ final class BackendInspectorMiddleware
                 $decoded = json_decode($content, true);
                 $responseActorId = $decoded['data']['id'] ?? null;
                 $responseStatus  = $decoded['data']['status'] ?? $decoded['status'] ?? null;
+                if ($isError) {
+                    $errorMessage = $decoded['message'] ?? null;
+                    if (isset($decoded['errors']) && is_array($decoded['errors'])) {
+                        $errorMessage = collect($decoded['errors'])->flatten()->first() ?? $errorMessage;
+                    }
+                }
             }
         } catch (\Throwable) {
             // silent — response body parsing is best-effort
@@ -90,11 +100,14 @@ final class BackendInspectorMiddleware
         return array_filter([
             'actor_id'        => $actorId,
             'actor_email'     => $actorEmail,
-            'status'          => 'success',
+            'status'          => $isError ? 'error' : 'success',
             'method'          => $request->method(),
+            'http_status'     => $httpStatus,
+            'url'             => $request->getPathInfo(),
             ...$routeParams,
             'request'         => $requestFields ?: null,
             'response_status' => $responseStatus,
+            'error_message'   => $errorMessage,
         ], fn(mixed $v): bool => $v !== null);
     }
 

@@ -67,6 +67,8 @@ class ReservationPreviewService
 
         // Le statut n'est affecté que par les conflits bloquants, pas par les avertissements
         // de dérogation (horaire / durée) qui restent EN_ATTENTE et sont traités par le collège.
+        $hasHardBlock = collect($conflicts)->contains(fn (array $c): bool => $c['is_hard_block'] ?? false);
+
         $status = count($conflicts) > 0
             ? ReservationStatus::EN_CONFLIT
             : ($organization->type?->isAutoApproveType() ? ReservationStatus::APPROUVE : ReservationStatus::EN_ATTENTE);
@@ -81,7 +83,7 @@ class ReservationPreviewService
         }
 
         return [
-            'is_allowed' => true,
+            'is_allowed' => ! $hasHardBlock,
             'distance_km' => $distance['distance_km'],
             'estimated_duration_min' => $estimatedDuration,
             'duration_margin_min' => config('reservations.duration_margin_min', 15),
@@ -171,9 +173,10 @@ class ReservationPreviewService
 
         if ($estimatedDurationMin !== null && $departure->addMinutes($duration)->greaterThan($returnDeparture)) {
             $conflicts[] = [
-                'type' => ReservationConflictType::IMPOSSIBLE_TIME_WINDOW->value,
-                'message' => 'Le creneau demande ne permet pas de realiser le trajet aller avant le retour souhaite.',
+                'type'                   => ReservationConflictType::IMPOSSIBLE_TIME_WINDOW->value,
+                'message'                => 'Le creneau demande ne permet pas de realiser le trajet aller avant le retour souhaite.',
                 'related_reservation_id' => null,
+                'is_hard_block'          => true,
             ];
         }
 
@@ -187,10 +190,15 @@ class ReservationPreviewService
                 $candidateWindow
             );
 
+            $overlappingStatus = $overlappingReservation->status instanceof ReservationStatus
+                ? $overlappingReservation->status
+                : ReservationStatus::from((string) $overlappingReservation->status);
+
             $conflicts[] = [
-                'type' => ReservationConflictType::SCHEDULE_OVERLAP->value,
-                'message' => $priorityMessage,
+                'type'                   => ReservationConflictType::SCHEDULE_OVERLAP->value,
+                'message'                => $priorityMessage,
                 'related_reservation_id' => $overlappingReservation->id,
+                'is_hard_block'          => in_array($overlappingStatus, [ReservationStatus::APPROUVE, ReservationStatus::CONFIRME], true),
             ];
         }
 

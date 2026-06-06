@@ -41,6 +41,9 @@ Route::prefix('demo')->name('demo.')->group(function (): void {
 
         Route::get('/state', [BackendInspectorController::class, 'state'])
         ->name('state');
+
+        Route::post('/reset', [BackendInspectorController::class, 'reset'])
+        ->name('reset');
         });
 
         // Reservations routes

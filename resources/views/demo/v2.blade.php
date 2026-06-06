@@ -618,6 +618,51 @@
         }
         .ib-goal { color: #8b949e; font-size: 12px; line-height: 1.5; margin: 0 0 8px; }
 
+        /* HTTP badge */
+        .ib-http {
+            display: inline-flex; align-items: center; gap: 6px;
+            font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+            font-size: 11px;
+            background: #0d1117; border: 1px solid #21262d;
+            border-radius: 6px; padding: 4px 9px;
+            margin-bottom: 10px;
+        }
+        .ib-http-method {
+            font-weight: 700; font-size: 10px;
+            padding: 1px 5px; border-radius: 4px;
+        }
+        .ib-http-method.GET    { color: #3fb950; background: rgba(63,185,80,.12); }
+        .ib-http-method.POST   { color: #58a6ff; background: rgba(56,139,253,.12); }
+        .ib-http-method.PATCH  { color: #d29922; background: rgba(210,153,34,.12); }
+        .ib-http-method.PUT    { color: #d29922; background: rgba(210,153,34,.12); }
+        .ib-http-method.DELETE { color: #f85149; background: rgba(248,81,73,.12); }
+        .ib-http-url  { color: #8b949e; }
+        .ib-http-arrow { color: #30363d; }
+        .ib-http-status { font-weight: 700; }
+        .ib-http-status.ok  { color: #3fb950; }
+        .ib-http-status.err { color: #f85149; }
+
+        /* Error state on action card */
+        #ib-action-card.ib-error {
+            border-color: rgba(248,81,73,.35) !important;
+            background: linear-gradient(135deg, rgba(248,81,73,.08), rgba(22,27,34,.98)) !important;
+        }
+        .ib-error-msg {
+            display: flex; align-items: flex-start; gap: 8px;
+            background: rgba(248,81,73,.08); border: 1px solid rgba(248,81,73,.2);
+            border-radius: 6px; padding: 8px 10px; margin-bottom: 8px;
+            font-size: 11px; color: #f85149; line-height: 1.5;
+        }
+
+        /* Reset button in header */
+        .ib-reset {
+            background: none; border: 1px solid #21262d; cursor: pointer;
+            color: #484f58; font-size: 10px; padding: 3px 8px;
+            border-radius: 5px; line-height: 1; transition: color .15s, border-color .15s;
+            font-family: inherit;
+        }
+        .ib-reset:hover { color: #8b949e; border-color: #30363d; }
+
         /* KV grid */
         .ib-kv {
             display: grid;
@@ -756,6 +801,7 @@
             </div>
             <div class="ib-header-right">
                 <span class="ib-refresh" id="ib-refresh">—</span>
+                <button class="ib-reset" id="ib-reset" type="button" title="Vider la timeline et réinitialiser la session inspector">↺ Reset</button>
             </div>
         </header>
 
@@ -765,8 +811,10 @@
             {{-- Last action (full width) --}}
             <div class="ib-card ib-col-full" id="ib-action-card" style="border-color:rgba(56,139,253,.2);background:linear-gradient(135deg,rgba(56,139,253,.07),rgba(22,27,34,.98))">
                 <p class="ib-card-title">⚙ Dernière action backend</p>
+                <div id="ib-http-badge"></div>
                 <div id="ib-action-title" class="ib-action-title">Aucune action</div>
                 <div id="ib-action-key"   class="ib-key">—</div>
+                <div id="ib-error-msg"></div>
                 <p   id="ib-action-goal"  class="ib-goal"></p>
                 <div class="ib-kv" id="ib-action-kv"></div>
             </div>
@@ -1050,15 +1098,39 @@
             }
         }
 
+        // ── HTTP badge ───────────────────────────────────────────────────────
+        const HTTP_STATUS_LABELS = {
+            200: 'OK', 201: 'Created', 204: 'No Content',
+            400: 'Bad Request', 401: 'Unauthorized', 403: 'Forbidden',
+            404: 'Not Found', 422: 'Unprocessable', 500: 'Server Error',
+        };
+
+        function renderHttpBadge(ctx) {
+            const el = $('ib-http-badge');
+            if (!el) return;
+            if (!ctx || !ctx.method) { el.innerHTML = ''; return; }
+            const status     = ctx.http_status ?? null;
+            const isErr      = status !== null && status >= 400;
+            const statusText = status ? `${status} ${HTTP_STATUS_LABELS[status] ?? ''}` : '';
+            el.innerHTML = `
+                <div class="ib-http">
+                    <span class="ib-http-method ${esc(ctx.method)}">${esc(ctx.method)}</span>
+                    <span class="ib-http-url">${esc(ctx.url ?? '—')}</span>
+                    ${statusText ? `<span class="ib-http-arrow">→</span><span class="ib-http-status ${isErr ? 'err' : 'ok'}">${esc(statusText)}</span>` : ''}
+                </div>`;
+        }
+
         // ── Render ───────────────────────────────────────────────────────────
         function render(data) {
             const actor   = data.actor        || {};
             const action  = data.last_action  || {};
             const history = data.history      || [];
             const key     = data.last_action_key ?? null;
+            const ctx     = data.last_context  || {};
             const hasDoc  = Object.keys(action).length > 0;
             const route   = action.route      || {};
             const svc     = action.service    || {};
+            const isError = ctx.status === 'error';
 
             pulseDot(key);
             _prevKey = key;
@@ -1068,6 +1140,21 @@
 
             const sbAction = $('ib-sb-action');
             if (sbAction) sbAction.textContent = key ? key : '— aucune action';
+
+            // Action card error styling
+            const card = $('ib-action-card');
+            if (card) card.classList.toggle('ib-error', isError);
+
+            // HTTP badge
+            renderHttpBadge(key ? ctx : null);
+
+            // Error message
+            const errEl = $('ib-error-msg');
+            if (errEl) {
+                errEl.innerHTML = (isError && ctx.error_message)
+                    ? `<div class="ib-error-msg">⚠ ${esc(ctx.error_message)}</div>`
+                    : '';
+            }
 
             // Last action
             if ($('ib-action-title')) {
@@ -1103,14 +1190,19 @@
                 if (!history.length) {
                     tlEl.innerHTML = '<span style="color:#30363d;font-size:11px">Aucune action cette session.</span>';
                 } else {
-                    tlEl.innerHTML = history.map((item, i) => `
+                    tlEl.innerHTML = history.map((item, i) => {
+                        const itemErr = item.context?.status === 'error';
+                        const dot = itemErr
+                            ? 'background:#f85149;box-shadow:0 0 4px #f85149'
+                            : (i === 0 ? 'background:#22c55e;box-shadow:0 0 4px #22c55e' : '');
+                        return `
                         <div class="ib-tl-item ${i === 0 ? 'ib-tl-cur' : ''}">
-                            <span class="ib-tl-dot"></span>
-                            <span class="ib-tl-cat">${esc(item.action?.category ?? '?')}</span>
-                            <span class="ib-tl-name">${esc(item.action?.title || item.action_key)}</span>
+                            <span class="ib-tl-dot" style="${dot}"></span>
+                            <span class="ib-tl-cat" style="${itemErr ? 'background:rgba(248,81,73,.12);color:#f85149' : ''}">${esc(item.action?.category ?? '?')}</span>
+                            <span class="ib-tl-name">${esc(item.action?.title || item.action_key)}${itemErr ? ' <span style="color:#f85149;font-size:9px">✕ erreur</span>' : ''}</span>
                             <span class="ib-tl-time">${esc(ago(item.recorded_at))}</span>
-                        </div>
-                    `).join('');
+                        </div>`;
+                    }).join('');
                 }
             }
 
@@ -1151,6 +1243,27 @@
             _timer = null;
         }
 
+        // ── Reset session ────────────────────────────────────────────────────
+        async function resetSession() {
+            const btn = $('ib-reset');
+            if (btn) { btn.textContent = '…'; btn.disabled = true; }
+            try {
+                await fetch('/demo/inspector/reset', {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-XSRF-TOKEN': decodeURIComponent(
+                            document.cookie.split('; ').find(r => r.startsWith('XSRF-TOKEN='))?.split('=')[1] ?? ''
+                        ),
+                    },
+                    credentials: 'include',
+                });
+                await fetchState();
+            } catch (_) { /* silent */ } finally {
+                if (btn) { btn.textContent = '↺ Reset'; btn.disabled = false; }
+            }
+        }
+
         // ── Boot ─────────────────────────────────────────────────────────────
         document.addEventListener('DOMContentLoaded', () => {
             initDrag();
@@ -1160,6 +1273,7 @@
             $('ib-close')?.addEventListener('click', closePanel);
             $('ib-minimize')?.addEventListener('click', (e) => { e.stopPropagation(); toggleMinimize(); });
             $('ib-maximize')?.addEventListener('click', (e) => { e.stopPropagation(); toggleMaximize(); });
+            $('ib-reset')?.addEventListener('click', (e) => { e.stopPropagation(); resetSession(); });
         });
     })();
     </script>

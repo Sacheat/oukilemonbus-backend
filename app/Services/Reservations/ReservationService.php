@@ -56,6 +56,14 @@ class ReservationService
             }
 
             $preview = $this->previewService->preview($data);
+
+            if (! ($preview['is_allowed'] ?? true)) {
+                $hardBlock = collect($preview['conflicts'])->first(fn (array $c): bool => $c['is_hard_block'] ?? false);
+                throw ValidationException::withMessages([
+                    'schedule' => [$hardBlock['message'] ?? 'La reservation ne peut pas etre creee : le creneau est physiquement bloquant et ne peut pas etre resolu par l\'agent.'],
+                ]);
+            }
+
             $status = ReservationStatus::from($preview['status']);
 
             $reservation = Reservation::create([
@@ -561,11 +569,38 @@ class ReservationService
             return;
         }
 
-        // Cas par défaut : EN_ATTENTE (non-école en attente de validation initiale)
+        // Cas par défaut : EN_ATTENTE, puis auto-approve si l'org le permet (ex. école)
         if (! $reservation->status->canTransitionTo(ReservationStatus::EN_ATTENTE)) {
             return;
         }
         $reservation = $this->transition($reservation, ReservationStatus::EN_ATTENTE, $actor, 'Retour automatique apres resolution des conflits.');
+
+        $reservation->loadMissing('organization');
+
+        if ($reservation->organization->type?->isAutoApproveType()) {
+            if (! $reservation->status->canTransitionTo(ReservationStatus::APPROUVE)) {
+                return;
+            }
+            $reservation = $this->transition($reservation, ReservationStatus::APPROUVE, $actor, 'Approbation automatique apres resolution des conflits.');
+            $reservation = $this->assignmentService->autoAssign($reservation, $actor);
+
+            if ($this->assignmentService->hasRequiredAssignments($reservation)
+                && ! $reservation->conflicts()->where('is_resolved', false)->exists()
+            ) {
+                $reservation = $this->transition($reservation, ReservationStatus::CONFIRME, $actor, 'Confirmation automatique apres resolution des conflits.');
+            }
+
+            $this->notifyRequester(
+                $reservation,
+                'reservation.approved',
+                'reservation_updates',
+                'Reservation disponible',
+                "Votre reservation #{$reservation->id} est de nouveau disponible suite a la resolution des conflits."
+            );
+
+            return;
+        }
+
         $this->notifyRequester(
             $reservation,
             'reservation.conflict_resolved',
