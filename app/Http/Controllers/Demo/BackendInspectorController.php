@@ -38,12 +38,22 @@ final class BackendInspectorController extends Controller
 
     private function currentDemoActor(Request $request): ?User
     {
+        // v2 demo: actor ID stored by BackendInspectorMiddleware after each API action
+        $actorId = $request->session()->get(
+            config('backend_inspector.session_keys.current_actor_id', 'backend_inspector.current_actor_id')
+        );
+
+        if ($actorId !== null) {
+            return User::query()->find($actorId);
+        }
+
+        // Old demo fallback: session-based selected actor
         $userId = $request->session()->get('demo_user_id');
 
         if ($userId !== null) {
             return User::query()->find($userId);
         }
 
-        return User::query()->first();
+        return null;
     }
 }

@@ -21,6 +21,104 @@ return [
         'last_action' => 'backend_inspector.last_action',
         'last_context' => 'backend_inspector.last_context',
         'last_recorded_at' => 'backend_inspector.last_recorded_at',
+        'current_actor_id' => 'backend_inspector.current_actor_id',
+        'history'          => 'backend_inspector.history',
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Route map — API route name → inspector flow key
+    |--------------------------------------------------------------------------
+    |
+    | Utilisé par BackendInspectorMiddleware pour identifier le flow à enregistrer
+    | lorsqu’une route API de la démo v2 est appelée avec succès.
+    |
+    */
+
+    'route_map' => [
+
+        // Auth
+        'api.auth.register' => 'auth.register',
+        'api.auth.login'    => 'auth.login',
+        'api.auth.logout'   => 'auth.logout',
+
+        // Reservations
+        'api.reservations.store'              => 'reservations.store',
+        'api.reservations.update'             => 'reservations.update',
+        'api.reservations.approve'            => 'reservations.approve',
+        'api.reservations.reject'             => 'reservations.reject',
+        'api.reservations.cancel'             => 'reservations.cancel',
+        'api.reservations.confirm'            => 'reservations.confirm',
+        'api.reservations.assign'             => 'reservations.assign',
+        'api.reservations.retry-assign'       => 'reservations.retry_assign',
+        'api.reservations.confirm-passengers' => 'reservations.confirm_passengers',
+        'api.reservations.conflicts.resolve'  => 'reservations.conflicts.resolve',
+
+        // Recurrences
+        'api.recurrences.store' => 'recurrences.store',
+
+        // Council decisions
+        'api.council-decisions.store'  => 'reservations.council_decision',
+        'api.council-decisions.update' => 'reservations.council_decision',
+
+        // Org registration requests
+        'api.org-registration-requests.store'        => 'requests.organizations.store',
+        'api.org-registration-requests.approve'      => 'requests.organizations.approve',
+        'api.org-registration-requests.reject'       => 'requests.organizations.reject',
+        'api.org-registration-requests.proof.upload' => 'requests.organizations.proof_upload',
+        'api.org-registration-requests.proof.delete' => 'requests.organizations.proof_delete',
+
+        // User org requests
+        'api.user-org-requests.store'          => 'requests.user_organizations.store',
+        'api.user-org-requests.approve'        => 'requests.user_organizations.approve',
+        'api.user-org-requests.reject'         => 'requests.user_organizations.reject',
+        'api.user-org-requests.proof.upload'   => 'requests.user_organizations.proof_upload',
+        'api.user-org-requests.proof.delete'   => 'requests.user_organizations.proof_delete',
+
+        // Notifications
+        'api.notifications.mark-read'          => 'notifications.read',
+        'api.notifications.mark-all-read'      => 'notifications.read_all',
+        'api.notifications.preferences.update' => 'notifications.preferences.update',
+
+        // Documents
+        'api.documents.route-sheets.generate' => 'documents.route_sheets.generate',
+
+        // Locations
+        'api.locations.store' => 'locations.store',
+
+        // Unavailabilities
+        'api.unavailabilities.store'  => 'admin.unavailabilities.store',
+        'api.unavailabilities.update' => 'admin.unavailabilities.update',
+        'api.unavailabilities.cancel' => 'admin.unavailabilities.cancel',
+
+        // Drivers
+        'api.drivers.store'      => 'admin.drivers.store',
+        'api.drivers.update'     => 'admin.drivers.update',
+        'api.drivers.activate'   => 'admin.drivers.activate',
+        'api.drivers.deactivate' => 'admin.drivers.deactivate',
+
+        // Vehicles
+        'api.vehicles.store'      => 'admin.vehicles.store',
+        'api.vehicles.update'     => 'admin.vehicles.update',
+        'api.vehicles.activate'   => 'admin.vehicles.activate',
+        'api.vehicles.deactivate' => 'admin.vehicles.deactivate',
+
+        // Users
+        'api.users.update-status' => 'admin.users.update_status',
+        'api.users.deactivate'    => 'admin.users.deactivate',
+
+        // Previews
+        'api.reservations.preview' => 'reservations.preview',
+        'api.recurrences.preview'  => 'recurrences.preview',
+
+        // Organisations
+        'api.organizations.store' => 'organizations.store',
+        'api.organizations.ban'   => 'organizations.ban',
+        'api.organizations.unban' => 'organizations.unban',
+
+        // Email verification
+        'api.verification.send' => 'auth.email_resend',
+
     ],
 
     'scenarios' => [
@@ -1839,6 +1937,1611 @@ return [
                 'Les données de gestion autorisées sont chargées.',
                 'Les sections interdites restent masquées.',
                 'La page de gestion reflète les permissions de l’acteur courant.',
+            ],
+        ],
+
+        // _________________________________________________________________________________________AUTH
+        'auth.register' => [
+            'title' => 'Inscription d’un utilisateur',
+            'category' => 'Authentification',
+            'scenario' => null,
+            'goal' => 'Créer un nouveau compte utilisateur avec envoi automatique d’un email de vérification.',
+
+            'route' => [
+                'demo' => null,
+                'api' => 'POST /api/auth/register',
+            ],
+
+            'demo_controller' => null,
+
+            'api_controller' => [
+                'class' => 'AuthController',
+                'method' => 'register',
+            ],
+
+            'request' => [
+                'first_name',
+                'last_name',
+                'email',
+                'phone',
+                'password',
+                'password_confirmation',
+            ],
+
+            'service' => [
+                'class' => 'AuthService',
+                'method' => 'register',
+                'internal_methods' => [
+                    'Validation des données d’inscription',
+                    'Création de l’utilisateur avec mot de passe haché',
+                    'Attribution du rôle par défaut',
+                    'Envoi de l’email de vérification (MustVerifyEmail)',
+                    'Régénération de la session',
+                ],
+            ],
+
+            'related_services' => [
+                'VerifyEmail (notification Laravel)',
+                'Mailtrap SMTP',
+            ],
+
+            'tables' => [
+                'users',
+                'model_has_roles',
+                'jobs',
+            ],
+
+            'effects' => [
+                'Un compte utilisateur est créé avec email non vérifié.',
+                'Un email de vérification est envoyé via Mailtrap.',
+                'L’utilisateur ne peut pas accéder aux routes métier avant vérification.',
+                'Le rôle user est attribué par défaut.',
+            ],
+        ],
+
+        'auth.login' => [
+            'title' => 'Connexion d’un utilisateur',
+            'category' => 'Authentification',
+            'scenario' => null,
+            'goal' => 'Authentifier un utilisateur via Sanctum en mode cookie stateful.',
+
+            'route' => [
+                'demo' => null,
+                'api' => 'POST /api/auth/login',
+            ],
+
+            'demo_controller' => null,
+
+            'api_controller' => [
+                'class' => 'AuthController',
+                'method' => 'login',
+            ],
+
+            'request' => [
+                'email',
+                'password',
+                'remember',
+            ],
+
+            'service' => [
+                'class' => 'AuthService',
+                'method' => 'login',
+                'internal_methods' => [
+                    'Vérification du rate limiting',
+                    'Authentification via Auth guard (session)',
+                    'Régénération de la session CSRF',
+                    'Chargement des rôles et organisations',
+                ],
+            ],
+
+            'related_services' => [
+                'Sanctum (statefulApi)',
+                'Session Laravel',
+            ],
+
+            'tables' => [
+                'users',
+                'roles',
+                'organizations',
+            ],
+
+            'effects' => [
+                'L’utilisateur est authentifié via cookie de session.',
+                'Le cookie XSRF-TOKEN est émis pour les requêtes PATCH/POST suivantes.',
+                'Les rôles et organisations sont chargés et retournés dans la réponse.',
+                'La session est régénérée pour prévenir la fixation de session.',
+            ],
+        ],
+
+        'auth.logout' => [
+            'title' => 'Déconnexion',
+            'category' => 'Authentification',
+            'scenario' => null,
+            'goal' => 'Terminer la session et invalider les cookies d’authentification.',
+
+            'route' => [
+                'demo' => null,
+                'api' => 'POST /api/auth/logout',
+            ],
+
+            'demo_controller' => null,
+
+            'api_controller' => [
+                'class' => 'AuthController',
+                'method' => 'logout',
+            ],
+
+            'request' => null,
+
+            'service' => [
+                'class' => 'AuthService',
+                'method' => 'logout',
+                'internal_methods' => [
+                    'Invalidation de la session courante',
+                    'Suppression des cookies Sanctum',
+                ],
+            ],
+
+            'related_services' => [
+                'Sanctum',
+                'Session Laravel',
+            ],
+
+            'tables' => [
+                'users',
+            ],
+
+            'effects' => [
+                'La session est invalidée côté serveur.',
+                'Les cookies d’authentification sont supprimés.',
+                'L’utilisateur est redirigé vers la page de connexion.',
+            ],
+        ],
+
+        // _________________________________________________________________________________________RÉSERVATIONS (NOUVELLES ACTIONS V2)
+        'reservations.retry_assign' => [
+            'title' => 'Tentative de réassignation automatique',
+            'category' => 'Réservations',
+            'scenario' => 'admin',
+            'goal' => 'Retenter l’assignation automatique d’un chauffeur et d’un véhicule disponibles sur une réservation en conflit.',
+
+            'route' => [
+                'demo' => null,
+                'api' => 'PATCH /api/reservations/{reservation}/retry-assign',
+            ],
+
+            'demo_controller' => null,
+
+            'api_controller' => [
+                'class' => 'ReservationController',
+                'method' => 'retryAutoAssign',
+            ],
+
+            'request' => null,
+
+            'service' => [
+                'class' => 'ReservationService',
+                'method' => 'retryAutoAssign',
+                'internal_methods' => [
+                    'autoAssign : calcul fenêtre d’occupation',
+                    'Exclusion SQL des chauffeurs et véhicules occupés (whereNotIn)',
+                    'Assignation si ressource disponible trouvée',
+                    'checkAndAutoTransition : si plus aucun conflit → statut pré-conflit',
+                ],
+            ],
+
+            'related_services' => [
+                'ReservationAssignmentService::autoAssign',
+                'ReservationOccupationService',
+                'DomainEventLogger::log',
+            ],
+
+            'tables' => [
+                'reservations',
+                'drivers',
+                'vehicles',
+                'unavailabilities',
+                'reservation_conflicts',
+                'reservation_assignment_history',
+                'reservation_status_history',
+                'domain_events',
+            ],
+
+            'effects' => [
+                'Si un chauffeur et un véhicule sont disponibles, ils sont assignés.',
+                'Si aucune ressource n’est disponible, les conflits sont maintenus.',
+                'Si plus aucun conflit actif après l’assignation, la réservation retrouve son statut pré-conflit.',
+                'L’historique d’assignation et de statut est mis à jour.',
+            ],
+        ],
+
+        'reservations.confirm_passengers' => [
+            'title' => 'Confirmation du nombre de passagers',
+            'category' => 'Réservations',
+            'scenario' => null,
+            'goal' => 'Mettre à jour le nombre de passagers et enregistrer l’horodatage de confirmation. Si le trajet est aujourd’hui, la feuille de route est régénérée.',
+
+            'route' => [
+                'demo' => null,
+                'api' => 'PATCH /api/reservations/{reservation}/confirm-passengers',
+            ],
+
+            'demo_controller' => null,
+
+            'api_controller' => [
+                'class' => 'ReservationController',
+                'method' => 'confirmPassengers',
+            ],
+
+            'request' => [
+                'nb_adults',
+                'nb_children',
+                'trip_purpose',
+            ],
+
+            'service' => [
+                'class' => 'ReservationService',
+                'method' => 'confirmPassengers',
+                'internal_methods' => [
+                    'Vérification de la capacité : nb_adults + nb_children ≤ capacity - 1 (chauffeur inclus)',
+                    'Mise à jour de nb_adults, nb_children, trip_purpose',
+                    'Enregistrement de passengers_confirmed_at = now()',
+                    'Si trip_date == today ET véhicule assigné → regénère la feuille de route',
+                    'Notification au demandeur',
+                ],
+            ],
+
+            'related_services' => [
+                'RouteSheetDocumentService::generate',
+                'NotificationDispatchService::dispatch',
+            ],
+
+            'tables' => [
+                'reservations',
+                'documents',
+                'notifications',
+                'notification_deliveries',
+            ],
+
+            'effects' => [
+                'Le nombre de passagers est mis à jour.',
+                'Le champ passengers_confirmed_at est renseigné.',
+                'La feuille de route du jour est régénérée si le trajet a lieu aujourd’hui.',
+                'Un dépassement de capacité lève une erreur de validation.',
+            ],
+        ],
+
+        'reservations.conflicts.resolve' => [
+            'title' => 'Résolution manuelle d’un conflit',
+            'category' => 'Réservations',
+            'scenario' => 'admin',
+            'goal' => 'Marquer un conflit spécifique comme résolu et déclencher la transition automatique de statut si plus aucun conflit actif.',
+
+            'route' => [
+                'demo' => null,
+                'api' => 'PATCH /api/reservations/{reservation}/conflicts/{conflict}/resolve',
+            ],
+
+            'demo_controller' => null,
+
+            'api_controller' => [
+                'class' => 'ReservationConflictController',
+                'method' => 'resolve',
+            ],
+
+            'request' => null,
+
+            'service' => [
+                'class' => 'ReservationService',
+                'method' => 'resolveConflict',
+                'internal_methods' => [
+                    'Marquage du conflit comme résolu (is_resolved = true)',
+                    'Vérification qu’il n’existe plus de conflits actifs non résolus',
+                    'checkAndAutoTransition : si plus aucun conflit → autoTransitionFromConflict',
+                    'autoTransitionFromConflict : retrouve le statut pré-conflit via ReservationStatusHistory',
+                ],
+            ],
+
+            'related_services' => [
+                'ReservationAssignmentService',
+                'DomainEventLogger::log',
+            ],
+
+            'tables' => [
+                'reservation_conflicts',
+                'reservations',
+                'reservation_status_history',
+                'domain_events',
+            ],
+
+            'effects' => [
+                'Le conflit est marqué comme résolu.',
+                'Si c’était le dernier conflit actif, la réservation reprend son statut d’avant le conflit.',
+                'Le statut cible est déterminé par l’historique : CONFIRME, APPROUVE ou EN_ATTENTE.',
+                'Une réassignation automatique peut être tentée si nécessaire.',
+            ],
+        ],
+
+        // _________________________________________________________________________________________RÉCURRENCES
+        'recurrences.store' => [
+            'title' => 'Création d’une réservation récurrente',
+            'category' => 'Réservations',
+            'scenario' => 'admin',
+            'goal' => 'Créer un ensemble de réservations périodiques pour une école communale sur une plage de dates avec une fréquence définie.',
+
+            'route' => [
+                'demo' => null,
+                'api' => 'POST /api/recurrences',
+            ],
+
+            'demo_controller' => null,
+
+            'api_controller' => [
+                'class' => 'RecurrenceController',
+                'method' => 'store',
+            ],
+
+            'request' => [
+                'organization_id',
+                'pickup_location_id',
+                'destination_location_id',
+                'departure_time',
+                'return_time',
+                'nb_children',
+                'nb_adults',
+                'activity_type',
+                'trip_purpose',
+                'frequency',
+                'days_of_week',
+                'start_date',
+                'end_date',
+            ],
+
+            'service' => [
+                'class' => 'RecurrenceService',
+                'method' => 'create',
+                'internal_methods' => [
+                    'Calcul de toutes les occurrences selon fréquence et jours',
+                    'Filtrage des dates non ouvrables',
+                    'Création de la récurrence parente',
+                    'Création de chaque réservation individuelle via ReservationService::create',
+                    'Détection de conflits par occurrence',
+                ],
+            ],
+
+            'related_services' => [
+                'ReservationService::create',
+                'ReservationPreviewService',
+                'DomainEventLogger::log',
+            ],
+
+            'tables' => [
+                'recurrences',
+                'reservations',
+                'reservation_conflicts',
+                'locations',
+                'domain_events',
+            ],
+
+            'effects' => [
+                'Un objet récurrence parent est créé.',
+                'Une réservation individuelle est créée pour chaque occurrence valide.',
+                'Les dates non ouvrables ou en conflit sont ignorées ou signalées.',
+                'Toutes les réservations sont liées à la récurrence via recurrence_id.',
+            ],
+        ],
+
+        // _________________________________________________________________________________________DEMANDES — JUSTIFICATIFS
+        'requests.organizations.proof_upload' => [
+            'title' => 'Upload du justificatif d’organisation',
+            'category' => 'Demandes',
+            'scenario' => null,
+            'goal' => 'Attacher un document justificatif (PDF, JPG, PNG) à une demande de création d’organisation.',
+
+            'route' => [
+                'demo' => null,
+                'api' => 'POST /api/org-registration-requests/{orgRegistrationRequest}/proof',
+            ],
+
+            'demo_controller' => null,
+
+            'api_controller' => [
+                'class' => 'OrgRegistrationRequestController',
+                'method' => 'uploadProof',
+            ],
+
+            'request' => [
+                'proof_document (fichier — max 5 Mo, PDF/JPG/PNG)',
+            ],
+
+            'service' => [
+                'class' => 'ProofDocumentService',
+                'method' => 'store',
+                'internal_methods' => [
+                    'Validation du fichier (type, taille)',
+                    'Stockage dans Storage::disk (private)',
+                    'Création du document en base',
+                    'Association proof_document_id à la demande',
+                ],
+            ],
+
+            'related_services' => [
+                'DocumentStorageService',
+            ],
+
+            'tables' => [
+                'documents',
+                'org_registration_requests',
+            ],
+
+            'effects' => [
+                'Le fichier est stocké dans le dossier privé.',
+                'Un document est créé en base et lié à la demande.',
+                'Le champ proof_document_id de la demande est mis à jour.',
+            ],
+        ],
+
+        'requests.organizations.proof_delete' => [
+            'title' => 'Suppression du justificatif d’organisation',
+            'category' => 'Demandes',
+            'scenario' => null,
+            'goal' => 'Supprimer le document justificatif d’une demande d’organisation en attente.',
+
+            'route' => [
+                'demo' => null,
+                'api' => 'DELETE /api/org-registration-requests/{orgRegistrationRequest}/proof',
+            ],
+
+            'demo_controller' => null,
+
+            'api_controller' => [
+                'class' => 'OrgRegistrationRequestController',
+                'method' => 'deleteProof',
+            ],
+
+            'request' => null,
+
+            'service' => [
+                'class' => 'ProofDocumentService',
+                'method' => 'delete',
+                'internal_methods' => [
+                    'Suppression du fichier dans Storage',
+                    'Suppression du document en base',
+                    'Réinitialisation de proof_document_id sur la demande',
+                ],
+            ],
+
+            'related_services' => [
+                'DocumentStorageService',
+            ],
+
+            'tables' => [
+                'documents',
+                'org_registration_requests',
+            ],
+
+            'effects' => [
+                'Le fichier est supprimé du stockage.',
+                'L’enregistrement document est supprimé.',
+                'La demande n’a plus de justificatif attaché.',
+            ],
+        ],
+
+        'requests.user_organizations.proof_upload' => [
+            'title' => 'Upload du justificatif d’adhésion',
+            'category' => 'Demandes',
+            'scenario' => null,
+            'goal' => 'Attacher un document justificatif à une demande d’adhésion à une organisation.',
+
+            'route' => [
+                'demo' => null,
+                'api' => 'POST /api/user-org-requests/{userOrgRequest}/proof',
+            ],
+
+            'demo_controller' => null,
+
+            'api_controller' => [
+                'class' => 'UserOrgRequestController',
+                'method' => 'uploadProof',
+            ],
+
+            'request' => [
+                'proof_document (fichier — max 5 Mo, PDF/JPG/PNG)',
+            ],
+
+            'service' => [
+                'class' => 'ProofDocumentService',
+                'method' => 'store',
+                'internal_methods' => [
+                    'Validation du fichier',
+                    'Stockage privé',
+                    'Création du document en base',
+                    'Association proof_document_id à la demande d’adhésion',
+                ],
+            ],
+
+            'related_services' => [
+                'DocumentStorageService',
+            ],
+
+            'tables' => [
+                'documents',
+                'user_org_requests',
+            ],
+
+            'effects' => [
+                'Le justificatif est stocké et lié à la demande d’adhésion.',
+                'L’agent peut le consulter lors du traitement.',
+            ],
+        ],
+
+        'requests.user_organizations.proof_delete' => [
+            'title' => 'Suppression du justificatif d’adhésion',
+            'category' => 'Demandes',
+            'scenario' => null,
+            'goal' => 'Supprimer le justificatif d’une demande d’adhésion en attente.',
+
+            'route' => [
+                'demo' => null,
+                'api' => 'DELETE /api/user-org-requests/{userOrgRequest}/proof',
+            ],
+
+            'demo_controller' => null,
+
+            'api_controller' => [
+                'class' => 'UserOrgRequestController',
+                'method' => 'deleteProof',
+            ],
+
+            'request' => null,
+
+            'service' => [
+                'class' => 'ProofDocumentService',
+                'method' => 'delete',
+                'internal_methods' => [
+                    'Suppression du fichier dans Storage',
+                    'Suppression du document en base',
+                    'Réinitialisation de proof_document_id',
+                ],
+            ],
+
+            'related_services' => [
+                'DocumentStorageService',
+            ],
+
+            'tables' => [
+                'documents',
+                'user_org_requests',
+            ],
+
+            'effects' => [
+                'Le fichier et l’enregistrement document sont supprimés.',
+                'La demande d’adhésion n’a plus de justificatif.',
+            ],
+        ],
+
+        // _________________________________________________________________________________________NOTIFICATIONS — PRÉFÉRENCES
+        'notifications.preferences.update' => [
+            'title' => 'Mise à jour des préférences de notification',
+            'category' => 'Notifications',
+            'scenario' => null,
+            'goal' => 'Modifier les canaux actifs (database, mail) par catégorie et la fréquence des digests.',
+
+            'route' => [
+                'demo' => null,
+                'api' => 'PATCH /api/notifications/preferences',
+            ],
+
+            'demo_controller' => null,
+
+            'api_controller' => [
+                'class' => 'NotificationPreferenceController',
+                'method' => 'update',
+            ],
+
+            'request' => [
+                'digest_frequency (none|daily|weekly)',
+                'categories.{category}.database (bool)',
+                'categories.{category}.mail (bool)',
+            ],
+
+            'service' => [
+                'class' => 'NotificationPreferenceService',
+                'method' => 'update',
+                'internal_methods' => [
+                    'Validation des préférences reçues',
+                    'Mise à jour des canaux par catégorie',
+                    'Mise à jour de digest_frequency',
+                ],
+            ],
+
+            'related_services' => [
+                'NotificationDispatchService',
+            ],
+
+            'tables' => [
+                'notification_preferences',
+            ],
+
+            'effects' => [
+                'Les canaux (database, mail) sont activés ou désactivés par catégorie.',
+                'La fréquence des digests est mise à jour.',
+                'Les prochaines notifications respecteront ces préférences.',
+                'NotificationDispatchService consulte ces préférences avant chaque envoi.',
+            ],
+        ],
+
+        // _________________________________________________________________________________________LIEUX
+        'locations.store' => [
+            'title' => 'Création ou déduplication d’un lieu',
+            'category' => 'Lieux',
+            'scenario' => null,
+            'goal' => 'Enregistrer un lieu depuis une suggestion ORS, ou retourner le lieu existant si le place_id est déjà connu (déduplication).',
+
+            'route' => [
+                'demo' => null,
+                'api' => 'POST /api/locations',
+            ],
+
+            'demo_controller' => null,
+
+            'api_controller' => [
+                'class' => 'LocationController',
+                'method' => 'store',
+            ],
+
+            'request' => [
+                'formatted_address',
+                'street',
+                'street_number',
+                'postal_code',
+                'city',
+                'country',
+                'latitude',
+                'longitude',
+                'place_id',
+            ],
+
+            'service' => [
+                'class' => 'LocationService',
+                'method' => 'createOrFind',
+                'internal_methods' => [
+                    'Si place_id fourni : recherche d’un lieu existant avec ce place_id',
+                    'Si trouvé : retourne le lieu existant sans doublon',
+                    'Si non trouvé : création du lieu avec coordonnées GPS',
+                    'Le geocoding est ignoré car les coordonnées viennent directement d’ORS',
+                ],
+            ],
+
+            'related_services' => [
+                'OpenRouteService (suggestions)',
+            ],
+
+            'tables' => [
+                'locations',
+            ],
+
+            'effects' => [
+                'Aucun doublon n’est créé si le place_id est déjà en base.',
+                'Les coordonnées GPS (latitude, longitude) sont stockées.',
+                'Le lieu créé peut immédiatement être utilisé dans une réservation.',
+                'Cette action est appelée en arrière-plan lors de la sélection d’une adresse dans le formulaire de réservation.',
+            ],
+        ],
+
+        // _________________________________________________________________________________________INDISPONIBILITÉS
+        'admin.unavailabilities.store' => [
+            'title' => 'Création d’une indisponibilité',
+            'category' => 'Administration',
+            'scenario' => 'admin',
+            'goal' => 'Enregistrer une période d’indisponibilité pour un chauffeur ou un véhicule et recalculer l’impact sur les réservations existantes.',
+
+            'route' => [
+                'demo' => null,
+                'api' => 'POST /api/unavailabilities',
+            ],
+
+            'demo_controller' => null,
+
+            'api_controller' => [
+                'class' => 'UnavailabilityController',
+                'method' => 'store',
+            ],
+
+            'request' => [
+                'reason_type',
+                'driver_id',
+                'vehicle_id',
+                'start_datetime',
+                'end_datetime',
+                'reason',
+            ],
+
+            'service' => [
+                'class' => 'UnavailabilityService',
+                'method' => 'create',
+                'internal_methods' => [
+                    'Validation : driver_id ou vehicle_id obligatoire (pas les deux)',
+                    'Création de l’indisponibilité',
+                    'applyUnavailabilityImpact : scan des réservations APPROUVE/CONFIRME dont la fenêtre chevauche',
+                    'Désassignation chauffeur/véhicule sur les réservations impactées',
+                    'Création de conflits NO_DRIVER_AVAILABLE / NO_VEHICLE_AVAILABLE',
+                    'Transition EN_CONFLIT + notification interne',
+                ],
+            ],
+
+            'related_services' => [
+                'ReservationService::applyUnavailabilityImpact',
+                'ReservationOccupationService',
+                'NotificationDispatchService::dispatch',
+                'DomainEventLogger::log',
+            ],
+
+            'tables' => [
+                'unavailabilities',
+                'reservations',
+                'reservation_conflicts',
+                'reservation_status_history',
+                'notifications',
+                'notification_deliveries',
+                'domain_events',
+            ],
+
+            'effects' => [
+                'L’indisponibilité est créée pour la ressource concernée.',
+                'Les réservations qui chevauchent sont désassignées et mises en conflit.',
+                'Les agents internes sont notifiés des réservations impactées.',
+                'Les réservations passent au statut EN_CONFLIT si elles étaient APPROUVE ou CONFIRME.',
+            ],
+        ],
+
+        'admin.unavailabilities.update' => [
+            'title' => 'Modification d’une indisponibilité',
+            'category' => 'Administration',
+            'scenario' => 'admin',
+            'goal' => 'Mettre à jour les dates ou le motif d’une indisponibilité et recalculer son impact.',
+
+            'route' => [
+                'demo' => null,
+                'api' => 'PATCH /api/unavailabilities/{unavailability}',
+            ],
+
+            'demo_controller' => null,
+
+            'api_controller' => [
+                'class' => 'UnavailabilityController',
+                'method' => 'update',
+            ],
+
+            'request' => [
+                'start_datetime',
+                'end_datetime',
+                'reason',
+                'change_reason',
+            ],
+
+            'service' => [
+                'class' => 'UnavailabilityService',
+                'method' => 'update',
+                'internal_methods' => [
+                    'Mise à jour des dates et du motif',
+                    'Enregistrement de l’historique de modification',
+                    'Recalcul de l’impact sur les réservations',
+                ],
+            ],
+
+            'related_services' => [
+                'ReservationService::applyUnavailabilityImpact',
+                'UnavailabilityHistoryService',
+            ],
+
+            'tables' => [
+                'unavailabilities',
+                'unavailability_histories',
+                'reservations',
+                'reservation_conflicts',
+            ],
+
+            'effects' => [
+                'Les dates de l’indisponibilité sont mises à jour.',
+                'Un historique de modification est enregistré.',
+                'L’impact sur les réservations est recalculé selon la nouvelle fenêtre.',
+            ],
+        ],
+
+        'admin.unavailabilities.cancel' => [
+            'title' => 'Annulation d’une indisponibilité',
+            'category' => 'Administration',
+            'scenario' => 'admin',
+            'goal' => 'Annuler une indisponibilité et tenter de réassigner automatiquement les réservations précédemment impactées.',
+
+            'route' => [
+                'demo' => null,
+                'api' => 'PATCH /api/unavailabilities/{unavailability}/cancel',
+            ],
+
+            'demo_controller' => null,
+
+            'api_controller' => [
+                'class' => 'UnavailabilityController',
+                'method' => 'cancel',
+            ],
+
+            'request' => null,
+
+            'service' => [
+                'class' => 'UnavailabilityService',
+                'method' => 'cancel',
+                'internal_methods' => [
+                    'Marquage de l’indisponibilité comme annulée (is_active = false)',
+                    'Identification des réservations EN_CONFLIT liées à cette indispo',
+                    'retryAutoAssign sur chaque réservation impactée',
+                ],
+            ],
+
+            'related_services' => [
+                'ReservationService::retryAutoAssign',
+                'ReservationAssignmentService::autoAssign',
+            ],
+
+            'tables' => [
+                'unavailabilities',
+                'reservations',
+                'reservation_conflicts',
+                'reservation_assignment_history',
+            ],
+
+            'effects' => [
+                'L’indisponibilité est annulée.',
+                'La ressource redevient disponible pour les assignations.',
+                'Une réassignation automatique est tentée sur les réservations qui avaient été impactées.',
+            ],
+        ],
+
+        // _________________________________________________________________________________________CHAUFFEURS
+        'admin.drivers.store' => [
+            'title' => 'Création d’un chauffeur',
+            'category' => 'Administration',
+            'scenario' => 'admin',
+            'goal' => 'Enregistrer un utilisateur existant en tant que chauffeur actif.',
+
+            'route' => [
+                'demo' => null,
+                'api' => 'POST /api/drivers',
+            ],
+
+            'demo_controller' => null,
+
+            'api_controller' => [
+                'class' => 'DriverController',
+                'method' => 'store',
+            ],
+
+            'request' => [
+                'user_id',
+                'licence_number',
+                'licence_expiry_date',
+            ],
+
+            'service' => [
+                'class' => 'Driver',
+                'method' => 'create',
+                'internal_methods' => [
+                    'Vérification que l’utilisateur existe et a le rôle chauffeur',
+                    'Création du profil chauffeur lié à l’utilisateur',
+                ],
+            ],
+
+            'related_services' => [],
+
+            'tables' => [
+                'drivers',
+                'users',
+            ],
+
+            'effects' => [
+                'Un profil chauffeur est créé et activé.',
+                'Le chauffeur apparaît dans les listes d’assignation.',
+            ],
+        ],
+
+        'admin.drivers.update' => [
+            'title' => 'Modification d’un chauffeur',
+            'category' => 'Administration',
+            'scenario' => 'admin',
+            'goal' => 'Mettre à jour le numéro de permis ou la date d’expiration d’un chauffeur.',
+
+            'route' => [
+                'demo' => null,
+                'api' => 'PATCH /api/drivers/{driver}',
+            ],
+
+            'demo_controller' => null,
+
+            'api_controller' => [
+                'class' => 'DriverController',
+                'method' => 'update',
+            ],
+
+            'request' => [
+                'licence_number',
+                'licence_expiry_date',
+            ],
+
+            'service' => [
+                'class' => 'Driver',
+                'method' => 'update',
+                'internal_methods' => [
+                    'Mise à jour des champs fournis',
+                ],
+            ],
+
+            'related_services' => [],
+
+            'tables' => [
+                'drivers',
+            ],
+
+            'effects' => [
+                'Les informations du chauffeur sont mises à jour.',
+            ],
+        ],
+
+        'admin.drivers.activate' => [
+            'title' => 'Activation d’un chauffeur',
+            'category' => 'Administration',
+            'scenario' => 'admin',
+            'goal' => 'Rendre un chauffeur inactif à nouveau disponible pour les assignations.',
+
+            'route' => [
+                'demo' => null,
+                'api' => 'PATCH /api/drivers/{driver}/activate',
+            ],
+
+            'demo_controller' => null,
+
+            'api_controller' => [
+                'class' => 'DriverController',
+                'method' => 'activate',
+            ],
+
+            'request' => null,
+
+            'service' => [
+                'class' => 'Driver',
+                'method' => 'update',
+                'internal_methods' => [
+                    'is_active = true',
+                ],
+            ],
+
+            'related_services' => [],
+
+            'tables' => [
+                'drivers',
+            ],
+
+            'effects' => [
+                'Le chauffeur est marqué actif.',
+                'Il apparaît à nouveau dans les propositions d’assignation automatique.',
+            ],
+        ],
+
+        'admin.drivers.deactivate' => [
+            'title' => 'Désactivation d’un chauffeur',
+            'category' => 'Administration',
+            'scenario' => 'admin',
+            'goal' => 'Rendre un chauffeur inactif pour qu’il ne soit plus proposé dans les assignations.',
+
+            'route' => [
+                'demo' => null,
+                'api' => 'PATCH /api/drivers/{driver}/deactivate',
+            ],
+
+            'demo_controller' => null,
+
+            'api_controller' => [
+                'class' => 'DriverController',
+                'method' => 'deactivate',
+            ],
+
+            'request' => null,
+
+            'service' => [
+                'class' => 'Driver',
+                'method' => 'update',
+                'internal_methods' => [
+                    'is_active = false',
+                ],
+            ],
+
+            'related_services' => [],
+
+            'tables' => [
+                'drivers',
+            ],
+
+            'effects' => [
+                'Le chauffeur est marqué inactif.',
+                'Il n’est plus proposé dans les assignations automatiques ou manuelles.',
+                'Les réservations déjà assignées ne sont pas affectées.',
+            ],
+        ],
+
+        // _________________________________________________________________________________________VÉHICULES
+        'admin.vehicles.store' => [
+            'title' => 'Création d’un véhicule',
+            'category' => 'Administration',
+            'scenario' => 'admin',
+            'goal' => 'Ajouter un véhicule à la flotte avec son immatriculation et sa capacité.',
+
+            'route' => [
+                'demo' => null,
+                'api' => 'POST /api/vehicles',
+            ],
+
+            'demo_controller' => null,
+
+            'api_controller' => [
+                'class' => 'VehicleController',
+                'method' => 'store',
+            ],
+
+            'request' => [
+                'licence_plate',
+                'capacity',
+            ],
+
+            'service' => [
+                'class' => 'Vehicle',
+                'method' => 'create',
+                'internal_methods' => [
+                    'Création du véhicule actif',
+                ],
+            ],
+
+            'related_services' => [],
+
+            'tables' => [
+                'vehicles',
+            ],
+
+            'effects' => [
+                'Le véhicule est ajouté à la flotte.',
+                'Il est disponible pour les assignations automatiques et manuelles.',
+                'La capacité détermine le nombre maximum de passagers (chauffeur inclus).',
+            ],
+        ],
+
+        'admin.vehicles.update' => [
+            'title' => 'Modification d’un véhicule',
+            'category' => 'Administration',
+            'scenario' => 'admin',
+            'goal' => 'Mettre à jour l’immatriculation ou la capacité d’un véhicule.',
+
+            'route' => [
+                'demo' => null,
+                'api' => 'PATCH /api/vehicles/{vehicle}',
+            ],
+
+            'demo_controller' => null,
+
+            'api_controller' => [
+                'class' => 'VehicleController',
+                'method' => 'update',
+            ],
+
+            'request' => [
+                'licence_plate',
+                'capacity',
+            ],
+
+            'service' => [
+                'class' => 'Vehicle',
+                'method' => 'update',
+                'internal_methods' => [
+                    'Mise à jour des champs fournis',
+                ],
+            ],
+
+            'related_services' => [],
+
+            'tables' => [
+                'vehicles',
+            ],
+
+            'effects' => [
+                'Les informations du véhicule sont mises à jour.',
+            ],
+        ],
+
+        'admin.vehicles.activate' => [
+            'title' => 'Activation d’un véhicule',
+            'category' => 'Administration',
+            'scenario' => 'admin',
+            'goal' => 'Rendre un véhicule inactif à nouveau disponible pour les assignations.',
+
+            'route' => [
+                'demo' => null,
+                'api' => 'PATCH /api/vehicles/{vehicle}/activate',
+            ],
+
+            'demo_controller' => null,
+
+            'api_controller' => [
+                'class' => 'VehicleController',
+                'method' => 'activate',
+            ],
+
+            'request' => null,
+
+            'service' => [
+                'class' => 'Vehicle',
+                'method' => 'update',
+                'internal_methods' => [
+                    'is_active = true',
+                ],
+            ],
+
+            'related_services' => [],
+
+            'tables' => [
+                'vehicles',
+            ],
+
+            'effects' => [
+                'Le véhicule est remis en service.',
+                'Il peut à nouveau être assigné aux réservations.',
+            ],
+        ],
+
+        'admin.vehicles.deactivate' => [
+            'title' => 'Désactivation d’un véhicule',
+            'category' => 'Administration',
+            'scenario' => 'admin',
+            'goal' => 'Retirer un véhicule du service actif.',
+
+            'route' => [
+                'demo' => null,
+                'api' => 'PATCH /api/vehicles/{vehicle}/deactivate',
+            ],
+
+            'demo_controller' => null,
+
+            'api_controller' => [
+                'class' => 'VehicleController',
+                'method' => 'deactivate',
+            ],
+
+            'request' => null,
+
+            'service' => [
+                'class' => 'Vehicle',
+                'method' => 'update',
+                'internal_methods' => [
+                    'is_active = false',
+                ],
+            ],
+
+            'related_services' => [],
+
+            'tables' => [
+                'vehicles',
+            ],
+
+            'effects' => [
+                'Le véhicule est retiré du service.',
+                'Il ne sera plus proposé dans les assignations.',
+                'Les réservations déjà assignées ne sont pas impactées.',
+            ],
+        ],
+
+        // _________________________________________________________________________________________UTILISATEURS
+        'admin.users.update_status' => [
+            'title' => 'Blocage ou déblocage d’un utilisateur',
+            'category' => 'Administration',
+            'scenario' => 'admin',
+            'goal' => 'Modifier le statut actif/bloqué d’un utilisateur sans supprimer ses tokens.',
+
+            'route' => [
+                'demo' => null,
+                'api' => 'PATCH /api/users/{user}/status',
+            ],
+
+            'demo_controller' => null,
+
+            'api_controller' => [
+                'class' => 'UserController',
+                'method' => 'updateStatus',
+            ],
+
+            'request' => [
+                'active (bool)',
+            ],
+
+            'service' => [
+                'class' => 'User',
+                'method' => 'update',
+                'internal_methods' => [
+                    'Vérification de la permission users.update-status',
+                    'Mise à jour du champ active',
+                ],
+            ],
+
+            'related_services' => [],
+
+            'tables' => [
+                'users',
+            ],
+
+            'effects' => [
+                'L’utilisateur est bloqué (active = false) ou débloqué (active = true).',
+                'Les tokens Sanctum existants ne sont pas révoqués automatiquement.',
+                'L’utilisateur bloqué peut toujours avoir des tokens actifs jusqu’à leur expiration.',
+            ],
+        ],
+
+        'admin.users.deactivate' => [
+            'title' => 'Désactivation définitive d’un utilisateur',
+            'category' => 'Administration',
+            'scenario' => 'admin',
+            'goal' => 'Désactiver définitivement un compte utilisateur et révoquer tous ses tokens d’accès.',
+
+            'route' => [
+                'demo' => null,
+                'api' => 'PATCH /api/users/{user}/deactivate',
+            ],
+
+            'demo_controller' => null,
+
+            'api_controller' => [
+                'class' => 'UserController',
+                'method' => 'deactivate',
+            ],
+
+            'request' => null,
+
+            'service' => [
+                'class' => 'UserService',
+                'method' => 'deactivate',
+                'internal_methods' => [
+                    'Vérification de la permission users.deactivate',
+                    'Désactivation du compte (active = false)',
+                    'Révocation de tous les tokens Sanctum',
+                ],
+            ],
+
+            'related_services' => [
+                'HasApiTokens::tokens()->delete()',
+            ],
+
+            'tables' => [
+                'users',
+                'personal_access_tokens',
+            ],
+
+            'effects' => [
+                'Le compte est définitivement désactivé.',
+                'Tous les tokens Sanctum de l’utilisateur sont révoqués immédiatement.',
+                'L’utilisateur ne peut plus se connecter.',
+                'Cette action est irréversible.',
+            ],
+        ],
+
+        // _________________________________________________________________________________________PREVIEWS
+        'reservations.preview' => [
+            'title' => 'Calcul du preview de réservation',
+            'category' => 'Réservations',
+            'scenario' => null,
+            'goal' => 'Calculer en temps réel la faisabilit’d’une réservation sans rien écrire en base — distance ORS, fenêtre d’occupation, conflits, disponibilité.',
+
+            'route' => [
+                'demo' => null,
+                'api' => 'POST /api/reservations/preview',
+            ],
+
+            'demo_controller' => null,
+
+            'api_controller' => [
+                'class' => 'ReservationController',
+                'method' => 'preview',
+            ],
+
+            'request' => [
+                'organization_id',
+                'pickup_location_id',
+                'destination_location_id',
+                'trip_date',
+                'departure_time',
+                'return_time',
+                'nb_adults',
+                'nb_children',
+                'activity_type',
+            ],
+
+            'service' => [
+                'class' => 'ReservationPreviewService',
+                'method' => 'preview',
+                'internal_methods' => [
+                    'Calcul de la distance via OpenRouteService (ou fallback haversine)',
+                    'Calcul de la fenêtre d’occupation : départ - pickup_buffer → retour + post_return_buffer',
+                    'detectDerogationWarnings() : DEPARTURE_BEFORE_ALLOWED_TIME, RETURN_AFTER_ALLOWED_TIME, DURATION_OVER_ALLOWED_LIMIT',
+                    'detectConflicts() : SCHEDULE_OVERLAP, NO_DRIVER, NO_VEHICLE, QUOTA_EXCEEDED...',
+                    'PlanningAvailabilityService : calcul du prochain créneau disponible',
+                    'Détermination du statut prédit (en_attente / approuve / en_conflit)',
+                ],
+            ],
+
+            'related_services' => [
+                'OpenRouteService',
+                'ReservationOccupationService',
+                'PlanningAvailabilityService',
+                'ReservationConflictService',
+            ],
+
+            'tables' => [
+                'reservations (lecture)',
+                'unavailabilities (lecture)',
+                'drivers (lecture)',
+                'vehicles (lecture)',
+                'organizations (lecture)',
+            ],
+
+            'effects' => [
+                'Aucune écriture en base — action 100 % lecture.',
+                'La réponse contient distance_km, estimated_duration_min, estimated_occupation (fenêtre bus).',
+                'conflicts[] liste les conflits bloquants détectés.',
+                'warnings[] liste les dérogations horaires (non bloquantes, soumises au collège).',
+                'availability indique si le bus est libre + le prochain créneau disponible si non.',
+                'status prédit le statut que la réservation aurait si créée maintenant.',
+                'Appelé à chaque changement de formulaire (debounced 300 ms) — sans jamais modifier la DB.',
+            ],
+        ],
+
+        'recurrences.preview' => [
+            'title' => 'Calcul du preview de récurrence',
+            'category' => 'Réservations',
+            'scenario' => null,
+            'goal' => 'Calculer les occurrences valides d’une récurrence, les dates ignorées et les conflits potentiels sans créer aucune réservation.',
+
+            'route' => [
+                'demo' => null,
+                'api' => 'POST /api/recurrences/preview',
+            ],
+
+            'demo_controller' => null,
+
+            'api_controller' => [
+                'class' => 'RecurrenceController',
+                'method' => 'preview',
+            ],
+
+            'request' => [
+                'organization_id',
+                'pickup_location_id',
+                'destination_location_id',
+                'departure_time',
+                'return_time',
+                'frequency (hebdomadaire|bihebdomadaire|mensuel)',
+                'days_of_week',
+                'start_date',
+                'end_date',
+            ],
+
+            'service' => [
+                'class' => 'RecurrenceService',
+                'method' => 'preview',
+                'internal_methods' => [
+                    'Génération de toutes les occurrences selon fréquence et jours de semaine',
+                    'Filtrage des dates non ouvrables',
+                    'Pour chaque date valide : appel ReservationPreviewService::preview()',
+                    'Regroupement : valid_dates, skipped_dates (avec motif), conflicts_by_date',
+                ],
+            ],
+
+            'related_services' => [
+                'ReservationPreviewService',
+                'ReservationOccupationService',
+            ],
+
+            'tables' => [
+                'reservations (lecture)',
+                'unavailabilities (lecture)',
+            ],
+
+            'effects' => [
+                'Aucune écriture en base.',
+                'valid_dates : liste des dates où la réservation est possible.',
+                'skipped_dates : dates ignorées avec le motif (jour férié, hors période, etc.).',
+                'conflicts_by_date : dates avec conflits détectés.',
+                'Appelé en temps réel à chaque modification du formulaire de récurrence.',
+            ],
+        ],
+
+        // _________________________________________________________________________________________ORGANISATIONS (MUTATIONS)
+        'organizations.store' => [
+            'title' => 'Création directe d’une organisation',
+            'category' => 'Organisations',
+            'scenario' => 'admin',
+            'goal' => 'Créer une organisation directement sans passer par une demande d’enregistrement. Réservé aux agents internes.',
+
+            'route' => [
+                'demo' => null,
+                'api' => 'POST /api/organizations',
+            ],
+
+            'demo_controller' => null,
+
+            'api_controller' => [
+                'class' => 'OrganizationController',
+                'method' => 'store',
+            ],
+
+            'request' => [
+                'name',
+                'type',
+                'official_email',
+                'phone_contact',
+                'name_contact',
+            ],
+
+            'service' => [
+                'class' => 'Organization',
+                'method' => 'create',
+                'internal_methods' => [
+                    'Validation des données',
+                    'Création de l’organisation active immédiatement',
+                ],
+            ],
+
+            'related_services' => [],
+
+            'tables' => [
+                'organizations',
+            ],
+
+            'effects' => [
+                'L’organisation est créée et active immédiatement.',
+                'Aucun score de confiance calculé (pas de demande préalable).',
+                'Différent de requests.organizations.approve : ici l’agent crée directement sans processus de validation.',
+                'L’organisation peut immédiatement faire des réservations.',
+            ],
+        ],
+
+        'organizations.ban' => [
+            'title' => 'Bannissement d’une organisation',
+            'category' => 'Organisations',
+            'scenario' => 'admin',
+            'goal' => 'Interdire à une organisation de soumettre de nouvelles réservations, avec un motif obligatoire.',
+
+            'route' => [
+                'demo' => null,
+                'api' => 'POST /api/organizations/{organization}/ban',
+            ],
+
+            'demo_controller' => null,
+
+            'api_controller' => [
+                'class' => 'OrganizationController',
+                'method' => 'ban',
+            ],
+
+            'request' => [
+                'reason',
+            ],
+
+            'service' => [
+                'class' => 'Organization',
+                'method' => 'update',
+                'internal_methods' => [
+                    'Validation du motif',
+                    'Vérification de la permission organizations.ban',
+                    'is_banned = true, banned_reason enregistré',
+                ],
+            ],
+
+            'related_services' => [],
+
+            'tables' => [
+                'organizations',
+            ],
+
+            'effects' => [
+                'L’organisation est marquée comme bannie.',
+                'Le motif du ban est conservé.',
+                'L’organisation ne peut plus créer de réservations.',
+                'Les réservations existantes ne sont pas annulées automatiquement.',
+            ],
+        ],
+
+        'organizations.unban' => [
+            'title' => 'Levée du bannissement',
+            'category' => 'Organisations',
+            'scenario' => 'admin',
+            'goal' => 'Réactiver une organisation précédemment bannie.',
+
+            'route' => [
+                'demo' => null,
+                'api' => 'POST /api/organizations/{organization}/unban',
+            ],
+
+            'demo_controller' => null,
+
+            'api_controller' => [
+                'class' => 'OrganizationController',
+                'method' => 'unban',
+            ],
+
+            'request' => null,
+
+            'service' => [
+                'class' => 'Organization',
+                'method' => 'update',
+                'internal_methods' => [
+                    'Vérification de la permission organizations.ban',
+                    'is_banned = false, banned_reason réinitialisé',
+                ],
+            ],
+
+            'related_services' => [],
+
+            'tables' => [
+                'organizations',
+            ],
+
+            'effects' => [
+                'L’organisation est réactivée.',
+                'Elle peut à nouveau soumettre des réservations.',
+            ],
+        ],
+
+        // _________________________________________________________________________________________EMAIL VERIFICATION
+        'auth.email_resend' => [
+            'title' => 'Renvoi de l’email de vérification',
+            'category' => 'Authentification',
+            'scenario' => null,
+            'goal' => 'Renvoyer l’email de vérification à un utilisateur dont le lien a expiré ou qui ne l’a pas reçu.',
+
+            'route' => [
+                'demo' => null,
+                'api' => 'POST /api/email/verify/resend',
+            ],
+
+            'demo_controller' => null,
+
+            'api_controller' => [
+                'class' => 'EmailVerificationController',
+                'method' => 'resend',
+            ],
+
+            'request' => null,
+
+            'service' => [
+                'class' => 'User',
+                'method' => 'sendEmailVerificationNotification',
+                'internal_methods' => [
+                    'Vérification que l’email n’est pas déjà vérifié',
+                    'Génération d’une URL signée temporaire',
+                    'Envoi de l’email de vérification via Mailtrap',
+                    'Throttle : 6 tentatives par minute',
+                ],
+            ],
+
+            'related_services' => [
+                'VerifyEmail (notification Laravel)',
+                'Mailtrap SMTP',
+            ],
+
+            'tables' => [
+                'users',
+                'jobs',
+            ],
+
+            'effects' => [
+                'Un nouvel email de vérification est envoyé.',
+                'L’URL signée dans l’email est valable le temps configuré dans Laravel.',
+                'Si l’email est déjà vérifié, la requête est ignorée.',
+                'Throttlé à 6 requêtes par minute par IP.',
             ],
         ],
 
