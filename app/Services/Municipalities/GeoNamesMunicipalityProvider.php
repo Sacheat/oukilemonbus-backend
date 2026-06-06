@@ -5,6 +5,18 @@ namespace App\Services\Municipalities;
 use App\Models\Municipality;
 use Illuminate\Support\Collection;
 
+/**
+ * Résout les localités d'une commune depuis l'API GeoNames avec une stratégie multi-niveaux.
+ *
+ * `findMunicipality()` : recherche l'entité GeoNames avec priorité décroissante
+ *   ADM4 (commune) → featureClass A (entités administratives) → featureClass P (lieux peuplés).
+ *   Évite de confondre une commune avec un arrondissement homonyme (ex. "Dinant" ADM3 vs ADM4).
+ *
+ * `fetchLocalities()` : détermine les localités selon le niveau de l'entité trouvée :
+ *   - Pays/ADM1/ADM2/ADM3 → toutes les communes ADM4 de la zone (pagineé, limite 10 000)
+ *   - ADM4 → sous-localités via childrenJSON (fallback : l'entité elle-même)
+ *   - PPL/autre → l'entité elle-même comme unique localité
+ */
 class GeoNamesMunicipalityProvider
 {
     // Feature codes pour les entités de niveau pays

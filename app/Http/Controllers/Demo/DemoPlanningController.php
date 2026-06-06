@@ -10,6 +10,10 @@ use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
+/**
+ * Planning des réservations sur une fenêtre glissante (−7j / +21j par défaut).
+ * `includeAvailability` n'est activé que pour les admins/agents pour afficher les indisponibilités.
+ */
 final class DemoPlanningController extends DemoBaseController
 {
     public function __construct(

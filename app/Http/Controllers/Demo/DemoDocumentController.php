@@ -14,6 +14,11 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
 
+/**
+ * Gestion des documents dans la démo.
+ * `download` télécharge directement depuis le disque local sans token signé :
+ * la démo est un environnement contrôlé où la sécurité d'accès est gérée par l'acteur de session.
+ */
 final class DemoDocumentController extends DemoBaseController
 {
     public function __construct(

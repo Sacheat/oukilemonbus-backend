@@ -9,6 +9,16 @@ use App\Models\User;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
+/**
+ * Façade de logging métier orientée canaux Laravel (reservations / routing / documents / jobs).
+ *
+ * Chaque méthode publique cible un canal dédié configuré dans config/logging.php.
+ * La méthode privée safe() absorbe toutes les exceptions pour garantir que
+ * les erreurs de logging ne propagent jamais d'exception vers le code métier.
+ *
+ * Distinct de DomainEventLogger (base de données) : DomainLogger écrit dans des fichiers de log
+ * pour l'observabilité opérationnelle (monitoring, alerting, debug en production).
+ */
 class DomainLogger
 {
     public function reservationCreated(Reservation $reservation, User $actor, array $preview): void

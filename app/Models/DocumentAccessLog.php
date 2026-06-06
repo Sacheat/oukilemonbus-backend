@@ -16,6 +16,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'is_success',
     'failure_reason',
 ])]
+/**
+ * Journal d'audit de chaque tentative d'accès à un document.
+ * `is_success = false` : tentative échouée (token expiré, révoqué ou déjà utilisé).
+ * `failure_reason` : détaille la cause de l'échec pour le monitoring.
+ * Jamais supprimé — sert de trace forensique.
+ */
 class DocumentAccessLog extends Model
 {
     use HasFactory;

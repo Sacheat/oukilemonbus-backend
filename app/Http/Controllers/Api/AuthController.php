@@ -11,6 +11,10 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 
+/**
+ * Gère l'authentification SPA via Sanctum (cookies de session).
+ * Le CSRF cookie doit être initialisé par le frontend avant tout appel (GET /sanctum/csrf-cookie).
+ */
 class AuthController extends Controller
 {
     public function __construct(
@@ -21,6 +25,7 @@ class AuthController extends Controller
     {
         $user = $this->authService->register($request->validated());
 
+        // Régénère l'ID de session pour prévenir la fixation de session après création de compte.
         if ($request->hasSession()) {
             $request->session()->regenerate();
         }
@@ -40,6 +45,7 @@ class AuthController extends Controller
                 $request->boolean('remember')
             );
         } catch (ValidationException $exception) {
+            // Incrémente le compteur de tentatives échouées avant de relancer l'exception.
             $request->hitRateLimiter();
 
             throw $exception;
@@ -47,10 +53,12 @@ class AuthController extends Controller
 
         $request->clearRateLimiter();
 
+        // Régénère l'ID de session pour prévenir la fixation de session après authentification.
         if ($request->hasSession()) {
             $request->session()->regenerate();
         }
 
+        // Rôles et organisations chargés ici pour éviter un aller-retour supplémentaire depuis le frontend.
         return new UserResource($user->load('roles', 'organizations'));
     }
 
@@ -64,6 +72,7 @@ class AuthController extends Controller
         $this->authService->logout();
 
         if ($request->hasSession()) {
+            // Invalide la session et régénère le token CSRF pour nettoyer complètement la session active.
             $request->session()->invalidate();
             $request->session()->regenerateToken();
         }

@@ -12,6 +12,24 @@ use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Throwable;
 
+/**
+ * Stocke et valide les justificatifs téléversés par les utilisateurs (PDF, JPG, PNG).
+ *
+ * Pipeline de sécurité (validateContent) :
+ *   1. Pas de null byte dans le nom de fichier (path traversal)
+ *   2. Pas de double extension (ex. virus.pdf.php)
+ *   3. Taille ≤ max_size_bytes (configurable, défaut 5 Mo)
+ *   4. Extension dans la liste blanche (pdf, jpg, jpeg, png)
+ *   5. MIME réel via finfo (défense contre les fichiers renommés)
+ *   6. Cohérence extension déclarée / MIME réel
+ *   7. Magic bytes correspondant au MIME (%PDF, \xFF\xD8\xFF, \x89PNG)
+ *   8. Absence de signatures malveillantes génériques (<?php, eval(, exec(, …)
+ *   9. Pour les PDF : absence de patterns dangereux (/JS, /OpenAction, /Launch, /XFA, …)
+ *
+ * Le nom de fichier stocké est un UUID pour éliminer tout vecteur d'injection via le nom original.
+ * En cas d'échec DB après stockage, le fichier est supprimé pour éviter les orphelins.
+ * `delete()` supprime à la fois l'enregistrement DB et le fichier physique.
+ */
 class ProofDocumentService
 {
     // Signatures génériques dangereuses (tous types de fichiers)

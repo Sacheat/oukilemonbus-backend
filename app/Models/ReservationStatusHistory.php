@@ -9,6 +9,11 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 #[Fillable(['reservation_id', 'old_status', 'new_status', 'changed_by_user_id', 'reason'])]
+/**
+ * Historique immuable des changements de statut d'une réservation.
+ * `UPDATED_AT = null` : ajout seul — chaque transition crée une ligne, aucune n'est modifiée.
+ * Alimenté par ReservationService à chaque transition (approve, reject, confirm, cancel, etc.).
+ */
 class ReservationStatusHistory extends Model
 {
     use HasFactory;

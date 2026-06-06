@@ -41,6 +41,13 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
     'cancellation_reason',
     'passengers_confirmed_at',
 ])]
+/**
+ * Réservation de transport.
+ * `scopeVisibleTo` est le filtre de sécurité central : admin/agent voient tout,
+ * les autres voient uniquement leurs propres demandes, celles de leurs organisations, ou (chauffeur) celles qui leur sont assignées.
+ * `passengers_confirmed_at` : timestamp nullable positionné par confirmPassengers() — null = non confirmé.
+ * `routeSheetDocuments` : BelongsToMany via pivot `document_reservation` avec colonne `position` pour l'ordre.
+ */
 class Reservation extends Model
 {
     use HasFactory;

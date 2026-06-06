@@ -12,6 +12,18 @@ use App\Services\Logging\DomainLogger;
 use InvalidArgumentException;
 use Throwable;
 
+/**
+ * Génère et enregistre les délibérations PDF pour les décisions du collège communal.
+ *
+ * Une délibération ne peut être générée que si le statut de la décision est APPROUVE ou REFUSE.
+ * Elle est marquée `is_official = true` (contrairement aux feuilles de route).
+ *
+ * Le numéro de version est calculé à partir du max des documents DELIBERATION
+ * déjà existants pour la même reservation_id (incrémental par réservation).
+ *
+ * Le contexte complet (décision, réservation, organisation, lieux, assignation) est préparé
+ * par DeliberationContextBuilder avant d'être passé au générateur Blade + DomPDF.
+ */
 class DeliberationDocumentService
 {
     private const DIRECTORY_PREFIX = 'documents/council-decisions';

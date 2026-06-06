@@ -295,7 +295,9 @@ informations de transporteur ;
 kilométrage ;
 itinéraire.
 
-Ce contexte permet ensuite au template PDF de rester plus simple.
+Ce contexte est stocké dans la colonne `generation_context` (JSON) de la table `documents`. Cela permet de retrouver l'état exact des données au moment de la génération.
+
+Les documents enregistrent également : `template_key` (identifiant du template utilisé), `template_version` (version du template) et `checksum` (empreinte SHA du fichier généré pour vérifier l'intégrité).
 
 16. Templates de documents
 
@@ -406,16 +408,15 @@ Ces logs peuvent aider à comprendre ce qui s'est passé en cas de problème.
 
 23. Lien avec les notifications
 
-Les notifications pourront être utilisées pour prévenir les utilisateurs lorsqu'un document est disponible.
+Le module Notifications est pleinement implémenté. Les utilisateurs sont notifiés (in-app et/ou email selon leurs préférences) lorsqu'un document les concernant est disponible.
 
 Exemples :
 
 une délibération est générée ;
 une feuille de route est disponible ;
-une demande est refusée ;
-un chauffeur a une feuille de route pour le lendemain.
+une demande est refusée.
 
-Ce point dépendra du module Notifications.
+Les documents peuvent être envoyés en pièce jointe directe (si < seuil de taille) ou via un lien signé temporaire (`document_access_tokens`). Voir `docs/notifications.md`.
 
 24. Tests du module Documents
 

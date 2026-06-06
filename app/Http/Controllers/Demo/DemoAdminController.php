@@ -17,6 +17,10 @@ use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
+/**
+ * Page d'administration de la démo : utilisateurs, chauffeurs, véhicules, indisponibilités.
+ * Chaque section n'est chargée que si l'acteur dispose de la permission correspondante.
+ */
 final class DemoAdminController extends DemoBaseController
 {
     public function __construct(

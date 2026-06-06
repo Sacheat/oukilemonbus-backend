@@ -6,13 +6,9 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
- * Resource pour les documents générés, incluant les champs de génération
- * - checksum : pour identifier de manière unique le contenu généré, utile pour éviter les doublons
- * - generation_context : pour stocker les paramètres de génération (ex: modele officiel, etc.)
- * - template_key et template_version : pour identifier le template utilisé lors de la génération
- *
- * PAS DE FILE PATH EXPOSÉ DANS LE RESOURCE POUR ÉVITER LES PROBLÈMES DE SÉCURITÉ
- * il sera utilisé en interne pour la génération de liens de téléchargement sécurisés via : GET /api/documents/{document}/download
+ * Resource document. Le `file_path` n'est jamais exposé — le téléchargement passe
+ * par GET /api/documents/{document}/download qui vérifie les droits et retourne un token signé.
+ * `generation_context` est restreint aux admins/agents (peut contenir des paramètres internes).
  */
 class DocumentResource extends JsonResource
 {

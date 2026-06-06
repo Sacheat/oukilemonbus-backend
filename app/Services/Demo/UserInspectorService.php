@@ -6,6 +6,19 @@ namespace App\Services\Demo;
 
 use App\Models\User;
 
+/**
+ * Construit la fiche d'inspection d'un utilisateur pour le panneau Backend Inspector.
+ *
+ * `inspect()` retourne les rôles, permissions et capacités lisibles de l'acteur.
+ * Les capacités (capabilities) sont traduites en phrases françaises pour le panneau démo
+ * — elles ne correspondent pas aux permissions Spatie mais à des groupes fonctionnels.
+ *
+ * Compatible avec les utilisateurs sans Spatie (méthodes testées via method_exists) pour
+ * éviter les erreurs fatales si le service est appelé hors contexte Spatie.
+ *
+ * `displayName()` utilise par priorité : user.name → first_name + last_name → email.
+ * L'organisation affichée est celle marquée is_default, sinon la première disponible.
+ */
 final class UserInspectorService
 {
     public function inspect(?User $user): array

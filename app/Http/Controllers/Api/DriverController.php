@@ -11,6 +11,11 @@ use App\Services\Drivers\DriverService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
+/**
+ * CRUD chauffeurs.
+ * `activate`/`deactivate` gèrent le statut opérationnel sans supprimer le profil.
+ * Les chauffeurs sont triés par date d'expiration de permis pour identifier rapidement les expirations proches.
+ */
 class DriverController extends Controller
 {
     public function __construct(

@@ -8,6 +8,14 @@ use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
+/**
+ * Middleware d'inspection du backend pour la démonstration.
+ * Après chaque requête mutante (POST/PATCH/PUT/DELETE) qui réussit ou échoue de façon métier
+ * (2xx, 403, 422, 500), il enregistre l'action et son contexte dans la session.
+ * Cela permet au BackendInspectorController d'afficher un historique des actions
+ * effectuées par l'acteur courant sans requête supplémentaire.
+ * Désactivé en production via `backend_inspector.enabled = false`.
+ */
 final class BackendInspectorMiddleware
 {
     public function handle(Request $request, Closure $next): Response
@@ -33,6 +41,7 @@ final class BackendInspectorMiddleware
         return $response;
     }
 
+    // Seules les mutations avec un code de statut pertinent sont enregistrées.
     private function shouldRecord(Request $request, Response $response): bool
     {
         if (! in_array($request->method(), ['POST', 'PATCH', 'PUT', 'DELETE'], true)) {
@@ -45,6 +54,7 @@ final class BackendInspectorMiddleware
             || in_array($status, [403, 422, 500], true);
     }
 
+    // Traduit le nom de route Laravel en clé d'action lisible (définie dans backend_inspector.route_map).
     private function resolveActionKey(Request $request): ?string
     {
         $routeName = $request->route()?->getName();

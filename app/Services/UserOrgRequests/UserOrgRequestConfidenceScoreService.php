@@ -4,6 +4,18 @@ namespace App\Services\UserOrgRequests;
 
 use App\Models\UserOrgRequest;
 
+/**
+ * Calcule et explique le score de confiance (0–100) d'une demande d'adhésion à une organisation.
+ *
+ * Le score est composé de trois axes :
+ *   1. Complétude : organisation cible (+10), rôle (+15), justification (+20), justificatif (+25),
+ *      justification suffisamment détaillée ≥ 30 chars (+10). Pénalités si vide ou trop court.
+ *   2. Cohérence rôle / justification : mots-clés sémantiques par rôle → +10 si alignés.
+ *   3. Signaux demandeur : compte actif (+3), email vérifié (+4), téléphone renseigné (+3).
+ *
+ * `requiresProof()` identifie les rôles sensibles (directeur, responsable, referent)
+ * qui nécessitent impérativement un justificatif.
+ */
 class UserOrgRequestConfidenceScoreService
 {
     public function calculate(UserOrgRequest $request): int

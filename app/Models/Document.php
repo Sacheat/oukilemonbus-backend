@@ -28,6 +28,13 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
     'version',
     'is_available',
 ])]
+/**
+ * Document généré (feuille de route, délibération, export planning).
+ * `file_path` n'est jamais exposé en API — le téléchargement passe par un token signé (DocumentAccessToken).
+ * `is_official` : interdit l'écrasement sans créer une nouvelle version.
+ * `routeSheetReservations` : BelongsToMany via pivot `document_reservation` ordonnée par `position`
+ * (une feuille de route période peut regrouper plusieurs réservations dans un ordre défini).
+ */
 class Document extends Model
 {
     use HasFactory;
@@ -57,11 +64,6 @@ class Document extends Model
         return $this->hasMany(DocumentAccessLog::class);
     }
 
-    /* Relation utilisée pour les feuilles de route hebdomadaires
-     *permettant d'associer plusieurs réservations à un même document de feuille de route
-     * et de gérer l'ordre des réservations associées à une même feuille de route via la colonne position de la table pivot document_reservation
-     *Reservation::class est utilisée comme modèle lié pour pouvoir accéder aux données de la réservation depuis le contexte de génération du document de feuille de route
-    */
     public function routeSheetReservations(): BelongsToMany
     {
         return $this->belongsToMany(Reservation::class, 'document_reservation')

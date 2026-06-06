@@ -6,6 +6,17 @@ use App\Models\Location;
 use App\Models\Municipality;
 use Illuminate\Support\Facades\Schema;
 
+/**
+ * Vérifie si un lieu appartient aux localités de la commune active.
+ *
+ * `containsLocation()` normalise le nom de ville (ASCII, lowercase) et le compare
+ * aux noms normalisés des localités actives de la commune active en base de données.
+ * Si la table municipalities / municipality_localities n'existe pas encore (migration
+ * non appliquée), bascule sur la liste de localités de config('municipality.localities').
+ *
+ * `name()` retourne le nom de la commune active ou la valeur config par défaut ('Dinant').
+ * Utilisé par OrgRegistrationConfidenceScoreService pour personnaliser les messages du score.
+ */
 class MunicipalityService
 {
     public function containsLocation(?Location $location): bool

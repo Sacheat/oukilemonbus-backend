@@ -4,6 +4,13 @@ namespace App\Http\Requests\Documents;
 
 use Illuminate\Foundation\Http\FormRequest;
 
+/**
+ * Requête de génération de feuille de route.
+ * Deux modes mutuellement exclusifs :
+ * - Mode journalier : service_date + vehicle_id (une journée, un véhicule)
+ * - Mode période   : start_date + end_date (tous véhicules)
+ * L'autorisation est vérifiée dans le contrôleur via Gate::authorize().
+ */
 class GenerateRouteSheetRequest extends FormRequest
 {
     public function authorize(): bool

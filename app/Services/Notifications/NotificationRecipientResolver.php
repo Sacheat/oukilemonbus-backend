@@ -6,6 +6,16 @@ use App\Models\Reservation;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Collection;
 
+/**
+ * Résout les destinataires de notifications pour les événements opérationnels.
+ *
+ * Toutes les méthodes filtrent sur `active = true` pour ne jamais notifier
+ * des comptes désactivés, même s'ils sont encore en base de données.
+ *
+ * `internalUsers()` : tous les admin et agent_communal actifs.
+ * `reservationRequester()` : l'utilisateur qui a créé la demande, si actif.
+ * `reservationDriverUser()` : l'utilisateur associé au profil Driver assigné, si actif.
+ */
 class NotificationRecipientResolver
 {
     public function internalUsers(): Collection

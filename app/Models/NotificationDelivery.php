@@ -32,6 +32,12 @@ use Illuminate\Database\Eloquent\Relations\MorphTo;
     'failed_at',
     'error_message',
 ])]
+/**
+ * Trace de livraison d'une notification (email, in-app, etc.).
+ * Relation polymorphe `notifiable` — actuellement toujours User.
+ * `attempt_number` : incrémenté à chaque retry. `dedupe_key` : empêche les doublons sur replay.
+ * `status` : PENDING → SENT ou FAILED selon le résultat de l'envoi.
+ */
 class NotificationDelivery extends Model
 {
     use HasFactory;

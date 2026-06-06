@@ -9,6 +9,11 @@ use App\Services\Demo\DemoDataService;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
+/**
+ * Liste des organisations dans la démo.
+ * Les non-internes (responsable_organisation, user) ne voient que leurs propres organisations,
+ * le filtrage est délégué à DemoDataService.
+ */
 final class DemoOrganizationController extends DemoBaseController
 {
     public function __construct(

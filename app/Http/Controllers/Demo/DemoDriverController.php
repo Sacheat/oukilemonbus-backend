@@ -10,6 +10,10 @@ use App\Services\Demo\DemoActorResolver;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
+/**
+ * Vue chauffeur de la démo : réservations à venir et historique des 10 dernières.
+ * Réservée aux utilisateurs avec le rôle chauffeur et un profil Driver associé.
+ */
 final class DemoDriverController extends DemoBaseController
 {
     public function __construct(DemoActorResolver $actorResolver)

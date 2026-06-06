@@ -21,6 +21,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'changed_by_user_id',
     'change_reason',
 ])]
+/**
+ * Historique immuable des modifications d'une indisponibilité.
+ * `UPDATED_AT = null` : ajout seul. Note : table = `unavailabilities_history` (pluriel avec s).
+ * `change_reason` : motif saisi par l'agent lors de la modification.
+ */
 class UnavailabilityHistory extends Model
 {
     use HasFactory;

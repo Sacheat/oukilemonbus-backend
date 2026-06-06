@@ -15,6 +15,11 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\Gate;
 
+/**
+ * Gère les séries de réservations récurrentes.
+ * La Recurrence n'a pas de FK directe vers Organization ; l'organisation est déduite
+ * depuis ses réservations enfants (recurrence → reservations → organization_id).
+ */
 class RecurrenceController extends Controller
 {
     public function __construct(
@@ -27,6 +32,7 @@ class RecurrenceController extends Controller
 
         $recurrences = Recurrence::query()
             ->when(
+                // Les non-internes ne voient que les récurrences liées à leurs organisations.
                 ! $user->hasAnyRole(['admin', 'agent_communal']),
                 fn ($q) => $q->whereHas('reservations', function ($q) use ($user): void {
                     $q->whereIn('organization_id', $user->organizations()->select('organizations.id'));
@@ -43,6 +49,7 @@ class RecurrenceController extends Controller
     public function preview(PreviewRecurrenceRequest $request): JsonResponse
     {
         $organization = Organization::findOrFail($request->validated('organization_id'));
+        // Réutilise la policy de création de réservation car créer une récurrence = créer plusieurs réservations.
         Gate::authorize('createForOrganization', [Reservation::class, $organization]);
 
         $preview = $this->recurrenceService->preview($request->validated());
@@ -67,6 +74,7 @@ class RecurrenceController extends Controller
         $user = request()->user();
 
         if (! $user->hasAnyRole(['admin', 'agent_communal'])) {
+            // Vérifie que l'utilisateur appartient à l'organisation de la récurrence.
             $organizationId = $recurrence->reservations()->value('organization_id');
             if ($organizationId === null || ! $user->organizations()->whereKey($organizationId)->exists()) {
                 abort(403);
@@ -89,6 +97,7 @@ class RecurrenceController extends Controller
             }
         }
 
+        // Annule uniquement les occurrences encore actives (EN_ATTENTE, APPROUVE, CONFIRME).
         $cancelledIds = $this->recurrenceService->cancelRemaining(
             $recurrence,
             $user,

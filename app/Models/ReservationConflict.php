@@ -17,6 +17,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'resolved_by_user_id',
     'resolved_at',
 ])]
+/**
+ * Conflit détecté sur une réservation lors de la prévisualisation ou de la création.
+ * `UPDATED_AT = null` : immuable après création — les conflits ne sont jamais modifiés, seulement résolus.
+ * `related_reservation_id` : non null uniquement pour SCHEDULE_OVERLAP (chevauchement avec une autre réservation).
+ * `is_resolved = true` après résolution manuelle par un agent via resolveConflict().
+ */
 class ReservationConflict extends Model
 {
     use HasFactory;

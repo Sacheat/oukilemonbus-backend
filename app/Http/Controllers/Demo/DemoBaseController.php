@@ -14,6 +14,13 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Throwable;
 
+/**
+ * Classe de base pour tous les contrôleurs de démonstration.
+ * `actor()` résout l'utilisateur actif depuis la session (sélectionné via DemoActorController).
+ * `runDemoAction` centralise la gestion des erreurs et l'enregistrement dans l'inspecteur.
+ * `recordInspectorView` est ignoré si `skip_next_view_recording` est positionné,
+ * évitant le double-enregistrement quand une mutation précède immédiatement un affichage.
+ */
 abstract class DemoBaseController extends Controller
 {
     public function __construct(

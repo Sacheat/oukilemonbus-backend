@@ -5,12 +5,19 @@ namespace App\Console\Commands;
 use App\Services\SystemHealthService;
 use Illuminate\Console\Command;
 
+/**
+ * Vérifie l'état de santé global de l'application et de ses dépendances.
+ * Couvre l'infrastructure (DB, cache, queue, stockage), les API externes (ORS, GeoNames)
+ * et les modules applicatifs (notifications, configuration).
+ * Le code de retour (0/1) permet l'intégration dans des scripts de déploiement ou de monitoring.
+ */
 class SystemHealthCommand extends Command
 {
     protected $signature = 'app:health {--json : Affiche le résultat en JSON}';
 
     protected $description = 'Vérifie l\'état des services critiques (DB, cache, queue, stockage, ORS, notifications, config)';
 
+    // Regroupement des checks par catégorie pour l'affichage en tableau.
     private const GROUPS = [
         'Infrastructure' => [
             'database' => 'Base de données',
@@ -29,6 +36,7 @@ class SystemHealthCommand extends Command
         ],
     ];
 
+    // Conseils de résolution affichés sous chaque point d'attention non-OK.
     private const HINTS = [
         'database'      => 'Vérifier DB_HOST, DB_DATABASE, DB_USERNAME, DB_PASSWORD dans le .env',
         'cache'         => 'Vérifier CACHE_STORE et la connexion à la base de données',
@@ -53,6 +61,7 @@ class SystemHealthCommand extends Command
         $healthy = $this->healthService->isHealthy($checks);
 
         if ((bool) $this->option('json')) {
+            // Format JSON destiné aux outils de monitoring (ex: script de déploiement, Grafana).
             $this->line((string) json_encode([
                 'status'     => $healthy ? 'ok' : 'error',
                 'checks'     => $checks,
@@ -99,6 +108,7 @@ class SystemHealthCommand extends Command
 
             $rows = [];
             foreach ($labels as $key => $label) {
+                // Si un check est absent du résultat, on le considère en erreur par sécurité.
                 $check  = $checks[$key] ?? ['status' => 'error', 'details' => 'Donnée absente'];
                 $rows[] = [
                     $label,

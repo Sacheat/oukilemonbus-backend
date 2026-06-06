@@ -8,6 +8,22 @@ use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
+/**
+ * Gère les paramètres des communes et la synchronisation des localités depuis GeoNames.
+ *
+ * Une seule commune peut être `is_active = true` à la fois : `activate()` désactive toutes
+ * les autres avant d'activer la cible (règle de singletons enforced en DB).
+ *
+ * `addLocality()` utilise updateOrCreate sur `normalized_name` pour éviter les doublons
+ * lors de la synchronisation. La normalisation est commune avec MunicipalityService.
+ *
+ * `syncFromExternalProvider()` :
+ *   1. Met à jour l'external_id et le source de la commune depuis GeoNames.
+ *   2. Récupère toutes les sous-localités via GeoNamesMunicipalityProvider.
+ *   3. Ajoute / réactive celles reçues.
+ *   4. Désactive (soft) les localités source='geonames' absentes de la liste retournée.
+ *   L'entité GeoNames est passée en paramètre à fetchLocalities() pour éviter un second appel API.
+ */
 class MunicipalitySettingsService
 {
     public function __construct(

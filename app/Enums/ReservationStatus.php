@@ -2,23 +2,37 @@
 
 namespace App\Enums;
 
+/**
+ * Cycle de vie d'une réservation.
+ *
+ * Flux standard :
+ *   EN_ATTENTE → APPROUVE → CONFIRME → (ANNULE possible à tout moment)
+ *
+ * Flux avec conflit :
+ *   EN_ATTENTE → EN_CONFLIT → EN_ATTENTE (après résolution) → APPROUVE → CONFIRME
+ *
+ * Flux court (auto-approuvé, ex : école communale sans conflit) :
+ *   Directement APPROUVE ou CONFIRME à la création.
+ *
+ * Statuts terminaux (aucune transition possible) : REFUSE, ANNULE.
+ */
 enum ReservationStatus: string
 {
     case EN_ATTENTE = 'en_attente';
-    case APPROUVE = 'approuve';
-    case CONFIRME = 'confirme';
-    case REFUSE = 'refuse';
-    case ANNULE = 'annule';
+    case APPROUVE   = 'approuve';
+    case CONFIRME   = 'confirme';
+    case REFUSE     = 'refuse';
+    case ANNULE     = 'annule';
     case EN_CONFLIT = 'en_conflit';
 
     public function label(): string
     {
         return match ($this) {
             self::EN_ATTENTE => 'En attente',
-            self::APPROUVE => 'Approuve',
-            self::CONFIRME => 'Confirme',
-            self::REFUSE => 'Refuse',
-            self::ANNULE => 'Annule',
+            self::APPROUVE   => 'Approuve',
+            self::CONFIRME   => 'Confirme',
+            self::REFUSE     => 'Refuse',
+            self::ANNULE     => 'Annule',
             self::EN_CONFLIT => 'En conflit',
         };
     }
@@ -27,14 +41,18 @@ enum ReservationStatus: string
     {
         return match ($this) {
             self::EN_ATTENTE => 'warning',
-            self::APPROUVE => 'success',
-            self::CONFIRME => 'success',
-            self::REFUSE => 'danger',
-            self::ANNULE => 'secondary',
+            self::APPROUVE   => 'success',
+            self::CONFIRME   => 'success',
+            self::REFUSE     => 'danger',
+            self::ANNULE     => 'secondary',
             self::EN_CONFLIT => 'error',
         };
     }
 
+    /**
+     * Indique si le statut est terminal (aucune action métier n'est plus possible).
+     * REFUSE et ANNULE sont les seuls états définitifs ; tout autre statut reste actif.
+     */
     public function isTerminal(): bool
     {
         return match ($this) {
@@ -43,7 +61,16 @@ enum ReservationStatus: string
         };
     }
 
-    /** @return list<self> */
+    /**
+     * Transitions autorisées depuis ce statut.
+     * Ces règles constituent la machine à états métier de la réservation.
+     * Toute tentative de transition non listée ici doit être rejetée par le service.
+     *
+     * Note : EN_CONFLIT peut revenir vers lui-même car un nouveau conflit peut être ajouté
+     * pendant que la réservation est déjà en conflit (conflit composé).
+     *
+     * @return list<self>
+     */
     public function allowedTransitions(): array
     {
         return match ($this) {

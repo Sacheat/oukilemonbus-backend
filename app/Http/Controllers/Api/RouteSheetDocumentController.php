@@ -11,6 +11,12 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Gate;
 use InvalidArgumentException;
 
+/**
+ * Génère les feuilles de route PDF.
+ * Deux modes : `service_date` + `vehicle_id` (une journée, un véhicule)
+ * ou `start_date`/`end_date` (période complète, tous véhicules).
+ * InvalidArgumentException = période vide ou paramètres invalides → 422.
+ */
 class RouteSheetDocumentController extends Controller
 {
     public function generate(

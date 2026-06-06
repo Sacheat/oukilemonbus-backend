@@ -15,6 +15,13 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Throwable;
 
+/**
+ * Génère l'export planning (XLS via HTML) pour une PlanningExportRequest.
+ * Lancé après POST /api/planning/export qui renvoie 202 — le client poll GET /api/planning/export/{id}.
+ * Une notification est envoyée au demandeur quand le document est prêt.
+ * En cas d'échec, le statut passe à `failed` et l'exception est re-levée pour le retry Laravel.
+ * Garde-fou : si le statut est déjà `processing` ou `succeeded`, le job s'arrête sans retraiter.
+ */
 class GeneratePlanningExportJob implements ShouldQueue
 {
     use Dispatchable;
@@ -49,10 +56,12 @@ class GeneratePlanningExportJob implements ShouldQueue
             ->with('requester')
             ->find($this->planningExportRequestId);
 
+        // Export supprimé ou demandeur inexistant → abandon silencieux.
         if ($exportRequest === null || $exportRequest->requester === null) {
             return;
         }
 
+        // Évite le double-traitement si le job est rejoué par le worker.
         if (in_array($exportRequest->status, ['processing', 'succeeded'], true)) {
             return;
         }

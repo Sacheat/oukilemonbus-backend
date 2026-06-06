@@ -20,6 +20,12 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'provider',
     'is_verified',
 ])]
+/**
+ * Lieu géocodé (départ ou destination d'une réservation, siège d'une organisation).
+ * `latitude` / `longitude` : coordonnées issues de l'API ORS ; null si géocodage non effectué.
+ * `place_id` : identifiant ORS pour la résolution rapide sans re-géocodage.
+ * `is_verified` : coordonnées confirmées manuellement ou par ORS (false = adresse saisie manuellement non géocodée).
+ */
 class Location extends Model
 {
     use HasFactory;

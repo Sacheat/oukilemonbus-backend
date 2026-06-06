@@ -15,6 +15,19 @@ use App\Services\Documents\DocumentAccessService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 
+/**
+ * Fournit les données paginées de la démo avec filtrage selon le rôle de l'acteur.
+ *
+ * Les rôles internes (admin, agent_communal) voient toutes les données.
+ * Les autres rôles ne voient que leurs propres données :
+ *   - Réservations : celles créées par l'acteur, ou de ses organisations, ou conduites par lui.
+ *   - Organisations : uniquement celles dont l'acteur est membre.
+ *   - Demandes d'organisation / d'adhésion : uniquement les siennes (+ orgs gérées pour responsable).
+ *   - Indisponibilités : uniquement celles du chauffeur correspondant à l'acteur.
+ *   - Documents : délégué à DocumentAccessService (règles d'accès centralisées).
+ *
+ * `visibleReservationsQuery()` est publique pour être réutilisée par DemoReservationController.
+ */
 final class DemoDataService
 {
     public function __construct(

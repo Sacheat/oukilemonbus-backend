@@ -72,6 +72,8 @@ distance_kmDistance estimée
 estimated_duration_minDurée estimée
 statusStatut de la réservation
 approval_typeType d'approbation
+passengers_confirmed_atHorodatage de confirmation de la liste des passagers (nullable)
+recurrence_idLien vers la récurrence parente si la réservation fait partie d'une série (nullable)
 4. Sens métier de return_time
 
 Point important :
@@ -405,24 +407,15 @@ Les logs permettent de faciliter le suivi et le débogage.
 
 22. Lien avec les notifications
 
-Les notifications restent à finaliser.
+Le module Notifications est pleinement implémenté. Il est déclenché lors des événements liés aux réservations :
 
-Elles pourront être déclenchées lors de différents événements :
-
-nouvelle réservation ;
-changement de statut ;
-réservation approuvée ;
-réservation refusée ;
+nouvelle réservation créée ;
+changement de statut (approuvée, refusée, confirmée, annulée) ;
 conflit détecté ;
 chauffeur affecté ;
 document disponible.
 
-Ce module devra préciser :
-
-qui reçoit la notification ;
-quand ;
-par quel canal ;
-avec quel message.
+Les destinataires, canaux (in-app / email), priorités et préférences utilisateur sont gérés par `NotificationDispatchService`. Voir `docs/notifications.md` pour les détails.
 23. Exemple de scénario métier
 
 Exemple : une école communale demande le bus.

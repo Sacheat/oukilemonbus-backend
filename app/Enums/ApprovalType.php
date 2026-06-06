@@ -2,6 +2,11 @@
 
 namespace App\Enums;
 
+/**
+ * Circuit de validation d'une réservation.
+ * AUTO : approuvée directement par le système (ex : écoles communales).
+ * MANUEL : nécessite une action explicite d'un agent communal ou une décision du Collège.
+ */
 enum ApprovalType: string
 {
     case AUTO = 'auto';

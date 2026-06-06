@@ -9,6 +9,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable(['user_id', 'licence_number', 'licence_expiry_date', 'is_active'])]
+/**
+ * Profil chauffeur lié 1:1 à un User.
+ * `is_active = false` : chauffeur désactivé — ne peut plus être assigné, profil conservé.
+ * `oldAssignmentHistory` / `newAssignmentHistory` : accès à l'historique des affectations
+ * avant et après changement (AssignmentType DRIVER_ONLY ou BOTH).
+ */
 class Driver extends Model
 {
     use HasFactory;

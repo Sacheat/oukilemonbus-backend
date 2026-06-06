@@ -2,6 +2,11 @@
 
 namespace App\Enums;
 
+/**
+ * Nature de la ressource affectée à une réservation.
+ * Utilisé dans l'historique d'affectation pour distinguer les changements de chauffeur
+ * des changements de véhicule et conserver une trace séparée de chaque type.
+ */
 enum AssignmentType: string
 {
     case DRIVER = 'driver';

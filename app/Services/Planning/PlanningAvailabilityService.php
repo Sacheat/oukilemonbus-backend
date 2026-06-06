@@ -10,6 +10,20 @@ use App\Models\Vehicle;
 use App\Services\Reservations\ReservationOccupationService;
 use Illuminate\Support\Collection;
 
+/**
+ * Calcule la disponibilité de tous les chauffeurs et véhicules pour une réservation donnée.
+ *
+ * Retourne deux listes (available / unavailable) pour les chauffeurs et les véhicules,
+ * chacune avec le motif d'indisponibilité si applicable :
+ *   - Chauffeur/véhicule inactif
+ *   - Indisponibilité explicite sur ce créneau (table unavailabilities)
+ *   - Déjà affecté à une autre réservation APPROUVE/CONFIRME sur ce créneau
+ *   - Capacité insuffisante (véhicules uniquement)
+ *
+ * Les fenêtres d'occupation sont pré-calculées pour toutes les réservations chevauchantes
+ * afin d'éviter N appels à ReservationOccupationService::windowForReservation().
+ * Réservé aux rôles internes (injecté par PlanningService uniquement si include_availability).
+ */
 class PlanningAvailabilityService
 {
     public function __construct(

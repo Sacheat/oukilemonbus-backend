@@ -6,6 +6,14 @@ use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
 
+/**
+ * Client HTTP bas niveau pour l'API GeoNames (JSON).
+ *
+ * Authentification par paramètre `username` (services.geonames.username).
+ * Lance une RuntimeException si le username n'est pas configuré.
+ * Timeout de 15 secondes ; propagation des erreurs HTTP via ->throw().
+ * L'URL de base est configurable (services.geonames.base_url).
+ */
 class GeoNamesClient
 {
     public function get(string $path, array $query = []): array

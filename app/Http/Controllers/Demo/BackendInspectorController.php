@@ -11,6 +11,12 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
+/**
+ * Contrôleur de l'inspecteur backend de la démo.
+ * `live` rend la vue temps-réel. `state` expose l'état de session courant.
+ * `reset` efface l'historique. L'acteur est résolu depuis la session v2
+ * (current_actor_id positionné par BackendInspectorMiddleware) ou, en fallback, depuis demo_user_id.
+ */
 final class BackendInspectorController extends Controller
 {
     public function __construct(

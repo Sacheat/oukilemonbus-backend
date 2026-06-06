@@ -17,6 +17,20 @@ use App\Services\Reservations\ReservationService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
+/**
+ * Gère la création et la mise à jour des décisions du collège communal.
+ *
+ * Conséquences automatiques selon le statut de la décision :
+ *   - REFUSE  → rejette la réservation via ReservationService::reject() (avec le motif).
+ *   - APPROUVE → résout les conflits de dérogation (horaire / durée) via
+ *                resolveCouncilDerogationConflicts() ; ne touche pas les autres conflits.
+ *
+ * Seules les organisations qui ne sont pas isCouncilDecisionExempt() peuvent avoir
+ * une décision du collège (ex. les écoles en sont exemptées).
+ *
+ * Après create() ou update(), génère la délibération PDF si le statut est final
+ * (APPROUVE ou REFUSE) via DeliberationDocumentService, puis notifie le demandeur.
+ */
 class CouncilDecisionService
 {
     public function __construct(

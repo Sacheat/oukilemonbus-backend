@@ -11,6 +11,11 @@ use App\Services\Vehicles\VehicleService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
+/**
+ * CRUD véhicules.
+ * `activate`/`deactivate` gèrent le statut opérationnel sans supprimer le véhicule.
+ * Un véhicule inactif ne peut pas être assigné à une réservation.
+ */
 class VehicleController extends Controller
 {
     public function __construct(

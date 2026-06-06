@@ -17,6 +17,21 @@ use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Str;
 use Throwable;
 
+/**
+ * Point d'entrée unique pour l'envoi de notifications opérationnelles (in-app et email).
+ *
+ * Pipeline pour chaque utilisateur × canal :
+ *   1. Vérification des préférences (channelEnabled).
+ *   2. Pour les emails non urgents : mise en file digest si frequency ≠ 'none' ou en quiet hours.
+ *   3. Anti-spam : cooldown configurable par (user, eventKey, canal, reservation) via Cache.
+ *   4. Déduplication : sha256 sur (eventKey, canal, userId, reservationId, documentId, message) ;
+ *      un enregistrement PENDING ou SENT bloque l'envoi d'un doublon.
+ *   5. Création du NotificationDelivery (traçabilité), puis envoi via Laravel Notifications.
+ *      La base de données (in-app) est envoyée synchrone ; l'email est mis en queue.
+ *
+ * `documentActionUrl()` émet un DocumentAccessToken à usage unique (signedRoute + token).
+ * La priorité high utilise la queue 'critical' ; les emails normaux la queue 'default'.
+ */
 class NotificationDispatchService
 {
     public function __construct(

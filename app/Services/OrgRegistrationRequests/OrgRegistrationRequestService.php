@@ -12,6 +12,21 @@ use App\Services\Notifications\NotificationRecipientResolver;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
+/**
+ * Gère le cycle de vie des demandes de création d'organisation.
+ *
+ * `create()` : calcule le score de confiance immédiatement après la création de la demande,
+ *   puis notifie les utilisateurs internes (admin/agent).
+ *
+ * `approve()` : crée l'organisation, ajoute le demandeur en tant que responsable (is_default = true),
+ *   passe la demande en APPROUVE, supprime le justificatif si conservé pour refus futur,
+ *   et notifie le demandeur.
+ *
+ * `reject()` : supprime le justificatif (inutile après refus) via ProofDocumentService
+ *   pour libérer l'espace disque et notifie le demandeur.
+ *
+ * Seules les demandes EN_ATTENTE peuvent être approuvées ou refusées.
+ */
 class OrgRegistrationRequestService
 {
     public function __construct(

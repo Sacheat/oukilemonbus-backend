@@ -9,6 +9,11 @@ use App\Models\Document;
 use App\Services\Documents\ProofDocumentService;
 use Illuminate\Console\Command;
 
+/**
+ * Supprime les justificatifs uploadés mais jamais rattachés à une demande ou une organisation.
+ * Situation typique : un utilisateur a uploadé un fichier puis abandonné le formulaire.
+ * Le délai de grâce (--days) évite de supprimer un justificatif d'une transaction en cours.
+ */
 class PruneOrphanProofDocumentsCommand extends Command
 {
     protected $signature = 'documents:prune-orphan-proofs
@@ -22,6 +27,8 @@ class PruneOrphanProofDocumentsCommand extends Command
         $days   = (int) $this->option('days');
         $dryRun = (bool) $this->option('dry-run');
 
+        // Un justificatif est orphelin s'il n'est référencé dans aucune des trois tables
+        // pouvant porter un proof_document_id : demandes d'inscription, demandes d'adhésion, organisations.
         $orphans = Document::query()
             ->where('document_type', DocumentType::JUSTIFICATIF->value)
             ->where('is_available', true)
@@ -54,6 +61,7 @@ class PruneOrphanProofDocumentsCommand extends Command
             $this->line("  → #{$doc->id} {$doc->file_name} ({$doc->created_at->toDateString()})");
 
             if (! $dryRun) {
+                // ProofDocumentService supprime le fichier physique ET l'entrée en base.
                 $proofDocumentService->delete($doc);
             }
         }

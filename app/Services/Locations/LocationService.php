@@ -6,6 +6,23 @@ use App\Exceptions\GeocodingException;
 use App\Models\Location;
 use Illuminate\Support\Facades\Http;
 
+/**
+ * Gère la création, la mise à jour et le géocodage des lieux via l'API OpenRouteService.
+ *
+ * `create()` : si les coordonnées sont déjà fournies (via autocomplétion), réutilise
+ *   un emplacement existant avec le même place_id pour éviter les doublons.
+ *   Sinon, géocode l'adresse via ORS.
+ *
+ * `suggest()` : autocomplétion via ORS /geocode/autocomplete (boundary BE, max 6 résultats).
+ *   Retourne un tableau vide si ORS n'est pas configuré ou en cas d'erreur HTTP.
+ *
+ * `geocode()` : résolution ORS /geocode/search → lat/lng/place_id.
+ *   Lève GeocodingException si ORS est inaccessible ou ne retourne aucun résultat.
+ *
+ * `calculateDistance()` : ORS /v2/directions/driving-car → distance_km + estimated_duration_min.
+ *   Lève GeocodingException si l'itinéraire est introuvable.
+ *   Le PreviewService possède un fallback haversine × 1.25 si cette méthode échoue.
+ */
 class LocationService
 {
     private ?string $apiKey;

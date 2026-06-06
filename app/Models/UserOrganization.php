@@ -7,6 +7,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\Pivot;
 
 #[Fillable(['user_id', 'organization_id', 'relationship_type', 'is_default'])]
+/**
+ * Pivot enrichi pour la relation User ↔ Organization.
+ * `relationship_type` : rôle de l'utilisateur dans l'organisation (prof, directeur, etc.).
+ * `is_default` : organisation principale de l'utilisateur — utilisée comme contexte par défaut.
+ * `$incrementing = false` : clé composite (user_id, organization_id), pas d'auto-increment.
+ */
 class UserOrganization extends Pivot
 {
     protected $table = 'user_organization';
