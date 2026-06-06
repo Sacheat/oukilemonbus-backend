@@ -12,6 +12,7 @@ use App\Models\Organization;
 use App\Models\User;
 use App\Services\Documents\DeliberationDocumentService;
 use Database\Seeders\RolesAndPermissionsSeeder;
+use Database\Seeders\TestFleetSeeder;
 use Database\Seeders\TestLocationsSeeder;
 use Database\Seeders\TestOrganizationsSeeder;
 use Database\Seeders\TestUsersSeeder;
@@ -36,6 +37,7 @@ class CouncilDecisionApiTest extends TestCase
             TestUsersSeeder::class,
             TestLocationsSeeder::class,
             TestOrganizationsSeeder::class,
+            TestFleetSeeder::class,
         ]);
         Carbon::setTestNow('2026-04-20 09:00:00');
 

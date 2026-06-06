@@ -304,6 +304,9 @@ class ReservationConflictResolutionTest extends TestCase
 
     public function test_auto_resolution_only_clears_schedule_overlap_not_other_conflicts(): void
     {
+        // Note : RETURN_AFTER_ALLOWED_TIME est un warning de dérogation, non persisté en DB.
+        // On simule un second conflit réel (DISTANCE_NOT_CALCULATED) en l'insérant directement
+        // pour isoler proprement le comportement d'auto-résolution.
         Http::fake(['https://ors.test/*' => $this->orsOk()]);
 
         $agent  = $this->user('agent.test@bus-communal.local');
@@ -316,12 +319,21 @@ class ReservationConflictResolutionTest extends TestCase
             ->assertJsonPath('data.status', ReservationStatus::EN_ATTENTE->value)
             ->json('data.id');
 
-        // B (ASBL) : créneau tardif (retour 17:30 > 16:00) ET overlap avec A (EN_ATTENTE → conflit doux)
-        // → 2 conflits : SCHEDULE_OVERLAP + RETURN_AFTER_ALLOWED_TIME
-        $bId = $this->postJson('/api/reservations', array_merge($this->payload($asbl), ['return_time' => '17:30']))
+        // B (ASBL) même créneau → EN_CONFLIT avec SCHEDULE_OVERLAP
+        $bId = $this->postJson('/api/reservations', $this->payload($asbl))
             ->assertCreated()
             ->assertJsonPath('data.status', ReservationStatus::EN_CONFLIT->value)
             ->json('data.id');
+
+        // On ajoute un second conflit (DISTANCE_NOT_CALCULATED) directement en DB
+        // pour tester que l'auto-résolution ne le touche pas.
+        ReservationConflict::create([
+            'reservation_id'        => $bId,
+            'type'                  => ReservationConflictType::DISTANCE_NOT_CALCULATED->value,
+            'message'               => 'Distance non calculee (conflit injecte pour le test).',
+            'related_reservation_id' => null,
+            'is_resolved'           => false,
+        ]);
 
         $this->assertDatabaseHas('reservation_conflicts', [
             'reservation_id' => $bId,
@@ -330,7 +342,7 @@ class ReservationConflictResolutionTest extends TestCase
         ]);
         $this->assertDatabaseHas('reservation_conflicts', [
             'reservation_id' => $bId,
-            'type'           => ReservationConflictType::RETURN_AFTER_ALLOWED_TIME->value,
+            'type'           => ReservationConflictType::DISTANCE_NOT_CALCULATED->value,
             'is_resolved'    => false,
         ]);
 
@@ -344,10 +356,10 @@ class ReservationConflictResolutionTest extends TestCase
             'is_resolved'    => true,
         ]);
 
-        // RETURN_AFTER_ALLOWED_TIME reste non résolu
+        // DISTANCE_NOT_CALCULATED reste non résolu (auto-résolution ne concerne que SCHEDULE_OVERLAP)
         $this->assertDatabaseHas('reservation_conflicts', [
             'reservation_id' => $bId,
-            'type'           => ReservationConflictType::RETURN_AFTER_ALLOWED_TIME->value,
+            'type'           => ReservationConflictType::DISTANCE_NOT_CALCULATED->value,
             'is_resolved'    => false,
         ]);
 

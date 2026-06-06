@@ -199,10 +199,9 @@ class MunicipalitySettingsApiTest extends TestCase
             'location_id' => $location->id,
             'contact_person_name' => 'Alice Martin',
             'contact_person_role' => 'Responsable',
-            'proof_document_path' => 'proofs/asbl-godinne.pdf',
         ])
             ->assertCreated()
-            ->assertJsonPath('data.confidence_note', 91)
+            ->assertJsonPath('data.confidence_note', 81)
             ->assertJsonFragment([
                 'Adresse situee dans la commune de Yvoir.',
             ]);

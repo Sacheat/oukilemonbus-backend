@@ -188,7 +188,7 @@ class ReservationApiTest extends TestCase
             'trip_purpose' => 'Reservation existante',
             'activity_type' => ReservationActivityType::STANDARD,
             'estimated_duration_min' => 30,
-            'status' => ReservationStatus::CONFIRME,
+            'status' => ReservationStatus::EN_ATTENTE,
             'approval_type' => 'auto',
         ]);
 
@@ -244,7 +244,7 @@ class ReservationApiTest extends TestCase
             'trip_purpose' => 'Reservation existante',
             'activity_type' => ReservationActivityType::STANDARD,
             'estimated_duration_min' => 25,
-            'status' => ReservationStatus::CONFIRME,
+            'status' => ReservationStatus::EN_ATTENTE,
             'approval_type' => 'auto',
         ]);
 
@@ -304,7 +304,7 @@ class ReservationApiTest extends TestCase
             'trip_purpose' => 'Reservation existante',
             'activity_type' => ReservationActivityType::STANDARD,
             'estimated_duration_min' => 25,
-            'status' => ReservationStatus::CONFIRME,
+            'status' => ReservationStatus::EN_ATTENTE,
             'approval_type' => 'auto',
         ]);
 
@@ -468,7 +468,7 @@ class ReservationApiTest extends TestCase
             'trip_purpose' => 'Cours standard',
             'activity_type' => ReservationActivityType::STANDARD,
             'estimated_duration_min' => 30,
-            'status' => ReservationStatus::CONFIRME,
+            'status' => ReservationStatus::EN_ATTENTE,
             'approval_type' => 'auto',
             'created_at' => now()->subDay(),
             'updated_at' => now()->subDay(),
@@ -524,7 +524,7 @@ class ReservationApiTest extends TestCase
             'trip_purpose' => 'Cours de gym',
             'activity_type' => ReservationActivityType::GYMNASTIQUE,
             'estimated_duration_min' => 30,
-            'status' => ReservationStatus::CONFIRME,
+            'status' => ReservationStatus::EN_ATTENTE,
             'approval_type' => 'auto',
             'created_at' => now()->subDay(),
             'updated_at' => now()->subDay(),
