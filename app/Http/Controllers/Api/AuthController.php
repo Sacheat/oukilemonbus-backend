@@ -51,12 +51,12 @@ class AuthController extends Controller
             $request->session()->regenerate();
         }
 
-        return new UserResource($user);
+        return new UserResource($user->load('roles', 'organizations'));
     }
 
     public function me(Request $request): UserResource
     {
-        return new UserResource($request->user());
+        return new UserResource($request->user()->load('roles', 'organizations'));
     }
 
     public function logout(Request $request): JsonResponse

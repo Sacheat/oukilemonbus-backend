@@ -2,9 +2,11 @@
 
 namespace App\Services\Reservations;
 
+use App\Enums\ApprovalType;
 use App\Enums\CouncilDecisionStatus;
 use App\Enums\DocumentType;
 use App\Enums\OrganizationType;
+use App\Enums\ReservationConflictType;
 use App\Enums\ReservationStatus;
 use App\Models\Document;
 use App\Models\Organization;
@@ -13,6 +15,7 @@ use App\Models\ReservationConflict;
 use App\Models\ReservationStatusHistory;
 use App\Models\User;
 use App\Services\Audit\DomainEventLogger;
+use App\Services\Documents\RouteSheetDocumentService;
 use App\Services\Logging\DomainLogger;
 use App\Services\Notifications\NotificationDispatchService;
 use App\Services\Notifications\NotificationRecipientResolver;
@@ -33,6 +36,8 @@ class ReservationService
         private readonly NotificationDispatchService $notificationDispatchService,
         private readonly NotificationRecipientResolver $notificationRecipientResolver,
         private readonly DomainEventLogger $eventLogger,
+        private readonly RouteSheetDocumentService $routeSheetDocumentService,
+        private readonly ReservationOccupationService $occupationService,
         ?DomainLogger $logger = null
     ) {
         $this->logger = $logger ?? app(DomainLogger::class);
@@ -51,6 +56,14 @@ class ReservationService
             }
 
             $preview = $this->previewService->preview($data);
+
+            if (! ($preview['is_allowed'] ?? true)) {
+                $hardBlock = collect($preview['conflicts'])->first(fn (array $c): bool => $c['is_hard_block'] ?? false);
+                throw ValidationException::withMessages([
+                    'schedule' => [$hardBlock['message'] ?? 'La reservation ne peut pas etre creee : le creneau est physiquement bloquant et ne peut pas etre resolu par l\'agent.'],
+                ]);
+            }
+
             $status = ReservationStatus::from($preview['status']);
 
             $reservation = Reservation::create([
@@ -170,6 +183,63 @@ class ReservationService
         });
     }
 
+    public function confirmPassengers(Reservation $reservation, array $data, User $actor): Reservation
+    {
+        $nbAdults   = (int) ($data['nb_adults']   ?? $reservation->nb_adults);
+        $nbChildren = (int) ($data['nb_children'] ?? $reservation->nb_children);
+
+        if ($reservation->vehicle_id !== null) {
+            $reservation->loadMissing('vehicle');
+            $capacity = $reservation->vehicle?->capacity;
+
+            // La capacité inclut le chauffeur, qui occupe 1 place
+            if ($capacity !== null && ($nbAdults + $nbChildren) > ($capacity - 1)) {
+                $maxPassengers = $capacity - 1;
+                throw ValidationException::withMessages([
+                    'nb_adults' => "Le véhicule assigné ({$reservation->vehicle->licence_plate}) a une capacité de {$capacity} places chauffeur compris, soit {$maxPassengers} passager(s) maximum. Le total demandé ({$nbAdults} adulte(s) + {$nbChildren} enfant(s) = " . ($nbAdults + $nbChildren) . ") dépasse cette limite.",
+                ]);
+            }
+        }
+
+        $oldValues = $reservation->only(['nb_children', 'nb_adults', 'trip_purpose', 'passengers_confirmed_at']);
+
+        $reservation->update([
+            ...Arr::only($data, ['nb_children', 'nb_adults', 'trip_purpose']),
+            'passengers_confirmed_at' => now(),
+        ]);
+
+        $this->eventLogger->log(
+            aggregateType: 'reservation',
+            aggregateId: $reservation->id,
+            eventType: 'reservation.passengers_confirmed',
+            actor: $actor,
+            oldValues: $oldValues,
+            newValues: $reservation->only(['nb_children', 'nb_adults', 'trip_purpose', 'passengers_confirmed_at']),
+        );
+
+        $this->notifyRequester(
+            $reservation,
+            'reservation.passengers_confirmed',
+            'reservation_updates',
+            'Passagers confirmes',
+            "Les informations passagers de la reservation #{$reservation->id} ont ete confirmees ({$reservation->nb_adults} adulte(s), {$reservation->nb_children} enfant(s))."
+        );
+
+        // Si le trajet est aujourd'hui et qu'un véhicule est assigné, régénérer la feuille de route
+        if ($reservation->vehicle_id !== null && $reservation->trip_date?->isToday()) {
+            try {
+                $this->routeSheetDocumentService->generateForServiceDateVehicle(
+                    now()->toDateString(),
+                    $reservation->vehicle_id
+                );
+            } catch (\Throwable) {
+                // Non bloquant : la feuille sera regénérée manuellement si besoin
+            }
+        }
+
+        return $reservation->refresh()->load(['organization', 'pickupLocation', 'destinationLocation', 'driver', 'vehicle', 'conflicts']);
+    }
+
     public function approve(Reservation $reservation, User $actor, ?string $reason = null): Reservation
     {
         $this->ensureCouncilDecisionAllowsApproval($reservation);
@@ -224,6 +294,8 @@ class ReservationService
                 document: $this->latestDeliberationDocumentForReservation($reservation)
             );
 
+            $this->autoResolveRelatedConflicts($reservation, $actor);
+
             return $reservation->refresh();
         });
     }
@@ -231,6 +303,7 @@ class ReservationService
     public function cancel(Reservation $reservation, User $actor, string $reason): Reservation
     {
         $this->assertCanTransition($reservation, ReservationStatus::ANNULE);
+        $this->ensureCancellationDeadlineNotPassed($reservation, $actor);
 
         return DB::transaction(function () use ($reservation, $actor, $reason): Reservation {
             $reservation->update([
@@ -274,6 +347,8 @@ class ReservationService
                 $isLastMinute
             );
 
+            $this->autoResolveRelatedConflicts($reservation, $actor);
+
             return $reservation->refresh();
         });
     }
@@ -313,20 +388,257 @@ class ReservationService
         return $reservation;
     }
 
+    public function retryAutoAssign(Reservation $reservation, User $actor): Reservation
+    {
+        $reservation = $this->assignmentService->autoAssign($reservation, $actor);
+        $this->checkAndAutoTransition($reservation, $actor);
+
+        return $reservation->refresh()->load(['organization', 'pickupLocation', 'destinationLocation', 'driver', 'vehicle', 'conflicts']);
+    }
+
+    public function assign(Reservation $reservation, array $data, User $actor): Reservation
+    {
+        $reservation = $this->assignmentService->assign($reservation, $data, $actor);
+        $this->checkAndAutoTransition($reservation, $actor);
+
+        return $reservation->refresh()->load(['organization', 'pickupLocation', 'destinationLocation', 'driver', 'vehicle', 'conflicts']);
+    }
+
     public function resolveConflict(ReservationConflict $conflict, User $actor): ReservationConflict
     {
+        if ($conflict->type === ReservationConflictType::SCHEDULE_OVERLAP) {
+            $this->ensureScheduleOverlapGone($conflict);
+        }
+
         $conflict->update([
             'is_resolved' => true,
             'resolved_by_user_id' => $actor->id,
             'resolved_at' => now(),
         ]);
 
+        $this->checkAndAutoTransition(Reservation::findOrFail($conflict->reservation_id), $actor);
+
         return $conflict->refresh();
+    }
+
+    /**
+     * Déclenche autoTransitionFromConflict si la réservation est EN_CONFLIT
+     * et n'a plus aucun conflit non-résolu.
+     */
+    public function checkAndAutoTransition(Reservation $reservation, User $actor): void
+    {
+        $reservation->refresh();
+        if ($reservation->status === ReservationStatus::EN_CONFLIT
+            && ! $reservation->conflicts()->where('is_resolved', false)->exists()
+        ) {
+            $this->autoTransitionFromConflict($reservation, $actor);
+        }
+    }
+
+    /**
+     * Vérifie que le chevauchement calendaire a réellement disparu avant de permettre
+     * la résolution manuelle du conflit. Bloque si la réservation liée est encore active
+     * et que les créneaux se chevauchent toujours.
+     */
+    private function ensureScheduleOverlapGone(ReservationConflict $conflict): void
+    {
+        if ($conflict->related_reservation_id === null) {
+            return; // La réservation source n'existe plus, aucun chevauchement possible.
+        }
+
+        $related = Reservation::find($conflict->related_reservation_id);
+
+        if ($related === null || $related->status->isTerminal()) {
+            return; // La réservation liée est terminale, plus aucun conflit réel.
+        }
+
+        $reservation = Reservation::findOrFail($conflict->reservation_id);
+
+        $remaining = $this->previewService->detectConflicts([
+            'organization_id'       => $reservation->organization_id,
+            'trip_date'             => $reservation->trip_date->toDateString(),
+            'departure_time'        => $reservation->departure_time->format('H:i:s'),
+            'return_time'           => $reservation->return_time->format('H:i:s'),
+            'ignore_reservation_id' => $reservation->id,
+        ], $reservation->estimated_duration_min);
+
+        $stillOverlaps = collect($remaining)
+            ->contains('type', ReservationConflictType::SCHEDULE_OVERLAP->value);
+
+        if ($stillOverlaps) {
+            throw ValidationException::withMessages([
+                'conflict' => 'Le chevauchement calendaire est toujours actif. La réservation liée doit être annulée ou ses horaires modifiés avant de résoudre ce conflit.',
+            ]);
+        }
+    }
+
+    /**
+     * Résout automatiquement les conflits SCHEDULE_OVERLAP pointant vers une réservation
+     * qui vient de devenir terminale (annulée ou refusée). Si la réservation bloquée
+     * n'a plus de conflit non résolu, elle est retransitionnée vers son statut logique.
+     */
+    private function autoResolveRelatedConflicts(Reservation $terminal, User $actor): void
+    {
+        $relatedConflicts = ReservationConflict::query()
+            ->where('related_reservation_id', $terminal->id)
+            ->where('type', ReservationConflictType::SCHEDULE_OVERLAP->value)
+            ->where('is_resolved', false)
+            ->with('reservation')
+            ->get();
+
+        foreach ($relatedConflicts as $conflict) {
+            /** @var Reservation|null $affected */
+            $affected = $conflict->reservation;
+
+            if ($affected === null || $affected->status->isTerminal()) {
+                continue;
+            }
+
+            $conflict->update([
+                'is_resolved'          => true,
+                'resolved_by_user_id'  => $actor->id,
+                'resolved_at'          => now(),
+            ]);
+
+            $affected->refresh();
+
+            if (! $affected->conflicts()->where('is_resolved', false)->exists()) {
+                $this->autoTransitionFromConflict($affected, $actor);
+            }
+        }
+    }
+
+    /**
+     * Retransitionne une réservation hors de EN_CONFLIT en respectant le statut
+     * qu'elle avait avant le conflit (CONFIRME → CONFIRME si les assignations sont
+     * toujours présentes, sinon APPROUVE → tentative de confirmation).
+     */
+    private function autoTransitionFromConflict(Reservation $reservation, User $actor): void
+    {
+        if ($reservation->status !== ReservationStatus::EN_CONFLIT) {
+            return;
+        }
+
+        $preConflictStatus = $this->preConflictStatus($reservation);
+
+        // Cas : était CONFIRME et driver+vehicle toujours assignés → retour CONFIRME direct
+        if ($preConflictStatus === ReservationStatus::CONFIRME
+            && $this->assignmentService->hasRequiredAssignments($reservation)
+        ) {
+            if (! $reservation->status->canTransitionTo(ReservationStatus::CONFIRME)) {
+                return;
+            }
+            $reservation = $this->transition($reservation, ReservationStatus::CONFIRME, $actor, 'Retour automatique a CONFIRME apres resolution de tous les conflits.');
+            $this->notifyRequester(
+                $reservation,
+                'reservation.confirmed',
+                'reservation_updates',
+                'Reservation de nouveau confirmee',
+                "Votre reservation #{$reservation->id} est de nouveau confirmee apres resolution des conflits."
+            );
+            $this->notifyDriver(
+                $reservation,
+                'reservation.confirmed',
+                'driver_planning',
+                'Mission de nouveau confirmee',
+                "La mission liee a la reservation #{$reservation->id} est de nouveau confirmee."
+            );
+            return;
+        }
+
+        // Cas : était CONFIRME ou APPROUVE mais assignations incomplètes → APPROUVE + tentative
+        if (in_array($preConflictStatus, [ReservationStatus::CONFIRME, ReservationStatus::APPROUVE], true)) {
+            if (! $reservation->status->canTransitionTo(ReservationStatus::APPROUVE)) {
+                return;
+            }
+            $reservation = $this->transition($reservation, ReservationStatus::APPROUVE, $actor, 'Retour automatique a APPROUVE apres resolution des conflits.');
+            $reservation = $this->assignmentService->autoAssign($reservation, $actor);
+
+            if ($this->assignmentService->hasRequiredAssignments($reservation)
+                && ! $reservation->conflicts()->where('is_resolved', false)->exists()
+            ) {
+                $reservation = $this->transition($reservation, ReservationStatus::CONFIRME, $actor, 'Confirmation automatique apres resolution de conflit.');
+            }
+            $this->notifyRequester(
+                $reservation,
+                'reservation.approved',
+                'reservation_updates',
+                'Reservation disponible',
+                "Votre reservation #{$reservation->id} est de nouveau disponible suite a la resolution des conflits."
+            );
+            return;
+        }
+
+        // Cas par défaut : EN_ATTENTE, puis auto-approve si l'org le permet (ex. école)
+        if (! $reservation->status->canTransitionTo(ReservationStatus::EN_ATTENTE)) {
+            return;
+        }
+        $reservation = $this->transition($reservation, ReservationStatus::EN_ATTENTE, $actor, 'Retour automatique apres resolution des conflits.');
+
+        $reservation->loadMissing('organization');
+
+        if ($reservation->organization->type?->isAutoApproveType()) {
+            if (! $reservation->status->canTransitionTo(ReservationStatus::APPROUVE)) {
+                return;
+            }
+            $reservation = $this->transition($reservation, ReservationStatus::APPROUVE, $actor, 'Approbation automatique apres resolution des conflits.');
+            $reservation = $this->assignmentService->autoAssign($reservation, $actor);
+
+            if ($this->assignmentService->hasRequiredAssignments($reservation)
+                && ! $reservation->conflicts()->where('is_resolved', false)->exists()
+            ) {
+                $reservation = $this->transition($reservation, ReservationStatus::CONFIRME, $actor, 'Confirmation automatique apres resolution des conflits.');
+            }
+
+            $this->notifyRequester(
+                $reservation,
+                'reservation.approved',
+                'reservation_updates',
+                'Reservation disponible',
+                "Votre reservation #{$reservation->id} est de nouveau disponible suite a la resolution des conflits."
+            );
+
+            return;
+        }
+
+        $this->notifyRequester(
+            $reservation,
+            'reservation.conflict_resolved',
+            'reservation_updates',
+            'Conflit resolu',
+            "Le conflit sur votre reservation #{$reservation->id} a ete resolu. Elle est en attente de validation."
+        );
+    }
+
+    /**
+     * Retourne le statut de la réservation juste avant sa dernière transition vers EN_CONFLIT.
+     * Utilisé pour savoir vers quel statut revenir après résolution.
+     */
+    private function preConflictStatus(Reservation $reservation): ?ReservationStatus
+    {
+        $entry = ReservationStatusHistory::query()
+            ->where('reservation_id', $reservation->id)
+            ->where('new_status', ReservationStatus::EN_CONFLIT->value)
+            ->latest('id')
+            ->first();
+
+        return $entry?->old_status instanceof ReservationStatus ? $entry->old_status : null;
+    }
+
+    private function ensureCouncilDecisionApprovesDerogation(ReservationConflict $conflict): void
+    {
+        $reservation = Reservation::with('councilDecision')->findOrFail($conflict->reservation_id);
+
+        if ($reservation->councilDecision?->decision_status !== CouncilDecisionStatus::APPROUVE) {
+            throw ValidationException::withMessages([
+                'conflict' => 'Ce conflit necessite une decision favorable du college communal avant d etre resolu. Ajoutez ou mettez a jour la decision du college pour cette reservation.',
+            ]);
+        }
     }
 
     private function ensureCouncilDecisionAllowsApproval(Reservation $reservation): void
     {
-        if ($reservation->organization->type === OrganizationType::ECOLE_COMMUNALE) {
+        if ($reservation->organization->type?->isCouncilDecisionExempt()) {
             return;
         }
 
@@ -335,6 +647,114 @@ class ReservationService
                 'reservation' => 'Une decision favorable du college est obligatoire avant approbation.',
             ]);
         }
+    }
+
+    /**
+     * Détecte les réservations APPROUVE/CONFIRME déjà assignées au chauffeur ou véhicule
+     * de l'indisponibilité et dont la fenêtre d'occupation chevauche la période d'indispo.
+     * Pour chacune : crée un conflit NO_DRIVER/VEHICLE_AVAILABLE + passe en EN_CONFLIT.
+     * Retourne le nombre de réservations impactées.
+     */
+    public function applyUnavailabilityImpact(\App\Models\Unavailability $unavailability, User $actor): int
+    {
+        $driverId  = $unavailability->driver_id;
+        $vehicleId = $unavailability->vehicle_id;
+        $start     = CarbonImmutable::parse($unavailability->start_datetime);
+        $end       = CarbonImmutable::parse($unavailability->end_datetime);
+
+        $conflictType = $driverId !== null
+            ? ReservationConflictType::NO_DRIVER_AVAILABLE
+            : ReservationConflictType::NO_VEHICLE_AVAILABLE;
+
+        $query = Reservation::query()
+            ->whereIn('status', [ReservationStatus::APPROUVE->value, ReservationStatus::CONFIRME->value])
+            ->whereDate('trip_date', '>=', $start->toDateString())
+            ->whereDate('trip_date', '<=', $end->toDateString());
+
+        if ($driverId !== null) {
+            $query->where('driver_id', $driverId);
+        } else {
+            $query->where('vehicle_id', $vehicleId);
+        }
+
+        $affected = 0;
+
+        foreach ($query->get() as $reservation) {
+            $window = $this->occupationService->windowForReservation($reservation);
+
+            if (! ($window['start']->lt($end) && $window['end']->gt($start))) {
+                continue;
+            }
+
+            $alreadyFlagged = $reservation->conflicts()
+                ->where('type', $conflictType->value)
+                ->where('is_resolved', false)
+                ->exists();
+
+            if ($alreadyFlagged) {
+                continue;
+            }
+
+            $subjectLabel = $this->subjectLabel($unavailability);
+
+            $message = "{$subjectLabel} indisponible du {$start->format('d/m/Y H\hi')} au {$end->format('d/m/Y H\hi')}.";
+            if ($unavailability->reason) {
+                $message .= " Motif : {$unavailability->reason}.";
+            }
+
+            DB::transaction(function () use ($reservation, $conflictType, $message, $actor, $unavailability, $driverId, $vehicleId): void {
+                ReservationConflict::create([
+                    'reservation_id' => $reservation->id,
+                    'type' => $conflictType,
+                    'message' => $message,
+                    'related_reservation_id' => null,
+                ]);
+
+                // Désassigner le chauffeur ou le véhicule concerné pour que la feuille
+                // de route ne référence pas quelqu'un d'indisponible
+                $unassignField = $driverId !== null ? 'driver_id' : 'vehicle_id';
+                $oldAssignedId = $reservation->{$unassignField};
+                $reservation->update([$unassignField => null]);
+
+                if ($reservation->status->canTransitionTo(ReservationStatus::EN_CONFLIT)) {
+                    $this->transition($reservation, ReservationStatus::EN_CONFLIT, $actor, 'Indisponibilite creee pour le chauffeur ou vehicule assigne.');
+                }
+
+                $this->notifyInternalUsers(
+                    'reservation.conflict_detected',
+                    'admin_workflow',
+                    'Conflit : indisponibilite',
+                    "La reservation #{$reservation->id} est en conflit suite a une indisponibilite de {$this->subjectLabel($unavailability)}.",
+                    $reservation
+                );
+
+                $this->eventLogger->log(
+                    aggregateType: 'reservation',
+                    aggregateId: $reservation->id,
+                    eventType: 'reservation.unavailability_conflict',
+                    actor: $actor,
+                    oldValues: [$unassignField => $oldAssignedId],
+                    newValues: [$unassignField => null],
+                    context: ['unavailability_id' => $unavailability->id, 'conflict_type' => $conflictType->value]
+                );
+            });
+
+            $affected++;
+        }
+
+        return $affected;
+    }
+
+    private function subjectLabel(\App\Models\Unavailability $unavailability): string
+    {
+        if ($unavailability->driver_id !== null) {
+            $u = $unavailability->driver?->user;
+            $name = $u ? trim("{$u->first_name} {$u->last_name}") : null;
+
+            return $name ?: "Chauffeur #{$unavailability->driver_id}";
+        }
+
+        return $unavailability->vehicle?->licence_plate ?? "Véhicule #{$unavailability->vehicle_id}";
     }
 
     private function assertCanTransition(Reservation $reservation, ReservationStatus $target): void
@@ -482,6 +902,39 @@ class ReservationService
             priority: $priority,
             urgent: $urgent
         );
+    }
+
+    private function ensureCancellationDeadlineNotPassed(Reservation $reservation, User $actor): void
+    {
+        $tripDate = $reservation->trip_date?->toDateString();
+        $departureTime = $reservation->departure_time?->format('H:i:s');
+
+        if ($tripDate === null || $departureTime === null) {
+            return;
+        }
+
+        $isInternal = $actor->hasAnyRole(['admin', 'agent_communal']);
+
+        if ($isInternal) {
+            $minDaysBefore = (int) config('reservations.cancellation_commune_min_days_before', 1);
+            $deadline = CarbonImmutable::parse($tripDate)->startOfDay()->subDays($minDaysBefore - 1)->startOfDay();
+
+            if (CarbonImmutable::today()->gte($deadline)) {
+                throw ValidationException::withMessages([
+                    'reservation' => 'La commune ne peut plus annuler cette reservation : le delai d annulation est depasse (jusqu a la veille du trajet).',
+                ]);
+            }
+        } else {
+            $minHoursBefore = (int) config('reservations.cancellation_requester_min_hours_before', 24);
+            $departureAt = CarbonImmutable::parse($tripDate.' '.$departureTime);
+            $deadline = $departureAt->subHours($minHoursBefore);
+
+            if (CarbonImmutable::now()->gte($deadline)) {
+                throw ValidationException::withMessages([
+                    'reservation' => "L annulation n est plus possible : le delai de {$minHoursBefore}h avant le depart est depasse.",
+                ]);
+            }
+        }
     }
 
     private function isLastMinuteCancellation(Reservation $reservation): bool

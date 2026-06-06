@@ -11,6 +11,7 @@ use App\Exceptions\GeocodingException;
 use App\Models\Location;
 use App\Models\Organization;
 use App\Models\Reservation;
+use App\Models\Vehicle;
 use App\Services\Locations\LocationService;
 use App\Services\Logging\DomainLogger;
 use Carbon\CarbonImmutable;
@@ -38,9 +39,11 @@ class ReservationPreviewService
         $pickup = Location::findOrFail($data['pickup_location_id']);
         $destination = Location::findOrFail($data['destination_location_id']);
 
+        $this->ensureOrganizationNotBanned($organization);
         $this->ensureMinimumNotice($data['trip_date']);
         $this->ensureBookableDate($data['trip_date']);
         $this->ensureBelgianTrip($pickup, $destination);
+        $this->ensureVehicleCapacity($data);
         $this->quotaService->ensureCanCreate($organization, $data['trip_date']);
 
         $distance = $this->calculateDistance($pickup, $destination);
@@ -52,6 +55,7 @@ class ReservationPreviewService
 
         $estimatedDuration = $distance['estimated_duration_min'];
         $conflicts = $this->detectConflicts($data, $estimatedDuration, $organization);
+        $warnings  = $this->detectDerogationWarnings($data, $estimatedDuration, $organization);
 
         if ($distance['distance_km'] === null) {
             $conflicts[] = [
@@ -61,9 +65,13 @@ class ReservationPreviewService
             ];
         }
 
+        // Le statut n'est affecté que par les conflits bloquants, pas par les avertissements
+        // de dérogation (horaire / durée) qui restent EN_ATTENTE et sont traités par le collège.
+        $hasHardBlock = collect($conflicts)->contains(fn (array $c): bool => $c['is_hard_block'] ?? false);
+
         $status = count($conflicts) > 0
             ? ReservationStatus::EN_CONFLIT
-            : ($organization->type === OrganizationType::ECOLE_COMMUNALE ? ReservationStatus::APPROUVE : ReservationStatus::EN_ATTENTE);
+            : ($organization->type?->isAutoApproveType() ? ReservationStatus::APPROUVE : ReservationStatus::EN_ATTENTE);
 
         $estimatedOccupation = $this->formatOccupationWindow(
             $this->occupationService->windowForData($data, $estimatedDuration)
@@ -75,17 +83,18 @@ class ReservationPreviewService
         }
 
         return [
-            'is_allowed' => true,
+            'is_allowed' => ! $hasHardBlock,
             'distance_km' => $distance['distance_km'],
             'estimated_duration_min' => $estimatedDuration,
             'duration_margin_min' => config('reservations.duration_margin_min', 15),
             'estimated_occupation' => $estimatedOccupation,
             'availability' => $availability,
             'status' => $status->value,
-            'approval_type' => $organization->type === OrganizationType::ECOLE_COMMUNALE
+            'approval_type' => $organization->type?->isAutoApproveType()
                 ? ApprovalType::AUTO->value
                 : ApprovalType::MANUEL->value,
             'conflicts' => $conflicts,
+            'warnings' => $warnings,
         ];
     }
 
@@ -162,41 +171,12 @@ class ReservationPreviewService
         $duration = $estimatedDurationMin ?? 0;
         $candidateWindow = $this->occupationService->windowForData($data, $estimatedDurationMin);
 
-        if ($organization->type !== OrganizationType::ECOLE_COMMUNALE) {
-            $minDepartureTime = config('reservations.non_school_min_departure_time', '07:30');
-            $maxReturnTime = config('reservations.non_school_max_return_time', '16:00');
-            $maxTotalDuration = (int) config('reservations.non_school_max_total_duration_min', 300);
-
-            if ($departure->format('H:i') < $minDepartureTime) {
-                $conflicts[] = [
-                    'type' => ReservationConflictType::DEPARTURE_BEFORE_ALLOWED_TIME->value,
-                    'message' => "L heure de depart est avant {$minDepartureTime}. Une derogation du college est necessaire.",
-                    'related_reservation_id' => null,
-                ];
-            }
-
-            if ($returnDeparture->format('H:i') > $maxReturnTime) {
-                $conflicts[] = [
-                    'type' => ReservationConflictType::RETURN_AFTER_ALLOWED_TIME->value,
-                    'message' => "L heure de retour demandee depasse {$maxReturnTime}. Une derogation du college est necessaire.",
-                    'related_reservation_id' => null,
-                ];
-            }
-
-            if ($estimatedDurationMin !== null && $candidateWindow['duration_min'] > $maxTotalDuration) {
-                $conflicts[] = [
-                    'type' => ReservationConflictType::DURATION_OVER_ALLOWED_LIMIT->value,
-                    'message' => 'La duree totale d utilisation depasse 5 heures. Une derogation du college est necessaire.',
-                    'related_reservation_id' => null,
-                ];
-            }
-        }
-
         if ($estimatedDurationMin !== null && $departure->addMinutes($duration)->greaterThan($returnDeparture)) {
             $conflicts[] = [
-                'type' => ReservationConflictType::IMPOSSIBLE_TIME_WINDOW->value,
-                'message' => 'Le creneau demande ne permet pas de realiser le trajet aller avant le retour souhaite.',
+                'type'                   => ReservationConflictType::IMPOSSIBLE_TIME_WINDOW->value,
+                'message'                => 'Le creneau demande ne permet pas de realiser le trajet aller avant le retour souhaite.',
                 'related_reservation_id' => null,
+                'is_hard_block'          => true,
             ];
         }
 
@@ -210,14 +190,67 @@ class ReservationPreviewService
                 $candidateWindow
             );
 
+            $overlappingStatus = $overlappingReservation->status instanceof ReservationStatus
+                ? $overlappingReservation->status
+                : ReservationStatus::from((string) $overlappingReservation->status);
+
             $conflicts[] = [
-                'type' => ReservationConflictType::SCHEDULE_OVERLAP->value,
-                'message' => $priorityMessage,
+                'type'                   => ReservationConflictType::SCHEDULE_OVERLAP->value,
+                'message'                => $priorityMessage,
                 'related_reservation_id' => $overlappingReservation->id,
+                'is_hard_block'          => in_array($overlappingStatus, [ReservationStatus::APPROUVE, ReservationStatus::CONFIRME], true),
             ];
         }
 
         return $conflicts;
+    }
+
+    /**
+     * Détecte les avertissements de dérogation (horaire / durée) qui ne bloquent pas
+     * la réservation mais nécessitent une motivation et une décision du collège.
+     * Ces warnings sont informatifs uniquement : ils n'affectent pas le statut
+     * et ne créent pas d'enregistrement ReservationConflict en base.
+     */
+    public function detectDerogationWarnings(array $data, ?int $estimatedDurationMin, ?Organization $organization = null): array
+    {
+        $warnings = [];
+        $organization ??= Organization::findOrFail($data['organization_id']);
+
+        if ($organization->type?->isTimeRestrictionExempt()) {
+            return [];
+        }
+
+        $departure = $this->dateTime($data['trip_date'], $data['departure_time']);
+        $returnDeparture = $this->dateTime($data['trip_date'], $data['return_time']);
+        $minDepartureTime = config('reservations.non_school_min_departure_time', '07:30');
+        $maxReturnTime = config('reservations.non_school_max_return_time', '16:00');
+        $maxTotalDuration = (int) config('reservations.non_school_max_total_duration_min', 300);
+
+        if ($departure->format('H:i') < $minDepartureTime) {
+            $warnings[] = [
+                'type' => ReservationConflictType::DEPARTURE_BEFORE_ALLOWED_TIME->value,
+                'message' => "L heure de depart est avant {$minDepartureTime}. Une motivation est requise — soumis a decision du college.",
+            ];
+        }
+
+        if ($returnDeparture->format('H:i') > $maxReturnTime) {
+            $warnings[] = [
+                'type' => ReservationConflictType::RETURN_AFTER_ALLOWED_TIME->value,
+                'message' => "L heure de retour depasse {$maxReturnTime}. Une motivation est requise — soumis a decision du college.",
+            ];
+        }
+
+        if ($estimatedDurationMin !== null) {
+            $window = $this->occupationService->windowForData($data, $estimatedDurationMin);
+            if ($window['duration_min'] > $maxTotalDuration) {
+                $warnings[] = [
+                    'type' => ReservationConflictType::DURATION_OVER_ALLOWED_LIMIT->value,
+                    'message' => "La duree totale d utilisation depasse {$maxTotalDuration} minutes. Une motivation est requise — soumis a decision du college.",
+                ];
+            }
+        }
+
+        return $warnings;
     }
 
     public function ensureBookableDate(string $tripDate): void
@@ -244,6 +277,35 @@ class ReservationPreviewService
         if (CarbonImmutable::parse($tripDate)->startOfDay()->lessThan($minimumDate)) {
             throw ValidationException::withMessages([
                 'trip_date' => 'La demande doit etre introduite au moins 15 jours avant la date souhaitee.',
+            ]);
+        }
+    }
+
+    private function ensureOrganizationNotBanned(Organization $organization): void
+    {
+        if ($organization->is_banned) {
+            $reason = $organization->banned_reason
+                ? " Motif : {$organization->banned_reason}"
+                : '';
+
+            throw ValidationException::withMessages([
+                'organization_id' => "Cette organisation est interdite d acces au service.{$reason}",
+            ]);
+        }
+    }
+
+    private function ensureVehicleCapacity(array $data): void
+    {
+        $required = ($data['nb_children'] ?? 0) + ($data['nb_adults'] ?? 0) + 1;
+
+        $hasCapacity = Vehicle::query()
+            ->where('is_active', true)
+            ->where('capacity', '>=', $required)
+            ->exists();
+
+        if (! $hasCapacity) {
+            throw ValidationException::withMessages([
+                'nb_children' => "Aucun vehicule de la flotte n'a une capacite suffisante pour {$required} occupants ({$required} = passagers + chauffeur). Verifiez le nombre de participants.",
             ]);
         }
     }
@@ -369,8 +431,8 @@ class ReservationPreviewService
     private function formatOccupationWindow(array $window): array
     {
         return [
-            'start_at' => $window['start']->toISOString(),
-            'end_at' => $window['end']->toISOString(),
+            'start_at' => $window['start']->format('Y-m-d\TH:i:s'),
+            'end_at' => $window['end']->format('Y-m-d\TH:i:s'),
             'duration_min' => $window['duration_min'],
             'return_trip_duration_min' => $window['return_trip_duration_min'],
             'pickup_buffer_min' => $window['pickup_buffer_min'],
@@ -455,8 +517,8 @@ class ReservationPreviewService
         CarbonImmutable $createdAt
     ): array {
         $priorityLevel = match (true) {
-            $organizationType === OrganizationType::ECOLE_COMMUNALE && $activityType->isSchoolPriorityActivity() => 3,
-            $organizationType === OrganizationType::ECOLE_COMMUNALE => 2,
+            $organizationType->isPriorityByDefault() && $activityType->isSchoolPriorityActivity() => 3,
+            $organizationType->isPriorityByDefault() => 2,
             default => 1,
         };
 

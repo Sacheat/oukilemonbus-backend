@@ -20,6 +20,7 @@ use App\Http\Controllers\Api\UnavailabilityController;
 use App\Http\Controllers\Api\UnavailabilityHistoryController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\UserOrgRequestController;
+use App\Http\Controllers\Api\EmailVerificationController;
 use App\Http\Controllers\Api\VehicleController;
 use Illuminate\Support\Facades\Route;
 
@@ -42,16 +43,32 @@ Route::name('api.')->group(function (): void {
     });
 
     // =========================================================================
+    // Vérification email — lien signé, sans authentification requise
+    // =========================================================================
+    Route::get('/email/verify/{id}/{hash}', [EmailVerificationController::class, 'verify'])
+        ->middleware(['signed', 'throttle:6,1'])
+        ->name('verification.verify');
+
+    // =========================================================================
     // Toutes les routes suivantes nécessitent une authentification
     // =========================================================================
     Route::middleware('auth:sanctum')->group(function (): void {
         /**
-         * Authentication routes
+         * Authentication routes — accessibles sans vérification email
          */
         Route::get('/auth/me', [AuthController::class, 'me'])->name('auth.me');
         Route::post('/auth/logout', [AuthController::class, 'logout'])
             ->middleware('throttle:30,1')
             ->name('auth.logout');
+
+        Route::post('/email/verify/resend', [EmailVerificationController::class, 'resend'])
+            ->middleware('throttle:6,1')
+            ->name('verification.send');
+
+        /**
+         * Toutes les routes métier nécessitent un email vérifié
+         */
+        Route::middleware('verified')->group(function (): void {
 
         /**
          * In-app notifications and preferences routes
@@ -96,6 +113,11 @@ Route::name('api.')->group(function (): void {
         /**
          * Locations routes
          */
+        // Must be before {location} to avoid route model binding conflict
+        Route::get('/locations/suggest', [LocationController::class, 'suggest'])
+            ->middleware('throttle:30,1')
+            ->name('locations.suggest');
+
         Route::middleware('permission:locations.view')->group(function (): void {
             Route::get('/locations', [LocationController::class, 'index'])->name('locations.index');
             Route::get('/locations/{location}', [LocationController::class, 'show'])->name('locations.show');
@@ -157,6 +179,10 @@ Route::name('api.')->group(function (): void {
             ->middleware('permission:vehicles.update')
             ->name('vehicles.update');
 
+        Route::patch('/vehicles/{vehicle}/activate', [VehicleController::class, 'activate'])
+            ->middleware('permission:vehicles.update')
+            ->name('vehicles.activate');
+
         Route::patch('/vehicles/{vehicle}/deactivate', [VehicleController::class, 'deactivate'])
             ->middleware('permission:vehicles.deactivate')
             ->name('vehicles.deactivate');
@@ -176,6 +202,10 @@ Route::name('api.')->group(function (): void {
         Route::patch('/drivers/{driver}', [DriverController::class, 'update'])
             ->middleware('permission:drivers.update')
             ->name('drivers.update');
+
+        Route::patch('/drivers/{driver}/activate', [DriverController::class, 'activate'])
+            ->middleware('permission:drivers.update')
+            ->name('drivers.activate');
 
         Route::patch('/drivers/{driver}/deactivate', [DriverController::class, 'deactivate'])
             ->middleware('permission:drivers.deactivate')
@@ -203,9 +233,21 @@ Route::name('api.')->group(function (): void {
             ->middleware('permission:org-registration-requests.review')
             ->name('org-registration-requests.reject');
 
+        Route::post('/org-registration-requests/{orgRegistrationRequest}/proof', [OrgRegistrationRequestController::class, 'uploadProof'])
+            ->middleware('permission:org-registration-requests.create')
+            ->name('org-registration-requests.proof.upload');
+
+        Route::delete('/org-registration-requests/{orgRegistrationRequest}/proof', [OrgRegistrationRequestController::class, 'deleteProof'])
+            ->middleware('permission:org-registration-requests.create')
+            ->name('org-registration-requests.proof.delete');
+
         /**
          * User organization requests routes
          */
+        Route::get('/user-org-requests/available-organizations', [UserOrgRequestController::class, 'availableOrganizations'])
+            ->middleware('permission:user-org-requests.create')
+            ->name('user-org-requests.available-organizations');
+
         Route::middleware('permission:user-org-requests.view')->group(function (): void {
             Route::get('/user-org-requests', [UserOrgRequestController::class, 'index'])
                 ->name('user-org-requests.index');
@@ -225,6 +267,14 @@ Route::name('api.')->group(function (): void {
             ->middleware('permission:user-org-requests.review')
             ->name('user-org-requests.reject');
 
+        Route::post('/user-org-requests/{userOrgRequest}/proof', [UserOrgRequestController::class, 'uploadProof'])
+            ->middleware('permission:user-org-requests.create')
+            ->name('user-org-requests.proof.upload');
+
+        Route::delete('/user-org-requests/{userOrgRequest}/proof', [UserOrgRequestController::class, 'deleteProof'])
+            ->middleware('permission:user-org-requests.create')
+            ->name('user-org-requests.proof.delete');
+
         /**
          * Organizations routes
          */
@@ -240,6 +290,14 @@ Route::name('api.')->group(function (): void {
         Route::patch('/organizations/{organization}', [OrganizationController::class, 'update'])
             ->middleware('permission:organizations.update')
             ->name('organizations.update');
+
+        Route::post('/organizations/{organization}/ban', [OrganizationController::class, 'ban'])
+            ->middleware('permission:organizations.ban')
+            ->name('organizations.ban');
+
+        Route::post('/organizations/{organization}/unban', [OrganizationController::class, 'unban'])
+            ->middleware('permission:organizations.ban')
+            ->name('organizations.unban');
 
         /**
          * Planning routes
@@ -329,6 +387,14 @@ Route::name('api.')->group(function (): void {
             ->middleware('permission:reservations.confirm')
             ->name('reservations.confirm');
 
+        Route::patch('/reservations/{reservation}/retry-assign', [ReservationController::class, 'retryAutoAssign'])
+            ->middleware('permission:reservations.assign')
+            ->name('reservations.retry-assign');
+
+        Route::patch('/reservations/{reservation}/confirm-passengers', [ReservationController::class, 'confirmPassengers'])
+            ->middleware('permission:reservations.update')
+            ->name('reservations.confirm-passengers');
+
         Route::get('/reservations/{reservation}/conflicts', [ReservationConflictController::class, 'index'])
             ->middleware('permission:reservations.manage-conflicts')
             ->name('reservations.conflicts.index');
@@ -406,5 +472,7 @@ Route::name('api.')->group(function (): void {
             Route::get('/unavailabilities/{unavailability}/history/{history}', [UnavailabilityHistoryController::class, 'show'])
                 ->name('unavailabilities.history.show');
         });
+
+        }); // end verified
     });
 });

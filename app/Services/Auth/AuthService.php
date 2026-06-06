@@ -23,6 +23,8 @@ class AuthService
 
         $user->assignRole(Role::findOrCreate('user', 'web'));
 
+        $user->sendEmailVerificationNotification();
+
         Auth::login($user);
 
         return $user;

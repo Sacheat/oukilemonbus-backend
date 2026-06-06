@@ -5,6 +5,7 @@ namespace App\Services\UserOrgRequests;
 use App\Enums\RequestStatus;
 use App\Models\User;
 use App\Models\UserOrgRequest;
+use App\Services\Documents\ProofDocumentService;
 use App\Services\Notifications\NotificationDispatchService;
 use App\Services\Notifications\NotificationRecipientResolver;
 use Illuminate\Support\Facades\DB;
@@ -15,7 +16,8 @@ class UserOrgRequestService
     public function __construct(
         private readonly UserOrgRequestConfidenceScoreService $confidenceScoreService,
         private readonly NotificationDispatchService $notificationDispatchService,
-        private readonly NotificationRecipientResolver $notificationRecipientResolver
+        private readonly NotificationRecipientResolver $notificationRecipientResolver,
+        private readonly ProofDocumentService $proofDocumentService,
     ) {}
 
     public function create(User $user, array $data): UserOrgRequest
@@ -68,6 +70,15 @@ class UserOrgRequestService
                 'rejection_reason' => null,
             ]);
 
+            $orgName = $request->organization->name ?? "#{$request->organization_id}";
+            $this->notificationDispatchService->dispatch(
+                users: collect([$requester]),
+                eventKey: 'user_org_request.approved',
+                category: 'admin_workflow',
+                title: 'Adhesion approuvee',
+                message: "Votre demande d adhesion a l organisation \"{$orgName}\" a ete approuvee."
+            );
+
             return $request->refresh();
         });
     }
@@ -76,6 +87,8 @@ class UserOrgRequestService
     {
         $this->ensurePending($request);
 
+        $requester = $request->requestedByUser;
+
         $request->update([
             'status' => RequestStatus::REFUSE,
             'confidence_note' => $confidenceNote ?? $request->confidence_note,
@@ -83,6 +96,23 @@ class UserOrgRequestService
             'reviewed_at' => now(),
             'rejection_reason' => $reason,
         ]);
+
+        // Supprimer le justificatif : inutile de le conserver après un refus
+        if ($request->proofDocument) {
+            $this->proofDocumentService->delete($request->proofDocument);
+            $request->update(['proof_document_id' => null]);
+        }
+
+        if ($requester) {
+            $orgName = $request->organization->name ?? "#{$request->organization_id}";
+            $this->notificationDispatchService->dispatch(
+                users: collect([$requester]),
+                eventKey: 'user_org_request.rejected',
+                category: 'admin_workflow',
+                title: 'Adhesion refusee',
+                message: "Votre demande d adhesion a l organisation \"{$orgName}\" a ete refusee. Motif : {$reason}"
+            );
+        }
 
         return $request->refresh();
     }

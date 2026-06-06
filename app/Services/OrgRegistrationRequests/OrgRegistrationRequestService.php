@@ -6,6 +6,7 @@ use App\Enums\RequestStatus;
 use App\Models\Organization;
 use App\Models\OrgRegistrationRequest;
 use App\Models\User;
+use App\Services\Documents\ProofDocumentService;
 use App\Services\Notifications\NotificationDispatchService;
 use App\Services\Notifications\NotificationRecipientResolver;
 use Illuminate\Support\Facades\DB;
@@ -16,7 +17,8 @@ class OrgRegistrationRequestService
     public function __construct(
         private readonly OrgRegistrationConfidenceScoreService $confidenceScoreService,
         private readonly NotificationDispatchService $notificationDispatchService,
-        private readonly NotificationRecipientResolver $notificationRecipientResolver
+        private readonly NotificationRecipientResolver $notificationRecipientResolver,
+        private readonly ProofDocumentService $proofDocumentService,
     ) {}
 
     public function create(User $user, array $data): OrgRegistrationRequest
@@ -58,7 +60,7 @@ class OrgRegistrationRequestService
                 'name_contact' => $request->contact_person_name,
                 'location_id' => $request->location_id,
                 'is_priority' => $organizationType->isPriorityByDefault(),
-                'document_proof_path' => $request->proof_document_path,
+                'proof_document_id' => $request->proof_document_id,
             ])->refresh();
 
             $organization->users()->syncWithoutDetaching([
@@ -75,6 +77,17 @@ class OrgRegistrationRequestService
                 'rejection_reason' => null,
             ]);
 
+            $requester = $request->requestedByUser;
+            if ($requester) {
+                $this->notificationDispatchService->dispatch(
+                    users: collect([$requester]),
+                    eventKey: 'org_registration_request.approved',
+                    category: 'admin_workflow',
+                    title: 'Demande d organisation approuvee',
+                    message: "Votre demande #{$request->id} a ete approuvee. L organisation \"{$organization->name}\" a ete creee."
+                );
+            }
+
             return $organization;
         });
     }
@@ -83,12 +96,30 @@ class OrgRegistrationRequestService
     {
         $this->ensurePending($request);
 
+        $requester = $request->requestedByUser;
+
         $request->update([
             'status' => RequestStatus::REFUSE,
             'reviewed_by_user_id' => $reviewer->id,
             'reviewed_at' => now(),
             'rejection_reason' => $reason,
         ]);
+
+        // Supprimer le justificatif : inutile de le conserver après un refus
+        if ($request->proofDocument) {
+            $this->proofDocumentService->delete($request->proofDocument);
+            $request->update(['proof_document_id' => null]);
+        }
+
+        if ($requester) {
+            $this->notificationDispatchService->dispatch(
+                users: collect([$requester]),
+                eventKey: 'org_registration_request.rejected',
+                category: 'admin_workflow',
+                title: 'Demande d organisation refusee',
+                message: "Votre demande #{$request->id} a ete refusee. Motif : {$reason}"
+            );
+        }
 
         return $request->refresh();
     }

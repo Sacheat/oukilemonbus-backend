@@ -12,8 +12,33 @@ return [
     'min_notice_days' => 15,
     'allowed_countries' => ['BE', 'Belgique', 'Belgium'],
     'annual_quota' => 5,
-    'max_active_requests' => 2,
+    'max_pending_requests' => 2,
     'max_confirmed_reservations' => 2,
+    // Délai minimum d'annulation pour le demandeur (en heures avant le départ).
+    'cancellation_requester_min_hours_before' => 24,
+
+    // Délai minimum d'annulation pour la commune (en jours entiers avant la date du trajet).
+    // 1 = doit annuler au plus tard la veille (pas le jour J).
+    'cancellation_commune_min_days_before' => 1,
+
+    // Types d'organisation exemptés du quota annuel et de la limite de demandes actives.
+    'quota_exempt_types' => ['ecole_communale', 'personnel_communal'],
+
+    // Types auto-approuvés à la création (pas de décision du Collège requise).
+    'auto_approve_types' => ['ecole_communale', 'personnel_communal'],
+
+    // Types exemptés des restrictions horaires et de durée.
+    'time_restriction_exempt_types' => ['ecole_communale', 'personnel_communal'],
+
+    // Types pour lesquels aucune décision du Collège n'est exigée.
+    'council_decision_exempt_types' => ['ecole_communale', 'personnel_communal'],
+
+    // Types autorisés à créer des récurrences.
+    'recurrence_allowed_types' => ['ecole_communale', 'personnel_communal'],
+
+    // Types considérés prioritaires (niveau 2 dans le calcul de priorité).
+    'high_priority_types' => ['ecole_communale', 'personnel_communal'],
+
     'closed_dates' => [
         '2026-01-01',
         '2026-04-06',

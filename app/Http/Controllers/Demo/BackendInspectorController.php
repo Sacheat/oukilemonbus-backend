@@ -36,14 +36,42 @@ final class BackendInspectorController extends Controller
         );
     }
 
+    public function reset(Request $request): JsonResponse
+    {
+        abort_unless(config('backend_inspector.enabled', false), 404);
+
+        $keys = config('backend_inspector.session_keys', []);
+
+        $request->session()->forget([
+            $keys['last_action']      ?? 'backend_inspector.last_action',
+            $keys['last_context']     ?? 'backend_inspector.last_context',
+            $keys['last_recorded_at'] ?? 'backend_inspector.last_recorded_at',
+            $keys['history']          ?? 'backend_inspector.history',
+            $keys['current_scenario'] ?? 'backend_inspector.current_scenario',
+            $keys['current_actor_id'] ?? 'backend_inspector.current_actor_id',
+        ]);
+
+        return response()->json(['reset' => true]);
+    }
+
     private function currentDemoActor(Request $request): ?User
     {
+        // v2 demo: actor ID stored by BackendInspectorMiddleware after each API action
+        $actorId = $request->session()->get(
+            config('backend_inspector.session_keys.current_actor_id', 'backend_inspector.current_actor_id')
+        );
+
+        if ($actorId !== null) {
+            return User::query()->find($actorId);
+        }
+
+        // Old demo fallback: session-based selected actor
         $userId = $request->session()->get('demo_user_id');
 
         if ($userId !== null) {
             return User::query()->find($userId);
         }
 
-        return User::query()->first();
+        return null;
     }
 }

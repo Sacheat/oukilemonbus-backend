@@ -25,7 +25,6 @@ class StoreUserOrgRequest extends FormRequest
                 'referent',
             ])],
             'justification' => ['nullable', 'string'],
-            'proof_document_path' => ['nullable', 'string', 'max:500'],
         ];
     }
 }

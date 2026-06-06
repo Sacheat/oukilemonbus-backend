@@ -123,9 +123,9 @@ class CouncilDecisionService
 
     private function ensureCouncilDecisionRequired(Reservation $reservation): void
     {
-        if ($reservation->organization->type === OrganizationType::ECOLE_COMMUNALE) {
+        if ($reservation->organization->type?->isCouncilDecisionExempt()) {
             throw ValidationException::withMessages([
-                'reservation' => 'Aucune decision du college n est requise pour une ecole communale.',
+                'reservation' => 'Aucune decision du college n est requise pour ce type d organisation.',
             ]);
         }
     }

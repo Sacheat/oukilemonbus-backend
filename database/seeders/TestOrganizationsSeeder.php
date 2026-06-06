@@ -38,7 +38,6 @@ class TestOrganizationsSeeder extends Seeder
                 'annual_quota' => 5,
                 'reservations_used_this_year' => 0,
                 'quota_reset_year' => now(),
-                'document_proof_path' => 'proofs/asbl-les-amis-du-parc.pdf',
             ],
             [
                 'name' => 'Organisation externe de test',

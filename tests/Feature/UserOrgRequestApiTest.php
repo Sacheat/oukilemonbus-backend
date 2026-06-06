@@ -121,11 +121,10 @@ class UserOrgRequestApiTest extends TestCase
             'organization_id' => $organization->id,
             'requested_role' => 'responsable',
             'justification' => 'Je suis responsable de la coordination des activites de cette organisation.',
-            'proof_document_path' => 'proofs/rattachement.pdf',
         ])
             ->assertCreated()
-            ->assertJsonPath('data.confidence_note', 100)
-            ->assertJsonPath('data.confidence_details.score', 100)
+            ->assertJsonPath('data.confidence_note', 70)
+            ->assertJsonPath('data.confidence_details.score', 70)
             ->assertJsonFragment([
                 'Justification coherente avec le role demande.',
             ]);

@@ -106,6 +106,11 @@ class ReservationAssignmentService
         $oldDriverId = $reservation->driver_id;
         $reservation->update(['driver_id' => $driver->id]);
 
+        $reservation->conflicts()
+            ->where('type', ReservationConflictType::NO_DRIVER_AVAILABLE)
+            ->where('is_resolved', false)
+            ->update(['is_resolved' => true, 'resolved_by_user_id' => $actor->id, 'resolved_at' => now()]);
+
         ReservationAssignmentHistory::create([
             'reservation_id' => $reservation->id,
             'assignment_type' => AssignmentType::DRIVER,
@@ -132,6 +137,11 @@ class ReservationAssignmentService
     {
         $oldVehicleId = $reservation->vehicle_id;
         $reservation->update(['vehicle_id' => $vehicle->id]);
+
+        $reservation->conflicts()
+            ->where('type', ReservationConflictType::NO_VEHICLE_AVAILABLE)
+            ->where('is_resolved', false)
+            ->update(['is_resolved' => true, 'resolved_by_user_id' => $actor->id, 'resolved_at' => now()]);
 
         ReservationAssignmentHistory::create([
             'reservation_id' => $reservation->id,

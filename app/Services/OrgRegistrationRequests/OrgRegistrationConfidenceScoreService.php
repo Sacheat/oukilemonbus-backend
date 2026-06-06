@@ -45,7 +45,7 @@ class OrgRegistrationConfidenceScoreService
         $this->addWhenFilled($request->contact_person_name, 8, 'Personne de contact renseignee.', $score, $reasons);
         $this->addWhenFilled($request->contact_person_role, 5, 'Role de la personne de contact renseigne.', $score, $reasons);
         $this->addWhenFilled($request->location_id, 5, 'Adresse renseignee.', $score, $reasons);
-        $this->addWhenFilled($request->proof_document_path, 15, 'Document justificatif fourni.', $score, $reasons);
+        $this->addWhenFilled($request->proof_document_id, 15, 'Document justificatif fourni.', $score, $reasons);
 
         if (blank($request->phone) && blank($request->contact_person_name)) {
             $score -= 10;

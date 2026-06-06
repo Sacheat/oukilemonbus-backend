@@ -5,10 +5,13 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\OrgRegistrationRequests\ApproveOrgRegistrationRequest;
 use App\Http\Requests\OrgRegistrationRequests\RejectOrgRegistrationRequest;
+use App\Http\Requests\Documents\StoreProofDocumentRequest;
 use App\Http\Requests\OrgRegistrationRequests\StoreOrgRegistrationRequest;
+use App\Http\Resources\DocumentResource;
 use App\Http\Resources\OrganizationResource;
 use App\Http\Resources\OrgRegistrationRequestResource;
 use App\Models\OrgRegistrationRequest;
+use App\Services\Documents\ProofDocumentService;
 use App\Services\OrgRegistrationRequests\OrgRegistrationRequestService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -17,7 +20,8 @@ use Illuminate\Support\Facades\Gate;
 class OrgRegistrationRequestController extends Controller
 {
     public function __construct(
-        private readonly OrgRegistrationRequestService $orgRegistrationRequestService
+        private readonly OrgRegistrationRequestService $orgRegistrationRequestService,
+        private readonly ProofDocumentService $proofDocumentService,
     ) {}
 
     public function index(): AnonymousResourceCollection
@@ -87,5 +91,36 @@ class OrgRegistrationRequestController extends Controller
         return new OrgRegistrationRequestResource(
             $registrationRequest->load(['requestedByUser', 'reviewedByUser', 'location'])
         );
+    }
+
+    public function uploadProof(StoreProofDocumentRequest $request, OrgRegistrationRequest $orgRegistrationRequest): JsonResponse
+    {
+        Gate::authorize('update', $orgRegistrationRequest);
+
+        if ($orgRegistrationRequest->proofDocument) {
+            $this->proofDocumentService->delete($orgRegistrationRequest->proofDocument);
+        }
+
+        $document = $this->proofDocumentService->store(
+            $request->file('proof_document'),
+            'org-registration-requests',
+            $orgRegistrationRequest->id
+        );
+
+        $orgRegistrationRequest->update(['proof_document_id' => $document->id]);
+
+        return (new DocumentResource($document))->response()->setStatusCode(201);
+    }
+
+    public function deleteProof(OrgRegistrationRequest $orgRegistrationRequest): JsonResponse
+    {
+        Gate::authorize('update', $orgRegistrationRequest);
+
+        if ($orgRegistrationRequest->proofDocument) {
+            $this->proofDocumentService->delete($orgRegistrationRequest->proofDocument);
+            $orgRegistrationRequest->update(['proof_document_id' => null]);
+        }
+
+        return response()->json(null, 204);
     }
 }

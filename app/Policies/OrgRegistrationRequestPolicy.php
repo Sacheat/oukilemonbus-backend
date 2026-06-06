@@ -29,6 +29,12 @@ class OrgRegistrationRequestPolicy
         return $user->can('org-registration-requests.create');
     }
 
+    public function update(User $user, OrgRegistrationRequest $orgRegistrationRequest): bool
+    {
+        return $this->isRequester($user, $orgRegistrationRequest)
+            || $this->isInternal($user);
+    }
+
     public function approve(User $user, OrgRegistrationRequest $orgRegistrationRequest): bool
     {
         return $user->can('org-registration-requests.review')

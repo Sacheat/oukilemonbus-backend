@@ -23,6 +23,8 @@ class OrganizationResource extends JsonResource
             'name_contact' => $this->name_contact,
             'location_id' => $this->location_id,
             'is_priority' => $this->is_priority,
+            'is_banned' => $this->is_banned,
+            'banned_reason' => $this->banned_reason,
             'annual_quota' => $this->annual_quota,
             'reservations_used_this_year' => $this->reservations_used_this_year,
             'quota_reset_year' => $this->quota_reset_year?->toISOString(),

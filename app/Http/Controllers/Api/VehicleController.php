@@ -47,6 +47,13 @@ class VehicleController extends Controller
         return new VehicleResource($vehicle);
     }
 
+    public function activate(Vehicle $vehicle): VehicleResource
+    {
+        $vehicle = $this->vehicleService->activate($vehicle);
+
+        return new VehicleResource($vehicle);
+    }
+
     public function deactivate(Vehicle $vehicle): VehicleResource
     {
         $vehicle = $this->vehicleService->deactivate($vehicle);

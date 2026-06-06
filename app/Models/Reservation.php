@@ -39,6 +39,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
     'cancelled_at',
     'rejection_reason',
     'cancellation_reason',
+    'passengers_confirmed_at',
 ])]
 class Reservation extends Model
 {
@@ -157,6 +158,7 @@ class Reservation extends Model
             'approval_type' => ApprovalType::class,
             'validated_at' => 'datetime',
             'cancelled_at' => 'datetime',
+            'passengers_confirmed_at' => 'datetime',
         ];
     }
 }

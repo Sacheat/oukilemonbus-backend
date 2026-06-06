@@ -12,7 +12,7 @@ use App\Enums\RequestStatus;
 use App\Enums\ReservationActivityType;
 use App\Enums\ReservationStatus;
 use App\Enums\UnavailabilityReasonType;
-use PHPUnit\Framework\TestCase;
+use Tests\TestCase;
 
 class DomainEnumsTest extends TestCase
 {

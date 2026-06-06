@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Reservations\ApproveReservationRequest;
 use App\Http\Requests\Reservations\AssignReservationRequest;
 use App\Http\Requests\Reservations\CancelReservationRequest;
+use App\Http\Requests\Reservations\ConfirmPassengersRequest;
+use App\Http\Requests\Reservations\RetryAutoAssignRequest;
 use App\Http\Requests\Reservations\ConfirmReservationRequest;
 use App\Http\Requests\Reservations\PreviewReservationRequest;
 use App\Http\Requests\Reservations\RejectReservationRequest;
@@ -159,7 +161,7 @@ class ReservationController extends Controller
                 routeName: (string) ($request->route()?->getName() ?? 'api.reservations.assign'),
                 requestHash: hash('sha256', json_encode($request->validated() + ['reservation_id' => $reservation->id], JSON_THROW_ON_ERROR)),
                 action: function () use ($request, $reservation): array {
-                    $updated = $this->assignmentService->assign($reservation, $request->validated(), $request->user());
+                    $updated = $this->reservationService->assign($reservation, $request->validated(), $request->user());
                     $resource = new ReservationResource($updated->load(['organization', 'pickupLocation', 'destinationLocation', 'driver', 'vehicle', 'conflicts']));
 
                     return [
@@ -172,7 +174,7 @@ class ReservationController extends Controller
             return response()->json($response['body'], $response['status']);
         }
 
-        $reservation = $this->assignmentService->assign($reservation, $request->validated(), $request->user());
+        $reservation = $this->reservationService->assign($reservation, $request->validated(), $request->user());
 
         $resource = new ReservationResource($reservation->load(['organization', 'pickupLocation', 'destinationLocation', 'driver', 'vehicle', 'conflicts']));
 
@@ -182,6 +184,20 @@ class ReservationController extends Controller
     public function confirm(ConfirmReservationRequest $request, Reservation $reservation): ReservationResource
     {
         $reservation = $this->reservationService->confirm($reservation, $request->user());
+
+        return new ReservationResource($reservation->load(['organization', 'pickupLocation', 'destinationLocation', 'driver', 'vehicle', 'conflicts']));
+    }
+
+    public function retryAutoAssign(RetryAutoAssignRequest $request, Reservation $reservation): ReservationResource
+    {
+        $reservation = $this->reservationService->retryAutoAssign($reservation, $request->user());
+
+        return new ReservationResource($reservation->load(['organization', 'pickupLocation', 'destinationLocation', 'driver', 'vehicle', 'conflicts']));
+    }
+
+    public function confirmPassengers(ConfirmPassengersRequest $request, Reservation $reservation): ReservationResource
+    {
+        $reservation = $this->reservationService->confirmPassengers($reservation, $request->validated(), $request->user());
 
         return new ReservationResource($reservation->load(['organization', 'pickupLocation', 'destinationLocation', 'driver', 'vehicle', 'conflicts']));
     }

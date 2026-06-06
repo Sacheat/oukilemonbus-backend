@@ -46,7 +46,7 @@ class CouncilDecisionPolicy
     {
         return $user->can('council-decisions.create')
             && $this->isInternal($user)
-            && $reservation->organization->type !== OrganizationType::ECOLE_COMMUNALE
+            && ! $reservation->organization->type?->isCouncilDecisionExempt()
             && $this->hasAllowedReservationStatus($reservation);
     }
 
@@ -54,7 +54,7 @@ class CouncilDecisionPolicy
     {
         return $user->can('council-decisions.update')
             && $this->isInternal($user)
-            && $councilDecision->reservation->organization->type !== OrganizationType::ECOLE_COMMUNALE
+            && ! $councilDecision->reservation->organization->type?->isCouncilDecisionExempt()
             && $this->hasAllowedReservationStatus($councilDecision->reservation);
     }
 

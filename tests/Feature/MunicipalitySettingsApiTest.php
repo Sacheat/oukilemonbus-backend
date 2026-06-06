@@ -199,57 +199,49 @@ class MunicipalitySettingsApiTest extends TestCase
             'location_id' => $location->id,
             'contact_person_name' => 'Alice Martin',
             'contact_person_role' => 'Responsable',
-            'proof_document_path' => 'proofs/asbl-godinne.pdf',
         ])
             ->assertCreated()
-            ->assertJsonPath('data.confidence_note', 91)
+            ->assertJsonPath('data.confidence_note', 81)
             ->assertJsonFragment([
                 'Adresse situee dans la commune de Yvoir.',
             ]);
     }
 
-    public function test_admin_can_sync_localities_from_geonames(): void
+    public function test_admin_can_sync_localities_from_geonames_commune_level(): void
     {
         $admin = $this->seededUser('admin.test@bus-communal.local');
         Sanctum::actingAs($admin);
 
-        $municipality = $this->activeMunicipality();
+        $municipality = $this->activeMunicipality(); // Dinant
 
         MunicipalityLocality::create([
             'municipality_id' => $municipality->id,
-            'name' => 'Noise From Previous Sync',
+            'name'            => 'Noise From Previous Sync',
             'normalized_name' => 'noise from previous sync',
-            'source' => 'geonames',
-            'is_active' => true,
+            'source'          => 'geonames',
+            'is_active'       => true,
         ]);
 
         Http::fake([
+            // findMunicipality → Dinant est une commune (ADM4)
             'https://geonames.test/searchJSON*' => Http::response([
-                'geonames' => [
-                    [
-                        'geonameId' => 2799366,
-                        'name' => 'Dinant',
-                        'countryCode' => 'BE',
-                    ],
-                ],
+                'geonames' => [[
+                    'geonameId'   => 2799366,
+                    'name'        => 'Dinant',
+                    'fcode'       => 'ADM4',
+                    'countryCode' => 'BE',
+                    'adminCode1'  => 'WAL',
+                    'adminCode2'  => '93',
+                    'adminCode3'  => '91',
+                    'adminCode4'  => '91034',
+                ]],
             ]),
-            'https://geonames.test/postalCodeSearchJSON*' => Http::response([
-                'postalCodes' => [
-                    [
-                        'geonameId' => 2803130,
-                        'placeName' => 'Anseremme',
-                        'postalCode' => '5500',
-                    ],
-                    [
-                        'geonameId' => 2801402,
-                        'placeName' => 'Bouvignes-sur-Meuse',
-                        'postalCode' => '5500',
-                    ],
-                    [
-                        'geonameId' => 2803130,
-                        'placeName' => 'Anseremme',
-                        'postalCode' => '5500',
-                    ],
+            // fetchSubLocalities → sections de Dinant via childrenJSON
+            'https://geonames.test/childrenJSON*' => Http::response([
+                'geonames' => [
+                    ['geonameId' => 2803130, 'name' => 'Anseremme'],
+                    ['geonameId' => 2801402, 'name' => 'Bouvignes-sur-Meuse'],
+                    ['geonameId' => 2803130, 'name' => 'Anseremme'], // doublon GeoNames → upsert idempotent
                 ],
             ]),
         ]);
@@ -258,30 +250,158 @@ class MunicipalitySettingsApiTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.external_id', '2799366')
             ->assertJsonPath('data.nis_code', '91034')
-            ->assertJsonPath('data.source', 'geonames')
-            ->assertJsonCount(4, 'data.localities');
+            ->assertJsonPath('data.source', 'geonames');
 
         $this->assertDatabaseHas('municipality_localities', [
             'municipality_id' => $municipality->id,
-            'name' => 'Anseremme',
+            'name'            => 'Anseremme',
             'normalized_name' => 'anseremme',
-            'external_id' => '2803130',
-            'source' => 'geonames',
+            'external_id'     => '2803130',
+            'source'          => 'geonames',
+            'is_active'       => true,
         ]);
 
         $this->assertDatabaseHas('municipality_localities', [
             'municipality_id' => $municipality->id,
-            'name' => 'Bouvignes-sur-Meuse',
+            'name'            => 'Bouvignes-sur-Meuse',
             'normalized_name' => 'bouvignes-sur-meuse',
-            'external_id' => '2801402',
-            'source' => 'geonames',
+            'external_id'     => '2801402',
+            'source'          => 'geonames',
+            'is_active'       => true,
         ]);
 
+        // La localité absente du dernier sync est désactivée
         $this->assertDatabaseHas('municipality_localities', [
             'municipality_id' => $municipality->id,
             'normalized_name' => 'noise from previous sync',
-            'source' => 'geonames',
-            'is_active' => false,
+            'source'          => 'geonames',
+            'is_active'       => false,
+        ]);
+    }
+
+    public function test_admin_can_sync_localities_from_geonames_province_level(): void
+    {
+        $admin = $this->seededUser('admin.test@bus-communal.local');
+        Sanctum::actingAs($admin);
+
+        $municipality = Municipality::create([
+            'name'      => 'Province de Namur',
+            'country'   => 'BE',
+            'is_active' => true,
+        ]);
+
+        // findMunicipality → Province (ADM2) puis searchCommunes → communes ADM4
+        Http::fake([
+            'https://geonames.test/searchJSON*' => Http::sequence()
+                ->push(['geonames' => [[   // findMunicipality
+                    'geonameId'  => 2790142,
+                    'name'       => 'Province de Namur',
+                    'fcode'      => 'ADM2',
+                    'adminCode1' => 'WAL',
+                    'adminCode2' => '93',
+                ]]])
+                ->push(['geonames' => [    // searchCommunes — page 1 (non pleine → arrêt)
+                    ['geonameId' => 2799366, 'name' => 'Dinant'],
+                    ['geonameId' => 2751283, 'name' => 'Namur'],
+                    ['geonameId' => 2790049, 'name' => 'Philippeville'],
+                ]]),
+        ]);
+
+        $this->postJson("/api/municipalities/{$municipality->id}/sync-localities")
+            ->assertOk()
+            ->assertJsonPath('data.external_id', '2790142')
+            ->assertJsonPath('data.source', 'geonames');
+
+        $this->assertDatabaseHas('municipality_localities', [
+            'municipality_id' => $municipality->id,
+            'name'            => 'Dinant',
+            'source'          => 'geonames',
+            'is_active'       => true,
+        ]);
+        $this->assertDatabaseHas('municipality_localities', [
+            'municipality_id' => $municipality->id,
+            'name'            => 'Namur',
+            'source'          => 'geonames',
+            'is_active'       => true,
+        ]);
+        $this->assertDatabaseHas('municipality_localities', [
+            'municipality_id' => $municipality->id,
+            'name'            => 'Philippeville',
+            'source'          => 'geonames',
+            'is_active'       => true,
+        ]);
+    }
+
+    public function test_admin_can_sync_localities_from_geonames_country_level(): void
+    {
+        $admin = $this->seededUser('admin.test@bus-communal.local');
+        Sanctum::actingAs($admin);
+
+        $municipality = Municipality::create([
+            'name'      => 'Belgique',
+            'country'   => 'BE',
+            'is_active' => true,
+        ]);
+
+        // findMunicipality → PCLI puis searchCommunes paginé (page 1 pleine → page 2 vide)
+        Http::fake([
+            'https://geonames.test/searchJSON*' => Http::sequence()
+                ->push(['geonames' => [[    // findMunicipality
+                    'geonameId'  => 2802361,
+                    'name'       => 'Belgium',
+                    'fcode'      => 'PCLI',
+                    'countryCode' => 'BE',
+                ]]])
+                ->push(['geonames' => [     // searchCommunes — page 1 (2 < batchSize → arrêt)
+                    ['geonameId' => 2799366, 'name' => 'Dinant'],
+                    ['geonameId' => 2751283, 'name' => 'Namur'],
+                ]]),
+        ]);
+
+        $this->postJson("/api/municipalities/{$municipality->id}/sync-localities")
+            ->assertOk()
+            ->assertJsonPath('data.external_id', '2802361')
+            ->assertJsonPath('data.source', 'geonames');
+
+        $this->assertDatabaseHas('municipality_localities', [
+            'municipality_id' => $municipality->id,
+            'name'            => 'Dinant',
+            'source'          => 'geonames',
+        ]);
+        $this->assertDatabaseHas('municipality_localities', [
+            'municipality_id' => $municipality->id,
+            'name'            => 'Namur',
+            'source'          => 'geonames',
+        ]);
+    }
+
+    public function test_commune_with_no_geonames_children_uses_entity_itself_as_locality(): void
+    {
+        $admin = $this->seededUser('admin.test@bus-communal.local');
+        Sanctum::actingAs($admin);
+
+        $municipality = $this->activeMunicipality();
+
+        Http::fake([
+            'https://geonames.test/searchJSON*' => Http::response([
+                'geonames' => [[
+                    'geonameId'  => 2799366,
+                    'name'       => 'Dinant',
+                    'fcode'      => 'ADM4',
+                    'countryCode' => 'BE',
+                ]],
+            ]),
+            // childrenJSON vide → fallback sur l'entité elle-même
+            'https://geonames.test/childrenJSON*' => Http::response(['geonames' => []]),
+        ]);
+
+        $this->postJson("/api/municipalities/{$municipality->id}/sync-localities")->assertOk();
+
+        $this->assertDatabaseHas('municipality_localities', [
+            'municipality_id' => $municipality->id,
+            'name'            => 'Dinant',
+            'external_id'     => '2799366',
+            'source'          => 'geonames',
         ]);
     }
 

@@ -10,6 +10,7 @@ use App\Http\Resources\LocationResource;
 use App\Models\Location;
 use App\Services\Locations\LocationService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 class LocationController extends Controller
@@ -18,13 +19,20 @@ class LocationController extends Controller
         private readonly LocationService $locationService
     ) {}
 
-    public function index(): AnonymousResourceCollection
+    public function index(Request $request): AnonymousResourceCollection
     {
         return LocationResource::collection(
             Location::query()
+                ->when($request->filled('q'), function ($query) use ($request): void {
+                    $term = '%'.$request->string('q').'%';
+                    $query->where(function ($q) use ($term): void {
+                        $q->where('formatted_address', 'like', $term)
+                          ->orWhere('city', 'like', $term);
+                    });
+                })
                 ->orderBy('city')
                 ->orderBy('formatted_address')
-                ->paginate()
+                ->paginate(10)
         );
     }
 
@@ -41,6 +49,19 @@ class LocationController extends Controller
         return (new LocationResource($location))
             ->response()
             ->setStatusCode(201);
+    }
+
+    public function suggest(Request $request): JsonResponse
+    {
+        $q = $request->string('q')->trim();
+
+        if ($q->length() < 3) {
+            return response()->json(['data' => []]);
+        }
+
+        return response()->json([
+            'data' => $this->locationService->suggest((string) $q),
+        ]);
     }
 
     public function show(Location $location): LocationResource

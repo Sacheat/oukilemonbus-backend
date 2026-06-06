@@ -6,11 +6,16 @@ use App\Enums\UnavailabilityReasonType;
 use App\Exceptions\UnavailabilityException;
 use App\Models\Unavailability;
 use App\Models\UnavailabilityHistory;
+use App\Models\User;
+use App\Services\Reservations\ReservationService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
 class UnavailabilityService
 {
+    public function __construct(
+        private readonly ReservationService $reservationService
+    ) {}
     /**
      * Verifie que le sujet de l'indisponibilite est coherent avec son type
      * Un chauffeur pour type driver, un vehicule pour type vehicle — jamais les deux
@@ -61,7 +66,7 @@ class UnavailabilityService
     /**
      * @throws UnavailabilityException
      */
-    public function create(array $data, int $createdByUserId): Unavailability
+    public function create(array $data, User $actor): Unavailability
     {
         $reasonType = UnavailabilityReasonType::from($data['reason_type']);
 
@@ -72,10 +77,14 @@ class UnavailabilityService
         );
         $this->validateDateRange($data['start_datetime'], $data['end_datetime']);
 
-        return Unavailability::create([
+        $unavailability = Unavailability::create([
             ...$data,
-            'created_by_user_id' => $createdByUserId,
+            'created_by_user_id' => $actor->id,
         ]);
+
+        $this->reservationService->applyUnavailabilityImpact($unavailability->load(['driver.user', 'vehicle']), $actor);
+
+        return $unavailability;
     }
 
     /**
@@ -83,7 +92,7 @@ class UnavailabilityService
      *
      * @throws UnavailabilityException
      */
-    public function update(Unavailability $unavailability, array $data, int $changedByUserId, ?string $changeReason = null): Unavailability
+    public function update(Unavailability $unavailability, array $data, User $actor, ?string $changeReason = null): Unavailability
     {
         $reasonType = isset($data['reason_type'])
             ? UnavailabilityReasonType::from($data['reason_type'])
@@ -101,7 +110,9 @@ class UnavailabilityService
         $this->validateSubjectAssignment($reasonType, $driverId, $vehicleId);
         $this->validateDateRange($startDatetime, $endDatetime);
 
-        return DB::transaction(function () use ($unavailability, $data, $changedByUserId, $changeReason): Unavailability {
+        $datesChanged = array_key_exists('start_datetime', $data) || array_key_exists('end_datetime', $data);
+
+        return DB::transaction(function () use ($unavailability, $data, $actor, $changeReason, $datesChanged): Unavailability {
             UnavailabilityHistory::create([
                 'unavailability_id' => $unavailability->id,
                 'old_reason_type' => $unavailability->reason_type,
@@ -112,11 +123,16 @@ class UnavailabilityService
                 'new_end_datetime' => $data['end_datetime'] ?? $unavailability->end_datetime,
                 'old_reason' => $unavailability->reason,
                 'new_reason' => $data['reason'] ?? $unavailability->reason,
-                'changed_by_user_id' => $changedByUserId,
+                'changed_by_user_id' => $actor->id,
                 'change_reason' => $changeReason,
             ]);
 
             $unavailability->update($data);
+            $unavailability->refresh()->load(['driver.user', 'vehicle']);
+
+            if ($datesChanged) {
+                $this->reservationService->applyUnavailabilityImpact($unavailability, $actor);
+            }
 
             return $unavailability->refresh();
         });
@@ -125,9 +141,9 @@ class UnavailabilityService
     /**
      * Annule une indisponibilité (la rend inactive) et enregistre l'historique de cette annulation
      */
-    public function cancel(Unavailability $unavailability, int $cancelledByUserId): Unavailability
+    public function cancel(Unavailability $unavailability, User $actor): Unavailability
     {
-        return DB::transaction(function () use ($unavailability, $cancelledByUserId): Unavailability {
+        return DB::transaction(function () use ($unavailability, $actor): Unavailability {
             UnavailabilityHistory::create([
                 'unavailability_id' => $unavailability->id,
                 'old_reason_type' => $unavailability->reason_type,
@@ -138,7 +154,7 @@ class UnavailabilityService
                 'new_end_datetime' => $unavailability->end_datetime,
                 'old_reason' => $unavailability->reason,
                 'new_reason' => $unavailability->reason,
-                'changed_by_user_id' => $cancelledByUserId,
+                'changed_by_user_id' => $actor->id,
                 'change_reason' => 'Indisponibilite annulee.',
             ]);
 

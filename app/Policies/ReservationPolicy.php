@@ -83,6 +83,23 @@ class ReservationPolicy
         return $reservation->requested_by_user_id === $user->getKey();
     }
 
+    public function confirmPassengers(User $user, Reservation $reservation): bool
+    {
+        if (! $user->can('reservations.update') || $reservation->status->isTerminal()) {
+            return false;
+        }
+
+        if ($this->isInternal($user)) {
+            return true;
+        }
+
+        if ($user->hasRole('responsable_organisation') && $this->belongsToUserOrganization($user, $reservation->organization_id)) {
+            return true;
+        }
+
+        return $reservation->requested_by_user_id === $user->getKey();
+    }
+
     public function approve(User $user, Reservation $reservation): bool
     {
         return $user->can('reservations.approve')

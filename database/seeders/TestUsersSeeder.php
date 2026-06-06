@@ -67,7 +67,7 @@ class TestUsersSeeder extends Seeder
 
             $user = User::query()->updateOrCreate(
                 ['email' => $attributes['email']],
-                $attributes
+                array_merge($attributes, ['email_verified_at' => now()])
             );
 
             if (! $user->hasRole($role)) {

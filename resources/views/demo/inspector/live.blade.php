@@ -235,6 +235,71 @@
             }
         }
 
+        /* Timeline */
+        .timeline-section {
+            margin-top: 20px;
+        }
+
+        .timeline-list {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .timeline-item {
+            display: grid;
+            grid-template-columns: 110px 1fr auto auto;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 16px;
+            border: 1px solid var(--border);
+            background: rgba(17, 24, 39, .55);
+            border-radius: 12px;
+            font-size: 13px;
+            opacity: .6;
+            transition: opacity .15s;
+        }
+
+        .timeline-item:hover { opacity: 1; }
+
+        .timeline-item.ti-current {
+            opacity: 1;
+            border-color: rgba(56, 189, 248, .45);
+            background: linear-gradient(135deg, rgba(56, 189, 248, .10), rgba(17, 24, 39, .92));
+        }
+
+        .ti-cat {
+            font-size: 10px;
+            padding: 3px 8px;
+            border-radius: 999px;
+            background: var(--panel-soft);
+            color: var(--muted);
+            text-align: center;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .timeline-item.ti-current .ti-cat {
+            background: var(--accent-soft);
+            color: var(--accent);
+        }
+
+        .ti-title { color: var(--text); font-weight: 600; }
+
+        .ti-key {
+            font-family: Consolas, 'Courier New', monospace;
+            font-size: 11px;
+            color: var(--accent);
+            background: var(--accent-soft);
+            border: 1px solid rgba(56, 189, 248, .25);
+            padding: 2px 7px;
+            border-radius: 6px;
+            white-space: nowrap;
+        }
+
+        .ti-time { color: var(--muted); font-size: 11px; white-space: nowrap; }
+
         @media (max-width: 950px) {
             .page {
                 padding: 18px;
@@ -249,6 +314,10 @@
             }
 
             .kv {
+                grid-template-columns: 1fr;
+            }
+
+            .timeline-item {
                 grid-template-columns: 1fr;
             }
         }
@@ -325,6 +394,13 @@
             </article>
         </section>
     </main>
+
+    <section class="timeline-section">
+        <article class="card">
+            <h2>📜 Timeline de session</h2>
+            <div class="timeline-list" id="timelineList"><span class="muted">Chargement...</span></div>
+        </article>
+    </section>
 </div>
 
 <script>
@@ -391,6 +467,39 @@
         }
 
         return value;
+    }
+
+    function timeAgo(dateString) {
+        if (!dateString) return '—';
+        const diff = Math.floor((Date.now() - new Date(dateString).getTime()) / 1000);
+        if (diff < 5)    return 'maintenant';
+        if (diff < 60)   return `${diff}s`;
+        if (diff < 3600) return `${Math.floor(diff / 60)}m`;
+        return `${Math.floor(diff / 3600)}h`;
+    }
+
+    function renderTimeline(history) {
+        const container = element('timelineList');
+        if (!container) return;
+
+        if (!Array.isArray(history) || history.length === 0) {
+            container.innerHTML = '<span class="muted">Aucune action enregistrée cette session.</span>';
+            return;
+        }
+
+        container.innerHTML = history.map((item, index) => {
+            const action   = item.action || {};
+            const title    = action.title    || item.action_key || '—';
+            const category = action.category || '?';
+            return `
+                <div class="timeline-item ${index === 0 ? 'ti-current' : ''}">
+                    <span class="ti-cat">${escapeHtml(category)}</span>
+                    <span class="ti-title">${escapeHtml(title)}</span>
+                    <span class="ti-key">${escapeHtml(item.action_key)}</span>
+                    <span class="ti-time">${escapeHtml(timeAgo(item.recorded_at))}</span>
+                </div>
+            `;
+        }).join('');
     }
 
     function controllerLabel(controller, fallback = 'Aucun contrôleur dédié') {
@@ -489,6 +598,7 @@
         }
 
         renderKeyValues('lastContext', data.last_context || {});
+        renderTimeline(data.history || []);
         element('rawState').textContent = JSON.stringify(data, null, 2);
 
         const currentActionKey = data.last_action_key ?? null;

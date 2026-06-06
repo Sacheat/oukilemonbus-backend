@@ -134,7 +134,8 @@ class MunicipalitySettingsService
                 ]);
             }
 
-            $localities = $this->municipalityProvider->fetchLocalities($municipality->refresh());
+            // L'entité est passée directement pour éviter un second appel API.
+            $localities = $this->municipalityProvider->fetchLocalities($municipality->refresh(), $providerMunicipality);
 
             $syncedLocalityNames = $localities
                 ->pluck('name')
