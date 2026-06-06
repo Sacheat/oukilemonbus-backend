@@ -145,56 +145,6 @@ return [
 
     'flows' => [
 
-        'demo.actor.changed' => [
-            'title' => 'Changement d’acteur dans la démo',
-            'category' => 'Démo',
-            'scenario' => null,
-            'goal' => 'Changer l’utilisateur actif utilisé par les pages de démonstration.',
-
-            'route' => [
-                'demo' => 'POST /demo/actor',
-                'api' => null,
-            ],
-
-            'demo_controller' => [
-                'class' => 'DemoActorController',
-                'method' => 'update',
-            ],
-
-            'api_controller' => null,
-
-            'request' => null,
-
-            'service' => [
-                'class' => 'Session Laravel',
-                'method' => 'session()',
-                'internal_methods' => [
-                    'Stockage de l’identifiant utilisateur sélectionné',
-                    'Rechargement de l’acteur courant',
-                    'Mise à jour du contexte de démonstration',
-                ],
-            ],
-
-            'related_services' => [
-                'UserInspectorService',
-                'BackendInspectorService',
-            ],
-
-            'tables' => [
-                'users',
-                'roles',
-                'permissions',
-                'model_has_roles',
-                'model_has_permissions',
-            ],
-
-            'effects' => [
-                'L’acteur courant de la démo est modifié.',
-                'Les rôles et permissions de cet utilisateur peuvent être affichés.',
-                'Les actions suivantes seront expliquées selon cet acteur.',
-            ],
-        ],
-
         // _________________________________________________________________________________________PLANNING
         'planning.index' => [
             'title' => 'Consultation du planning',
@@ -203,14 +153,9 @@ return [
             'goal' => 'Afficher les réservations planifiées sur une période donnée.',
 
             'route' => [
-                'demo' => 'GET /demo/planning',
                 'api' => 'GET /api/planning',
             ],
 
-            'demo_controller' => [
-                'class' => 'DemoPlanningController',
-                'method' => '__invoke',
-            ],
 
             'api_controller' => [
                 'class' => 'PlanningController',
@@ -258,57 +203,6 @@ return [
                 'Le planning est préparé pour l’affichage.',
             ],
         ],
-
-        // _________________________________________________________________________________________DASHBOARD
-        'demo.dashboard.viewed' => [
-            'title' => 'Consultation du tableau de bord',
-            'category' => 'Démo',
-            'scenario' => null,
-            'goal' => 'Afficher une vue d’ensemble des données disponibles dans la démo.',
-
-            'route' => [
-                'demo' => 'GET /demo',
-                'api' => null,
-            ],
-            'demo_controller' => [
-                'class' => 'DemoDashboardController',
-                'method' => '__invoke',
-            ],
-
-            'api_controller' => null,
-            'request' => null,
-
-            'service' => [
-                'class' => 'DemoDashboardController',
-                'method' => '__invoke',
-                'internal_methods' => [
-                    'actor',
-                    'shared',
-                    'NotificationHealthService::summary',
-                ],
-            ],
-
-            'related_services' => [
-                'NotificationHealthService',
-            ],
-
-            'tables' => [
-                'users',
-                'organizations',
-                'reservations',
-                'documents',
-                'notifications',
-                'notification_deliveries',
-            ],
-
-            'effects' => [
-                'Les compteurs principaux sont chargés.',
-                'Les dernières réservations sont récupérées.',
-                'Les notifications de l’acteur courant sont affichées.',
-                'Un résumé de santé des notifications est calculé.',
-            ],
-        ],
-
         // _________________________________________________________________________________________RÉSERVATIONS
         // INDEX
         'reservations.index' => [
@@ -318,14 +212,9 @@ return [
             'goal' => 'Afficher les réservations disponibles dans la démo avec leurs affectations et conflits.',
 
             'route' => [
-                'demo' => 'GET /demo/reservations',
                 'api' => 'GET /api/reservations',
             ],
 
-            'demo_controller' => [
-                'class' => 'DemoReservationController',
-                'method' => 'index',
-            ],
 
             'api_controller' => [
                 'class' => 'ReservationController',
@@ -375,14 +264,9 @@ return [
             'goal' => 'Afficher le formulaire permettant de créer une nouvelle réservation.',
 
             'route' => [
-                'demo' => 'GET /demo/reservations/create',
                 'api' => 'Non applicable : l’API ne fournit généralement pas de formulaire HTML.',
             ],
 
-            'demo_controller' => [
-                'class' => 'DemoReservationController',
-                'method' => 'create',
-            ],
 
             'api_controller' => null,
 
@@ -402,8 +286,6 @@ return [
             ],
 
             'related_services' => [
-                'DemoActorResolver',
-                'DemoDataService',
             ],
 
             'tables' => [
@@ -428,14 +310,9 @@ return [
             'goal' => 'Créer une nouvelle réservation à partir des données du formulaire.',
 
             'route' => [
-                'demo' => 'POST /demo/reservations',
                 'api' => 'POST /api/reservations',
             ],
 
-            'demo_controller' => [
-                'class' => 'DemoReservationController',
-                'method' => 'store',
-            ],
 
             'api_controller' => [
                 'class' => 'ReservationController',
@@ -506,14 +383,9 @@ return [
             'goal' => 'Afficher le formulaire permettant de modifier une réservation existante.',
 
             'route' => [
-                'demo' => 'GET /demo/reservations/{reservation}/edit',
                 'api' => 'Non applicable : l’API ne fournit généralement pas de formulaire HTML.',
             ],
 
-            'demo_controller' => [
-                'class' => 'DemoReservationController',
-                'method' => 'edit',
-            ],
 
             'api_controller' => null,
 
@@ -532,8 +404,6 @@ return [
             ],
 
             'related_services' => [
-                'DemoActorResolver',
-                'DemoDataService',
             ],
 
             'tables' => [
@@ -560,14 +430,9 @@ return [
             'goal' => 'Mettre à jour les informations principales d’une réservation existante.',
 
             'route' => [
-                'demo' => 'PATCH /demo/reservations/{reservation}',
                 'api' => 'PATCH /api/reservations/{reservation}',
             ],
 
-            'demo_controller' => [
-                'class' => 'DemoReservationController',
-                'method' => 'update',
-            ],
 
             'api_controller' => [
                 'class' => 'ReservationController',
@@ -634,14 +499,9 @@ return [
             'goal' => 'Faire passer une réservation vers le statut approuvé.',
 
             'route' => [
-                'demo' => 'POST /demo/reservations/{reservation}/approve',
                 'api' => 'PATCH /api/reservations/{reservation}/approve',
             ],
 
-            'demo_controller' => [
-                'class' => 'DemoReservationController',
-                'method' => 'approve',
-            ],
 
             'api_controller' => [
                 'class' => 'ReservationController',
@@ -700,14 +560,9 @@ return [
             'goal' => 'Tenter d’assigner automatiquement un chauffeur et un véhicule disponibles à une réservation, en évitant les conflits d’occupation.',
 
             'route' => [
-                'demo' => 'POST /demo/reservations/{reservation}/auto-assign',
                 'api' => null,
             ],
 
-            'demo_controller' => [
-                'class' => 'DemoReservationController',
-                'method' => 'autoAssign',
-            ],
 
             'api_controller' => null,
 
@@ -769,14 +624,9 @@ return [
             'goal' => 'Assigner manuellement un chauffeur et/ou un véhicule à une réservation.',
 
             'route' => [
-                'demo' => 'POST /demo/reservations/{reservation}/assign',
                 'api' => 'PATCH /api/reservations/{reservation}/assign',
             ],
 
-            'demo_controller' => [
-                'class' => 'DemoReservationController',
-                'method' => 'assign',
-            ],
 
             'api_controller' => [
                 'class' => 'ReservationController',
@@ -836,14 +686,9 @@ return [
             'goal' => 'Encoder ou mettre à jour la décision du collège communal liée à une réservation.',
 
             'route' => [
-                'demo' => 'POST /demo/reservations/{reservation}/council-decision',
                 'api' => 'POST /api/council-decisions ou PATCH /api/council-decisions/{councilDecision}',
             ],
 
-            'demo_controller' => [
-                'class' => 'DemoReservationController',
-                'method' => 'councilDecision',
-            ],
 
             'api_controller' => [
                 'class' => 'CouncilDecisionController',
@@ -872,7 +717,6 @@ return [
             ],
 
             'related_services' => [
-                'DemoActorResolver',
                 'CouncilDecisionService',
                 'DeliberationDocumentService',
                 'NotificationDispatchService',
@@ -906,14 +750,9 @@ return [
             'goal' => 'Faire passer une réservation vers le statut confirmé.',
 
             'route' => [
-                'demo' => 'POST /demo/reservations/{reservation}/confirm',
                 'api' => 'PATCH /api/reservations/{reservation}/confirm',
             ],
 
-            'demo_controller' => [
-                'class' => 'DemoReservationController',
-                'method' => 'confirm',
-            ],
 
             'api_controller' => [
                 'class' => 'ReservationController',
@@ -970,14 +809,9 @@ return [
             'goal' => 'Refuser une réservation avec un motif explicite.',
 
             'route' => [
-                'demo' => 'POST /demo/reservations/{reservation}/reject',
                 'api' => 'PATCH /api/reservations/{reservation}/reject',
             ],
 
-            'demo_controller' => [
-                'class' => 'DemoReservationController',
-                'method' => 'reject',
-            ],
 
             'api_controller' => [
                 'class' => 'ReservationController',
@@ -1034,14 +868,9 @@ return [
             'goal' => 'Annuler une réservation depuis la démo.',
 
             'route' => [
-                'demo' => 'POST /demo/reservations/{reservation}/cancel',
                 'api' => 'PATCH /api/reservations/{reservation}/cancel',
             ],
 
-            'demo_controller' => [
-                'class' => 'DemoReservationController',
-                'method' => 'cancel',
-            ],
 
             'api_controller' => [
                 'class' => 'ReservationController',
@@ -1097,14 +926,9 @@ return [
             'goal' => 'Afficher les notifications in-app de l’acteur et la santé du système de notifications.',
 
             'route' => [
-                'demo' => 'GET /demo/notifications',
                 'api' => 'GET /api/notifications',
             ],
 
-            'demo_controller' => [
-                'class' => 'DemoNotificationController',
-                'method' => 'index',
-            ],
 
             'api_controller' => [
                 'class' => 'NotificationController',
@@ -1149,14 +973,9 @@ return [
             'goal' => 'Marquer toutes les notifications non lues de l’acteur courant comme lues.',
 
             'route' => [
-                'demo' => 'POST /demo/notifications/read-all',
                 'api' => 'PATCH /api/notifications/read-all',
             ],
 
-            'demo_controller' => [
-                'class' => 'DemoNotificationController',
-                'method' => 'markAllAsRead',
-            ],
 
             'api_controller' => [
                 'class' => 'NotificationController',
@@ -1177,7 +996,6 @@ return [
             ],
 
             'related_services' => [
-                'DemoActorResolver',
                 'NotificationHealthService',
             ],
 
@@ -1200,14 +1018,9 @@ return [
             'goal' => 'Marquer une notification précise de l’acteur courant comme lue.',
 
             'route' => [
-                'demo' => 'POST /demo/notifications/{notificationId}/read',
                 'api' => 'PATCH /api/notifications/{notificationId}/read',
             ],
 
-            'demo_controller' => [
-                'class' => 'DemoNotificationController',
-                'method' => 'markAsRead',
-            ],
 
             'api_controller' => [
                 'class' => 'NotificationController',
@@ -1229,7 +1042,6 @@ return [
             ],
 
             'related_services' => [
-                'DemoActorResolver',
                 'NotificationHealthService',
             ],
 
@@ -1253,14 +1065,9 @@ return [
             'goal' => 'Afficher les demandes de création d’organisation et de rattachement utilisateur.',
 
             'route' => [
-                'demo' => 'GET /demo/requests',
                 'api' => 'Composite : GET /api/org-registration-requests + GET /api/user-org-requests',
             ],
 
-            'demo_controller' => [
-                'class' => 'DemoRequestController',
-                'method' => 'index',
-            ],
 
             'api_controller' => [
                 'class' => 'OrgRegistrationRequestController / UserOrgRequestController',
@@ -1305,14 +1112,9 @@ return [
             'goal' => 'Créer une demande de création d’organisation depuis la démo.',
 
             'route' => [
-                'demo' => 'POST /demo/requests/organizations',
                 'api' => 'POST /api/org-registration-requests',
             ],
 
-            'demo_controller' => [
-                'class' => 'DemoRequestController',
-                'method' => 'storeOrg',
-            ],
 
             'api_controller' => [
                 'class' => 'OrgRegistrationRequestController',
@@ -1376,14 +1178,9 @@ return [
             'goal' => 'Approuver une demande de création d’organisation et créer l’organisation correspondante.',
 
             'route' => [
-                'demo' => 'POST /demo/requests/organizations/{orgRegistrationRequest}/approve',
                 'api' => 'PATCH /api/org-registration-requests/{orgRegistrationRequest}/approve',
             ],
 
-            'demo_controller' => [
-                'class' => 'DemoRequestController',
-                'method' => 'approveOrg',
-            ],
 
             'api_controller' => [
                 'class' => 'OrgRegistrationRequestController',
@@ -1432,14 +1229,9 @@ return [
             'goal' => 'Refuser une demande de création d’organisation avec un motif explicite.',
 
             'route' => [
-                'demo' => 'POST /demo/requests/organizations/{orgRegistrationRequest}/reject',
                 'api' => 'PATCH /api/org-registration-requests/{orgRegistrationRequest}/reject',
             ],
 
-            'demo_controller' => [
-                'class' => 'DemoRequestController',
-                'method' => 'rejectOrg',
-            ],
 
             'api_controller' => [
                 'class' => 'OrgRegistrationRequestController',
@@ -1493,14 +1285,9 @@ return [
             'goal' => 'Créer une demande de rattachement d’un utilisateur à une organisation existante.',
 
             'route' => [
-                'demo' => 'POST /demo/requests/user-organizations',
                 'api' => 'POST /api/user-org-requests',
             ],
 
-            'demo_controller' => [
-                'class' => 'DemoRequestController',
-                'method' => 'storeUserOrg',
-            ],
 
             'api_controller' => [
                 'class' => 'UserOrgRequestController',
@@ -1557,14 +1344,9 @@ return [
             'goal' => 'Approuver une demande de rattachement et associer l’utilisateur à l’organisation.',
 
             'route' => [
-                'demo' => 'POST /demo/requests/user-organizations/{userOrgRequest}/approve',
                 'api' => 'PATCH /api/user-org-requests/{userOrgRequest}/approve',
             ],
 
-            'demo_controller' => [
-                'class' => 'DemoRequestController',
-                'method' => 'approveUserOrg',
-            ],
 
             'api_controller' => [
                 'class' => 'UserOrgRequestController',
@@ -1614,14 +1396,9 @@ return [
             'goal' => 'Refuser une demande de rattachement avec un motif explicite.',
 
             'route' => [
-                'demo' => 'POST /demo/requests/user-organizations/{userOrgRequest}/reject',
                 'api' => 'PATCH /api/user-org-requests/{userOrgRequest}/reject',
             ],
 
-            'demo_controller' => [
-                'class' => 'DemoRequestController',
-                'method' => 'rejectUserOrg',
-            ],
 
             'api_controller' => [
                 'class' => 'UserOrgRequestController',
@@ -1678,14 +1455,9 @@ return [
             'goal' => 'Afficher les documents générés et les formulaires de génération de feuilles de route.',
 
             'route' => [
-                'demo' => 'GET /demo/documents',
                 'api' => 'GET /api/documents',
             ],
 
-            'demo_controller' => [
-                'class' => 'DemoDocumentController',
-                'method' => 'index',
-            ],
 
             'api_controller' => [
                 'class' => 'DocumentController',
@@ -1730,14 +1502,9 @@ return [
             'goal' => 'Générer un document de feuille de route à partir des réservations planifiées.',
 
             'route' => [
-                'demo' => 'POST /demo/documents/route-sheets',
                 'api' => 'POST /api/documents/route-sheets/generate',
             ],
 
-            'demo_controller' => [
-                'class' => 'DemoDocumentController',
-                'method' => 'generateRouteSheet',
-            ],
 
             'api_controller' => [
                 'class' => 'RouteSheetDocumentController',
@@ -1792,14 +1559,9 @@ return [
             'goal' => 'Télécharger un document généré par le backend.',
 
             'route' => [
-                'demo' => 'GET /demo/documents/{document}/download',
                 'api' => 'GET /api/documents/{document}/download',
             ],
 
-            'demo_controller' => [
-                'class' => 'DemoDocumentController',
-                'method' => 'download',
-            ],
 
             'api_controller' => [
                 'class' => 'DocumentController',
@@ -1840,14 +1602,9 @@ return [
             'goal' => 'Afficher les organisations visibles par l’acteur courant.',
 
             'route' => [
-                'demo' => 'GET /demo/organizations',
                 'api' => 'GET /api/organizations',
             ],
 
-            'demo_controller' => [
-                'class' => 'DemoOrganizationController',
-                'method' => 'index',
-            ],
 
             'api_controller' => [
                 'class' => 'OrganizationController',
@@ -1857,8 +1614,8 @@ return [
             'request' => null,
 
             'service' => [
-                'class' => 'DemoDataService',
-                'method' => 'organizations',
+                'class' => 'OrganizationService',
+                'method' => 'index',
                 'internal_methods' => [
                     'Identification de l’acteur courant',
                     'Filtrage des organisations visibles',
@@ -1867,8 +1624,6 @@ return [
             ],
 
             'related_services' => [
-                'DemoActorResolver',
-                'DemoDataService',
             ],
 
             'tables' => [
@@ -1886,60 +1641,6 @@ return [
             ],
         ],
 
-        // _________________________________________________________________________________________GESTION (ADMIN)
-        'admin.index' => [
-            'title' => 'Consultation de la gestion',
-            'category' => 'Gestion',
-            'scenario' => 'admin',
-            'goal' => 'Afficher les données de gestion accessibles à l’acteur courant.',
-
-            'route' => [
-                'demo' => 'GET /demo/admin',
-                'api' => null,
-            ],
-
-            'demo_controller' => [
-                'class' => 'DemoAdminController',
-                'method' => 'index',
-            ],
-
-            'api_controller' => null,
-
-            'request' => null,
-
-            'service' => [
-                'class' => 'DemoDataService',
-                'method' => 'unavailabilities',
-                'internal_methods' => [
-                    'Vérification des permissions de gestion',
-                    'Chargement des utilisateurs visibles',
-                    'Chargement des chauffeurs visibles',
-                    'Chargement des véhicules visibles',
-                    'Chargement des indisponibilités si autorisé',
-                ],
-            ],
-
-            'related_services' => [
-                'DemoActorResolver',
-                'DemoDataService',
-            ],
-
-            'tables' => [
-                'users',
-                'drivers',
-                'vehicles',
-                'unavailabilities',
-                'roles',
-                'permissions',
-            ],
-
-            'effects' => [
-                'Les données de gestion autorisées sont chargées.',
-                'Les sections interdites restent masquées.',
-                'La page de gestion reflète les permissions de l’acteur courant.',
-            ],
-        ],
-
         // _________________________________________________________________________________________AUTH
         'auth.register' => [
             'title' => 'Inscription d’un utilisateur',
@@ -1948,11 +1649,9 @@ return [
             'goal' => 'Créer un nouveau compte utilisateur avec envoi automatique d’un email de vérification.',
 
             'route' => [
-                'demo' => null,
                 'api' => 'POST /api/auth/register',
             ],
 
-            'demo_controller' => null,
 
             'api_controller' => [
                 'class' => 'AuthController',
@@ -2006,11 +1705,9 @@ return [
             'goal' => 'Authentifier un utilisateur via Sanctum en mode cookie stateful.',
 
             'route' => [
-                'demo' => null,
                 'api' => 'POST /api/auth/login',
             ],
 
-            'demo_controller' => null,
 
             'api_controller' => [
                 'class' => 'AuthController',
@@ -2060,11 +1757,9 @@ return [
             'goal' => 'Terminer la session et invalider les cookies d’authentification.',
 
             'route' => [
-                'demo' => null,
                 'api' => 'POST /api/auth/logout',
             ],
 
-            'demo_controller' => null,
 
             'api_controller' => [
                 'class' => 'AuthController',
@@ -2106,11 +1801,9 @@ return [
             'goal' => 'Retenter l’assignation automatique d’un chauffeur et d’un véhicule disponibles sur une réservation en conflit.',
 
             'route' => [
-                'demo' => null,
                 'api' => 'PATCH /api/reservations/{reservation}/retry-assign',
             ],
 
-            'demo_controller' => null,
 
             'api_controller' => [
                 'class' => 'ReservationController',
@@ -2162,11 +1855,9 @@ return [
             'goal' => 'Mettre à jour le nombre de passagers et enregistrer l’horodatage de confirmation. Si le trajet est aujourd’hui, la feuille de route est régénérée.',
 
             'route' => [
-                'demo' => null,
                 'api' => 'PATCH /api/reservations/{reservation}/confirm-passengers',
             ],
 
-            'demo_controller' => null,
 
             'api_controller' => [
                 'class' => 'ReservationController',
@@ -2218,11 +1909,9 @@ return [
             'goal' => 'Marquer un conflit spécifique comme résolu et déclencher la transition automatique de statut si plus aucun conflit actif.',
 
             'route' => [
-                'demo' => null,
                 'api' => 'PATCH /api/reservations/{reservation}/conflicts/{conflict}/resolve',
             ],
 
-            'demo_controller' => null,
 
             'api_controller' => [
                 'class' => 'ReservationConflictController',
@@ -2270,11 +1959,9 @@ return [
             'goal' => 'Créer un ensemble de réservations périodiques pour une école communale sur une plage de dates avec une fréquence définie.',
 
             'route' => [
-                'demo' => null,
                 'api' => 'POST /api/recurrences',
             ],
 
-            'demo_controller' => null,
 
             'api_controller' => [
                 'class' => 'RecurrenceController',
@@ -2339,11 +2026,9 @@ return [
             'goal' => 'Attacher un document justificatif (PDF, JPG, PNG) à une demande de création d’organisation.',
 
             'route' => [
-                'demo' => null,
                 'api' => 'POST /api/org-registration-requests/{orgRegistrationRequest}/proof',
             ],
 
-            'demo_controller' => null,
 
             'api_controller' => [
                 'class' => 'OrgRegistrationRequestController',
@@ -2388,11 +2073,9 @@ return [
             'goal' => 'Supprimer le document justificatif d’une demande d’organisation en attente.',
 
             'route' => [
-                'demo' => null,
                 'api' => 'DELETE /api/org-registration-requests/{orgRegistrationRequest}/proof',
             ],
 
-            'demo_controller' => null,
 
             'api_controller' => [
                 'class' => 'OrgRegistrationRequestController',
@@ -2434,11 +2117,9 @@ return [
             'goal' => 'Attacher un document justificatif à une demande d’adhésion à une organisation.',
 
             'route' => [
-                'demo' => null,
                 'api' => 'POST /api/user-org-requests/{userOrgRequest}/proof',
             ],
 
-            'demo_controller' => null,
 
             'api_controller' => [
                 'class' => 'UserOrgRequestController',
@@ -2482,11 +2163,9 @@ return [
             'goal' => 'Supprimer le justificatif d’une demande d’adhésion en attente.',
 
             'route' => [
-                'demo' => null,
                 'api' => 'DELETE /api/user-org-requests/{userOrgRequest}/proof',
             ],
 
-            'demo_controller' => null,
 
             'api_controller' => [
                 'class' => 'UserOrgRequestController',
@@ -2528,11 +2207,9 @@ return [
             'goal' => 'Modifier les canaux actifs (database, mail) par catégorie et la fréquence des digests.',
 
             'route' => [
-                'demo' => null,
                 'api' => 'PATCH /api/notifications/preferences',
             ],
 
-            'demo_controller' => null,
 
             'api_controller' => [
                 'class' => 'NotificationPreferenceController',
@@ -2579,11 +2256,9 @@ return [
             'goal' => 'Enregistrer un lieu depuis une suggestion ORS, ou retourner le lieu existant si le place_id est déjà connu (déduplication).',
 
             'route' => [
-                'demo' => null,
                 'api' => 'POST /api/locations',
             ],
 
-            'demo_controller' => null,
 
             'api_controller' => [
                 'class' => 'LocationController',
@@ -2637,11 +2312,9 @@ return [
             'goal' => 'Enregistrer une période d’indisponibilité pour un chauffeur ou un véhicule et recalculer l’impact sur les réservations existantes.',
 
             'route' => [
-                'demo' => null,
                 'api' => 'POST /api/unavailabilities',
             ],
 
-            'demo_controller' => null,
 
             'api_controller' => [
                 'class' => 'UnavailabilityController',
@@ -2702,11 +2375,9 @@ return [
             'goal' => 'Mettre à jour les dates ou le motif d’une indisponibilité et recalculer son impact.',
 
             'route' => [
-                'demo' => null,
                 'api' => 'PATCH /api/unavailabilities/{unavailability}',
             ],
 
-            'demo_controller' => null,
 
             'api_controller' => [
                 'class' => 'UnavailabilityController',
@@ -2756,11 +2427,9 @@ return [
             'goal' => 'Annuler une indisponibilité et tenter de réassigner automatiquement les réservations précédemment impactées.',
 
             'route' => [
-                'demo' => null,
                 'api' => 'PATCH /api/unavailabilities/{unavailability}/cancel',
             ],
 
-            'demo_controller' => null,
 
             'api_controller' => [
                 'class' => 'UnavailabilityController',
@@ -2806,11 +2475,9 @@ return [
             'goal' => 'Enregistrer un utilisateur existant en tant que chauffeur actif.',
 
             'route' => [
-                'demo' => null,
                 'api' => 'POST /api/drivers',
             ],
 
-            'demo_controller' => null,
 
             'api_controller' => [
                 'class' => 'DriverController',
@@ -2852,11 +2519,9 @@ return [
             'goal' => 'Mettre à jour le numéro de permis ou la date d’expiration d’un chauffeur.',
 
             'route' => [
-                'demo' => null,
                 'api' => 'PATCH /api/drivers/{driver}',
             ],
 
-            'demo_controller' => null,
 
             'api_controller' => [
                 'class' => 'DriverController',
@@ -2894,11 +2559,9 @@ return [
             'goal' => 'Rendre un chauffeur inactif à nouveau disponible pour les assignations.',
 
             'route' => [
-                'demo' => null,
                 'api' => 'PATCH /api/drivers/{driver}/activate',
             ],
 
-            'demo_controller' => null,
 
             'api_controller' => [
                 'class' => 'DriverController',
@@ -2934,11 +2597,9 @@ return [
             'goal' => 'Rendre un chauffeur inactif pour qu’il ne soit plus proposé dans les assignations.',
 
             'route' => [
-                'demo' => null,
                 'api' => 'PATCH /api/drivers/{driver}/deactivate',
             ],
 
-            'demo_controller' => null,
 
             'api_controller' => [
                 'class' => 'DriverController',
@@ -2976,11 +2637,9 @@ return [
             'goal' => 'Ajouter un véhicule à la flotte avec son immatriculation et sa capacité.',
 
             'route' => [
-                'demo' => null,
                 'api' => 'POST /api/vehicles',
             ],
 
-            'demo_controller' => null,
 
             'api_controller' => [
                 'class' => 'VehicleController',
@@ -3020,11 +2679,9 @@ return [
             'goal' => 'Mettre à jour l’immatriculation ou la capacité d’un véhicule.',
 
             'route' => [
-                'demo' => null,
                 'api' => 'PATCH /api/vehicles/{vehicle}',
             ],
 
-            'demo_controller' => null,
 
             'api_controller' => [
                 'class' => 'VehicleController',
@@ -3062,11 +2719,9 @@ return [
             'goal' => 'Rendre un véhicule inactif à nouveau disponible pour les assignations.',
 
             'route' => [
-                'demo' => null,
                 'api' => 'PATCH /api/vehicles/{vehicle}/activate',
             ],
 
-            'demo_controller' => null,
 
             'api_controller' => [
                 'class' => 'VehicleController',
@@ -3102,11 +2757,9 @@ return [
             'goal' => 'Retirer un véhicule du service actif.',
 
             'route' => [
-                'demo' => null,
                 'api' => 'PATCH /api/vehicles/{vehicle}/deactivate',
             ],
 
-            'demo_controller' => null,
 
             'api_controller' => [
                 'class' => 'VehicleController',
@@ -3144,11 +2797,9 @@ return [
             'goal' => 'Modifier le statut actif/bloqué d’un utilisateur sans supprimer ses tokens.',
 
             'route' => [
-                'demo' => null,
                 'api' => 'PATCH /api/users/{user}/status',
             ],
 
-            'demo_controller' => null,
 
             'api_controller' => [
                 'class' => 'UserController',
@@ -3188,11 +2839,9 @@ return [
             'goal' => 'Désactiver définitivement un compte utilisateur et révoquer tous ses tokens d’accès.',
 
             'route' => [
-                'demo' => null,
                 'api' => 'PATCH /api/users/{user}/deactivate',
             ],
 
-            'demo_controller' => null,
 
             'api_controller' => [
                 'class' => 'UserController',
@@ -3236,11 +2885,9 @@ return [
             'goal' => 'Calculer en temps réel la faisabilit’d’une réservation sans rien écrire en base — distance ORS, fenêtre d’occupation, conflits, disponibilité.',
 
             'route' => [
-                'demo' => null,
                 'api' => 'POST /api/reservations/preview',
             ],
 
-            'demo_controller' => null,
 
             'api_controller' => [
                 'class' => 'ReservationController',
@@ -3305,11 +2952,9 @@ return [
             'goal' => 'Calculer les occurrences valides d’une récurrence, les dates ignorées et les conflits potentiels sans créer aucune réservation.',
 
             'route' => [
-                'demo' => null,
                 'api' => 'POST /api/recurrences/preview',
             ],
 
-            'demo_controller' => null,
 
             'api_controller' => [
                 'class' => 'RecurrenceController',
@@ -3366,11 +3011,9 @@ return [
             'goal' => 'Créer une organisation directement sans passer par une demande d’enregistrement. Réservé aux agents internes.',
 
             'route' => [
-                'demo' => null,
                 'api' => 'POST /api/organizations',
             ],
 
-            'demo_controller' => null,
 
             'api_controller' => [
                 'class' => 'OrganizationController',
@@ -3415,11 +3058,9 @@ return [
             'goal' => 'Interdire à une organisation de soumettre de nouvelles réservations, avec un motif obligatoire.',
 
             'route' => [
-                'demo' => null,
                 'api' => 'POST /api/organizations/{organization}/ban',
             ],
 
-            'demo_controller' => null,
 
             'api_controller' => [
                 'class' => 'OrganizationController',
@@ -3461,11 +3102,9 @@ return [
             'goal' => 'Réactiver une organisation précédemment bannie.',
 
             'route' => [
-                'demo' => null,
                 'api' => 'POST /api/organizations/{organization}/unban',
             ],
 
-            'demo_controller' => null,
 
             'api_controller' => [
                 'class' => 'OrganizationController',
@@ -3503,11 +3142,9 @@ return [
             'goal' => 'Renvoyer l’email de vérification à un utilisateur dont le lien a expiré ou qui ne l’a pas reçu.',
 
             'route' => [
-                'demo' => null,
                 'api' => 'POST /api/email/verify/resend',
             ],
 
-            'demo_controller' => null,
 
             'api_controller' => [
                 'class' => 'EmailVerificationController',
