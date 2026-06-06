@@ -16,6 +16,11 @@ use App\Services\Notifications\NotificationHealthService;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
+/**
+ * Tableau de bord de la démo.
+ * Agrège les statistiques visibles par l'acteur et les statistiques globales (admin/agent).
+ * `availableActions` liste dynamiquement les actions autorisées selon les permissions de l'acteur.
+ */
 final class DemoDashboardController extends DemoBaseController
 {
     public function __construct(

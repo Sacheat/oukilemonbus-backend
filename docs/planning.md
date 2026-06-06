@@ -453,10 +453,10 @@ le filtre par véhicule ;
 le filtre par chauffeur ;
 le filtre par organisation.
 
-Résultat actuel au moment de la documentation :
+Résultat actuel :
 
 PlanningApiTest : 12 tests OK
-Tests globaux : 357 tests OK
+Tests globaux : 419 tests OK
 19. Commandes de test utiles
 
 Tester uniquement le planning :

@@ -6,6 +6,21 @@ use App\Models\Reservation;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 
+/**
+ * Calcule la fenêtre d'occupation réelle du bus pour un créneau de réservation.
+ *
+ * La fenêtre est plus large que les horaires demandés pour prendre en compte :
+ *   - pickup_buffer_min    : préparation avant le départ
+ *   - return_trip_duration : durée estimée du trajet retour (= estimated_duration_min)
+ *   - dropoff_buffer_min   : descente des passagers après le retour
+ *   - safety_buffer_min    : marge de sécurité supplémentaire
+ *
+ * window_start = departure_time − pickup_buffer
+ * window_end   = return_time   + estimated_duration_min + dropoff_buffer + safety_buffer
+ *
+ * `overlappingQuery()` réplique ce calcul en SQL (TIMESTAMPADD) pour les requêtes de conflit.
+ * `dataWithDepartureTime()` recalcule un créneau décalé en conservant la durée du séjour.
+ */
 class ReservationOccupationService
 {
     public function windowForReservation(Reservation $reservation): array

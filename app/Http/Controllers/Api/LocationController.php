@@ -13,6 +13,11 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
+/**
+ * Gestion des lieux (géocodage et autocomplétion).
+ * `store` appelle LocationService qui déclenche le géocodage ORS — peut lever GeocodingException → 422.
+ * `suggest` requiert au minimum 3 caractères avant d'interroger l'API pour éviter les appels inutiles.
+ */
 class LocationController extends Controller
 {
     public function __construct(

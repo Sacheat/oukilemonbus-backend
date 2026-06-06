@@ -25,6 +25,13 @@ use Illuminate\View\View;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Enum;
 
+/**
+ * Gère toutes les actions sur les réservations dans la démo.
+ * Couvre le CRUD, approbation, rejet, confirmation, annulation, assignation,
+ * décisions du collège et résolution de conflits.
+ * `visibleOrganizations` filtre selon le rôle de l'acteur (admin voit tout, sinon organisations membres).
+ * `decisionReference` génère une référence au format DEMO-YYYYMMDD-RXXXX pour les décisions de démo.
+ */
 final class DemoReservationController extends DemoBaseController
 {
     public function __construct(

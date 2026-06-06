@@ -6,6 +6,14 @@ use App\Enums\OrganizationType;
 use App\Models\Organization;
 use Illuminate\Support\Arr;
 
+/**
+ * Gère les opérations CRUD et le bannissement des organisations.
+ *
+ * `prepareData()` déduit automatiquement `is_priority` depuis le type d'organisation
+ * si `is_priority` n'est pas fourni explicitement — évite les incohérences entre type et priorité.
+ * `ban()` / `unban()` : soft-ban (is_banned = true/false) ; une organisation bannie ne peut plus
+ * créer de réservation (vérifié par ReservationPreviewService::ensureOrganizationNotBanned).
+ */
 class OrganizationService
 {
     public function create(array $data): Organization

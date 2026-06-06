@@ -2,6 +2,11 @@
 
 namespace App\Enums;
 
+/**
+ * Statut d'une décision du Collège communal liée à une réservation.
+ * Une décision APPROUVE peut lever certains conflits de dérogation (ex: horaire).
+ * Une décision REFUSE entraîne le refus automatique de la réservation associée.
+ */
 enum CouncilDecisionStatus: string
 {
     case APPROUVE = 'approuve';

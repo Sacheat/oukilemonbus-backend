@@ -7,6 +7,12 @@ use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
+/**
+ * Requête de consultation du planning.
+ * Limite la période à 31 jours via une règle closure (performances de requête).
+ * Expose des méthodes helpers utilisées par PlanningController :
+ * `planningStatuses()`, `wantsAvailabilityDetails()`, `planningFilters()`.
+ */
 class PlanningIndexRequest extends FormRequest
 {
     private const MAX_PERIOD_DAYS = 31;

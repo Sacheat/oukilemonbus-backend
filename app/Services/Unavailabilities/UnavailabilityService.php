@@ -11,6 +11,22 @@ use App\Services\Reservations\ReservationService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
+/**
+ * Gère les indisponibilités de chauffeurs et de véhicules.
+ *
+ * Contrainte métier : driver XOR vehicle — jamais les deux simultanément.
+ * Cette règle est validée par `validateSubjectAssignment()` qui lève une UnavailabilityException
+ * (non une ValidationException) car la cohérence est garantie par le service, pas la request.
+ *
+ * `create()` : après création, appelle `applyUnavailabilityImpact()` pour mettre EN_CONFLIT
+ *   les réservations APPROUVE/CONFIRME chevauchant la période d'indisponibilité.
+ *
+ * `update()` : enregistre l'historique complet (colonnes old_x / new_x) dans UnavailabilityHistory
+ *   AVANT la mise à jour pour conserver l'état précédent. Si les dates changent,
+ *   `applyUnavailabilityImpact()` est relancé sur la nouvelle fenêtre temporelle.
+ *
+ * `cancel()` : soft-cancel (is_active = false), historique enregistré, pas de suppression physique.
+ */
 class UnavailabilityService
 {
     public function __construct(

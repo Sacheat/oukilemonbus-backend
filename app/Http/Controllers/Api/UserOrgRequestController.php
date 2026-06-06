@@ -19,6 +19,11 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\Gate;
 
+/**
+ * Gère les demandes de rattachement d'un utilisateur à une organisation.
+ * availableOrganizations() exclut les organisations dont l'utilisateur est déjà membre
+ * ou pour lesquelles il a déjà une demande en attente, évitant les doublons.
+ */
 class UserOrgRequestController extends Controller
 {
     public function __construct(
@@ -30,13 +35,12 @@ class UserOrgRequestController extends Controller
     {
         $user = request()->user();
 
-        // Seuls les utilisateurs pouvant créer une demande accèdent à cette liste
         abort_unless($user->can('user-org-requests.create'), 403);
 
-        // Organisations dont l'utilisateur n'est PAS encore membre
+        // Organisations dont l'utilisateur est déjà membre (pivot user_organization).
         $memberOrgIds = $user->organizations()->pluck('organizations.id');
 
-        // Organisations pour lesquelles l'utilisateur a déjà une demande en attente
+        // Organisations avec une demande EN_ATTENTE existante pour cet utilisateur.
         $pendingOrgIds = UserOrgRequest::query()
             ->where('requested_by_user_id', $user->getKey())
             ->where('status', RequestStatus::EN_ATTENTE)

@@ -1,387 +1,357 @@
-# Bus Communal Backend
+# Bus Communal — Backend
 
-Backend Laravel pour la gestion des reservations du bus communal.
+API REST Laravel pour la gestion du bus communal de la Commune de Dinant.
 
-Le projet est actuellement centre sur le socle metier, la base de donnees et les premieres features API:
-- modelisation du domaine
-- migrations MySQL
-- relations Eloquent
-- contraintes SQL
-- authentification et gestion utilisateurs
-- gestion des lieux avec geocodage OpenRouteService
-- autorisations Spatie
-- authentification SPA avec Sanctum
-- policies Laravel sur les ressources metier principales
-- services metier par module
-- suite de tests base de donnees et API
+Le backend couvre l'ensemble du cycle de vie d'une réservation : de la demande initiale à la génération documentaire, en passant par la validation administrative, les conflits de planning, les décisions du Collège communal et les notifications.
 
-## Domaine couvert
+---
 
-Le schema actuel couvre notamment:
-- utilisateurs et profils chauffeurs
-- organisations et rattachements utilisateur/organisation
-- reservations
-- lieux et recurrences
-- decisions du college
-- documents generes
-- notifications et traces d'envoi
-- indisponibilites
-- historiques de statut et d'affectation
-- demandes d'inscription organisation et demandes d'acces organisation
+## Stack technique
 
-## Stack
+| Couche | Technologie |
+|---|---|
+| Langage | PHP 8.4 |
+| Framework | Laravel 13 |
+| Base de données | MariaDB 11.4 |
+| Authentification | Laravel Sanctum (SPA cookie) |
+| Autorisations | Spatie Laravel Permission |
+| Géocodage / distances | OpenRouteService API |
+| Emails | Mailtrap (dev) / SMTP configurable |
+| Queue | Laravel Queue — 3 niveaux : `critical`, `default`, `low` |
+| Tests | PHPUnit 12 — 419 tests, 1807 assertions |
+| Assets | Vite |
 
-- PHP 8.4
-- Laravel 13
-- MySQL
-- PHPUnit 12
-- Laravel Sanctum
-- Spatie Laravel Permission
-- Vite
+---
 
-## Prerequis
+## Services Docker
 
-- PHP 8.4
-- Composer
-- MySQL
-- Node.js / npm
-- Un environnement capable d'executer Laravel, par exemple Laragon
-
-## Installation locale
-
-Depuis la racine du projet:
-
-```powershell
-cd C:\laragon\www\bus-communal-backend
-composer install
-npm install
-copy .env.example .env
-php artisan key:generate
+```
+docker compose up -d
 ```
 
-Configurer ensuite la base principale dans `.env`, puis executer:
+| Service | Rôle | Port exposé |
+|---|---|---|
+| `app` | PHP-FPM 8.4 | — |
+| `nginx` | Reverse proxy | `8080` |
+| `queue` | Worker de queues | — |
+| `mariadb` | Base de données | `3307` |
+| `adminer` | Interface base de données | `8081` |
 
-```powershell
-php artisan migrate
-php artisan db:seed
+---
+
+## Prérequis
+
+- Docker + Docker Compose
+- Node.js / npm (pour les assets de la démo)
+
+---
+
+## Installation
+
+```bash
+# 1. Copier la configuration
+cp .env.example .env
+
+# 2. Ajouter la variable de queue manquante dans .env
+echo 'QUEUE_WORKER_QUEUES=critical,default,low' >> .env
+
+# 3. Configurer les variables essentielles dans .env :
+#    - ORS_API_KEY (OpenRouteService)
+#    - MAIL_* (provider email)
+#    - APP_KEY (généré à l'étape suivante)
+
+# 4. Démarrer les conteneurs
+docker compose up -d
+
+# 5. Installer les dépendances PHP
+docker compose exec app composer install
+
+# 6. Générer la clé applicative
+docker compose exec app php artisan key:generate
+
+# 7. Migrations + seeders
+docker compose exec app php artisan migrate
+docker compose exec app php artisan db:seed --class=RolesAndPermissionsSeeder
+
+# 8. Assets frontend (démo)
+npm install && npm run build
 ```
 
-Pour le geocodage des lieux, renseigner aussi `ORS_API_KEY` dans `.env`.
+---
 
-Pour compiler les assets:
+## Mise à jour après un merge
 
-```powershell
+```bash
+# 1. Rebuild si Dockerfile a changé
+docker compose build app
+
+# 2. Redémarrer
+docker compose up -d
+
+# 3. Nouvelles migrations
+docker compose exec app php artisan migrate
+
+# 4. Re-seeder les permissions si RolesAndPermissionsSeeder a changé
+docker compose exec app php artisan db:seed --class=RolesAndPermissionsSeeder
+
+# 5. Vider les caches
+docker compose exec app php artisan config:clear
+docker compose exec app php artisan route:clear
+docker compose exec app php artisan cache:clear
+docker compose exec app php artisan view:clear
+
+# 6. Rebuild assets si vite.config.js ou resources/js/ ont changé
 npm run build
 ```
 
-Pour le mode developpement:
-
-```powershell
-composer run dev
-```
-
-## Base de donnees
-
-Le projet utilise deux bases distinctes:
-
-- `bus_communal` pour le developpement local
-- `bus_communal_test` pour les tests
-
-La base de test est declaree dans `phpunit.xml`.
-
-Important:
-- ne pas lancer les tests contre la base principale
-- la suite de tests reconstruit la base de test
+---
 
 ## Tests
 
-La suite actuelle est fortement orientee base de donnees:
-- structure des migrations
-- contraintes SQL
-- relations Eloquent
-- casts
-- effets de suppression
-- unicite
-- coherence de persistance
-- endpoints Auth/User
-- endpoints Locations
-- endpoints Organizations
-- endpoints Reservations
-- endpoints Council Decisions
-- endpoints Unavailabilities
-- endpoints Org Registration Requests
-- endpoints User Org Requests
-- permissions Spatie et acces Sanctum
-
-Execution recommandee (projet dockerise):
-
 ```bash
-docker compose up -d
+# Suite complète
 docker compose exec app php artisan test
+
+# Fichier précis
+docker compose exec app php artisan test tests/Feature/ReservationApiTest.php
+
+# Filtre par nom de test
+docker compose exec app php artisan test --filter=test_agent_can_approve_reservation
 ```
 
-Lancer tous les tests:
+La suite couvre : structure des migrations, contraintes SQL, relations Eloquent, casts, policies, tous les endpoints API, conflits de réservation, résolution automatique, récurrences, notifications, documents et commandes artisan.
 
-```powershell
-php artisan test
-```
+---
 
-Si `php` n'est pas disponible dans le terminal:
+## Modules API
 
-```powershell
-C:\laragon\bin\php\php-8.4.19-nts-Win32-vs17-x64\php.exe artisan test
-```
+Tous les endpoints sont préfixés `/api/` et protégés par Sanctum sauf mention contraire.
 
-Lancer un fichier precis:
+| Module | Endpoints principaux |
+|---|---|
+| Auth | `POST /auth/register`, `POST /auth/login`, `POST /auth/logout`, `GET /auth/me` |
+| Vérification email | `GET /email/verify/{id}/{hash}`, `POST /email/verify/resend` |
+| Utilisateurs | `GET/POST /users`, `PATCH /users/{id}`, `/deactivate`, `/password`, `/status` |
+| Lieux | `GET /locations/suggest`, `GET/POST /locations`, `PATCH /locations/{id}` |
+| Communes | `GET/POST /municipalities`, `PATCH /{id}`, `/sync-localities`, `/localities` |
+| Organisations | `GET/POST /organizations`, `PATCH /{id}`, `/ban`, `/unban` |
+| Chauffeurs | `GET/POST /drivers`, `PATCH /{id}`, `/activate`, `/deactivate` |
+| Véhicules | `GET/POST /vehicles`, `PATCH /{id}`, `/activate`, `/deactivate` |
+| Demandes inscription org | `GET/POST /org-registration-requests`, `/approve`, `/reject`, `/proof` |
+| Demandes adhésion org | `GET/POST /user-org-requests`, `/approve`, `/reject`, `/proof` |
+| Réservations | `GET/POST /reservations`, `PATCH /{id}`, `/approve`, `/confirm`, `/refuse`, `/cancel`, `/assign-driver`, `/assign-vehicle`, `/retry-auto-assign`, `/confirm-passengers` |
+| Conflits | `GET /reservations/{id}/conflicts`, `PATCH /{conflictId}/resolve` |
+| Récurrences | `GET/POST /recurrences`, `GET /recurrences/preview`, `PATCH /{id}/cancel` |
+| Planning | `GET /planning`, `GET /planning/availability`, `GET /planning/export`, `POST /planning/export/request` |
+| Décisions Collège | `GET/POST /council-decisions`, `PATCH /{id}`, `/generate-document` |
+| Documents | `GET /documents`, `GET /documents/{id}`, `GET /documents/{id}/download`, `GET /documents/{id}/signed-download` |
+| Feuilles de route | `POST /route-sheets/generate`, `POST /route-sheets/generate-daily` |
+| Indisponibilités | `GET/POST /unavailabilities`, `PATCH /{id}`, `DELETE /{id}`, `GET /{id}/history` |
+| Notifications | `GET /notifications`, `/summary`, `/unread-count`, `/health`, `PATCH /{id}/read`, `/read-all`, `/read-by-filter` |
+| Préférences notif. | `GET/PATCH /notifications/preferences` |
+| Backend inspector | `GET /demo/inspector/live` (démo interne) |
 
-```powershell
-php artisan test tests/Feature/ReservationBusinessRulesTest.php
-php artisan test tests/Feature/PlanningAndHistoryDatabaseRulesTest.php
-php artisan test tests/Feature/AdditionalDatabaseIntegrityTest.php
-php artisan test tests/Unit/ModelConfigurationTest.php
-```
+---
 
-Format plus lisible:
+## Rôles et permissions
 
-```powershell
-php artisan test --testdox
-```
+5 rôles définis via Spatie Laravel Permission, 50 permissions granulaires au format `module.action` :
 
-## Structure utile
+| Rôle | Description |
+|---|---|
+| `admin` | Accès complet à toutes les ressources |
+| `agent_communal` | Gestion opérationnelle quotidienne |
+| `responsable_organisation` | Accès restreint à son organisation |
+| `user` | Création de demandes, consultation de ses réservations |
+| `chauffeur` | Lecture planning et véhicules assignés |
+
+---
+
+## Architecture
 
 ```text
 app/
-  Enums/
+  Console/Commands/          # Commandes artisan (backups, feuilles de route, santé notif.)
+  Enums/                     # Enums PHP typés (ReservationStatus, ConflictType, etc.)
   Http/
-    Controllers/Api/
-    Requests/{Module}/
-    Resources/
-  Models/
-  Services/{Module}/
+    Controllers/Api/         # 22 contrôleurs REST
+    Middleware/              # BackendInspectorMiddleware
+    Requests/{Module}/       # FormRequests par module
+    Resources/               # Resources API JSON
+  Models/                    # 20+ modèles Eloquent
+  Policies/                  # Policies par ressource
+  Services/
+    Auth/
+    Backups/
+    CouncilDecisions/
+    Demo/
+    Documents/
+    Drivers/
+    Locations/
+    Logging/                 # DomainLogger — journal d'audit structuré
+    Municipalities/
+    Notifications/
+    OrgRegistrationRequests/
+    Organizations/
+    Planning/
+    Recurrences/
+    Reservations/            # ReservationService, ConflictService, OccupationService...
+    SystemHealthService.php
+    Unavailabilities/
+    UserOrgRequests/
+    Vehicles/
 database/
-  migrations/
-  factories/
+  migrations/                # 42 migrations
   seeders/
+    RolesAndPermissionsSeeder.php
+    TestUsersSeeder.php
+    TestOrganizationsSeeder.php
+    TestLocationsSeeder.php
+    TestFleetSeeder.php
+    TestMunicipalitySeeder.php
+docs/                        # Documentation technique par module
+routes/
+  api.php                    # 126 routes API nommées
+  web.php                    # Démo et backend inspector
+  console.php                # Tâches planifiées
 tests/
-  Unit/
-  Feature/
+  Unit/                      # 12 fichiers — services, générateurs, contextes
+  Feature/                   # 27 fichiers — API, commandes, workflows complets
 ```
 
-## Convention API
+---
 
-Pour chaque nouveau module, garder la meme structure:
+## Fonctionnalités clés
 
-- `app/Http/Requests/{Module}/Store...Request.php`
-- `app/Http/Requests/{Module}/Update...Request.php`
-- `app/Http/Controllers/Api/...Controller.php`
-- `app/Http/Resources/...Resource.php`
-- `app/Services/{Module}/...Service.php`
-- routes nommees dans `routes/api.php`
-- permissions Spatie au format `module.action`
-- tests feature couvrant `401`, `403`, validation, creation, lecture et modification
+**Réservations et conflits**
+- Détection automatique de 12 types de conflits à la création (chevauchement, distance non calculée, quota dépassé, fenêtre impossible, etc.)
+- Hard-block si chevauchement avec une réservation approuvée/confirmée (422)
+- Passage en `EN_CONFLIT` si chevauchement avec une réservation en attente
+- Résolution automatique des conflits de chevauchement à l'annulation de la réservation bloquante
+- Résolution manuelle par un agent avec traçabilité
 
-Exemple pour un module `reservations`:
+**Récurrences**
+- Fréquences : hebdomadaire, bihebdomadaire, mensuel
+- Prévisualisation avant création (`GET /recurrences/preview`)
+- Auto-confirmation des occurrences pour les écoles communales
+- Annulation en cascade
 
-- permissions: `reservations.view`, `reservations.create`, `reservations.update`, `reservations.approve`, `reservations.cancel`
-- routes: `api.reservations.index`, `api.reservations.store`, `api.reservations.show`, etc.
-- service: `App\Services\Reservations\ReservationService`
+**Planning**
+- Filtres multi-critères (statut, véhicule, chauffeur, organisation, période)
+- Calcul de disponibilité chauffeur/véhicule en temps réel
+- Export Excel synchrone et asynchrone (job queue)
 
-Les regles purement metier restent dans les services ou actions. Les FormRequest valident l'entree HTTP et les permissions. Les contraintes SQL doivent rester reservees aux invariants de donnees qui ne dependent pas du contexte metier.
+**Documents**
+- Génération PDF : feuilles de route (hebdomadaires/journalières), délibérations
+- Versioning des documents (incrément automatique à la regénération)
+- Téléchargement direct ou via token signé à durée limitée
+- Journal d'accès (succès et échecs)
 
-## Decisions d'architecture
+**Notifications**
+- Canaux : in-app et email
+- Priorités : `critical`, `high`, `normal`, `low`
+- Digest configurable par utilisateur (horaire/quotidien)
+- Quiet hours par utilisateur
+- Déduplication par `dedupe_key`
+- Endpoint de santé : `GET /api/notifications/health`
 
-- Les services metier ne doivent pas repondre directement en HTTP (`abort`, `response`, etc.). Ils doivent lever des exceptions metier ou d'autorisation.
-- Les ecritures metier composees (mise a jour + historique + logs) doivent etre executees dans une transaction SQL.
-- Les FormRequest restent la source de verite de validation d'entree HTTP et doivent rester alignes avec les champs reellement traites par les services.
-- Les policies centralisent l'autorisation contextuelle (role + perimetre organisationnel + statut metier).
+**Backups**
+- `php artisan backup:run {files|db|full}` — archive `.tar.gz`
+- `php artisan backup:list` — liste les sauvegardes existantes
+- Rétention configurable (`BACKUP_RETENTION_DAYS`)
 
-## Etat actuel du projet
+**Infrastructure**
+- Idempotence des requêtes critiques via `api_idempotency_keys`
+- Journal de domaine immuable `domain_events` pour l'audit
+- Sessions persistées en base de données
+- Backend inspector : observabilité temps réel des requêtes et événements (démo interne)
 
-Ce qui est deja solide:
-- le schema metier
-- les relations Eloquent
-- les contraintes SQL importantes
-- les enums PHP et casts Eloquent
-- l'authentification utilisateur
-- les roles et permissions Spatie
-- le socle Sanctum pour une SPA React separee
-- les features Auth / Users
-- les features Locations / Municipalities
-- les features Organizations / OrgRegistrationRequests / UserOrgRequests
-- la feature Reservations
-- la feature Council Decisions
-- les features Unavailabilities et historiques
-- la strategie de tests base de donnees et API
+---
 
-Ce qui reste a construire:
-- generation metier de documents et workflows complets
-- configuration de production: CORS, domaines Sanctum, cookies secure, queue, mail
-- notifications metier applicatives
-- synchronisation continue de la documentation technique (`README`, `DBML`, matrices de droits)
+## Commandes artisan utiles
 
-## Limites connues
+```bash
+# Migrations
+docker compose exec app php artisan migrate
+docker compose exec app php artisan migrate:fresh --seed
 
-- La disponibilite chauffeur/vehicule et certains controles de chevauchement utilisent encore des parcours en memoire sur des collections; c'est acceptable au volume actuel mais a optimiser pour des charges plus importantes.
-- La suite de tests est orientee forte valeur metier/API, mais ne couvre pas encore tous les cas de performance et de concurrence.
-- Le pipeline de generation documentaire est en progression, avec des workflows encore partiellement manuels selon les cas.
+# Tests
+docker compose exec app php artisan test
 
-## Hardening production
+# Feuilles de route
+docker compose exec app php artisan route-sheets:generate --start=2026-06-02 --end=2026-06-06
+docker compose exec app php artisan route-sheets:generate-daily --date=2026-06-06
 
-Checklist minimale avant mise en production:
+# Backups
+docker compose exec app php artisan backup:run full
+docker compose exec app php artisan backup:list
 
-- Configurer explicitement `SANCTUM_STATEFUL_DOMAINS` pour les domaines frontend reels.
-- Activer les cookies securises (`SESSION_SECURE_COOKIE=true`) et verifier `SameSite` selon le mode de deploiement.
-- Restreindre `CORS_ALLOWED_ORIGINS` aux seules origines de confiance.
-- Basculer la queue en asynchrone (ex: Redis) et superviser les workers.
-- Configurer un provider mail reel + strategie de retry.
-- Mettre en place la centralisation des logs et alertes sur erreurs critiques.
-- Verifier la rotation des secrets et la gestion des variables d'environnement.
+# Santé notifications
+docker compose exec app php artisan notifications:health
 
-## Modules API disponibles
-
-- `auth`
-- `users`
-- `locations`
-- `municipalities` et `municipality-localities`
-- `vehicles`
-- `drivers`
-- `organizations`
-- `org-registration-requests`
-- `user-org-requests`
-- `reservations`
-- `council-decisions`
-- `unavailabilities`
-- `unavailabilities history`
-- `notifications` (in-app + email + preferences utilisateur)
-
-## Notifications (V1)
-
-- Canaux: `in-app` (table `notifications`) et `email`.
-- Preferences utilisateur: endpoints `GET/PATCH /api/notifications/preferences`.
-- In-app: `GET /api/notifications`, `PATCH /api/notifications/{id}/read`, `PATCH /api/notifications/read-all`.
-- Anti-spam: cooldown configurable (`NOTIFICATIONS_COOLDOWN_MINUTES`).
-- Annulation de derniere minute: seuil configurable (`NOTIFICATIONS_LAST_MINUTE_CANCELLATION_HOURS`, defaut 24h).
-- Documents dans les emails:
-  - petit fichier: piece jointe (max `NOTIFICATIONS_MAIL_MAX_ATTACHMENT_BYTES`);
-  - gros fichier: lien signe temporaire.
-
-## Notifications (V2)
-
-- Digest non urgent (horaire/quotidien) configurable par utilisateur.
-- Quiet hours par utilisateur (`quiet_hours_start` / `quiet_hours_end`).
-- Observabilite minimale:
-  - commande `php artisan notifications:health` (texte) ;
-  - commande `php artisan notifications:health --json` (machine readable) ;
-  - endpoint protege `GET /api/notifications/health` (permission `notifications.monitor`).
-- Liens de telechargement document one-time:
-  - token unique;
-  - expiration;
-  - usage unique;
-  - journalisation des acces (succes/echec).
-
-### Runbook rapide notifications
-
-- Seuils observabilite (variables d'environnement) :
-  - `NOTIFICATIONS_OBS_MAX_FAILED_DELIVERIES_24H`
-  - `NOTIFICATIONS_OBS_MAX_HIGH_PENDING_OVER_5M`
-  - `NOTIFICATIONS_OBS_MAX_LATE_DIGESTS_OVER_30M`
-- Si `status=alert` :
-  - verifier les workers des queues `critical`, `default`, `low` ;
-  - verifier le scheduler (digest + healthcheck) ;
-  - inspecter les lignes `failed` de `notification_deliveries` et relancer les jobs si necessaire.
-
-## Hardening auth/cookies
-
-- Cookies de session:
-  - `SESSION_HTTP_ONLY=true` pour bloquer l'acces JavaScript au cookie ;
-  - `SESSION_SAME_SITE=lax` pour limiter les envois cross-site ;
-  - `SESSION_SECURE_COOKIE=true` en production HTTPS ;
-  - `SESSION_PARTITIONED_COOKIE=false` par defaut (a activer uniquement si besoin cross-site + secure + same_site=none).
-- Sanctum:
-  - `SANCTUM_STATEFUL_DOMAINS` doit lister uniquement les frontends autorises ;
-  - `SANCTUM_TOKEN_PREFIX` active un prefixe de token reconnaissable en secret scanning ;
-  - `SANCTUM_TOKEN_EXPIRATION` permet de fixer une duree de vie aux PAT si utilises.
-- Rate limiting routes sensibles:
-  - `POST /api/auth/register` -> `throttle:10,1`
-  - `POST /api/auth/login` -> `throttle:20,1`
-  - `POST /api/auth/logout` -> `throttle:30,1`
-  - `GET /api/notifications/health` -> `throttle:30,1`
-  - `GET /api/planning/export` -> `throttle:20,1`
-  - `GET /api/documents/{document}/signed-download` -> `throttle:30,1`
-
-## Commandes utiles
-
-```powershell
-php artisan migrate
-php artisan migrate:fresh
-php artisan db:seed
-php artisan test
-composer run dev
-npm run build
+# Caches
+docker compose exec app php artisan config:clear && php artisan route:clear && php artisan cache:clear
 ```
 
-## Notes
+---
 
-- Les anciens fichiers `tests/Unit/ExampleTest.php` et `tests/Feature/ExampleTest.php` sont des placeholders temporaires conserves pour des raisons de workspace local.
-- Les routes API sont definies dans `routes/api.php`.
-- Le frontend React doit appeler `GET /sanctum/csrf-cookie` avant les requetes d'authentification par cookie Sanctum.
+## Configuration essentielle (.env)
 
-## Licence
+| Variable | Description |
+|---|---|
+| `ORS_API_KEY` | Clé API OpenRouteService (géocodage + distances) |
+| `ORS_BASE_URL` | URL de base ORS |
+| `QUEUE_WORKER_QUEUES` | Queues du worker : `critical,default,low` |
+| `SANCTUM_STATEFUL_DOMAINS` | Domaines frontend autorisés (SPA cookie) |
+| `CORS_ALLOWED_ORIGINS` | Origines CORS autorisées |
+| `MAIL_MAILER` | Provider email (`log`, `smtp`, `mailtrap`) |
+| `BACKUP_PATH` | Chemin de stockage des backups |
+| `BACKUP_RETENTION_DAYS` | Durée de rétention des backups (défaut : 14) |
+| `NOTIFICATIONS_OBS_MAX_FAILED_DELIVERIES_24H` | Seuil alerte santé notifications |
+| `BACKEND_INSPECTOR_ENABLED` | Activer le backend inspector (démo) |
 
-Projet distribue sous licence MIT.rnrn<!-- DOCUMENTATION_TECHNIQUE_START -->
+---
+
+## Checklist production
+
+- [ ] `APP_ENV=production`, `APP_DEBUG=false`
+- [ ] `SESSION_SECURE_COOKIE=true` (HTTPS uniquement)
+- [ ] `SANCTUM_STATEFUL_DOMAINS` limité aux frontends réels
+- [ ] `CORS_ALLOWED_ORIGINS` limité aux origines de confiance
+- [ ] Provider email réel configuré avec retry
+- [ ] Queue driver asynchrone (Redis recommandé)
+- [ ] Workers supervisés (Supervisor ou équivalent)
+- [ ] Scheduler configuré (`* * * * * php artisan schedule:run`)
+- [ ] Rotation des secrets et gestion sécurisée des variables d'environnement
+- [ ] Centralisation des logs et alertes sur erreurs critiques
+
+---
 
 ## Documentation technique
 
-Le projet contient plusieurs fichiers de documentation technique dans le dossier `docs/`.
-
-Ces documents servent à expliquer l'architecture, les modules principaux, les règles métier, les accès, les tests et l'intégration future avec le frontend React.
-
-### Vue d'ensemble
-
 | Document | Description |
 |---|---|
-| [`docs/modules.md`](docs/modules.md) | Vue d'ensemble des modules backend de l'application. |
-| [`docs/access-control.md`](docs/access-control.md) | Rôles, permissions, règles d'accès et sécurité des données. |
-| [`docs/testing.md`](docs/testing.md) | Stratégie de tests automatisés et commandes utiles. |
-| [`docs/frontend-integration.md`](docs/frontend-integration.md) | Guide d'intégration pour le futur frontend React. |
+| [`docs/modules.md`](docs/modules.md) | Vue d'ensemble des modules et matrice des permissions |
+| [`docs/access-control.md`](docs/access-control.md) | Rôles, 50 permissions, policies, rate limiting |
+| [`docs/reservations.md`](docs/reservations.md) | Statuts, règles métier, cycle de vie |
+| [`docs/conflicts.md`](docs/conflicts.md) | 12 types de conflits, hard-block vs soft, résolution |
+| [`docs/recurrences.md`](docs/recurrences.md) | Réservations récurrentes, fréquences, annulation cascade |
+| [`docs/organizations.md`](docs/organizations.md) | Types, quotas, bannissement, scoring de confiance |
+| [`docs/notifications.md`](docs/notifications.md) | Canaux, priorités, digest, quiet hours, santé système |
+| [`docs/planning.md`](docs/planning.md) | Filtres, disponibilités, export |
+| [`docs/documents.md`](docs/documents.md) | Stockage, accès, téléchargement sécurisé, tokens signés |
+| [`docs/route_sheets.md`](docs/route_sheets.md) | Feuilles de route, génération, versioning |
+| [`docs/deliberations.md`](docs/deliberations.md) | Délibérations du Collège communal |
+| [`docs/operational-resources.md`](docs/operational-resources.md) | Chauffeurs, véhicules, indisponibilités |
+| [`docs/logging.md`](docs/logging.md) | Stratégie de logs et audit par domaine |
+| [`docs/testing.md`](docs/testing.md) | 419 tests, patterns, seeders |
+| [`docs/backups.md`](docs/backups.md) | Stratégie et commandes de backup |
+| [`docs/frontend-integration.md`](docs/frontend-integration.md) | Guide d'intégration SPA |
+| [`docs/policies-rights-matrix.md`](docs/policies-rights-matrix.md) | Matrice détaillée des policies Laravel |
+| [`oukilemonbus.dbml`](oukilemonbus.dbml) | Schéma complet de la base de données (DBML v7) |
 
-### Modules métier
+---
 
-| Document | Description |
-|---|---|
-| [`docs/reservations.md`](docs/reservations.md) | Fonctionnement du module réservations, statuts, règles métier et conflits. |
-| [`docs/planning.md`](docs/planning.md) | API planning, filtres, export, disponibilités et affichage côté front. |
-| [`docs/operational-resources.md`](docs/operational-resources.md) | Chauffeurs, véhicules, lieux, indisponibilités, conflits et affectations. |
-| [`docs/documents.md`](docs/documents.md) | Gestion documentaire, stockage, accès, téléchargement et sécurité. |
-| [`docs/route_sheets.md`](docs/route_sheets.md) | Feuilles de route journalières par véhicule, génération, versioning et archivage. |
-| [`docs/deliberations.md`](docs/deliberations.md) | Délibérations liées aux décisions administratives du Collège. |
-| [`docs/logging.md`](docs/logging.md) | Stratégie de logs, canaux, données autorisées/interdites et bonnes pratiques. |
+## Licence
 
-### Modules à documenter plus tard
-
-Certains modules devront être documentés lorsqu'ils seront stabilisés :
-
-- notifications ;
-- backups ;
-- éventuelles évolutions du frontend ;
-- optimisations avancées de tournées.
-
-### Commandes de test utiles
-
-Lancer tous les tests :
-
-```bash
-php artisan test
-
-Tester uniquement le module planning :
-
-php artisan test --filter=PlanningApiTest
-
-Tester le calcul d'occupation du bus :
-
-php artisan test --filter=ReservationOccupationServiceTest
-
-Tester les logs :
-
-php artisan test --filter=DomainLoggerTest
-<!-- DOCUMENTATION_TECHNIQUE_END -->rn
+Projet distribué sous licence MIT.

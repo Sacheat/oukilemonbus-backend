@@ -2,6 +2,14 @@
 
 namespace App\Enums;
 
+/**
+ * Types de documents gérés par l'application.
+ * FEUILLE_ROUTE : document journalier par véhicule (généré automatiquement chaque soir).
+ * DELIBERATION : document officiel lié à une décision du Collège communal.
+ * ATTESTATION : document administratif officiel (ex : attestation de transport).
+ * PLANNING : export du planning sur une période donnée.
+ * JUSTIFICATIF : pièce jointe uploadée par un utilisateur (statuts ASBL, délibération de création, etc.).
+ */
 enum DocumentType: string
 {
     case FEUILLE_ROUTE = 'feuille_route';
@@ -32,6 +40,11 @@ enum DocumentType: string
         };
     }
 
+    /**
+     * Indique si ce type de document est un acte administratif officiel.
+     * Les types officiels nécessitent une signature ou un tampon et ne peuvent
+     * pas être modifiés après génération sans créer une nouvelle version.
+     */
     public function requiresOfficial(): bool
     {
         return in_array($this, [self::DELIBERATION, self::ATTESTATION]);

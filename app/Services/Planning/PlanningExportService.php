@@ -7,6 +7,16 @@ use App\Services\Reservations\ReservationOccupationService;
 use Illuminate\Database\Eloquent\Collection;
 use Symfony\Component\HttpFoundation\Response;
 
+/**
+ * Génère l'export planning sous forme de fichier XLS téléchargeable.
+ *
+ * Astuce technique : le fichier produit est du HTML servi avec le Content-Type
+ * `application/vnd.ms-excel`. Excel et LibreOffice l'ouvrent directement sans
+ * conversion. Ne pas remplacer par PhpSpreadsheet sans valider que le besoin le justifie.
+ *
+ * Chaque ligne inclut les horaires de départ et retour avec la fenêtre d'occupation
+ * calculée par ReservationOccupationService (lisible directement par le chauffeur).
+ */
 class PlanningExportService
 {
     public function __construct(

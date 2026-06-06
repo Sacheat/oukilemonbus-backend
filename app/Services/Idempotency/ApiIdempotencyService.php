@@ -8,6 +8,19 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 
+/**
+ * Garantit l'idempotence des requêtes API mutantes via la table api_idempotency_keys.
+ *
+ * Comportement selon l'état de l'enregistrement :
+ *   - Absent              → création du verrou (completed_at = null), exécution de l'action,
+ *                           mise à jour avec la réponse et completed_at = now().
+ *   - Présent, hash ≠     → 422 : clé réutilisée avec un payload différent.
+ *   - Présent, completed_at = null → 409 : requête identique déjà en cours (in-flight lock).
+ *   - Présent, completed_at non null → réponse mise en cache retournée telle quelle (replay).
+ *
+ * Si la table n'existe pas (migration non appliquée), l'action s'exécute sans idempotence.
+ * `lockForUpdate` protège contre les requêtes concurrentes avec la même clé.
+ */
 class ApiIdempotencyService
 {
     /**

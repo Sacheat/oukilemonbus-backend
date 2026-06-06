@@ -8,6 +8,17 @@ use App\Models\User;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\Request;
 
+/**
+ * Résout l'acteur courant de la session démo.
+ *
+ * `current()` lit l'ID utilisateur depuis la session (clé 'demo_user_id').
+ * Si l'utilisateur n'existe plus ou est inactif, bascule sur le premier admin/agent actif
+ * trouvé en base, puis sur n'importe quel utilisateur actif (ordre de priorité décroissant).
+ * Retourne 503 si aucun utilisateur actif n'est disponible.
+ *
+ * `set()` change l'acteur en session et retourne le nouvel utilisateur.
+ * `availableActors()` liste tous les utilisateurs actifs pour le sélecteur d'acteur de la démo.
+ */
 final class DemoActorResolver
 {
     public const SESSION_KEY = 'demo_user_id';

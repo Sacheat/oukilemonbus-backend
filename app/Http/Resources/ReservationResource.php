@@ -6,6 +6,12 @@ use App\Services\Reservations\ReservationOccupationService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
+/**
+ * Resource réservation.
+ * `estimated_occupation` est calculé à la volée par ReservationOccupationService :
+ * il inclut les buffers avant/après le trajet (pickup, dropoff, sécurité, retour).
+ * Retourne null si trip_date, departure_time ou return_time est absent.
+ */
 class ReservationResource extends JsonResource
 {
     public function toArray(Request $request): array

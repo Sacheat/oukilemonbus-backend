@@ -17,6 +17,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'validated_at',
     'notes',
 ])]
+/**
+ * Décision du collège municipal sur une réservation en conflit.
+ * Une seule décision par réservation (contrainte unique sur reservation_id).
+ * APPROUVE lève les conflits de dérogation et permet de faire avancer la réservation.
+ * REFUSE déclenche le rejet automatique de la réservation par CouncilDecisionService.
+ */
 class CouncilDecision extends Model
 {
     use HasFactory;

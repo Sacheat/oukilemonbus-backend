@@ -11,6 +11,20 @@ use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use App\Enums\DocumentType;
 
+/**
+ * Construit le tableau de contexte pour la génération des feuilles de route.
+ *
+ * Deux modes de construction :
+ *   - `buildForServiceDateVehicle()` : contexte journalier pour un véhicule donné
+ *     (template 'route_sheets.daily') — inclut chauffeurs, passagers, itinéraire, etc.
+ *   - `buildForPeriod()` : contexte hebdomadaire pour toutes les réservations CONFIRME
+ *     sur la période (template 'route_sheets.weekly').
+ *
+ * L'URL de navigation Google Maps est construite depuis les coordonnées ORS si disponibles,
+ * sinon depuis l'adresse formatée (fallback dégradé mais fonctionnel).
+ * La durée de conservation légale (retention_until) est calculée à partir de la date de service
+ * (configurable via route_sheets.legal_retention_years, défaut 3 ans).
+ */
 class RouteSheetContextBuilder
 {
     private const TEMPLATE_KEY = 'route_sheets.weekly';

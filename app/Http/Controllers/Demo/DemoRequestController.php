@@ -18,6 +18,11 @@ use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
+/**
+ * Gère les demandes administratives dans la démo sur une seule page :
+ * création d'organisation (OrgRegistrationRequest) et rattachement utilisateur (UserOrgRequest).
+ * Approbation et rejet délèguent aux services métier respectifs.
+ */
 final class DemoRequestController extends DemoBaseController
 {
     public function __construct(

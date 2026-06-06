@@ -7,6 +7,18 @@ namespace App\Services\Demo;
 use App\Models\User;
 use Illuminate\Http\Request;
 
+/**
+ * Assemble l'état complet du Backend Inspector depuis la session et la configuration.
+ *
+ * `state()` retourne un tableau structuré comprenant :
+ *   - L'activation globale (config) et par session (désactivable par l'utilisateur)
+ *   - L'acteur courant inspecté via UserInspectorService
+ *   - Le scénario actif et la dernière action enregistrée (avec contexte)
+ *   - L'historique des actions récentes (action_key → métadonnées du flow)
+ *
+ * Les clés de session sont configurables via config/backend_inspector.session_keys
+ * pour permettre de les préfixer ou de les isoler par environnement.
+ */
 final class BackendInspectorService
 {
     public function __construct(

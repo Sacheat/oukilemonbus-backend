@@ -8,6 +8,11 @@ use App\Services\OrgRegistrationRequests\OrgRegistrationConfidenceScoreService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
+/**
+ * Resource demande d'inscription organisation.
+ * `confidence_details` est calculé à chaque appel par OrgRegistrationConfidenceScoreService::explain()
+ * et n'est pas stocké en base — il détaille les critères ayant contribué au score `confidence_note`.
+ */
 class OrgRegistrationRequestResource extends JsonResource
 {
     public function toArray(Request $request): array

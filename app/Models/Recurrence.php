@@ -16,6 +16,12 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'occurrence_count',
     'is_active',
 ])]
+/**
+ * Série de réservations récurrentes.
+ * N'a pas de FK directe vers Organization — l'organisation est déduite via ses réservations enfants.
+ * `days_of_week` est stocké comme une chaîne CSV ("1,3,5" = lundi, mercredi, vendredi).
+ * `is_active = false` quand toutes les occurrences restantes ont été annulées.
+ */
 class Recurrence extends Model
 {
     use HasFactory;

@@ -7,6 +7,10 @@ use Illuminate\Console\Command;
 use InvalidArgumentException;
 use Throwable;
 
+/**
+ * Déclenche un backup manuel de la base de données et/ou des fichiers privés.
+ * L'archive est stockée dans storage/app/private/backups/ et jamais exposée publiquement.
+ */
 class RunBackupCommand extends Command
 {
     protected $signature = 'backup:run
@@ -29,10 +33,12 @@ class RunBackupCommand extends Command
         try {
             $summary = $backupService->run($type, $includeLogs);
         } catch (InvalidArgumentException $exception) {
+            // Type de backup non reconnu (ni full, db, ni files).
             $this->error($exception->getMessage());
 
             return self::FAILURE;
         } catch (Throwable $exception) {
+            // Toute erreur système (permissions, espace disque, dump SQL) est remontée et reportée.
             report($exception);
             $this->error('Le backup a echoue: '.$exception->getMessage());
 

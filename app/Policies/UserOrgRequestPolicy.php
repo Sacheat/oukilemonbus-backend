@@ -5,6 +5,15 @@ namespace App\Policies;
 use App\Models\User;
 use App\Models\UserOrgRequest;
 
+/**
+ * Contrôle l'accès aux demandes d'adhésion d'un utilisateur à une organisation.
+ *
+ * view() : le demandeur accède à sa propre demande sans permission explicite ;
+ *          les internes et les responsables de l'organisation concernée ont aussi accès.
+ * create() : ouvert à tout utilisateur ayant la permission — pas de restriction interne.
+ * update() : le demandeur OU tout interne peut modifier (pas de vérification de permission).
+ * approve() / reject() : réservés aux internes avec la permission .review.
+ */
 class UserOrgRequestPolicy
 {
     private const array INTERNAL_ROLES = ['admin', 'agent_communal'];

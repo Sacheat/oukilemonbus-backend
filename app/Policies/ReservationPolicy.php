@@ -7,6 +7,27 @@ use App\Models\Organization;
 use App\Models\Reservation;
 use App\Models\User;
 
+/**
+ * Contrôle l'accès aux opérations sur les réservations.
+ *
+ * Deux niveaux de visibilité :
+ *   - Interne (admin, agent_communal) : accès complet à toutes les réservations.
+ *   - Externe : accès limité aux réservations de l'utilisateur lui-même, de son
+ *     organisation (responsable_organisation) ou du chauffeur assigné (chauffeur).
+ *
+ * Actions réservées aux internes :
+ *   - approve()         : EN_ATTENTE ou EN_CONFLIT uniquement.
+ *   - reject()          : toute réservation hors statut terminal REFUSE/ANNULE/CONFIRME.
+ *   - assign()          : toute réservation non terminale.
+ *   - confirm()         : statut APPROUVE uniquement.
+ *   - viewConflicts() / resolveConflict() : permission manage-conflicts requise.
+ *
+ * Actions accessibles aux externes sous conditions :
+ *   - view()              : requester, responsable de l'org, ou chauffeur assigné.
+ *   - update()            : requester ou responsable, statut EN_ATTENTE ou EN_CONFLIT.
+ *   - confirmPassengers() : requester ou responsable, pour toute réservation active.
+ *   - cancel()            : requester, responsable, ou interne — statut actif requis.
+ */
 class ReservationPolicy
 {
     private const array INTERNAL_ROLES = ['admin', 'agent_communal'];

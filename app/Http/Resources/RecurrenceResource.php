@@ -6,6 +6,11 @@ use App\Enums\RecurrenceFrequency;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
+/**
+ * Resource récurrence.
+ * `days_of_week` est stocké en base comme une chaîne CSV ("1,3,5") et désérialisé ici
+ * en tableau d'entiers pour le frontend. Null pour les récurrences MENSUEL.
+ */
 class RecurrenceResource extends JsonResource
 {
     public function toArray(Request $request): array

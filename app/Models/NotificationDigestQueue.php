@@ -20,6 +20,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'available_at',
     'sent_at',
 ])]
+/**
+ * File d'attente des notifications à regrouper en digest email.
+ * `available_at` null = envoi immédiat ; non null = fin de la plage de silence (quiet hours).
+ * `sent_at` null = en attente de traitement par SendUserDigestJob.
+ * Les entrées sont agrégées par utilisateur en un seul email via OperationalDigestNotification.
+ */
 class NotificationDigestQueue extends Model
 {
     use HasFactory;

@@ -6,6 +6,10 @@ use App\Services\Documents\RouteSheetDocumentService;
 use Illuminate\Console\Command;
 use InvalidArgumentException;
 
+/**
+ * Génère manuellement une feuille de route pour une période arbitraire.
+ * Complémentaire de generate-daily qui cible toujours une seule journée par véhicule.
+ */
 class GenerateRouteSheetCommand extends Command
 {
     protected $signature = 'route-sheets:generate {startDate} {endDate}';
@@ -22,6 +26,7 @@ class GenerateRouteSheetCommand extends Command
         try {
             $document = $routeSheetDocumentService->generateForPeriod($startDate, $endDate);
         } catch (InvalidArgumentException $exception) {
+            // Les dates invalides ou les périodes vides remontent une InvalidArgumentException.
             $this->error($exception->getMessage());
 
             return self::FAILURE;

@@ -17,6 +17,13 @@ use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
+/**
+ * Génère les feuilles de route pour tous les véhicules affectés à une date de service donnée.
+ * Implémente ShouldBeUnique avec une clé = serviceDate pour éviter les doublons si le scheduler
+ * se déclenche plusieurs fois. `force = true` régénère même si le document existe déjà.
+ * Backoff exponentiel : 60s → 300s → 900s. File `low` pour ne pas bloquer les workers critiques.
+ * Retourne un tableau résumé {generated, skipped, failed} utilisé par GenerateDailyRouteSheetsCommand.
+ */
 class GenerateDailyRouteSheetsJob implements ShouldBeUnique, ShouldQueue
 {
     use Dispatchable;
@@ -30,6 +37,7 @@ class GenerateDailyRouteSheetsJob implements ShouldBeUnique, ShouldQueue
 
     public bool $failOnTimeout = true;
 
+    // Une seule instance du job par date de service peut exister dans la queue simultanément.
     public int $uniqueFor = 3600;
 
     public function __construct(
@@ -51,6 +59,7 @@ class GenerateDailyRouteSheetsJob implements ShouldBeUnique, ShouldQueue
 
     public function handle(RouteSheetDocumentService $routeSheetDocumentService, DomainLogger $logger): array
     {
+        // Seules les réservations CONFIRME avec un véhicule affecté génèrent une feuille.
         $vehicleIds = Reservation::query()
             ->whereDate('trip_date', $this->serviceDate)
             ->where('status', ReservationStatus::CONFIRME->value)
@@ -123,6 +132,7 @@ class GenerateDailyRouteSheetsJob implements ShouldBeUnique, ShouldQueue
         return $summary;
     }
 
+    // Vérifie par chemin de fichier pour être robuste aux rechargements de données.
     private function dailyRouteSheetExists(int $vehicleId): bool
     {
         return Document::query()

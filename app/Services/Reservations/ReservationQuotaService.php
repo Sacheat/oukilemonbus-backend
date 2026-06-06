@@ -7,6 +7,17 @@ use App\Enums\ReservationStatus;
 use App\Models\Organization;
 use Illuminate\Validation\ValidationException;
 
+/**
+ * Vérifie que l'organisation n'a pas atteint ses plafonds de réservations.
+ *
+ * Trois limites cumulatives vérifiées dans l'ordre :
+ *   1. Demandes en attente (EN_ATTENTE + EN_CONFLIT, futures) ≤ max_pending_requests (défaut 2).
+ *   2. Réservations confirmées futures ≤ max_confirmed_reservations (défaut 2).
+ *   3. Quota annuel APPROUVE + CONFIRME pour l'année du trajet
+ *      (min entre organization.annual_quota et la config, défaut 5).
+ *
+ * Les organisations isQuotaExempt() (ex. écoles) ignorent toutes ces vérifications.
+ */
 class ReservationQuotaService
 {
     public function ensureCanCreate(Organization $organization, string $tripDate): void

@@ -24,6 +24,11 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\Gate;
 
+/**
+ * Gère le cycle de vie complet des réservations via l'API.
+ * Les actions de mutation sensibles (create, cancel, assign) supportent une Idempotency-Key
+ * pour éviter les doublons en cas de double soumission réseau côté frontend.
+ */
 class ReservationController extends Controller
 {
     public function __construct(
@@ -42,6 +47,8 @@ class ReservationController extends Controller
         return ReservationResource::collection(
             Reservation::query()
                 ->with(['organization', 'pickupLocation', 'destinationLocation', 'driver', 'vehicle', 'conflicts'])
+                // Le scope visibleTo filtre selon le rôle : admin/agent voit tout,
+                // user voit ses réservations, chauffeur voit celles où il est assigné.
                 ->visibleTo($user)
                 ->when(request('status'), fn ($query, $status) => $query->where('status', $status))
                 ->when(request('organization_id'), fn ($query, $organizationId) => $query->where('organization_id', $organizationId))
@@ -55,6 +62,7 @@ class ReservationController extends Controller
 
     public function preview(PreviewReservationRequest $request): JsonResponse
     {
+        // Vérifie que l'utilisateur peut créer pour cette organisation avant de calculer le preview.
         Gate::authorize('createForOrganization', [Reservation::class, Organization::findOrFail($request->validated('organization_id'))]);
 
         $preview = $this->previewService->preview($request->validated());
@@ -66,6 +74,8 @@ class ReservationController extends Controller
     {
         $idempotencyKey = $request->header('Idempotency-Key');
         if (is_string($idempotencyKey) && $idempotencyKey !== '') {
+            // Si une Idempotency-Key est fournie, le service rejoue la réponse mise en cache
+            // si la même clé est reçue une seconde fois, évitant la création d'un doublon.
             $response = $this->idempotencyService->execute(
                 user: $request->user(),
                 key: $idempotencyKey,

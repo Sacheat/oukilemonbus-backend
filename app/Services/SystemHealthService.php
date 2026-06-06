@@ -8,6 +8,25 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 
+/**
+ * Vérifie l'état de tous les composants critiques de l'application.
+ *
+ * `check()` retourne un tableau de diagnostics indexés par composant,
+ * chacun avec un statut ('ok', 'warn' ou 'error'), des détails et une durée en ms.
+ *
+ * Composants vérifiés :
+ *   - database      : connexion PDO + version MySQL
+ *   - cache         : écriture/lecture/suppression d'une clé temporaire
+ *   - queue         : jobs failed, bloqués > 5 min, queues orphelines (non écoutées par le worker)
+ *   - storage       : écriture/lecture sur le disque 'local'
+ *   - ors_geocoding : appel /geocode/search ORS avec "Dinant"
+ *   - ors_routing   : appel /v2/directions ORS Dinant → Namur
+ *   - geonames      : appel searchJSON GeoNames avec "Dinant"
+ *   - notifications : métriques NotificationHealthService (pending, failed, late)
+ *   - config        : présence des variables requises (APP_KEY, ORS_API_KEY, DB_*)
+ *
+ * `isHealthy()` retourne false si au moins un composant a le statut 'error'.
+ */
 class SystemHealthService
 {
     public function __construct(

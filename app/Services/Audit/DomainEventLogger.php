@@ -6,6 +6,16 @@ use App\Models\DomainEvent;
 use App\Models\User;
 use Illuminate\Support\Facades\Schema;
 
+/**
+ * Enregistre les événements métier dans la table domain_events (audit structuré).
+ *
+ * Chaque appel à log() crée un enregistrement append-only (UPDATED_AT = null sur le modèle).
+ * Les champs old_values / new_values / context sont en JSON pour permettre des comparaisons
+ * différentielles sans avoir à recréer l'état depuis l'historique.
+ *
+ * Si la table domain_events n'existe pas (migration non appliquée), log() est silencieux.
+ * Distinct de DomainLogger (fichiers de log) : DomainEventLogger cible la base de données.
+ */
 class DomainEventLogger
 {
     public function log(

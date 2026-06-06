@@ -9,6 +9,11 @@ use App\Services\Notifications\NotificationRecipientResolver;
 use Carbon\CarbonImmutable;
 use Illuminate\Console\Command;
 
+/**
+ * Envoie un rappel aux demandeurs pour confirmer la liste de passagers avant le départ.
+ * Cible les réservations CONFIRME, avec chauffeur et véhicule affectés, dont passengers_confirmed_at est encore null.
+ * Conçue pour être appelée par le scheduler chaque matin (ex: J-2 avant le trajet).
+ */
 class SendPassengerConfirmationRemindersCommand extends Command
 {
     protected $signature = 'reservations:send-passenger-reminders
@@ -25,6 +30,8 @@ class SendPassengerConfirmationRemindersCommand extends Command
         $dryRun = (bool) $this->option('dry-run');
         $targetDate = CarbonImmutable::today()->addDays($days)->toDateString();
 
+        // On ne rappelle que les réservations entièrement affectées (chauffeur + véhicule)
+        // dont le demandeur n'a pas encore validé la liste de passagers.
         $reservations = Reservation::query()
             ->whereDate('trip_date', $targetDate)
             ->where('status', ReservationStatus::CONFIRME->value)
@@ -50,6 +57,7 @@ class SendPassengerConfirmationRemindersCommand extends Command
             $requester = $resolver->reservationRequester($reservation);
 
             if ($requester === null) {
+                // Cas rare : la réservation n'a plus de demandeur actif (compte supprimé, etc.).
                 $this->line("  #{$reservation->id} : pas de demandeur trouvé, ignoré.");
                 continue;
             }

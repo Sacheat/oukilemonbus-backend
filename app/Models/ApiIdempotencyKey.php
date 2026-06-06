@@ -16,6 +16,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'response_body',
     'completed_at',
 ])]
+/**
+ * Clé d'idempotence API pour les mutations critiques (création, annulation, assignation de réservation).
+ * Stocke le code et le corps de la réponse d'origine pour replay à l'identique sur requête dupliquée.
+ * `completed_at` null = requête en cours (verrou) ; non null = réponse cachée prête au replay.
+ * Voir IdempotencyService pour la logique de vérification et de mise en cache.
+ */
 class ApiIdempotencyKey extends Model
 {
     public function user(): BelongsTo

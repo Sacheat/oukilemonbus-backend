@@ -8,10 +8,17 @@ use App\Models\Reservation;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
+/**
+ * Requête de création d'une décision de conseil.
+ * `authorize()` charge la réservation depuis la base (pas de route binding) car `reservation_id`
+ * est dans le corps de la requête — nécessaire pour évaluer la Policy.
+ * La règle `unique` sur `reservation_id` empêche une double décision par réservation.
+ */
 class StoreCouncilDecisionRequest extends FormRequest
 {
     public function authorize(): bool
     {
+        // Chargement explicite car reservation_id est dans le body, pas dans la route.
         $reservation = Reservation::query()->find($this->input('reservation_id'));
 
         return $reservation !== null

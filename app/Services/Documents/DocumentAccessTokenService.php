@@ -9,6 +9,22 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
+/**
+ * Émet et consomme les tokens d'accès à usage unique pour le téléchargement de documents.
+ *
+ * `issue()` : crée un DocumentAccessToken avec une durée de vie configurable
+ *   (notifications.mail.signed_link_expiration_minutes, défaut 24h).
+ *
+ * `validateAndConsume()` : vérifie le token en quatre étapes :
+ *   1. Existence (invalid_token si absent)
+ *   2. Non révoqué (revoked_at = null)
+ *   3. Non encore utilisé (used_at = null — usage unique)
+ *   4. Non expiré (expires_at dans le futur)
+ *   Si valide, marque `used_at = now()` (le token ne peut plus être réutilisé).
+ *
+ * Chaque tentative (succès ou échec) est tracée dans DocumentAccessLog
+ * avec IP, user-agent et motif d'échec pour l'audit forensique.
+ */
 class DocumentAccessTokenService
 {
     public function issue(Document $document, ?User $user = null): DocumentAccessToken

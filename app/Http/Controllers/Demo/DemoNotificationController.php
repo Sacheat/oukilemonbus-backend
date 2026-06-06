@@ -13,6 +13,11 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
+/**
+ * Notifications in-app et préférences dans la démo.
+ * Affiche les notifications Laravel (in-app) et les livraisons (NotificationDelivery = email/PDF).
+ * Inclut aussi le résumé de santé du système de notification.
+ */
 final class DemoNotificationController extends DemoBaseController
 {
     public function __construct(

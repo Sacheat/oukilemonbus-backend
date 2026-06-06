@@ -19,6 +19,12 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'created_by_user_id',
     'is_active',
 ])]
+/**
+ * Indisponibilité d'un chauffeur ou d'un véhicule.
+ * `is_active = false` = annulation logique — la ligne est conservée pour l'historique.
+ * `driver_id` XOR `vehicle_id` : une indisponibilité cible soit un chauffeur soit un véhicule,
+ * jamais les deux (validé par UnavailabilityService).
+ */
 class Unavailability extends Model
 {
     use HasFactory;

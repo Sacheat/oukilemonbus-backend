@@ -8,6 +8,10 @@ use App\Services\Demo\DemoActorResolver;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
+/**
+ * Permet de changer l'acteur de démonstration (le rôle joué dans l'interface).
+ * L'acteur précédent est enregistré dans le contexte de l'inspecteur pour traçabilité.
+ */
 final class DemoActorController extends DemoBaseController
 {
     public function __construct(DemoActorResolver $actorResolver)

@@ -21,10 +21,17 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'reviewed_at',
     'rejection_reason',
 ])]
+/**
+ * Demande de rattachement d'un utilisateur à une organisation.
+ * `$primaryKey = 'request_id'` : clé primaire non standard (pas `id`).
+ * `confidence_note` : score de confiance stocké à la création pour orienter la revue agent.
+ * L'approbation ajoute l'utilisateur à l'organisation via le pivot user_organization.
+ */
 class UserOrgRequest extends Model
 {
     use HasFactory;
 
+    // Clé primaire non standard — toujours utiliser request_id pour les lookups.
     protected $primaryKey = 'request_id';
 
     public function organization(): BelongsTo

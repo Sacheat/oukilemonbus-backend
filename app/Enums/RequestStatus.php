@@ -2,18 +2,23 @@
 
 namespace App\Enums;
 
+/**
+ * Statut d'une demande d'inscription d'organisation (OrgRegistrationRequest)
+ * ou d'une demande de rattachement utilisateur-organisation (UserOrgRequest).
+ * Une demande passe de EN_ATTENTE à APPROUVE ou REFUSE lors de l'instruction par un agent.
+ */
 enum RequestStatus: string
 {
     case EN_ATTENTE = 'en_attente';
-    case APPROUVE = 'approuve';
-    case REFUSE = 'refuse';
+    case APPROUVE   = 'approuve';
+    case REFUSE     = 'refuse';
 
     public function label(): string
     {
         return match ($this) {
             self::EN_ATTENTE => 'En attente',
-            self::APPROUVE => 'Approuve',
-            self::REFUSE => 'Refuse',
+            self::APPROUVE   => 'Approuve',
+            self::REFUSE     => 'Refuse',
         };
     }
 
@@ -21,8 +26,8 @@ enum RequestStatus: string
     {
         return match ($this) {
             self::EN_ATTENTE => 'warning',
-            self::APPROUVE => 'success',
-            self::REFUSE => 'danger',
+            self::APPROUVE   => 'success',
+            self::REFUSE     => 'danger',
         };
     }
 

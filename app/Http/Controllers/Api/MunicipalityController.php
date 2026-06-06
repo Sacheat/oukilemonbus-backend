@@ -12,6 +12,11 @@ use App\Services\Municipalities\MunicipalitySettingsService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
+/**
+ * CRUD municipalités et synchronisation des localités.
+ * L'index trie par `is_active` DESC pour que les municipalités actives apparaissent en premier.
+ * `syncLocalities` interroge un fournisseur externe pour mettre à jour les localités rattachées.
+ */
 class MunicipalityController extends Controller
 {
     public function __construct(

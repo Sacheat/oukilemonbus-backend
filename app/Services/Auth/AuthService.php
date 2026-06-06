@@ -9,6 +9,16 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
 use Spatie\Permission\Models\Role;
 
+/**
+ * Gère l'inscription, la connexion et la déconnexion via la garde Sanctum SPA (guard='web').
+ *
+ * register() : crée l'utilisateur, assigne le rôle 'user', envoie la vérification email,
+ *              puis connecte immédiatement la session.
+ * login()    : vérifie le mot de passe ET que le compte est actif (active = true).
+ *              Un compte inactif reçoit le même message d'erreur qu'un mot de passe incorrect
+ *              pour ne pas révéler l'existence du compte.
+ * logout()   : invalide la session web et purge toutes les gardes.
+ */
 class AuthService
 {
     public function register(array $data): User

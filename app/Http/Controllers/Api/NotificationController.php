@@ -10,6 +10,11 @@ use Illuminate\Http\Request;
 use Illuminate\Notifications\DatabaseNotification;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
+/**
+ * Gère les notifications in-app de l'utilisateur connecté (table notifications native Laravel).
+ * L'endpoint /health est réservé à l'admin et concerne les livraisons async (notification_deliveries),
+ * pas les notifications in-app de cet utilisateur.
+ */
 class NotificationController extends Controller
 {
     public function index(Request $request): AnonymousResourceCollection
@@ -28,10 +33,12 @@ class NotificationController extends Controller
         $validated = $this->validateFilters($request, false);
         $query = $this->filteredQuery($request, $validated);
 
-        $total = (clone $query)->count();
+        $total  = (clone $query)->count();
         $unread = (clone $query)->whereNull('read_at')->count();
-        $read = $total - $unread;
+        $read   = $total - $unread;
 
+        // Les métadonnées (category, priority) sont stockées dans la colonne JSON `data`.
+        // JSON_UNQUOTE + JSON_EXTRACT permet de les extraire et grouper directement en SQL.
         $byCategory = (clone $query)
             ->selectRaw("COALESCE(JSON_UNQUOTE(JSON_EXTRACT(data, '$.category')), 'unknown') as category")
             ->selectRaw('COUNT(*) as total')

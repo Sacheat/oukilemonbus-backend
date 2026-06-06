@@ -8,6 +8,12 @@ use App\Models\Reservation;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rules\Enum;
 
+/**
+ * Requête de prévisualisation d'une récurrence.
+ * Sert de classe de base pour StoreRecurrenceRequest.
+ * `days_of_week` est requis sauf pour la fréquence MENSUEL,
+ * car les récurrences mensuelles sont calculées par mois calendaire sans notion de jour de semaine.
+ */
 class PreviewRecurrenceRequest extends FormRequest
 {
     public function authorize(): bool
@@ -28,6 +34,7 @@ class PreviewRecurrenceRequest extends FormRequest
             'trip_purpose'              => ['required', 'string', 'max:500'],
             'activity_type'             => ['sometimes', new Enum(ReservationActivityType::class)],
             'frequency'                 => ['required', new Enum(RecurrenceFrequency::class)],
+            // Jours 1–5 = lundi–vendredi ; non requis pour MENSUEL (mois calendaire).
             'days_of_week'              => ['required_unless:frequency,mensuel', 'nullable', 'array', 'min:1', 'distinct'],
             'days_of_week.*'            => ['integer', 'min:1', 'max:5'],
             'start_date'                => ['required', 'date', 'after_or_equal:today'],

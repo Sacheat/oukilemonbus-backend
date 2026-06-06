@@ -4,6 +4,13 @@ namespace App\Services\Documents\Generators;
 
 use Barryvdh\DomPDF\Facade\Pdf;
 
+/**
+ * Génère le HTML et le PDF des feuilles de route via DomPDF.
+ *
+ * Sélectionne la vue Blade (weekly ou daily) en fonction de la clé de template dans le contexte.
+ * Le PDF est produit en format A4 paysage.
+ * `safeFileName()` sanitize le nom de fichier pour n'autoriser que [a-z0-9.\-_].
+ */
 class RouteSheetGenerator
 {
     private const VIEW = 'documents.route_sheets.weekly';

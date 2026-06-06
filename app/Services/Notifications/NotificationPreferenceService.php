@@ -6,6 +6,18 @@ use Carbon\CarbonImmutable;
 use App\Models\User;
 use App\Models\UserNotificationPreference;
 
+/**
+ * Gère les préférences de notification d'un utilisateur.
+ *
+ * `forUser()` crée les préférences avec les valeurs par défaut si elles n'existent pas encore
+ * (création paresseuse — aucune migration de données nécessaire pour les anciens comptes).
+ *
+ * `channelEnabled()` mappe le couple (catégorie, canal) à la colonne booléenne correspondante.
+ * Une combinaison inconnue retourne true (permissive by default).
+ *
+ * `inQuietHours()` gère les plages de silence nocturne y compris le cas minuit-croisé :
+ * ex. quiet_hours_start = 22, quiet_hours_end = 7 → actif de 22h à 6h59 (Europe/Brussels).
+ */
 class NotificationPreferenceService
 {
     public function forUser(User $user): UserNotificationPreference

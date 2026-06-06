@@ -12,6 +12,20 @@ use RecursiveIteratorIterator;
 use SplFileInfo;
 use Throwable;
 
+/**
+ * Génère des archives de sauvegarde tar.gz natives (sans dépendance externe).
+ *
+ * Trois modes : 'full' (DB + fichiers), 'db' (base de données uniquement), 'files' (fichiers seuls).
+ * La génération du dump SQL est réservée à MySQL (les autres drivers lèvent une exception).
+ * Le dump est généré manuellement en PHP (SHOW CREATE TABLE + INSERT par chunks de 500 lignes).
+ *
+ * L'archive tar.gz est construite avec gzip PHP natif (gzopen/gzwrite/gzclose) sans popen() :
+ * chaque entrée tar est formatée manuellement selon le format POSIX ustar.
+ * Les noms de fichiers > 100 chars sont découpés en (name, prefix) selon la spec tar.
+ *
+ * `pruneOldBackups()` supprime les archives plus anciennes que backups.retention_days (défaut 14).
+ * En cas d'erreur, le fichier partiellement écrit est supprimé avant de propager l'exception.
+ */
 class BackupService
 {
     public function __construct(

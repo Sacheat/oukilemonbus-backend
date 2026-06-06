@@ -28,6 +28,12 @@ use App\Models\Document;
     'reviewed_at',
     'rejection_reason',
 ])]
+/**
+ * Demande de création d'une organisation.
+ * `confidence_note` : score calculé par OrgRegistrationConfidenceScoreService et stocké à la création.
+ * `proof_document_id` FK : justificatif uploadé séparément via uploadProof() — remplace l'ancien varchar.
+ * L'approbation crée l'organisation et retourne OrganizationResource (201).
+ */
 class OrgRegistrationRequest extends Model
 {
     use HasFactory;

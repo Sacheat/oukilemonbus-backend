@@ -8,6 +8,17 @@ use App\Models\CouncilDecision;
 use App\Models\Reservation;
 use App\Models\User;
 
+/**
+ * Contrôle l'accès aux décisions du collège communal.
+ *
+ * view() : les internes voient toutes les décisions ; les externes (requester,
+ *          responsable_organisation, chauffeur assigné) voient celles liées à leurs
+ *          réservations — miroir de ReservationPolicy::view().
+ *
+ * create() / update() : réservés aux internes, avec deux gardes supplémentaires :
+ *   - L'organisation ne doit pas être isCouncilDecisionExempt() (ex. les écoles).
+ *   - Le statut de la réservation doit être EN_ATTENTE, EN_CONFLIT ou APPROUVE.
+ */
 class CouncilDecisionPolicy
 {
     private const array INTERNAL_ROLES = ['admin', 'agent_communal'];

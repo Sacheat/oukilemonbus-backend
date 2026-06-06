@@ -5,6 +5,15 @@ namespace App\Policies;
 use App\Models\Unavailability;
 use App\Models\User;
 
+/**
+ * Contrôle l'accès aux indisponibilités de chauffeurs et véhicules.
+ *
+ * view() : les internes voient toutes les indisponibilités ; un chauffeur ne voit
+ *          que les indisponibilités liées à son propre profil Driver (driver_id).
+ *          Les véhicules n'ont pas de visibilité restreinte par rôle externe.
+ * create() / update() / cancel() : réservés aux internes — les chauffeurs ne peuvent
+ *          pas déclarer ni modifier leurs propres indisponibilités directement.
+ */
 class UnavailabilityPolicy
 {
     private const array INTERNAL_ROLES = ['admin', 'agent_communal'];

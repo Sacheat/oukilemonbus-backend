@@ -2,6 +2,12 @@
 
 namespace App\Enums;
 
+/**
+ * Statut d'une tentative de livraison de notification (table notification_deliveries).
+ * PENDING : en attente dans la queue ou bloquée par les quiet hours / le digest.
+ * SENT : livraison confirmée auprès du canal (in-app enregistrée, email transmis au provider).
+ * FAILED : toutes les tentatives ont échoué ; consultable via notifications:health.
+ */
 enum DeliveryStatus: string
 {
     case PENDING = 'pending';

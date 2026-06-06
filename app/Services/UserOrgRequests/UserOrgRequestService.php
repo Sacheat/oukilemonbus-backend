@@ -11,6 +11,20 @@ use App\Services\Notifications\NotificationRecipientResolver;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
+/**
+ * Gère le cycle de vie des demandes d'adhésion à une organisation.
+ *
+ * `create()` : vérifie qu'aucune demande EN_ATTENTE n'existe déjà pour cette organisation,
+ *   calcule le score de confiance, puis notifie les utilisateurs internes.
+ *
+ * `approve()` : ajoute l'utilisateur à l'organisation via le pivot (relationship_type = requested_role).
+ *   `is_default = true` si l'utilisateur n'a encore aucune organisation (première affiliation).
+ *   Rejette si l'utilisateur est déjà membre.
+ *
+ * `reject()` : supprime le justificatif (inutile après refus) et notifie le demandeur.
+ *
+ * Seules les demandes EN_ATTENTE peuvent être traitées.
+ */
 class UserOrgRequestService
 {
     public function __construct(

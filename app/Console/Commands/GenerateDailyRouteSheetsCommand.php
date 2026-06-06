@@ -7,6 +7,10 @@ use Carbon\CarbonImmutable;
 use Illuminate\Console\Command;
 use Throwable;
 
+/**
+ * Génère les feuilles de route journalières pour tous les véhicules ayant des réservations confirmées.
+ * Utilisée par le scheduler chaque soir pour préparer le lendemain, ou manuellement pour un rattrapage.
+ */
 class GenerateDailyRouteSheetsCommand extends Command
 {
     protected $signature = 'route-sheets:generate-daily
@@ -31,6 +35,8 @@ class GenerateDailyRouteSheetsCommand extends Command
             $force ? ' (force)' : ''
         ));
 
+        // Le job est exécuté directement (synchrone) plutôt que via la queue
+        // pour permettre de lire le résumé et l'afficher dans le terminal.
         $summary = app()->call([
             new GenerateDailyRouteSheetsJob($serviceDate, $force),
             'handle',
@@ -46,6 +52,7 @@ class GenerateDailyRouteSheetsCommand extends Command
         }
 
         foreach ($summary['skipped'] as $skipped) {
+            // Un véhicule est ignoré quand sa feuille existe déjà et que --force n'est pas passé.
             $this->line(sprintf(
                 'Vehicule %d : deja genere, ignore.',
                 $skipped['vehicle_id']
@@ -67,16 +74,23 @@ class GenerateDailyRouteSheetsCommand extends Command
             count($summary['failed'])
         ));
 
+        // La commande échoue si au moins un véhicule a eu une erreur de génération.
         return $summary['failed'] === []
             ? self::SUCCESS
             : self::FAILURE;
     }
 
+    /**
+     * Résout et valide la date de service.
+     * Si aucun argument n'est passé, retourne demain dans le fuseau horaire de génération automatique.
+     */
     private function serviceDate(): ?string
     {
         $argument = $this->argument('serviceDate');
 
         if ($argument === null) {
+            // Le fuseau horaire de génération est configuré dans config/route_sheets.php
+            // pour éviter les décalages lors des runs nocturnes.
             return CarbonImmutable::now(config('route_sheets.automatic_generation_timezone'))
                 ->addDay()
                 ->toDateString();
@@ -90,6 +104,7 @@ class GenerateDailyRouteSheetsCommand extends Command
             return null;
         }
 
+        // Double vérification : createFromFormat peut retourner false ou accepter des dates partielles.
         if ($date === false || $date->format('Y-m-d') !== $argument) {
             $this->error('La date de service doit etre valide et au format YYYY-MM-DD.');
 
