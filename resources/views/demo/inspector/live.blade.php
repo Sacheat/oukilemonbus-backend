@@ -300,6 +300,194 @@
 
         .ti-time { color: var(--muted); font-size: 11px; white-space: nowrap; }
 
+        /* ── Toolbox modal ──────────────────────────────────────────────── */
+        .pill-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            border-radius: 999px;
+            border: 1px solid rgba(56, 189, 248, .45);
+            background: var(--accent-soft);
+            color: var(--accent);
+            font-size: 14px;
+            cursor: pointer;
+            font-family: inherit;
+            transition: background .15s, border-color .15s;
+            white-space: nowrap;
+        }
+
+        .pill-btn:hover { background: rgba(56, 189, 248, .22); border-color: var(--accent); }
+
+        .toolbox-overlay {
+            position: fixed;
+            inset: 0;
+            margin: 0;
+            padding: 24px;
+            border: none;
+            width: 100%;
+            max-width: 100vw;
+            height: 100%;
+            max-height: 100dvh;
+            background: rgba(2, 6, 23, .78);
+            backdrop-filter: blur(6px);
+            z-index: 999;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .toolbox-overlay[open] { display: flex; }
+        .toolbox-overlay::backdrop { display: none; }
+
+        .toolbox-modal {
+            background: var(--panel);
+            border: 1px solid rgba(56, 189, 248, .35);
+            border-radius: 24px;
+            width: 100%;
+            max-width: 900px;
+            max-height: 82vh;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 32px 80px rgba(0, 0, 0, .55);
+            overflow: hidden;
+        }
+
+        .toolbox-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 20px 24px 0;
+            flex-shrink: 0;
+        }
+
+        .toolbox-header h2 { margin: 0; font-size: 22px; letter-spacing: -.03em; }
+
+        .toolbox-close {
+            background: none;
+            border: 1px solid var(--border);
+            color: var(--muted);
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: border-color .15s, color .15s;
+        }
+
+        .toolbox-close:hover { border-color: var(--danger); color: var(--danger); }
+
+        .toolbox-tabs {
+            display: flex;
+            gap: 4px;
+            padding: 16px 24px 0;
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+
+        .toolbox-tab {
+            background: none;
+            border: none;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -1px;
+            padding: 8px 14px;
+            color: var(--muted);
+            font-size: 14px;
+            cursor: pointer;
+            font-family: inherit;
+            border-radius: 8px 8px 0 0;
+            transition: color .15s, background .15s;
+        }
+
+        .toolbox-tab:hover { color: var(--text); background: var(--panel-soft); }
+        .toolbox-tab.active { color: var(--accent); border-bottom-color: var(--accent); background: var(--accent-soft); }
+
+        .toolbox-content { overflow-y: auto; padding: 24px; flex: 1; }
+        .tab-pane { display: none; }
+        .tab-pane.active { display: block; }
+
+        .toolbox-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+
+        .toolbox-table th {
+            text-align: left;
+            color: var(--muted);
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: .08em;
+            padding: 8px 12px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .toolbox-table td {
+            padding: 8px 12px;
+            border-bottom: 1px solid rgba(51, 65, 85, .5);
+            color: var(--text);
+        }
+
+        .toolbox-table tr:last-child td { border-bottom: none; }
+        .toolbox-table td.num { color: var(--accent); font-weight: 600; font-variant-numeric: tabular-nums; }
+
+        .user-group { margin-bottom: 20px; }
+
+        .user-group-title {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: .08em;
+            color: var(--muted);
+            margin: 0 0 10px;
+            padding-bottom: 6px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .user-row {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(51, 65, 85, .35);
+        }
+
+        .user-row:last-child { border-bottom: none; }
+        .user-info { flex: 1; min-width: 0; }
+        .user-name { font-weight: 600; font-size: 14px; }
+        .user-email { color: var(--muted); font-size: 12px; margin-top: 2px; }
+
+        .matrix-wrap { overflow-x: auto; }
+
+        .matrix-table { border-collapse: collapse; font-size: 12px; white-space: nowrap; }
+
+        .matrix-table th {
+            padding: 6px 10px;
+            color: var(--accent);
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: .08em;
+            border-bottom: 1px solid var(--border);
+            text-align: center;
+        }
+
+        .matrix-table th:first-child { text-align: left; color: var(--muted); min-width: 200px; }
+
+        .matrix-table td {
+            padding: 5px 10px;
+            border-bottom: 1px solid rgba(51, 65, 85, .3);
+            text-align: center;
+            color: var(--muted);
+        }
+
+        .matrix-table td:first-child {
+            text-align: left;
+            color: var(--text);
+            font-family: Consolas, 'Courier New', monospace;
+            font-size: 11px;
+        }
+
+        .matrix-check { color: var(--ok); }
+        .toolbox-loading { text-align: center; padding: 40px; color: var(--muted); }
+
         @media (max-width: 950px) {
             .page {
                 padding: 18px;
@@ -334,6 +522,7 @@
         <div class="stack">
             <span id="enabledPill" class="pill">Chargement...</span>
             <span id="lastRefresh" class="pill">Dernière mise à jour : —</span>
+            <button class="pill-btn" onclick="openToolbox()">🧰 Toolbox</button>
         </div>
     </header>
 
@@ -402,6 +591,28 @@
         </article>
     </section>
 </div>
+
+<!-- ── Toolbox modal ──────────────────────────────────────────────── -->
+<dialog id="toolboxOverlay" class="toolbox-overlay" aria-label="Dev Toolbox">
+    <div class="toolbox-modal">
+        <header class="toolbox-header">
+            <h2>🧰 Dev Toolbox</h2>
+            <button class="toolbox-close" onclick="closeToolbox()">✕</button>
+        </header>
+        <nav class="toolbox-tabs">
+            <button class="toolbox-tab active"  onclick="switchToolboxTab('stats',  this)">📊 Base de données</button>
+            <button class="toolbox-tab"         onclick="switchToolboxTab('rules',  this)">📋 Règles métier</button>
+            <button class="toolbox-tab"         onclick="switchToolboxTab('users',  this)">👥 Utilisateurs</button>
+            <button class="toolbox-tab"         onclick="switchToolboxTab('matrix', this)">🔒 Permissions</button>
+        </nav>
+        <div class="toolbox-content">
+            <div id="tab-stats"  class="tab-pane active"><div class="toolbox-loading">Chargement...</div></div>
+            <div id="tab-rules"  class="tab-pane">       <div class="toolbox-loading">Chargement...</div></div>
+            <div id="tab-users"  class="tab-pane">       <div class="toolbox-loading">Chargement...</div></div>
+            <div id="tab-matrix" class="tab-pane">       <div class="toolbox-loading">Chargement...</div></div>
+        </div>
+    </div>
+</dialog>
 
 <script>
     let previousActionKey = null;
@@ -611,6 +822,129 @@
 
         previousActionKey = currentActionKey;
     }
+
+    // ── Toolbox ────────────────────────────────────────────────────────────────
+    let toolboxLoaded = false;
+
+    function openToolbox() {
+        element('toolboxOverlay').showModal();
+        if (!toolboxLoaded) {
+            loadToolboxData();
+            toolboxLoaded = true;
+        }
+    }
+
+    function closeToolbox() {
+        element('toolboxOverlay').close();
+    }
+
+    function switchToolboxTab(name, btn) {
+        document.querySelectorAll('.toolbox-tab').forEach((b) => b.classList.remove('active'));
+        document.querySelectorAll('.tab-pane').forEach((p) => p.classList.remove('active'));
+        btn.classList.add('active');
+        element('tab-' + name).classList.add('active');
+    }
+
+    async function loadToolboxData() {
+        try {
+            const res  = await fetch('/demo/inspector/toolbox', { headers: { Accept: 'application/json' } });
+            const data = await res.json();
+            renderToolboxStats(data.db_stats       || []);
+            renderToolboxRules(data.business_rules  || []);
+            renderToolboxUsers(data.users           || {});
+            renderToolboxMatrix(data.permissions    || {});
+        } catch (err) {
+            ['stats', 'rules', 'users', 'matrix'].forEach((t) => {
+                element('tab-' + t).innerHTML = `<span class="muted">Erreur : ${escapeHtml(err.message)}</span>`;
+            });
+        }
+    }
+
+    function renderToolboxStats(stats) {
+        if (!stats.length) {
+            element('tab-stats').innerHTML = '<span class="muted">Aucune donnée configurée.</span>';
+            return;
+        }
+        element('tab-stats').innerHTML = `
+            <table class="toolbox-table">
+                <thead><tr><th>Entité</th><th>Enregistrements</th></tr></thead>
+                <tbody>${stats.map((s) => `
+                    <tr>
+                        <td>${escapeHtml(s.label)}</td>
+                        <td class="num">${escapeHtml(String(s.count))}</td>
+                    </tr>`).join('')}
+                </tbody>
+            </table>`;
+    }
+
+    function renderToolboxRules(rules) {
+        if (!rules.length) {
+            element('tab-rules').innerHTML = '<span class="muted">Aucune règle configurée.</span>';
+            return;
+        }
+        element('tab-rules').innerHTML = `
+            <table class="toolbox-table">
+                <thead><tr><th>Règle</th><th>Valeur</th></tr></thead>
+                <tbody>${rules.map((r) => `
+                    <tr>
+                        <td>${escapeHtml(r.label)}</td>
+                        <td class="num">${escapeHtml(r.value)}${r.unit ? ` <span style="color:var(--muted);font-size:11px">${escapeHtml(r.unit)}</span>` : ''}</td>
+                    </tr>`).join('')}
+                </tbody>
+            </table>`;
+    }
+
+    function renderToolboxUsers(grouped) {
+        const groups = Object.entries(grouped);
+        if (!groups.length) {
+            element('tab-users').innerHTML = '<span class="muted">Aucun utilisateur.</span>';
+            return;
+        }
+        element('tab-users').innerHTML = groups.map(([role, members]) => `
+            <div class="user-group">
+                <p class="user-group-title">${escapeHtml(role)}</p>
+                ${members.map((u) => `
+                    <div class="user-row">
+                        <div class="user-info">
+                            <div class="user-name">${escapeHtml(u.name)}</div>
+                            <div class="user-email">${escapeHtml(u.email)}</div>
+                        </div>
+                    </div>`).join('')}
+            </div>`).join('');
+    }
+
+    function renderToolboxMatrix(data) {
+        const { roles = [], permissions = [], matrix = {} } = data;
+        if (!roles.length || !permissions.length) {
+            element('tab-matrix').innerHTML = '<span class="muted">Aucune donnée de permissions.</span>';
+            return;
+        }
+        element('tab-matrix').innerHTML = `
+            <div class="matrix-wrap">
+                <table class="matrix-table">
+                    <thead>
+                        <tr>
+                            <th>Permission</th>
+                            ${roles.map((r) => `<th>${escapeHtml(r)}</th>`).join('')}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${permissions.map((perm) => `
+                            <tr>
+                                <td>${escapeHtml(perm)}</td>
+                                ${roles.map((r) => {
+                                    const has = Array.isArray(matrix[r]) && matrix[r].includes(perm);
+                                    return `<td${has ? ' class="matrix-check"' : ''}>${has ? '✓' : ''}</td>`;
+                                }).join('')}
+                            </tr>`).join('')}
+                    </tbody>
+                </table>
+            </div>`;
+    }
+
+    element('toolboxOverlay').addEventListener('click', (e) => {
+        if (e.target === element('toolboxOverlay')) closeToolbox();
+    });
 
     async function refreshInspector() {
         try {

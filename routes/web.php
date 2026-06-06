@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Demo\BackendInspectorController;
+use App\Http\Controllers\Demo\ToolboxController;
 use App\Http\Controllers\Demo\DemoActorController;
 use App\Http\Controllers\Demo\DemoAdminController;
 use App\Http\Controllers\Demo\DemoDashboardController;
@@ -44,6 +45,9 @@ Route::prefix('demo')->name('demo.')->group(function (): void {
 
         Route::post('/reset', [BackendInspectorController::class, 'reset'])
         ->name('reset');
+
+        Route::get('/toolbox', [ToolboxController::class, 'data'])
+        ->name('toolbox');
         });
 
         // Reservations routes
