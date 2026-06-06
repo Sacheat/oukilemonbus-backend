@@ -29,10 +29,17 @@ use Tests\TestCase;
  * 2. Résolution automatique : quand A (réservation bloquante) devient terminale,
  *    les SCHEDULE_OVERLAP pointant vers A sont auto-résolus et la réservation bloquée
  *    est retransitionnée.
+ * 3. Hard-block : si A est APPROUVE ou CONFIRME, créer B sur le même créneau est rejeté
+ *    avec une ValidationException (422), la réservation n'est pas créée.
  *
  * Dates de référence (Carbon::setTestNow = 2026-04-20) :
  *   - trip_date A = 2026-06-16 (mardi, 57 jours — loin du délai minimum de 15 j)
  *   - trip_date B = 2026-06-16 (même jour, même créneau → chevauchement garanti)
+ *
+ * Règle de hard-block :
+ *   - SCHEDULE_OVERLAP avec une réservation APPROUVE ou CONFIRME → hard-block (422).
+ *   - SCHEDULE_OVERLAP avec une réservation EN_ATTENTE → conflit doux (EN_CONFLIT).
+ *   Pour tester la résolution de conflits, A doit donc être EN_ATTENTE (ASBL ou équivalent).
  */
 class ReservationConflictResolutionTest extends TestCase
 {
@@ -67,21 +74,48 @@ class ReservationConflictResolutionTest extends TestCase
     }
 
     // =========================================================================
+    // 0. Hard-block : chevauchement avec une réservation confirmée/approuvée
+    // =========================================================================
+
+    public function test_creating_reservation_on_confirmed_slot_is_rejected_as_hard_block(): void
+    {
+        Http::fake(['https://ors.test/*' => $this->orsOk()]);
+
+        $agent  = $this->user('agent.test@bus-communal.local');
+        $school = $this->org('Ecole communale de Dinant');
+
+        // A (école) → CONFIRME automatiquement (auto-approve + auto-assign)
+        Sanctum::actingAs($agent);
+        $this->postJson('/api/reservations', $this->payload($school))
+            ->assertCreated()
+            ->assertJsonPath('data.status', ReservationStatus::CONFIRME->value);
+
+        // B même créneau → rejeté (hard-block : A est CONFIRME)
+        $this->postJson('/api/reservations', $this->payload($school))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('schedule');
+    }
+
+    // =========================================================================
     // 1. Résolution manuelle — vérification réelle de l'overlap
+    //    A doit être EN_ATTENTE (ASBL) pour que le conflit de B soit doux.
     // =========================================================================
 
     public function test_cannot_manually_resolve_schedule_overlap_while_blocking_reservation_is_active(): void
     {
         Http::fake(['https://ors.test/*' => $this->orsOk()]);
 
-        $agent = $this->user('agent.test@bus-communal.local');
+        $agent  = $this->user('agent.test@bus-communal.local');
         $school = $this->org('Ecole communale de Dinant');
+        $asbl   = $this->org('ASBL Les Amis du Parc');
 
-        // Réservation A confirmée 09:00-11:00
+        // Réservation A (ASBL) en attente sur le créneau 09:00-11:00
         Sanctum::actingAs($agent);
-        $this->postJson('/api/reservations', $this->payload($school))->assertCreated();
+        $this->postJson('/api/reservations', $this->payload($asbl))
+            ->assertCreated()
+            ->assertJsonPath('data.status', ReservationStatus::EN_ATTENTE->value);
 
-        // Réservation B même créneau → SCHEDULE_OVERLAP
+        // Réservation B (école) même créneau → SCHEDULE_OVERLAP avec A (EN_ATTENTE → conflit doux)
         $bId = $this->postJson('/api/reservations', $this->payload($school))
             ->assertCreated()
             ->assertJsonPath('data.status', ReservationStatus::EN_CONFLIT->value)
@@ -102,14 +136,18 @@ class ReservationConflictResolutionTest extends TestCase
     {
         Http::fake(['https://ors.test/*' => $this->orsOk()]);
 
-        $agent = $this->user('agent.test@bus-communal.local');
+        $agent  = $this->user('agent.test@bus-communal.local');
         $school = $this->org('Ecole communale de Dinant');
+        $asbl   = $this->org('ASBL Les Amis du Parc');
 
+        // A (ASBL) en attente sur le créneau
         Sanctum::actingAs($agent);
-        $aId = $this->postJson('/api/reservations', $this->payload($school))
+        $aId = $this->postJson('/api/reservations', $this->payload($asbl))
             ->assertCreated()
+            ->assertJsonPath('data.status', ReservationStatus::EN_ATTENTE->value)
             ->json('data.id');
 
+        // B (école) même créneau → conflit doux (A est EN_ATTENTE)
         $bId = $this->postJson('/api/reservations', $this->payload($school))
             ->assertCreated()
             ->assertJsonPath('data.status', ReservationStatus::EN_CONFLIT->value)
@@ -132,33 +170,36 @@ class ReservationConflictResolutionTest extends TestCase
 
     // =========================================================================
     // 2. Résolution automatique quand la réservation bloquante devient terminale
+    //    A doit être EN_ATTENTE (ASBL) pour que B puisse être créée en EN_CONFLIT.
     // =========================================================================
 
     public function test_cancelling_blocking_reservation_auto_confirms_school_reservation(): void
     {
         Http::fake(['https://ors.test/*' => $this->orsOk()]);
 
-        $agent = $this->user('agent.test@bus-communal.local');
-        $user  = $this->user('user.test@bus-communal.local');
+        $agent  = $this->user('agent.test@bus-communal.local');
+        $user   = $this->user('user.test@bus-communal.local');
         $school = $this->org('Ecole communale de Dinant');
+        $asbl   = $this->org('ASBL Les Amis du Parc');
 
-        // A confirmée (occupe le bus)
-        Sanctum::actingAs($user);
-        $aId = $this->postJson('/api/reservations', $this->payload($school))
+        // A (ASBL) en attente sur le créneau
+        Sanctum::actingAs($agent);
+        $aId = $this->postJson('/api/reservations', $this->payload($asbl))
             ->assertCreated()
-            ->assertJsonPath('data.status', ReservationStatus::CONFIRME->value)
+            ->assertJsonPath('data.status', ReservationStatus::EN_ATTENTE->value)
             ->json('data.id');
 
-        // B créée sur le même créneau → EN_CONFLIT
+        // B (école) même créneau → EN_CONFLIT (A est EN_ATTENTE → conflit doux)
+        Sanctum::actingAs($user);
         $bId = $this->postJson('/api/reservations', $this->payload($school))
             ->assertCreated()
             ->assertJsonPath('data.status', ReservationStatus::EN_CONFLIT->value)
             ->json('data.id');
 
         $this->assertDatabaseHas('reservation_conflicts', [
-            'reservation_id'      => $bId,
-            'type'                => ReservationConflictType::SCHEDULE_OVERLAP->value,
-            'is_resolved'         => false,
+            'reservation_id'         => $bId,
+            'type'                   => ReservationConflictType::SCHEDULE_OVERLAP->value,
+            'is_resolved'            => false,
             'related_reservation_id' => $aId,
         ]);
 
@@ -185,8 +226,8 @@ class ReservationConflictResolutionTest extends TestCase
     {
         Http::fake(['https://ors.test/*' => $this->orsOk()]);
 
-        $agent = $this->user('agent.test@bus-communal.local');
-        $user  = $this->user('user.test@bus-communal.local');
+        $agent  = $this->user('agent.test@bus-communal.local');
+        $user   = $this->user('user.test@bus-communal.local');
         $school = $this->org('Ecole communale de Dinant');
         $asbl   = $this->org('ASBL Les Amis du Parc');
 
@@ -197,7 +238,7 @@ class ReservationConflictResolutionTest extends TestCase
             ->assertJsonPath('data.status', ReservationStatus::EN_ATTENTE->value)
             ->json('data.id');
 
-        // B (école) même créneau → EN_CONFLIT (bloquée par A)
+        // B (école) même créneau → EN_CONFLIT (bloquée par A EN_ATTENTE → conflit doux)
         Sanctum::actingAs($user);
         $bId = $this->postJson('/api/reservations', $this->payload($school))
             ->assertCreated()
@@ -227,20 +268,17 @@ class ReservationConflictResolutionTest extends TestCase
     {
         Http::fake(['https://ors.test/*' => $this->orsOk()]);
 
-        $agent = $this->user('agent.test@bus-communal.local');
-        $user  = $this->user('user.test@bus-communal.local');
-        $school = $this->org('Ecole communale de Dinant');
+        $agent  = $this->user('agent.test@bus-communal.local');
         $asbl   = $this->org('ASBL Les Amis du Parc');
 
-        // A confirmée (école)
-        Sanctum::actingAs($user);
-        $aId = $this->postJson('/api/reservations', $this->payload($school))
+        // A (ASBL) en attente sur le créneau
+        Sanctum::actingAs($agent);
+        $aId = $this->postJson('/api/reservations', $this->payload($asbl))
             ->assertCreated()
-            ->assertJsonPath('data.status', ReservationStatus::CONFIRME->value)
+            ->assertJsonPath('data.status', ReservationStatus::EN_ATTENTE->value)
             ->json('data.id');
 
-        // B (ASBL) même créneau → EN_CONFLIT
-        Sanctum::actingAs($agent);
+        // B (ASBL) même créneau → EN_CONFLIT (A est EN_ATTENTE → conflit doux)
         $bId = $this->postJson('/api/reservations', $this->payload($asbl))
             ->assertCreated()
             ->assertJsonPath('data.status', ReservationStatus::EN_CONFLIT->value)
@@ -268,20 +306,18 @@ class ReservationConflictResolutionTest extends TestCase
     {
         Http::fake(['https://ors.test/*' => $this->orsOk()]);
 
-        $agent = $this->user('agent.test@bus-communal.local');
-        $user  = $this->user('user.test@bus-communal.local');
-        $school = $this->org('Ecole communale de Dinant');
+        $agent  = $this->user('agent.test@bus-communal.local');
         $asbl   = $this->org('ASBL Les Amis du Parc');
 
-        // A confirmée (école)
-        Sanctum::actingAs($user);
-        $aId = $this->postJson('/api/reservations', $this->payload($school))
+        // A (ASBL) en attente sur le créneau
+        Sanctum::actingAs($agent);
+        $aId = $this->postJson('/api/reservations', $this->payload($asbl))
             ->assertCreated()
+            ->assertJsonPath('data.status', ReservationStatus::EN_ATTENTE->value)
             ->json('data.id');
 
-        // B (ASBL) : créneau tardif (retour 17:30 > 16:00) ET overlap avec A
+        // B (ASBL) : créneau tardif (retour 17:30 > 16:00) ET overlap avec A (EN_ATTENTE → conflit doux)
         // → 2 conflits : SCHEDULE_OVERLAP + RETURN_AFTER_ALLOWED_TIME
-        Sanctum::actingAs($agent);
         $bId = $this->postJson('/api/reservations', array_merge($this->payload($asbl), ['return_time' => '17:30']))
             ->assertCreated()
             ->assertJsonPath('data.status', ReservationStatus::EN_CONFLIT->value)

@@ -56,6 +56,14 @@ class ReservationService
             }
 
             $preview = $this->previewService->preview($data);
+
+            if (! ($preview['is_allowed'] ?? true)) {
+                $hardBlock = collect($preview['conflicts'])->first(fn (array $c): bool => $c['is_hard_block'] ?? false);
+                throw ValidationException::withMessages([
+                    'schedule' => [$hardBlock['message'] ?? 'La reservation ne peut pas etre creee : le creneau est physiquement bloquant et ne peut pas etre resolu par l\'agent.'],
+                ]);
+            }
+
             $status = ReservationStatus::from($preview['status']);
 
             $reservation = Reservation::create([
