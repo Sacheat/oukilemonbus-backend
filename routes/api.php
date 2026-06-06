@@ -52,7 +52,7 @@ Route::name('api.')->group(function (): void {
     // =========================================================================
     // Toutes les routes suivantes nécessitent une authentification
     // =========================================================================
-    Route::middleware('auth:sanctum')->group(function (): void {
+    Route::middleware(['auth:sanctum', 'active'])->group(function (): void {
         /**
          * Authentication routes — accessibles sans vérification email
          */

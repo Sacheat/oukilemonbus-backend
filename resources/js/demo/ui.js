@@ -1,3 +1,5 @@
+import { api, apiError } from './api.js';
+
 // ── Badge ────────────────────────────────────────────────────────────────────
 
 const STATUS_CLASS = {
@@ -138,6 +140,119 @@ export function toast(msg, type = '') {
     t.textContent = msg;
     _toastEl.appendChild(t);
     setTimeout(() => t.remove(), 4000);
+}
+
+// ── Location autocomplete (ORS-powered) ──────────────────────────────────────
+//
+// Flow:
+//  1. User types → debounced GET /api/locations/suggest?q=... → ORS autocomplete
+//  2. User picks a suggestion → POST /api/locations (backend déduplique par place_id)
+//  3. Le location_id résultant est stocké et retourné via getLocationId()
+
+export function createLocationSearch(parentEl, inputId, placeholder = 'Saisir une adresse (ex: Rue de la Loi, Bruxelles)…') {
+    let selectedId = null;
+    let debounceTimer = null;
+
+    parentEl.innerHTML = `
+        <div class="loc-wrap">
+            <input type="text" id="input-${inputId}" placeholder="${placeholder}" autocomplete="off">
+            <div class="loc-dropdown" id="drop-${inputId}"></div>
+            <div id="tag-${inputId}"></div>
+        </div>
+    `;
+
+    const input    = parentEl.querySelector(`#input-${inputId}`);
+    const dropdown = parentEl.querySelector(`#drop-${inputId}`);
+    const tagEl    = parentEl.querySelector(`#tag-${inputId}`);
+
+    function markSelected(locationId, label) {
+        selectedId = locationId;
+        input.value = '';
+        input.style.display = 'none';
+        dropdown.classList.remove('open');
+        tagEl.innerHTML = `
+            <div class="loc-selected-tag">
+                ${esc(label)}
+                <button type="button" data-clear>✕</button>
+            </div>
+        `;
+        tagEl.querySelector('[data-clear]').addEventListener('click', () => {
+            selectedId = null;
+            input.style.display = '';
+            input.value = '';
+            tagEl.innerHTML = '';
+            input.focus();
+        });
+    }
+
+    async function confirmSuggestion(suggestion) {
+        dropdown.classList.remove('open');
+        dropdown.innerHTML = '<div class="loc-item muted">Enregistrement…</div>';
+        dropdown.classList.add('open');
+        try {
+            const { data } = await api.post('/locations', {
+                formatted_address: suggestion.formatted_address,
+                street:            suggestion.street        ?? null,
+                street_number:     suggestion.street_number ?? null,
+                postal_code:       suggestion.postal_code   ?? null,
+                city:              suggestion.city          ?? null,
+                country:           suggestion.country       ?? 'Belgique',
+                latitude:          suggestion.latitude,
+                longitude:         suggestion.longitude,
+                place_id:          suggestion.place_id      ?? null,
+            });
+            const loc = data.data;
+            dropdown.classList.remove('open');
+            markSelected(loc.id, loc.formatted_address ?? suggestion.formatted_address);
+        } catch (err) {
+            dropdown.innerHTML = `<div class="loc-item" style="color:var(--danger)">Erreur : ${esc(apiError(err))}</div>`;
+        }
+    }
+
+    async function suggest(q) {
+        dropdown.innerHTML = '<div class="loc-item muted">Recherche…</div>';
+        dropdown.classList.add('open');
+        const { data } = await api.get('/locations/suggest', { params: { q } });
+        const suggestions = data.data ?? [];
+
+        if (!suggestions.length) {
+            dropdown.innerHTML = `<div class="loc-item muted">Aucun résultat ORS pour « ${esc(q)} ».<br><small>Vérifiez la clé ORS_API_KEY dans .env</small></div>`;
+            return;
+        }
+
+        dropdown.innerHTML = suggestions.map((s, i) => `
+            <div class="loc-item" data-idx="${i}">
+                <div class="loc-item-addr">${esc(s.formatted_address ?? s.label)}</div>
+                ${s.city ? `<div class="loc-item-city">${esc(s.city)}${s.postal_code ? ', ' + esc(s.postal_code) : ''}</div>` : ''}
+            </div>
+        `).join('');
+
+        dropdown.querySelectorAll('[data-idx]').forEach(item => {
+            item.addEventListener('click', () => confirmSuggestion(suggestions[item.dataset.idx]));
+        });
+    }
+
+    input.addEventListener('input', () => {
+        const q = input.value.trim();
+        clearTimeout(debounceTimer);
+        if (q.length < 3) { dropdown.classList.remove('open'); return; }
+        debounceTimer = setTimeout(() => suggest(q).catch(() => {
+            dropdown.innerHTML = '<div class="loc-item muted">Erreur de connexion ORS.</div>';
+        }), 300);
+    });
+
+    input.addEventListener('focus', () => {
+        if (input.value.trim().length >= 3 && !selectedId) dropdown.classList.add('open');
+    });
+
+    document.addEventListener('click', e => {
+        if (!parentEl.contains(e.target)) dropdown.classList.remove('open');
+    });
+
+    return {
+        getLocationId: () => selectedId,
+        prefill: (locationId, label) => markSelected(locationId, label),
+    };
 }
 
 // ── Pagination link ───────────────────────────────────────────────────────────

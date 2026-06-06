@@ -1,6 +1,6 @@
 import { api, apiError } from '../api.js';
 import { getUser, hasRole, isInternal } from '../auth.js';
-import { esc, badge, notice, toast, showModal, table } from '../ui.js';
+import { esc, badge, notice, toast, showModal, table, createLocationSearch } from '../ui.js';
 
 const ORG_TYPES = [
     { value: 'ecole_communale',    label: 'École communale' },
@@ -116,6 +116,8 @@ function openDetailModal(org, canBan, onRefresh) {
         ? `<div class="notice error" style="margin-top:12px">Banni — ${esc(org.banned_reason ?? 'aucun motif')}</div>`
         : '';
 
+    const siegeSocial = org.location?.formatted_address ?? (org.location_id ? `Lieu #${org.location_id}` : '—');
+
     const body = `
         <div class="form-grid">
             <label>Nom<br><strong>${esc(org.name)}</strong></label>
@@ -123,6 +125,7 @@ function openDetailModal(org, canBan, onRefresh) {
             <label>Email<br><strong>${esc(org.official_email ?? '—')}</strong></label>
             <label>Téléphone<br><strong>${esc(org.phone_contact ?? '—')}</strong></label>
             <label>Contact<br><strong>${esc(org.name_contact ?? '—')}</strong></label>
+            <label class="full">Siège social<br><strong>${esc(siegeSocial)}</strong></label>
             <label>Quota annuel<br><strong>${QUOTA_EXEMPT_TYPES.includes(org.type) ? 'Illimité' : `${org.reservations_used_this_year ?? 0} utilisées / ${org.annual_quota ?? '—'} max`}</strong></label>
             <label>Prioritaire<br><strong>${org.is_priority ? 'Oui' : 'Non'}</strong></label>
             <label>Statut<br><strong>${org.is_banned ? 'Banni' : 'Actif'}</strong></label>
@@ -156,6 +159,9 @@ function openCreateOrgModal(onSuccess) {
             <label class="full">Nom du contact
                 <input name="name_contact" placeholder="Prénom Nom">
             </label>
+            <label class="full">Siège social
+                <div id="create-org-location" style="margin-top:4px"></div>
+            </label>
             <div class="full" id="create-org-error"></div>
             <div class="full actions">
                 <button type="submit" class="primary">Créer</button>
@@ -165,10 +171,17 @@ function openCreateOrgModal(onSuccess) {
 
     const { close } = showModal('Créer une organisation', body);
 
+    const locSearch = createLocationSearch(
+        document.getElementById('create-org-location'),
+        'create-org-loc'
+    );
+
     document.getElementById('form-create-org').addEventListener('submit', async e => {
         e.preventDefault();
         const fd = new FormData(e.target);
         const payload = Object.fromEntries([...fd.entries()].filter(([, v]) => v !== ''));
+        const locationId = locSearch.getLocationId();
+        if (locationId) payload.location_id = locationId;
         const errEl = document.getElementById('create-org-error');
         errEl.innerHTML = '';
 
@@ -257,6 +270,9 @@ function openRequestOrgModal() {
             <label>Rôle du contact
                 <input name="contact_person_role" placeholder="Président, Trésorier…">
             </label>
+            <label class="full">Siège social
+                <div id="request-org-location" style="margin-top:4px"></div>
+            </label>
             <label class="full">Commentaire
                 <textarea name="comment" placeholder="Informations complémentaires…"></textarea>
             </label>
@@ -269,10 +285,17 @@ function openRequestOrgModal() {
 
     const { close } = showModal('Demande de création d\'organisation', body);
 
+    const locSearch = createLocationSearch(
+        document.getElementById('request-org-location'),
+        'request-org-loc'
+    );
+
     document.getElementById('form-request-org').addEventListener('submit', async e => {
         e.preventDefault();
         const fd = new FormData(e.target);
         const payload = Object.fromEntries([...fd.entries()].filter(([, v]) => v !== ''));
+        const locationId = locSearch.getLocationId();
+        if (locationId) payload.location_id = locationId;
         const errEl = document.getElementById('request-org-error');
         errEl.innerHTML = '';
 

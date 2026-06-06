@@ -51,6 +51,8 @@ class UserService
 
     public function deactivate(User $user): User
     {
+        $user->tokens()->delete();
+
         return $this->updateStatus($user, false);
     }
 }

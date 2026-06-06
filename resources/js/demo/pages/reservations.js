@@ -1,6 +1,6 @@
 import { api, apiError } from '../api.js';
 import { getUser, isInternal } from '../auth.js';
-import { esc, badge, fmtDate, fmtTime, fmtDateTime, showModal, notice, noticeHtml, toast, paginationHtml } from '../ui.js';
+import { esc, badge, fmtDate, fmtTime, fmtDateTime, showModal, notice, noticeHtml, toast, paginationHtml, createLocationSearch } from '../ui.js';
 import { currentQuery } from '../router.js';
 
 const isCreate = () => window.location.hash.includes('/create');
@@ -476,120 +476,6 @@ function openConfirmPassengersModal(r, container, page, filters) {
     });
 }
 
-// ── Location autocomplete (ORS-powered) ──────────────────────────────────────
-//
-// Flow:
-//  1. User types → debounced GET /api/locations/suggest?q=... → ORS autocomplete
-//  2. User picks a suggestion → POST /api/locations with coordinates already set
-//     (backend skips geocoding + deduplicates by place_id)
-//  3. The resulting location_id is stored and passed to the reservation form.
-
-function createLocationSearch(parentEl, inputId) {
-    let selectedId = null;
-    let debounceTimer = null;
-
-    parentEl.innerHTML = `
-        <div class="loc-wrap">
-            <input type="text" id="input-${inputId}" placeholder="Saisir une adresse (ex: Rue de la Loi, Bruxelles)…" autocomplete="off">
-            <div class="loc-dropdown" id="drop-${inputId}"></div>
-            <div id="tag-${inputId}"></div>
-        </div>
-    `;
-
-    const input = parentEl.querySelector(`#input-${inputId}`);
-    const dropdown = parentEl.querySelector(`#drop-${inputId}`);
-    const tagEl = parentEl.querySelector(`#tag-${inputId}`);
-
-    // Called once the user has confirmed a suggestion and we have a DB location_id
-    function markSelected(locationId, label) {
-        selectedId = locationId;
-        input.value = '';
-        input.style.display = 'none';
-        dropdown.classList.remove('open');
-        tagEl.innerHTML = `
-            <div class="loc-selected-tag">
-                ${esc(label)}
-                <button type="button" data-clear>✕</button>
-            </div>
-        `;
-        tagEl.querySelector('[data-clear]').addEventListener('click', () => {
-            selectedId = null;
-            input.style.display = '';
-            input.value = '';
-            tagEl.innerHTML = '';
-            input.focus();
-        });
-    }
-
-    // Save the ORS suggestion to the DB (or get existing) and mark it selected
-    async function confirmSuggestion(suggestion) {
-        dropdown.classList.remove('open');
-        dropdown.innerHTML = '<div class="loc-item muted">Enregistrement…</div>';
-        dropdown.classList.add('open');
-        try {
-            const { data } = await api.post('/locations', {
-                formatted_address: suggestion.formatted_address,
-                street:            suggestion.street ?? null,
-                street_number:     suggestion.street_number ?? null,
-                postal_code:       suggestion.postal_code ?? null,
-                city:              suggestion.city ?? null,
-                country:           suggestion.country ?? 'Belgique',
-                latitude:          suggestion.latitude,
-                longitude:         suggestion.longitude,
-                place_id:          suggestion.place_id ?? null,
-            });
-            const loc = data.data;
-            dropdown.classList.remove('open');
-            markSelected(loc.id, loc.formatted_address ?? suggestion.formatted_address);
-        } catch (err) {
-            dropdown.innerHTML = `<div class="loc-item" style="color:var(--danger)">Erreur : ${esc(apiError(err))}</div>`;
-        }
-    }
-
-    async function suggest(q) {
-        dropdown.innerHTML = '<div class="loc-item muted">Recherche…</div>';
-        dropdown.classList.add('open');
-
-        const { data } = await api.get('/locations/suggest', { params: { q } });
-        const suggestions = data.data ?? [];
-
-        if (!suggestions.length) {
-            dropdown.innerHTML = `<div class="loc-item muted">Aucun résultat ORS pour « ${esc(q)} ».<br><small>Vérifiez la clé ORS_API_KEY dans .env</small></div>`;
-            return;
-        }
-
-        dropdown.innerHTML = suggestions.map((s, i) => `
-            <div class="loc-item" data-idx="${i}">
-                <div class="loc-item-addr">${esc(s.formatted_address ?? s.label)}</div>
-                ${s.city ? `<div class="loc-item-city">${esc(s.city)}${s.postal_code ? ', ' + esc(s.postal_code) : ''}</div>` : ''}
-            </div>
-        `).join('');
-
-        dropdown.querySelectorAll('[data-idx]').forEach(item => {
-            item.addEventListener('click', () => confirmSuggestion(suggestions[item.dataset.idx]));
-        });
-    }
-
-    input.addEventListener('input', () => {
-        const q = input.value.trim();
-        clearTimeout(debounceTimer);
-        if (q.length < 3) { dropdown.classList.remove('open'); return; }
-        debounceTimer = setTimeout(() => suggest(q).catch(() => {
-            dropdown.innerHTML = '<div class="loc-item muted">Erreur de connexion ORS.</div>';
-        }), 300);
-    });
-
-    input.addEventListener('focus', () => {
-        if (input.value.trim().length >= 3 && !selectedId) dropdown.classList.add('open');
-    });
-
-    document.addEventListener('click', e => {
-        if (!parentEl.contains(e.target)) dropdown.classList.remove('open');
-    });
-
-    return { getLocationId: () => selectedId };
-}
-
 // ── Preview display ───────────────────────────────────────────────────────────
 
 const CONFLICT_TYPE_LABELS = {
@@ -755,7 +641,7 @@ async function renderCreateForm(el) {
                     <label class="full">Organisation
                         <select name="organization_id" id="org-select" required>
                             <option value="">Sélectionner une organisation…</option>
-                            ${organizations.map(o => `<option value="${o.id}" data-school="${o.type === 'ecole_communale' ? '1' : '0'}">${esc(o.name)}</option>`).join('')}
+                            ${organizations.map(o => `<option value="${o.id}" data-school="${o.type === 'ecole_communale' ? '1' : '0'}" data-loc-id="${o.location_id ?? ''}" data-loc-label="${esc(o.location?.formatted_address ?? '')}">${esc(o.name)}</option>`).join('')}
                         </select>
                         <div class="field-error" id="err-organization_id"></div>
                     </label>
@@ -871,13 +757,17 @@ async function renderCreateForm(el) {
     const recFields = el.querySelector('#rec-fields');
     const recToggle = el.querySelector('#rec-toggle');
 
-    // Show recurrence block only for communal schools
+    // Show recurrence block only for communal schools + pre-fill departure from org's siège social
     orgSelect.addEventListener('change', () => {
         const opt = orgSelect.selectedOptions[0];
         const isSchool = opt?.dataset.school === '1';
         recurrenceBlock.style.display = isSchool ? '' : 'none';
         if (!isSchool) recToggle.checked = false;
         recFields.style.display = 'none';
+
+        const locId    = opt?.dataset.locId    ? parseInt(opt.dataset.locId, 10) : null;
+        const locLabel = opt?.dataset.locLabel ?? null;
+        if (locId && locLabel) pickupSearch.prefill(locId, locLabel);
     });
 
     // Toggle recurrence fields

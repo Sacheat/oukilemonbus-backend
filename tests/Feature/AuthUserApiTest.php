@@ -290,6 +290,45 @@ class AuthUserApiTest extends TestCase
             ->assertJsonPath('data.active', false);
     }
 
+    public function test_deactivate_revokes_all_sanctum_tokens(): void
+    {
+        $admin = $this->seededUser('admin.test@bus-communal.local');
+        $user = User::factory()->create(['active' => true]);
+        $user->createToken('mobile');
+        $user->createToken('web');
+
+        $this->assertSame(2, $user->tokens()->count());
+
+        $this->actingAs($admin)
+            ->patchJson("/api/users/{$user->id}/deactivate")
+            ->assertNoContent();
+
+        $this->assertSame(0, $user->tokens()->count());
+    }
+
+    public function test_deactivated_user_token_is_rejected(): void
+    {
+        $user = User::factory()->create(['active' => true]);
+        $token = $user->createToken('test')->plainTextToken;
+
+        $user->update(['active' => false]);
+        $user->tokens()->delete();
+
+        $this->withToken($token)
+            ->getJson('/api/auth/me')
+            ->assertUnauthorized();
+    }
+
+    public function test_inactive_user_with_valid_session_is_blocked_by_middleware(): void
+    {
+        $user = User::factory()->create(['active' => false]);
+
+        $this->actingAs($user)
+            ->getJson('/api/auth/me')
+            ->assertForbidden()
+            ->assertJsonPath('message', 'Ce compte a été désactivé.');
+    }
+
     private function seededUser(string $email): User
     {
         return User::query()->where('email', $email)->firstOrFail();
