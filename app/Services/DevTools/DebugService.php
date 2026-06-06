@@ -4,16 +4,17 @@ declare(strict_types=1);
 
 namespace App\Services\DevTools;
 
+use App\Services\Demo\UserInspectorService;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Throwable;
 
 final class DebugService
 {
-    /**
-     * Inspecte un utilisateur par email.
-     * Retourne null si l'utilisateur est introuvable.
-     */
+    public function __construct(
+        private readonly UserInspectorService $userInspector,
+    ) {}
+
     public function inspectUser(string $email): ?array
     {
         /** @var class-string<\Illuminate\Foundation\Auth\User> $userModel */
@@ -28,6 +29,8 @@ final class DebugService
         $firstName = trim((string) ($user->first_name ?? ''));
         $lastName  = trim((string) ($user->last_name ?? ''));
         $fullName  = trim($firstName . ' ' . $lastName) ?: ($user->name ?? '—');
+
+        $inspected = $this->userInspector->inspect($user);
 
         return [
             'id'             => $user->id,
@@ -44,6 +47,7 @@ final class DebugService
             'organizations'  => method_exists($user, 'organizations')
                 ? $user->organizations()->pluck('name')->all()
                 : [],
+            'capabilities'   => $inspected['capabilities'] ?? [],
             'created_at'     => $user->created_at?->format('d/m/Y H:i'),
         ];
     }

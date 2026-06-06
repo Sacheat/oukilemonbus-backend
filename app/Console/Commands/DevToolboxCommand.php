@@ -470,6 +470,14 @@ class DevToolboxCommand extends Command
         $this->line("  <fg=gray>Organisations :</>  {$orgs}");
         $this->newLine();
 
+        if ($data['capabilities'] !== []) {
+            $this->line('  <fg=gray>Capacités :</>');
+            foreach ($data['capabilities'] as $cap) {
+                $this->line("    <fg=green>✓</>  {$cap}");
+            }
+            $this->newLine();
+        }
+
         if ($data['permissions'] !== []) {
             $this->line('  <fg=gray>Permissions (' . count($data['permissions']) . ') :</>');
             foreach (array_chunk($data['permissions'], 3) as $chunk) {
@@ -524,21 +532,28 @@ class DevToolboxCommand extends Command
         $this->line('  <options=bold>🔑  Génération de token Sanctum</>');
         $this->newLine();
 
-        $email = $this->ask('  Email de l\'utilisateur');
+        $grouped = $this->debugService->allUsers();
 
-        if (empty($email)) {
-            $this->warn('  Email vide, opération annulée.');
+        if ($grouped === []) {
+            $this->warn('  Aucun utilisateur en base.');
 
             return true;
         }
+
+        $choices = [];
+        $emails  = [];
+
+        foreach ($grouped as $roleLabel => $members) {
+            foreach ($members as $member) {
+                $choices[] = sprintf('[%-28s]  %-30s  <%s>', $roleLabel, $member['name'], $member['email']);
+                $emails[]  = $member['email'];
+            }
+        }
+
+        $index = array_search($this->choice('  Choisissez un utilisateur', $choices), $choices, true);
+        $email = $emails[$index];
 
         $result = $this->debugService->generateToken($email);
-
-        if ($result === null) {
-            $this->error("  Utilisateur introuvable : {$email}");
-
-            return true;
-        }
 
         $this->newLine();
         $this->line("  <fg=gray>Utilisateur :</> {$result['email']}");

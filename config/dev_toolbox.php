@@ -249,6 +249,9 @@ return [
             'TestLocationsSeeder',
             'TestRequestsSeeder',
             'TestReservationsSeeder',
+            'TestUnavailabilitiesSeeder',
+            'TestScenariosSeeder',
+            'RouteSheetDemoSeeder',
         ],
     ],
 
