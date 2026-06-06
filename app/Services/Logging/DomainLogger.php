@@ -162,28 +162,6 @@ class DomainLogger
         ]));
     }
 
-    public function recurrenceCreated(Recurrence $recurrence, User $actor, int $validCount, int $skippedCount): void
-    {
-        $this->reservations()->info('Recurrence created.', [
-            'recurrence_id'      => $recurrence->id,
-            'actor_id'           => $actor->id,
-            'frequency'          => $recurrence->frequency,
-            'start_date'         => $recurrence->start_date?->toDateString(),
-            'end_date'           => $recurrence->end_date?->toDateString(),
-            'valid_occurrences'  => $validCount,
-            'skipped_occurrences' => $skippedCount,
-        ]);
-    }
-
-    public function recurrenceCancelled(Recurrence $recurrence, User $actor, int $cancelledCount): void
-    {
-        $this->reservations()->info('Recurrence cancelled.', [
-            'recurrence_id'   => $recurrence->id,
-            'actor_id'        => $actor->id,
-            'cancelled_count' => $cancelledCount,
-        ]);
-    }
-
     public function deliberationGenerationFailed(array $context, Throwable $exception): void
     {
         $this->safe(fn () => $this->documents()->error('Deliberation generation failed.', [
