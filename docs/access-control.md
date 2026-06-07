@@ -8,9 +8,15 @@ Ce document décrit le système d'authentification, d'autorisation et de contrô
 
 Le backend utilise **Laravel Sanctum** en mode SPA cookie. Le frontend appelle `GET /sanctum/csrf-cookie` pour initialiser la session, puis s'authentifie via `POST /api/auth/login`.
 
-Les routes API sensibles sont protégées par `middleware('auth:sanctum')`. Un utilisateur non authentifié reçoit une réponse `401 Unauthorized`.
+Les routes API sensibles sont protégées par `middleware(['auth:sanctum', 'active'])`. Un utilisateur non authentifié reçoit `401 Unauthorized` ; un compte désactivé reçoit `403 Forbidden`.
 
-La vérification email est optionnelle mais disponible (`middleware('verified')`).
+La vérification email est requise pour toutes les routes métier (`middleware('verified')`). Seules `/auth/me`, `/auth/logout` et `/email/verify/resend` sont accessibles sans email vérifié.
+
+**Cycle de vie d'un compte**
+
+- `users.update-status` — suspend ou réactive un compte (`active` true/false)
+- `users.deactivate` — désactivation définitive : passe `active` à `false` **et révoque tous les tokens Sanctum** du compte
+- Un compte désactivé est bloqué par `EnsureUserIsActive` avant toute vérification de permission
 
 ---
 
@@ -193,9 +199,11 @@ Au-delà des permissions, les **Policies Laravel** affinent l'accès selon le co
 
 ```
 Requête HTTP
-  → middleware('auth:sanctum')       # L'utilisateur est-il connecté ?
-  → middleware('permission:X.Y')     # A-t-il cette permission ?
-  → Policy::method($user, $model)    # L'accès contextuel est-il autorisé ?
+  → middleware('auth:sanctum')       # L'utilisateur est-il connecté ?          → 401 sinon
+  → middleware('active')             # Le compte est-il actif ?                  → 403 sinon
+  → middleware('verified')           # L'email est-il vérifié ? (routes métier)  → 403 sinon
+  → middleware('permission:X.Y')     # A-t-il cette permission ?                 → 403 sinon
+  → Policy::method($user, $model)    # L'accès contextuel est-il autorisé ?      → 403 sinon
   → FormRequest::authorize()         # Validation supplémentaire si besoin
 ```
 

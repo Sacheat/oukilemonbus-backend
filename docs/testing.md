@@ -1,6 +1,6 @@
 # Stratégie de tests automatisés
 
-**État actuel (juin 2026) : 419 tests — 1807 assertions — 0 échec**
+**État actuel (juin 2026) : 422 tests — 1814 assertions — 0 échec**
 
 ---
 
