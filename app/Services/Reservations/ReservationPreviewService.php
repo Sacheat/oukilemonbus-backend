@@ -31,6 +31,11 @@ use Illuminate\Validation\ValidationException;
  *   8. Conflits bloquants (IMPOSSIBLE_TIME_WINDOW, SCHEDULE_OVERLAP)
  *   9. Avertissements de dérogation (horaire / durée — non bloquants, soumis au collège)
  *
+ * Toutes les règles bloquantes (1 à 7) sont évaluées : le 422 regroupe chaque erreur sous son champ
+ * (ex. préavis ET week-end sur trip_date, distance sur destination_location_id).
+ * `checkTrip()` applique le même pipeline sans l'étape 5 (capacité), qui dépend des passagers :
+ * il sert à vérifier le trajet en direct avant la saisie des passagers et du motif.
+ *
  * `is_hard_block = true` empêche la création même pour un agent.
  * Les avertissements de dérogation n'affectent pas le statut et ne créent pas de ReservationConflict.
  * `detectConflicts()` est publique pour être réutilisée par RecurrenceService (estimation approximative).
@@ -54,23 +59,35 @@ class ReservationPreviewService
 
     public function preview(array $data): array
     {
+        return $this->evaluate($data, checkPassengers: true);
+    }
+
+    /**
+     * Vérifie le trajet seul (organisation, date, horaires, lieux) : mêmes règles et même réponse
+     * que preview(), sans la capacité du véhicule qui dépend du nombre de passagers.
+     */
+    public function checkTrip(array $data): array
+    {
+        return $this->evaluate($data, checkPassengers: false);
+    }
+
+    private function evaluate(array $data, bool $checkPassengers): array
+    {
         $organization = Organization::findOrFail($data['organization_id']);
         $pickup = Location::findOrFail($data['pickup_location_id']);
         $destination = Location::findOrFail($data['destination_location_id']);
 
-        $this->ensureOrganizationNotBanned($organization);
-        $this->ensureMinimumNotice($data['trip_date']);
-        $this->ensureBookableDate($data['trip_date']);
-        $this->ensureBelgianTrip($pickup, $destination);
-        $this->ensureVehicleCapacity($data);
-        $this->quotaService->ensureCanCreate($organization, $data['trip_date']);
-
         $distance = $this->calculateDistance($pickup, $destination);
-        if ($distance['distance_km'] !== null && $distance['distance_km'] > config('reservations.max_distance_km', 50)) {
-            throw ValidationException::withMessages([
-                'destination_location_id' => 'La distance entre le lieu de départ et la destination dépasse 50 km.',
-            ]);
-        }
+
+        $this->ensureNoBlockingRule([
+            fn () => $this->ensureOrganizationNotBanned($organization),
+            fn () => $this->ensureMinimumNotice($data['trip_date']),
+            fn () => $this->ensureBookableDate($data['trip_date']),
+            fn () => $this->ensureBelgianTrip($pickup, $destination),
+            fn () => $checkPassengers ? $this->ensureVehicleCapacity($data) : null,
+            fn () => $this->quotaService->ensureCanCreate($organization, $data['trip_date']),
+            fn () => $this->ensureMaximumDistance($distance['distance_km']),
+        ]);
 
         $estimatedDuration = $distance['estimated_duration_min'];
         $conflicts = $this->detectConflicts($data, $estimatedDuration, $organization);
@@ -115,6 +132,42 @@ class ReservationPreviewService
             'conflicts' => $conflicts,
             'warnings' => $warnings,
         ];
+    }
+
+    /**
+     * Exécute chaque règle bloquante et regroupe toutes les erreurs dans un seul 422,
+     * pour que le front les affiche sous chaque champ plutôt qu'une à la fois.
+     *
+     * @param  list<callable(): mixed>  $checks
+     *
+     * @throws ValidationException
+     */
+    private function ensureNoBlockingRule(array $checks): void
+    {
+        $errors = [];
+
+        foreach ($checks as $check) {
+            try {
+                $check();
+            } catch (ValidationException $exception) {
+                foreach ($exception->errors() as $field => $messages) {
+                    $errors[$field] = [...($errors[$field] ?? []), ...$messages];
+                }
+            }
+        }
+
+        if ($errors !== []) {
+            throw ValidationException::withMessages($errors);
+        }
+    }
+
+    private function ensureMaximumDistance(?float $distanceKm): void
+    {
+        if ($distanceKm !== null && $distanceKm > config('reservations.max_distance_km', 50)) {
+            throw ValidationException::withMessages([
+                'destination_location_id' => 'La distance entre le lieu de départ et la destination dépasse 50 km.',
+            ]);
+        }
     }
 
     public function availabilityForData(array $data, ?int $estimatedDurationMin): array

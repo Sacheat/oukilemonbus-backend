@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Reservations\ApproveReservationRequest;
 use App\Http\Requests\Reservations\AssignReservationRequest;
 use App\Http\Requests\Reservations\CancelReservationRequest;
+use App\Http\Requests\Reservations\CheckTripRequest;
 use App\Http\Requests\Reservations\ConfirmPassengersRequest;
 use App\Http\Requests\Reservations\RetryAutoAssignRequest;
 use App\Http\Requests\Reservations\ConfirmReservationRequest;
@@ -71,6 +72,17 @@ class ReservationController extends Controller
         $preview = $this->previewService->preview($request->validated());
 
         return response()->json(['data' => $preview]);
+    }
+
+    /**
+     * Vérifie le trajet seul (étape 1 du formulaire) : mêmes règles et même réponse que preview(),
+     * sans la capacité du véhicule. Ne crée ni ne modifie rien.
+     */
+    public function checkTrip(CheckTripRequest $request): JsonResponse
+    {
+        Gate::authorize('createForOrganization', [Reservation::class, Organization::findOrFail($request->validated('organization_id'))]);
+
+        return response()->json(['data' => $this->previewService->checkTrip($request->validated())]);
     }
 
     public function store(StoreReservationRequest $request): JsonResponse

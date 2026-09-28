@@ -725,6 +725,8 @@ class ReservationApiTest extends TestCase
         $organization = $this->seededOrganization('Ecole communale de Dinant');
 
         Sanctum::actingAs($user);
+        // Toutes les règles bloquantes sont évaluées, y compris la distance : ORS est appelé.
+        $this->fakeOrsDistance();
 
         $this->postJson('/api/reservations', [
             ...$this->payload($organization),
@@ -740,6 +742,8 @@ class ReservationApiTest extends TestCase
         $organization = $this->seededOrganization('Ecole communale de Dinant');
 
         Sanctum::actingAs($user);
+        // Toutes les règles bloquantes sont évaluées, y compris la distance : ORS est appelé.
+        $this->fakeOrsDistance();
 
         $this->postJson('/api/reservations', [
             ...$this->payload($organization),
@@ -757,6 +761,8 @@ class ReservationApiTest extends TestCase
         $destination->update(['country' => 'France']);
 
         Sanctum::actingAs($user);
+        // Toutes les règles bloquantes sont évaluées, y compris la distance : ORS est appelé.
+        $this->fakeOrsDistance();
 
         $this->postJson('/api/reservations', $this->payload($organization, $pickup, $destination))
             ->assertUnprocessable()
@@ -855,6 +861,15 @@ class ReservationApiTest extends TestCase
             'trip_purpose' => 'Sortie educative',
             'activity_type' => ReservationActivityType::STANDARD->value,
         ];
+    }
+
+    private function fakeOrsDistance(): void
+    {
+        Http::fake([
+            'https://ors.test/*' => Http::response([
+                'routes' => [['summary' => ['distance' => 12000, 'duration' => 1800]]],
+            ]),
+        ]);
     }
 
     private function seededUser(string $email): User

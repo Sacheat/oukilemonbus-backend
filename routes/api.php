@@ -387,6 +387,12 @@ Route::name('api.')->group(function (): void {
             ->middleware('permission:reservations.create')
             ->name('reservations.preview');
 
+        // Vérification du trajet seul, appelée en direct (debounce) pendant la saisie de l'étape 1.
+        Route::post('/reservations/check-trip', [ReservationController::class, 'checkTrip'])
+            ->middleware('throttle:30,1')
+            ->middleware('permission:reservations.create')
+            ->name('reservations.check-trip');
+
         Route::post('/reservations', [ReservationController::class, 'store'])
             ->middleware('permission:reservations.create')
             ->name('reservations.store');

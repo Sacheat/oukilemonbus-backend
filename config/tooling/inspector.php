@@ -27,6 +27,8 @@ return [
     // Noms de routes jamais enregistrés (wildcards acceptés).
     'ignored_routes' => [
         'api.admin.tooling.*',
+        // Appelée en direct pendant la saisie (debounce) : ne pas saturer le journal.
+        'api.reservations.check-trip',
     ],
 
     // Toute clé de payload contenant l'un de ces fragments est masquée (insensible à la casse).
