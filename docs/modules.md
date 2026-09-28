@@ -122,7 +122,7 @@ Ce document liste l'ensemble des modules du backend, leur périmètre fonctionne
 - Voir [`notifications.md`](notifications.md)
 
 ### Backups
-- Commandes : `backup:run {files|db|full}`, `backup:list`
+- Commandes : `backup:run --only={full|db|files}`, `backup:list`
 - Archives `.tar.gz` avec métadonnées
 - Rétention configurable
 - Voir [`backups.md`](backups.md)

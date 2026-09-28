@@ -53,27 +53,27 @@ Le backend n'a plus de dépendance Node : il n'expose aucune page (la route `/` 
 # 1. Copier la configuration
 cp .env.example .env
 
-# 2. Ajouter la variable de queue manquante dans .env
-echo 'QUEUE_WORKER_QUEUES=critical,default,low' >> .env
-
-# 3. Configurer les variables essentielles dans .env :
+# 2. Configurer les variables essentielles dans .env :
 #    - ORS_API_KEY (OpenRouteService)
 #    - MAIL_* (provider email)
 #    - APP_KEY (généré à l'étape suivante)
 
-# 4. Démarrer les conteneurs
+# 3. Démarrer les conteneurs
 docker compose up -d
 
-# 5. Installer les dépendances PHP
+# 4. Installer les dépendances PHP
 docker compose exec app composer install
 
-# 6. Générer la clé applicative
+# 5. Générer la clé applicative
 docker compose exec app php artisan key:generate
 
-# 7. Migrations + seeders
+# 6. Migrations + seeders
 docker compose exec app php artisan migrate
-docker compose exec app php artisan db:seed --class=RolesAndPermissionsSeeder
+docker compose exec app php artisan db:seed   # rôles/permissions + comptes et données de test (APP_ENV=local)
 ```
+
+Comptes de test créés en local (mot de passe `password`) : `admin`, `agent`, `reviewer`, `responsable`, `user`, `chauffeur` `.test@bus-communal.local`.
+En production, ne lancer que `db:seed --class=RolesAndPermissionsSeeder`.
 
 ---
 
@@ -120,31 +120,31 @@ La suite couvre : structure des migrations, contraintes SQL, relations Eloquent,
 
 ## Modules API
 
-Tous les endpoints sont préfixés `/api/` et protégés par Sanctum sauf mention contraire.
+121 routes, toutes préfixées `/api`. Sauf mention contraire, elles exigent une session Sanctum (cookie SPA), un compte actif et un email vérifié, plus la permission indiquée dans `routes/api.php`.
+La référence complète pour le frontend (paramètres, réponses, règles métier, types TypeScript) est le **Guide API** partagé avec l'équipe front : https://claude.ai/artifact/J8W8b7YRXNaYgxPGKqZwEX (accès sur partage).
 
-| Module | Endpoints principaux |
+| Module | Endpoints |
 |---|---|
-| Auth | `POST /auth/register`, `POST /auth/login`, `POST /auth/logout`, `GET /auth/me` |
-| Vérification email | `GET /email/verify/{id}/{hash}`, `POST /email/verify/resend` |
-| Utilisateurs | `GET/POST /users`, `PATCH /users/{id}`, `/deactivate`, `/password`, `/status` |
-| Lieux | `GET /locations/suggest`, `GET/POST /locations`, `PATCH /locations/{id}` |
-| Communes | `GET/POST /municipalities`, `PATCH /{id}`, `/sync-localities`, `/localities` |
-| Organisations | `GET/POST /organizations`, `PATCH /{id}`, `/ban`, `/unban` |
-| Chauffeurs | `GET/POST /drivers`, `PATCH /{id}`, `/activate`, `/deactivate` |
-| Véhicules | `GET/POST /vehicles`, `PATCH /{id}`, `/activate`, `/deactivate` |
-| Demandes inscription org | `GET/POST /org-registration-requests`, `/approve`, `/reject`, `/proof` |
-| Demandes adhésion org | `GET/POST /user-org-requests`, `/approve`, `/reject`, `/proof` |
-| Réservations | `GET/POST /reservations`, `PATCH /{id}`, `/approve`, `/confirm`, `/refuse`, `/cancel`, `/assign-driver`, `/assign-vehicle`, `/retry-auto-assign`, `/confirm-passengers` |
-| Conflits | `GET /reservations/{id}/conflicts`, `PATCH /{conflictId}/resolve` |
-| Récurrences | `GET/POST /recurrences`, `GET /recurrences/preview`, `PATCH /{id}/cancel` |
-| Planning | `GET /planning`, `GET /planning/availability`, `GET /planning/export`, `POST /planning/export/request` |
-| Décisions Collège | `GET/POST /council-decisions`, `PATCH /{id}`, `/generate-document` |
-| Documents | `GET /documents`, `GET /documents/{id}`, `GET /documents/{id}/download`, `GET /documents/{id}/signed-download` |
-| Feuilles de route | `POST /route-sheets/generate`, `POST /route-sheets/generate-daily` |
-| Indisponibilités | `GET/POST /unavailabilities`, `PATCH /{id}`, `DELETE /{id}`, `GET /{id}/history` |
-| Notifications | `GET /notifications`, `/summary`, `/unread-count`, `/health`, `PATCH /{id}/read`, `/read-all`, `/read-by-filter` |
-| Préférences notif. | `GET/PATCH /notifications/preferences` |
-| Outils admin (module Tooling) | `GET /admin/tooling/inspector/*`, `GET /admin/tooling/toolbox/*` — permission `tooling.access` |
+| Auth | `POST /auth/register`, `POST /auth/login` (invité) · `GET /auth/me`, `POST /auth/logout` |
+| Vérification email | `GET /email/verify/{id}/{hash}` (lien signé, public) · `POST /email/verify/resend` |
+| Utilisateurs | `GET /users`, `GET /users/{user}`, `POST /users`, `PATCH /users/{user}`, `PATCH /users/{user}/password`, `/status`, `/deactivate` |
+| Lieux | `GET /locations/suggest`, `GET /locations`, `GET /locations/{location}`, `POST /locations`, `PATCH /locations/{location}` |
+| Communes | `GET /municipalities`, `GET /municipalities/{municipality}`, `POST /municipalities`, `PATCH /municipalities/{municipality}`, `POST /{municipality}/sync-localities`, `POST /{municipality}/localities`, `PATCH /municipality-localities/{id}`, `/deactivate` |
+| Organisations | `GET /organizations`, `GET /organizations/{organization}`, `POST /organizations`, `PATCH /organizations/{organization}`, `POST /{organization}/ban`, `POST /{organization}/unban` |
+| Demandes de création d'organisation | `GET /org-registration-requests`, `GET /{id}`, `POST /org-registration-requests`, `PATCH /{id}/approve`, `PATCH /{id}/reject`, `POST /{id}/proof`, `DELETE /{id}/proof` |
+| Demandes d'adhésion | `GET /user-org-requests/available-organizations`, `GET /user-org-requests`, `GET /{id}`, `POST /user-org-requests`, `PATCH /{id}/approve`, `PATCH /{id}/reject`, `POST /{id}/proof`, `DELETE /{id}/proof` |
+| Chauffeurs | `GET /drivers`, `GET /drivers/{driver}`, `POST /drivers`, `PATCH /drivers/{driver}`, `/activate`, `/deactivate` |
+| Véhicules | `GET /vehicles`, `GET /vehicles/{vehicle}`, `POST /vehicles`, `PATCH /vehicles/{vehicle}`, `/activate`, `/deactivate` |
+| Réservations | `GET /reservations`, `GET /reservations/{reservation}`, `POST /reservations/preview`, `POST /reservations`, `PATCH /reservations/{reservation}`, `/approve`, `/reject`, `/cancel`, `/assign`, `/confirm`, `/retry-assign`, `/confirm-passengers` |
+| Conflits | `GET /reservations/{reservation}/conflicts`, `PATCH /reservations/{reservation}/conflicts/{conflict}/resolve` |
+| Récurrences | `GET /recurrences`, `POST /recurrences/preview`, `POST /recurrences`, `GET /recurrences/{recurrence}`, `PATCH /recurrences/{recurrence}/cancel` |
+| Planning | `GET /planning`, `GET /planning/export` (fichier), `POST /planning/exports` (asynchrone), `GET /planning/exports/{id}` |
+| Décisions du Collège | `GET /council-decisions`, `GET /{councilDecision}`, `POST /council-decisions`, `PATCH /{councilDecision}`, `POST /{councilDecision}/generate-document` |
+| Documents | `GET /documents`, `GET /documents/{document}`, `GET /documents/{document}/download`, `GET /documents/{document}/signed-download` (lien signé), `POST /documents/route-sheets/generate` |
+| Indisponibilités | `GET /unavailabilities`, `GET /{unavailability}`, `POST /unavailabilities`, `PATCH /{unavailability}`, `PATCH /{unavailability}/cancel`, `GET /{unavailability}/history`, `GET /{unavailability}/history/{history}` |
+| Notifications | `GET /notifications`, `/summary`, `/unread-count`, `/health`, `PATCH /notifications/{id}/read`, `PATCH /notifications/read`, `/read-by-filter`, `/read-all` |
+| Préférences de notification | `GET /notifications/preferences`, `PATCH /notifications/preferences` |
+| Outils admin (module Tooling) | `GET /admin/tooling/inspector/{status,entries,entries/{id},flows,flows/{key},users/{user}}`, `DELETE /admin/tooling/inspector/entries`, `GET /admin/tooling/toolbox/{overview,permissions,users,api-catalog,health}` — permission `tooling.access` |
 
 ---
 
@@ -166,53 +166,32 @@ Tous les endpoints sont préfixés `/api/` et protégés par Sanctum sauf mentio
 
 ```text
 app/
-  Console/Commands/          # Commandes artisan (backups, feuilles de route, santé notif.)
-  Enums/                     # Enums PHP typés (ReservationStatus, ConflictType, etc.)
+  Console/Commands/          # 10 commandes artisan (backups, feuilles de route, notifications, santé)
+  Enums/                     # Enums PHP typés (ReservationStatus, ReservationConflictType, etc.)
+  Exceptions/
   Http/
     Controllers/Api/         # 22 contrôleurs REST
     Middleware/              # EnsureUserIsActive
-    Requests/{Module}/       # FormRequests par module
-    Resources/               # Resources API JSON
-  Models/                    # 20+ modèles Eloquent
-  Policies/                  # Policies par ressource
+    Requests/{Module}/       # Form Requests par module
+    Resources/               # API Resources JSON
+  Jobs/                      # Exports planning, feuilles de route, digests
+  Models/                    # 27 modèles Eloquent
+  Notifications/
+  Policies/                  # 8 policies
+  Services/                  # Logique métier par domaine (Reservations, Planning, Documents, Notifications…)
   Tooling/                   # Module isolé : Backend Inspector + Dev Toolbox (voir docs/tooling.md)
-  Services/
-    Auth/
-    Backups/
-    CouncilDecisions/
-    Documents/
-    Drivers/
-    Locations/
-    Logging/                 # DomainLogger — journal d'audit structuré
-    Municipalities/
-    Notifications/
-    OrgRegistrationRequests/
-    Organizations/
-    Planning/
-    Recurrences/
-    Reservations/            # ReservationService, ConflictService, OccupationService...
-    SystemHealthService.php
-    Unavailabilities/
-    UserOrgRequests/
-    Vehicles/
 database/
-  migrations/                # 42 migrations
-  seeders/
-    RolesAndPermissionsSeeder.php
-    TestUsersSeeder.php
-    TestOrganizationsSeeder.php
-    TestLocationsSeeder.php
-    TestFleetSeeder.php
-    TestMunicipalitySeeder.php
+  migrations/                # 42 migrations (+ 1 dans app/Tooling/database/migrations)
+  seeders/                   # RolesAndPermissionsSeeder + jeux de test (Test*Seeder, RouteSheetDemoSeeder)
 docs/                        # Documentation technique par module
 routes/
-  api.php                    # 126 routes API nommées
-  web.php                    # Route / (JSON descriptif) — aucune page
-  tooling.php                # API admin du module Tooling (chargée par ToolingServiceProvider)
+  api.php                    # 109 routes API métier
+  tooling.php                # 12 routes admin du module Tooling (chargées par ToolingServiceProvider)
+  web.php                    # Route / (JSON descriptif), aucune page
   console.php                # Tâches planifiées
 tests/
-  Unit/                      # 12 fichiers — services, générateurs, contextes
-  Feature/                   # 27 fichiers — API, commandes, workflows complets
+  Unit/                      # 12 fichiers
+  Feature/                   # 30 fichiers (API, commandes, workflows, module Tooling)
 ```
 
 ---
@@ -228,8 +207,8 @@ tests/
 
 **Récurrences**
 - Fréquences : hebdomadaire, bihebdomadaire, mensuel
-- Prévisualisation avant création (`GET /recurrences/preview`)
-- Auto-confirmation des occurrences pour les écoles communales
+- Prévisualisation avant création (`POST /recurrences/preview`)
+- Réservées aux écoles communales et au personnel communal ; occurrences approuvées automatiquement
 - Annulation en cascade
 
 **Planning**
@@ -245,14 +224,14 @@ tests/
 
 **Notifications**
 - Canaux : in-app et email
-- Priorités : `critical`, `high`, `normal`, `low`
+- Priorités : `high` (queue `critical`), `normal`, `low`
 - Digest configurable par utilisateur (horaire/quotidien)
 - Quiet hours par utilisateur
-- Déduplication par `dedupe_key`
+- Anti-spam et déduplication (`dedupe_key`)
 - Endpoint de santé : `GET /api/notifications/health`
 
 **Backups**
-- `php artisan backup:run {files|db|full}` — archive `.tar.gz`
+- `php artisan backup:run --only={full|db|files}` — archive `.tar.gz`
 - `php artisan backup:list` — liste les sauvegardes existantes
 - Rétention configurable (`BACKUP_RETENTION_DAYS`)
 
@@ -275,15 +254,22 @@ docker compose exec app php artisan migrate:fresh --seed
 docker compose exec app php artisan test
 
 # Feuilles de route
-docker compose exec app php artisan route-sheets:generate --start=2026-06-02 --end=2026-06-06
-docker compose exec app php artisan route-sheets:generate-daily --date=2026-06-06
+docker compose exec app php artisan route-sheets:generate 2026-06-02 2026-06-06
+docker compose exec app php artisan route-sheets:generate-daily 2026-06-06   # défaut : demain ; --force pour regénérer
 
 # Backups
-docker compose exec app php artisan backup:run full
+docker compose exec app php artisan backup:run --only=full   # full | db | files, --include-logs
 docker compose exec app php artisan backup:list
 
-# Santé notifications
+# Santé
+docker compose exec app php artisan app:health               # base, cache, queue, stockage, ORS, GeoNames
 docker compose exec app php artisan notifications:health
+
+# Maintenance planifiée (lancées aussi par le scheduler)
+docker compose exec app php artisan notifications:send-digests
+docker compose exec app php artisan notifications:prune
+docker compose exec app php artisan documents:prune-orphan-proofs --dry-run
+docker compose exec app php artisan reservations:send-passenger-reminders --dry-run
 
 # Outils (module Tooling)
 docker compose exec app php artisan dev:toolbox            # menu interactif (local/testing)
