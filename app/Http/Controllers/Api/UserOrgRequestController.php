@@ -69,14 +69,9 @@ class UserOrgRequestController extends Controller
                 ->when(
                     ! $user->hasAnyRole(['admin', 'agent_communal']),
                     fn ($query) => $query->where(function ($query) use ($user): void {
+                        // Ses propres demandes + celles adressées aux organisations qu'il gère.
                         $query->where('requested_by_user_id', $user->getKey())
-                            ->when(
-                                $user->hasRole('responsable_organisation'),
-                                fn ($query) => $query->orWhereHas(
-                                    'organization.users',
-                                    fn ($query) => $query->whereKey($user->getKey())
-                                )
-                            );
+                            ->orWhereIn('organization_id', $user->managedOrganizationIds());
                     })
                 )
                 ->orderByDesc('confidence_note')

@@ -107,6 +107,10 @@ Route::name('api.')->group(function (): void {
             ->middleware('permission:users.update-status')
             ->name('users.update-status');
 
+        Route::patch('/users/{user}/roles', [UserController::class, 'updateRoles'])
+            ->middleware('permission:users.manage-roles')
+            ->name('users.update-roles');
+
         Route::patch('/users/{user}/deactivate', [UserController::class, 'deactivate'])
             ->middleware('permission:users.deactivate')
             ->name('users.deactivate');

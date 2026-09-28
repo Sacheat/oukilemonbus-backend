@@ -65,6 +65,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'notifications.monitor',
             'recurrences.cancel',
             'tooling.access',
+            'users.manage-roles',
         ];
 
         foreach ($permissions as $permission) {
@@ -75,7 +76,8 @@ class RolesAndPermissionsSeeder extends Seeder
         $user = Role::findOrCreate('user', 'web');
         $chauffeur = Role::findOrCreate('chauffeur', 'web');
         $agentCommunal = Role::findOrCreate('agent_communal', 'web');
-        $responsableOrganisation = Role::findOrCreate('responsable_organisation', 'web');
+
+        $this->removeLegacyResponsableRole($user);
 
         // admin = toutes les permissions sans exception.
         // Réservé aux développeurs et au support applicatif, pas aux agents communaux.
@@ -85,9 +87,12 @@ class RolesAndPermissionsSeeder extends Seeder
         //   - users.deactivate    : désactivation définitive d'un compte, action destructrice irréversible
         //   - notifications.monitor : health check système, outil de support/debug
         //   - tooling.access        : module Tooling (Backend Inspector, Dev Toolbox en lecture)
-        $admin->givePermissionTo($permissions);
+        //   - users.manage-roles    : attribution des rôles globaux
+        // syncPermissions : chaque rôle a EXACTEMENT la liste ci-dessous, y compris après un re-seed
+        // (givePermissionTo ne faisait qu'ajouter et laissait subsister d'anciennes permissions).
+        $admin->syncPermissions($permissions);
 
-        $user->givePermissionTo([
+        $user->syncPermissions([
             'users.view',
             'locations.view',
             'locations.create',
@@ -107,7 +112,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'documents.download',
         ]);
 
-        $chauffeur->givePermissionTo([
+        $chauffeur->syncPermissions([
             'users.view',
             'locations.view',
             'municipalities.view',
@@ -130,7 +135,7 @@ class RolesAndPermissionsSeeder extends Seeder
         // décisions du conseil, indisponibilités, chauffeurs et véhicules.
         // Ne peut pas créer/modérer des comptes ni accéder aux outils système (réservés à admin).
         // Si une nouvelle permission est ajoutée, vérifier si elle est métier (ici) ou système (admin).
-        $agentCommunal->givePermissionTo([
+        $agentCommunal->syncPermissions([
             'users.view',
             'users.update',
             'locations.view',
@@ -178,26 +183,27 @@ class RolesAndPermissionsSeeder extends Seeder
             'documents.update',
         ]);
 
-        $responsableOrganisation->givePermissionTo([
-            'users.view',
-            'locations.view',
-            'locations.create',
-            'municipalities.view',
-            'org-registration-requests.view',
-            'org-registration-requests.create',
-            'user-org-requests.view',
-            'user-org-requests.create',
-            'organizations.view',
-            'council-decisions.view',
-            'reservations.view',
-            'reservations.create',
-            'reservations.update',
-            'reservations.cancel',
-            'recurrences.cancel',
-            'documents.view',
-            'documents.download',
-        ]);
-
         app(PermissionRegistrar::class)->forgetCachedPermissions();
+    }
+
+    /**
+     * Le rôle global responsable_organisation n'existe plus : être responsable dépend désormais
+     * de la relation avec chaque organisation (UserOrganization::MANAGER_TYPES).
+     * Ses détenteurs repassent au rôle user avant suppression. Sans effet si le rôle est déjà absent.
+     */
+    private function removeLegacyResponsableRole(Role $userRole): void
+    {
+        $legacy = Role::query()->where('name', 'responsable_organisation')->where('guard_name', 'web')->first();
+
+        if ($legacy === null) {
+            return;
+        }
+
+        foreach ($legacy->users()->get() as $member) {
+            $member->removeRole($legacy);
+            $member->assignRole($userRole);
+        }
+
+        $legacy->delete();
     }
 }

@@ -8,7 +8,12 @@ class DriverService
 {
     public function create(array $data): Driver
     {
-        return Driver::create($data);
+        $driver = Driver::create($data);
+
+        // Un profil chauffeur donne accès à l'espace chauffeur (missions, feuilles de route).
+        $driver->user?->assignRole('chauffeur');
+
+        return $driver;
     }
 
     public function update(Driver $driver, array $data): Driver

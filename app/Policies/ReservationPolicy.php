@@ -12,8 +12,10 @@ use App\Models\User;
  *
  * Deux niveaux de visibilité :
  *   - Interne (admin, agent_communal) : accès complet à toutes les réservations.
- *   - Externe : accès limité aux réservations de l'utilisateur lui-même, de son
- *     organisation (responsable_organisation) ou du chauffeur assigné (chauffeur).
+ *   - Externe : réservations de ses organisations (tout membre, en lecture), les siennes,
+ *     ou celles où il est le chauffeur assigné.
+ * Gestion externe (modifier, annuler, confirmer les passagers) : le demandeur, ou un
+ * responsable de l'organisation (User::managesOrganization, par organisation).
  *
  * Actions réservées aux internes :
  *   - approve()         : EN_ATTENTE ou EN_CONFLIT uniquement.
@@ -23,8 +25,8 @@ use App\Models\User;
  *   - viewConflicts() / resolveConflict() : permission manage-conflicts requise.
  *
  * Actions accessibles aux externes sous conditions :
- *   - view()              : requester, responsable de l'org, ou chauffeur assigné.
- *   - update()            : requester ou responsable, statut EN_ATTENTE ou EN_CONFLIT.
+ *   - view()              : requester, membre de l'org, ou chauffeur assigné.
+ *   - update()            : requester ou responsable de l'org, statut EN_ATTENTE ou EN_CONFLIT.
  *   - confirmPassengers() : requester ou responsable, pour toute réservation active.
  *   - cancel()            : requester, responsable, ou interne — statut actif requis.
  */
@@ -51,7 +53,8 @@ class ReservationPolicy
             return true;
         }
 
-        if ($user->hasRole('responsable_organisation') && $this->belongsToUserOrganization($user, $reservation->organization_id)) {
+        // Tout membre de l'organisation voit ses réservations (lecture seule).
+        if ($user->isMemberOf($reservation->organization_id)) {
             return true;
         }
 
@@ -80,7 +83,7 @@ class ReservationPolicy
             return true;
         }
 
-        return $this->belongsToUserOrganization($user, $organization->getKey());
+        return $user->isMemberOf($organization);
     }
 
     public function update(User $user, Reservation $reservation): bool
@@ -97,7 +100,7 @@ class ReservationPolicy
             return false;
         }
 
-        if ($user->hasRole('responsable_organisation') && $this->belongsToUserOrganization($user, $reservation->organization_id)) {
+        if ($user->managesOrganization($reservation->organization_id)) {
             return true;
         }
 
@@ -114,7 +117,7 @@ class ReservationPolicy
             return true;
         }
 
-        if ($user->hasRole('responsable_organisation') && $this->belongsToUserOrganization($user, $reservation->organization_id)) {
+        if ($user->managesOrganization($reservation->organization_id)) {
             return true;
         }
 
@@ -152,7 +155,7 @@ class ReservationPolicy
             return true;
         }
 
-        if ($user->hasRole('responsable_organisation') && $this->belongsToUserOrganization($user, $reservation->organization_id)) {
+        if ($user->managesOrganization($reservation->organization_id)) {
             return true;
         }
 
@@ -189,17 +192,6 @@ class ReservationPolicy
     private function isInternal(User $user): bool
     {
         return $user->hasAnyRole(self::INTERNAL_ROLES);
-    }
-
-    private function belongsToUserOrganization(User $user, mixed $organizationId): bool
-    {
-        if ($organizationId === null) {
-            return false;
-        }
-
-        return $user->organizations()
-            ->whereKey($organizationId)
-            ->exists();
     }
 
     private function isUserEditableStatus(Reservation $reservation): bool

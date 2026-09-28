@@ -29,6 +29,9 @@ class User extends Authenticatable implements MustVerifyEmail
     /** @use HasFactory<UserFactory> */
     use HasApiTokens, HasFactory, HasRoles, Notifiable;
 
+    /** Rôles globaux. Être responsable d'une organisation dépend de l'appartenance, pas d'un rôle. */
+    public const array GLOBAL_ROLES = ['admin', 'agent_communal', 'chauffeur', 'user'];
+
     // Spatie Permission doit utiliser le guard web même dans un contexte API Sanctum SPA.
     protected string $guard_name = 'web';
 
@@ -53,6 +56,38 @@ class User extends Authenticatable implements MustVerifyEmail
             ->using(UserOrganization::class)
             ->withPivot(['relationship_type', 'is_default'])
             ->withTimestamps();
+    }
+
+    public function isMemberOf(Organization|int|null $organization): bool
+    {
+        $organizationId = $organization instanceof Organization ? $organization->getKey() : $organization;
+
+        return $organizationId !== null
+            && $this->organizations()->whereKey($organizationId)->exists();
+    }
+
+    /**
+     * Responsable de l'organisation : relation de type responsable ou directeur (UserOrganization::MANAGER_TYPES).
+     * Les droits de gestion sont portés par l'appartenance, pas par un rôle global.
+     */
+    public function managesOrganization(Organization|int|null $organization): bool
+    {
+        $organizationId = $organization instanceof Organization ? $organization->getKey() : $organization;
+
+        return $organizationId !== null
+            && $this->organizations()
+                ->whereKey($organizationId)
+                ->wherePivotIn('relationship_type', UserOrganization::MANAGER_TYPES)
+                ->exists();
+    }
+
+    /** @return list<int> */
+    public function managedOrganizationIds(): array
+    {
+        return $this->organizations()
+            ->wherePivotIn('relationship_type', UserOrganization::MANAGER_TYPES)
+            ->pluck('organizations.id')
+            ->all();
     }
 
     public function requestedReservations(): HasMany
