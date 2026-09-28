@@ -55,11 +55,11 @@ class OrgRegistrationConfidenceScoreService
 
     private function scoreCompleteness(OrgRegistrationRequest $request, int &$score, array &$reasons, array &$warnings): void
     {
-        $this->addWhenFilled($request->official_email, 10, 'Email officiel renseigne.', $score, $reasons);
-        $this->addWhenFilled($request->phone, 8, 'Telephone de contact renseigne.', $score, $reasons);
-        $this->addWhenFilled($request->contact_person_name, 8, 'Personne de contact renseignee.', $score, $reasons);
-        $this->addWhenFilled($request->contact_person_role, 5, 'Role de la personne de contact renseigne.', $score, $reasons);
-        $this->addWhenFilled($request->location_id, 5, 'Adresse renseignee.', $score, $reasons);
+        $this->addWhenFilled($request->official_email, 10, 'Email officiel renseigné.', $score, $reasons);
+        $this->addWhenFilled($request->phone, 8, 'Téléphone de contact renseigné.', $score, $reasons);
+        $this->addWhenFilled($request->contact_person_name, 8, 'Personne de contact renseignée.', $score, $reasons);
+        $this->addWhenFilled($request->contact_person_role, 5, 'Rôle de la personne de contact renseigné.', $score, $reasons);
+        $this->addWhenFilled($request->location_id, 5, 'Adresse renseignée.', $score, $reasons);
         $this->addWhenFilled($request->proof_document_id, 15, 'Document justificatif fourni.', $score, $reasons);
 
         if (blank($request->phone) && blank($request->contact_person_name)) {
@@ -73,20 +73,20 @@ class OrgRegistrationConfidenceScoreService
         if ($request->organization_type === OrganizationType::ASBL) {
             if (filled($request->enterprise_number)) {
                 $score += 15;
-                $reasons[] = 'Numero BCE fourni pour une ASBL.';
+                $reasons[] = 'Numéro BCE fourni pour une ASBL.';
 
                 return;
             }
 
             $score -= 10;
-            $warnings[] = 'Numero BCE manquant pour une ASBL.';
+            $warnings[] = 'Numéro BCE manquant pour une ASBL.';
 
             return;
         }
 
         if (filled($request->enterprise_number)) {
             $score += 5;
-            $reasons[] = 'Numero BCE fourni.';
+            $reasons[] = 'Numéro BCE fourni.';
         }
     }
 
@@ -97,14 +97,14 @@ class OrgRegistrationConfidenceScoreService
         }
 
         if (! $request->location) {
-            $warnings[] = 'Adresse absente ou non rattachee.';
+            $warnings[] = 'Adresse absente ou non rattachée.';
 
             return;
         }
 
         if ($request->location->is_verified) {
             $score += 5;
-            $reasons[] = 'Adresse verifiee.';
+            $reasons[] = 'Adresse vérifiée.';
         }
 
         if ($this->municipalityService->containsLocation($request->location)) {
@@ -135,7 +135,7 @@ class OrgRegistrationConfidenceScoreService
 
         if ($request->requestedByUser->email_verified_at !== null) {
             $score += 5;
-            $reasons[] = 'Email du demandeur verifie.';
+            $reasons[] = 'Email du demandeur vérifié.';
         }
     }
 
@@ -152,7 +152,7 @@ class OrgRegistrationConfidenceScoreService
 
         if ($emailAlreadyUsed) {
             $score -= 15;
-            $warnings[] = 'Email officiel deja utilise par une organisation existante.';
+            $warnings[] = 'Email officiel déjà utilisé par une organisation existante.';
         }
 
         $otherPendingRequests = OrgRegistrationRequest::query()
@@ -163,7 +163,7 @@ class OrgRegistrationConfidenceScoreService
 
         if ($otherPendingRequests) {
             $score -= 5;
-            $warnings[] = 'Le demandeur a deja une autre demande en attente.';
+            $warnings[] = 'Le demandeur a déjà une autre demande en attente.';
         }
     }
 

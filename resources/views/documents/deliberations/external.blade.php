@@ -317,7 +317,7 @@
         Séance du {{ $decisionDateLong }} N° {{ $decisionReference }}
     </div>
 
-    <div class="section-title">PRESENTS :</div>
+    <div class="section-title">PRÉSENTS :</div>
 
     <div class="paragraph">
         M. Richard FOURNAUX, Bourgmestre - Président ;<br>

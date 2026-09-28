@@ -281,7 +281,7 @@ class RecurrenceService
     {
         if (! $organization->type?->canUseRecurrences()) {
             throw ValidationException::withMessages([
-                'organization_id' => 'Les recurrences ne sont pas autorisees pour ce type d organisation.',
+                'organization_id' => 'Les récurrences ne sont pas autorisées pour ce type d’organisation.',
             ]);
         }
     }

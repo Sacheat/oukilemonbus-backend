@@ -2,10 +2,10 @@
 
 return [
     'transporter' => [
-        'name' => env('ROUTE_SHEET_TRANSPORTER_NAME', 'Commune de Dinant - Service mobilite'),
+        'name' => env('ROUTE_SHEET_TRANSPORTER_NAME', 'Commune de Dinant - Service mobilité'),
         'identifier' => env('ROUTE_SHEET_TRANSPORTER_IDENTIFIER', 'Commune de Dinant'),
         'signature_label' => env('ROUTE_SHEET_TRANSPORTER_SIGNATURE_LABEL', 'Signature du transporteur'),
-        'license_number' => env('ROUTE_SHEET_LICENSE_NUMBER', 'A completer'),
+        'license_number' => env('ROUTE_SHEET_LICENSE_NUMBER', 'À compléter'),
         'emergency_contact' => env('ROUTE_SHEET_EMERGENCY_CONTACT', null),
     ],
 

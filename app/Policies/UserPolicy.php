@@ -3,16 +3,18 @@
 namespace App\Policies;
 
 use App\Models\User;
+use App\Models\UserOrganization;
 
 /**
  * Contrôle l'accès aux profils utilisateur.
  *
  * view() : un utilisateur voit toujours son propre profil ; les internes voient tout
- *          le monde ; un responsable_organisation peut voir les membres de son org.
+ *          le monde ; un responsable peut voir les membres des organisations qu'il gère.
  * update() : self-edit autorisé, ou interne avec permission.
  * updatePassword() : self-only, sans vérification de permission — le mot de passe
  *                    n'est modifiable que par l'utilisateur lui-même.
  * updateStatus() / deactivate() : réservés aux internes.
+ * updateRoles() : attribution des rôles globaux, réservée à l'admin.
  */
 class UserPolicy
 {
@@ -38,8 +40,7 @@ class UserPolicy
             return true;
         }
 
-        return $user->hasRole('responsable_organisation')
-            && $this->sharesOrganizationWith($user, $targetUser);
+        return $this->managesOrganizationOf($user, $targetUser);
     }
 
     public function create(User $user): bool
@@ -69,6 +70,12 @@ class UserPolicy
             && $this->isInternal($user);
     }
 
+    public function updateRoles(User $user, User $targetUser): bool
+    {
+        return $user->can('users.manage-roles')
+            && $user->hasRole('admin');
+    }
+
     public function deactivate(User $user, User $targetUser): bool
     {
         return $user->can('users.deactivate')
@@ -80,9 +87,10 @@ class UserPolicy
         return $user->hasAnyRole(self::INTERNAL_ROLES);
     }
 
-    private function sharesOrganizationWith(User $user, User $targetUser): bool
+    private function managesOrganizationOf(User $user, User $targetUser): bool
     {
         return $user->organizations()
+            ->wherePivotIn('relationship_type', UserOrganization::MANAGER_TYPES)
             ->whereIn(
                 'organizations.id',
                 $targetUser->organizations()->select('organizations.id')

@@ -12,7 +12,7 @@ use App\Models\User;
  * Contrôle l'accès aux décisions du collège communal.
  *
  * view() : les internes voient toutes les décisions ; les externes (requester,
- *          responsable_organisation, chauffeur assigné) voient celles liées à leurs
+ *          membre de l'organisation, chauffeur assigné) voient celles liées à leurs
  *          réservations — miroir de ReservationPolicy::view().
  *
  * create() / update() : réservés aux internes, avec deux gardes supplémentaires :
@@ -44,7 +44,7 @@ class CouncilDecisionPolicy
             return true;
         }
 
-        if ($user->hasRole('responsable_organisation') && $this->belongsToUserOrganization($user, $reservation->organization_id)) {
+        if ($user->isMemberOf($reservation->organization_id)) {
             return true;
         }
 
@@ -72,17 +72,6 @@ class CouncilDecisionPolicy
     private function isInternal(User $user): bool
     {
         return $user->hasAnyRole(self::INTERNAL_ROLES);
-    }
-
-    private function belongsToUserOrganization(User $user, mixed $organizationId): bool
-    {
-        if ($organizationId === null) {
-            return false;
-        }
-
-        return $user->organizations()
-            ->whereKey($organizationId)
-            ->exists();
     }
 
     private function hasAllowedReservationStatus(Reservation $reservation): bool

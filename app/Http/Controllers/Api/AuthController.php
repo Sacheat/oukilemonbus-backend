@@ -59,12 +59,12 @@ class AuthController extends Controller
         }
 
         // Rôles et organisations chargés ici pour éviter un aller-retour supplémentaire depuis le frontend.
-        return new UserResource($user->load('roles', 'organizations'));
+        return (new UserResource($user->load('roles', 'organizations')))->withEffectivePermissions();
     }
 
     public function me(Request $request): UserResource
     {
-        return new UserResource($request->user()->load('roles', 'organizations'));
+        return (new UserResource($request->user()->load('roles', 'organizations')))->withEffectivePermissions();
     }
 
     public function logout(Request $request): JsonResponse

@@ -257,7 +257,7 @@ class BackupService
         $archive = gzopen($archivePath, 'wb9');
 
         if ($archive === false) {
-            throw new InvalidArgumentException('Impossible de creer l archive de backup.');
+            throw new InvalidArgumentException('Impossible de créer l’archive de backup.');
         }
 
         $this->writeTarEntry(
@@ -351,7 +351,7 @@ class BackupService
         $prefix = dirname($path);
 
         if (strlen($name) > 100 || strlen($prefix) > 155) {
-            throw new InvalidArgumentException("Le chemin {$path} est trop long pour l archive tar.");
+            throw new InvalidArgumentException("Le chemin {$path} est trop long pour l’archive tar.");
         }
 
         return [$name, $prefix];
@@ -397,7 +397,7 @@ class BackupService
     private function ensureSupportedType(string $type): void
     {
         if (! in_array($type, ['full', 'db', 'files'], true)) {
-            throw new InvalidArgumentException('Le type de backup doit etre full, db ou files.');
+            throw new InvalidArgumentException('Le type de backup doit être full, db ou files.');
         }
     }
 

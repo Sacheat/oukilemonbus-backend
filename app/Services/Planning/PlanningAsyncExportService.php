@@ -47,7 +47,7 @@ class PlanningAsyncExportService
             ! $user->hasAnyRole(['admin', 'agent_communal'])
             && $request->requested_by_user_id !== $user->id
         ) {
-            throw new AuthorizationException('Acces non autorise a cette demande d export.');
+            throw new AuthorizationException('Accès non autorisé à cette demande d’export.');
         }
 
         return $request;

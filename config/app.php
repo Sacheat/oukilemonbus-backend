@@ -68,6 +68,8 @@ return [
 
     'frontend_email_verification_path' => env('FRONTEND_EMAIL_VERIFICATION_PATH', '/verify-email'),
 
+    'frontend_password_reset_path' => env('FRONTEND_PASSWORD_RESET_PATH', '/reset-password'),
+
     /*
     |--------------------------------------------------------------------------
     | Application Timezone
@@ -92,9 +94,9 @@ return [
     |
     */
 
-    'locale' => env('APP_LOCALE', 'en'),
+    'locale' => env('APP_LOCALE', 'fr'),
 
-    'fallback_locale' => env('APP_FALLBACK_LOCALE', 'en'),
+    'fallback_locale' => env('APP_FALLBACK_LOCALE', 'fr'),
 
     'faker_locale' => env('APP_FAKER_LOCALE', 'en_US'),
 

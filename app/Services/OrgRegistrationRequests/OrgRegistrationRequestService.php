@@ -53,8 +53,8 @@ class OrgRegistrationRequestService
             users: $this->notificationRecipientResolver->internalUsers(),
             eventKey: 'org_registration_request.created',
             category: 'admin_workflow',
-            title: 'Nouvelle demande de creation d organisation',
-            message: "La demande #{$request->id} doit etre revue par un agent communal."
+            title: 'Nouvelle demande de création d’organisation',
+            message: "La demande #{$request->id} doit être revue par un agent communal."
         );
 
         return $request->refresh();
@@ -98,8 +98,8 @@ class OrgRegistrationRequestService
                     users: collect([$requester]),
                     eventKey: 'org_registration_request.approved',
                     category: 'admin_workflow',
-                    title: 'Demande d organisation approuvee',
-                    message: "Votre demande #{$request->id} a ete approuvee. L organisation \"{$organization->name}\" a ete creee."
+                    title: 'Demande d’organisation approuvée',
+                    message: "Votre demande #{$request->id} a été approuvée. L’organisation \"{$organization->name}\" a été créée."
                 );
             }
 
@@ -131,8 +131,8 @@ class OrgRegistrationRequestService
                 users: collect([$requester]),
                 eventKey: 'org_registration_request.rejected',
                 category: 'admin_workflow',
-                title: 'Demande d organisation refusee',
-                message: "Votre demande #{$request->id} a ete refusee. Motif : {$reason}"
+                title: 'Demande d’organisation refusée',
+                message: "Votre demande #{$request->id} a été refusée. Motif : {$reason}"
             );
         }
 
@@ -143,7 +143,7 @@ class OrgRegistrationRequestService
     {
         if (! $request->status->isPending()) {
             throw ValidationException::withMessages([
-                'status' => 'Cette demande a deja ete traitee.',
+                'status' => 'Cette demande a déjà été traitée.',
             ]);
         }
     }

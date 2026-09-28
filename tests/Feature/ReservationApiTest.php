@@ -76,7 +76,9 @@ class ReservationApiTest extends TestCase
         $response = $this->postJson('/api/reservations', $this->payload($organization));
 
         $response->assertCreated()
-            ->assertJsonPath('data.status', ReservationStatus::CONFIRME->value);
+            ->assertJsonPath('data.status', ReservationStatus::CONFIRME->value)
+            ->assertJsonPath('data.status_label', 'Confirmé')
+            ->assertJsonPath('data.approval_type_label', 'Automatique');
 
         $this->assertDatabaseHas('reservations', [
             'organization_id' => $organization->id,
@@ -319,9 +321,9 @@ class ReservationApiTest extends TestCase
             ->assertJsonPath('data.status', ReservationStatus::EN_CONFLIT->value)
             ->json('data.conflicts.0.message');
 
-        $this->assertStringContainsString("Reservation #{$existingReservation->id} occupe le bus de 08h00 a 09h20", $message);
-        $this->assertStringContainsString('cette demande occuperait le bus de 09h00 a 10h40', $message);
-        $this->assertStringContainsString('Chevauchement estime: 20 min.', $message);
+        $this->assertStringContainsString("Réservation #{$existingReservation->id} occupe le bus de 08h00 à 09h20", $message);
+        $this->assertStringContainsString('cette demande occuperait le bus de 09h00 à 10h40', $message);
+        $this->assertStringContainsString('Chevauchement estimé: 20 min.', $message);
     }
 
     public function test_preview_suggests_the_next_available_departure_time_after_a_schedule_overlap(): void
@@ -377,7 +379,7 @@ class ReservationApiTest extends TestCase
             ->assertJsonPath('data.availability.next_available_departure_time', '09:20')
             ->assertJsonPath('data.availability.next_available_return_time', '10:20')
             ->assertJsonPath('data.availability.overlap_duration_min', 20)
-            ->assertJsonPath('data.availability.message', 'Le bus n est pas disponible a 09:00. Prochain depart possible estime: 09:20.');
+            ->assertJsonPath('data.availability.message', 'Le bus n’est pas disponible à 09:00. Prochain départ possible estimé: 09:20.');
     }
 
     public function test_preview_keeps_searching_until_the_next_suggested_departure_is_available(): void
@@ -488,10 +490,10 @@ class ReservationApiTest extends TestCase
             ->json('data.conflicts.0.message');
 
         $this->assertStringStartsWith(
-            'Le creneau chevauche une autre reservation active, mais cette demande est prioritaire selon le reglement.',
+            'Le créneau chevauche une autre réservation active, mais cette demande est prioritaire selon le règlement.',
             $message
         );
-        $this->assertStringContainsString('Reservation #', $message);
+        $this->assertStringContainsString('Réservation #', $message);
     }
 
     public function test_standard_school_overlap_mentions_older_priority_when_existing_gym_reservation_exists(): void
@@ -543,10 +545,10 @@ class ReservationApiTest extends TestCase
             ->json('data.conflicts.0.message');
 
         $this->assertStringStartsWith(
-            'Le creneau chevauche une reservation plus prioritaire selon le reglement.',
+            'Le créneau chevauche une réservation plus prioritaire selon le règlement.',
             $message
         );
-        $this->assertStringContainsString('Reservation #', $message);
+        $this->assertStringContainsString('Réservation #', $message);
     }
 
     public function test_user_cannot_create_for_unattached_organization(): void

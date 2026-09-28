@@ -57,8 +57,8 @@ class GenerateRouteSheetCommandTest extends TestCase
             'startDate' => '2026-03-02',
             'endDate' => '2026-03-06',
         ])
-            ->expectsOutput('Generation de la feuille de route du 2026-03-02 au 2026-03-06...')
-            ->expectsOutput('Feuille de route generee avec succes. Document ID : '.$document->id)
+            ->expectsOutput('Génération de la feuille de route du 2026-03-02 au 2026-03-06...')
+            ->expectsOutput('Feuille de route générée avec succès. Document ID : '.$document->id)
             ->expectsOutput('Fichier : '.$document->file_path)
             ->assertExitCode(0);
     }
@@ -69,8 +69,8 @@ class GenerateRouteSheetCommandTest extends TestCase
             'startDate' => '2026-03-06',
             'endDate' => '2026-03-02',
         ])
-            ->expectsOutput('Generation de la feuille de route du 2026-03-06 au 2026-03-02...')
-            ->expectsOutput('La date de fin doit etre egale ou posterieure a la date de debut.')
+            ->expectsOutput('Génération de la feuille de route du 2026-03-06 au 2026-03-02...')
+            ->expectsOutput('La date de fin doit être égale ou postérieure à la date de début.')
             ->assertExitCode(1);
     }
 
@@ -80,8 +80,8 @@ class GenerateRouteSheetCommandTest extends TestCase
             'startDate' => 'not-a-date',
             'endDate' => '2026-03-02',
         ])
-            ->expectsOutput('Generation de la feuille de route du not-a-date au 2026-03-02...')
-            ->expectsOutput('Les dates doivent etre valides.')
+            ->expectsOutput('Génération de la feuille de route du not-a-date au 2026-03-02...')
+            ->expectsOutput('Les dates doivent être valides.')
             ->assertExitCode(1);
     }
 
@@ -106,9 +106,9 @@ class GenerateRouteSheetCommandTest extends TestCase
         $this->artisan('route-sheets:generate-daily', [
             'serviceDate' => '2026-06-18',
         ])
-            ->expectsOutput('Generation des feuilles de route journalieres pour le 2026-06-18...')
-            ->expectsOutput('Vehicule '.$vehicle->id.' : document '.$document->id.' genere ('.$document->file_path.').')
-            ->expectsOutput('Termine : 1 generee(s), 0 ignoree(s), 0 echec(s).')
+            ->expectsOutput('Génération des feuilles de route journalières pour le 2026-06-18...')
+            ->expectsOutput('Véhicule '.$vehicle->id.' : document '.$document->id.' généré ('.$document->file_path.').')
+            ->expectsOutput('Terminé : 1 générée(s), 0 ignorée(s), 0 échec(s).')
             ->assertExitCode(0);
     }
 
@@ -131,9 +131,9 @@ class GenerateRouteSheetCommandTest extends TestCase
         $this->artisan('route-sheets:generate-daily', [
             'serviceDate' => '2026-06-18',
         ])
-            ->expectsOutput('Generation des feuilles de route journalieres pour le 2026-06-18...')
-            ->expectsOutput('Vehicule '.$vehicle->id.' : deja genere, ignore.')
-            ->expectsOutput('Termine : 0 generee(s), 1 ignoree(s), 0 echec(s).')
+            ->expectsOutput('Génération des feuilles de route journalières pour le 2026-06-18...')
+            ->expectsOutput('Véhicule '.$vehicle->id.' : déjà généré, ignoré.')
+            ->expectsOutput('Terminé : 0 générée(s), 1 ignorée(s), 0 échec(s).')
             ->assertExitCode(0);
     }
 
@@ -165,9 +165,9 @@ class GenerateRouteSheetCommandTest extends TestCase
             'serviceDate' => '2026-06-18',
             '--force' => true,
         ])
-            ->expectsOutput('Generation des feuilles de route journalieres pour le 2026-06-18 (force)...')
-            ->expectsOutput('Vehicule '.$vehicle->id.' : document '.$forcedDocument->id.' genere ('.$forcedDocument->file_path.').')
-            ->expectsOutput('Termine : 1 generee(s), 0 ignoree(s), 0 echec(s).')
+            ->expectsOutput('Génération des feuilles de route journalières pour le 2026-06-18 (force)...')
+            ->expectsOutput('Véhicule '.$vehicle->id.' : document '.$forcedDocument->id.' généré ('.$forcedDocument->file_path.').')
+            ->expectsOutput('Terminé : 1 générée(s), 0 ignorée(s), 0 échec(s).')
             ->assertExitCode(0);
     }
 
@@ -192,7 +192,7 @@ class GenerateRouteSheetCommandTest extends TestCase
         $this->app->instance(RouteSheetDocumentService::class, $service);
 
         $this->artisan('route-sheets:generate-daily')
-            ->expectsOutput('Generation des feuilles de route journalieres pour le 2026-06-18...')
+            ->expectsOutput('Génération des feuilles de route journalières pour le 2026-06-18...')
             ->assertExitCode(0);
 
         CarbonImmutable::setTestNow();
@@ -203,7 +203,7 @@ class GenerateRouteSheetCommandTest extends TestCase
         $this->artisan('route-sheets:generate-daily', [
             'serviceDate' => 'not-a-date',
         ])
-            ->expectsOutput('La date de service doit etre valide et au format YYYY-MM-DD.')
+            ->expectsOutput('La date de service doit être valide et au format YYYY-MM-DD.')
             ->assertExitCode(1);
     }
 

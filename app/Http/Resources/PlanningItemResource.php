@@ -67,7 +67,7 @@ class PlanningItemResource extends JsonResource
             return implode(' - ', $parts);
         }
 
-        return "Reservation #{$this->id}";
+        return "Réservation #{$this->id}";
     }
 
     private function assignmentLabel(): string
@@ -77,10 +77,10 @@ class PlanningItemResource extends JsonResource
         }
 
         if (filled($this->driver_id) || filled($this->vehicle_id)) {
-            return 'Partiellement affecte';
+            return 'Partiellement affecté';
         }
 
-        return 'Non affecte';
+        return 'Non affecté';
     }
 
     private function statusLabel(): string

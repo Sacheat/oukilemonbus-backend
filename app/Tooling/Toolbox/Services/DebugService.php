@@ -90,7 +90,7 @@ final class DebugService
         /** @var class-string<\Illuminate\Foundation\Auth\User> $userModel */
         $userModel = config('auth.providers.users.model', \App\Models\User::class);
 
-        $roleOrder = ['admin', 'agent_communal', 'responsable_organisation', 'chauffeur', 'user'];
+        $roleOrder = ['admin', 'agent_communal', 'chauffeur', 'user'];
 
         $grouped = array_fill_keys($roleOrder, []);
         $grouped['autre'] = [];
@@ -119,7 +119,6 @@ final class DebugService
         $labels = [
             'admin'                    => 'Admin',
             'agent_communal'           => 'Agent communal',
-            'responsable_organisation' => 'Responsable organisation',
             'chauffeur'                => 'Chauffeur',
             'user'                     => 'Utilisateur',
             'autre'                    => 'Sans rôle',

@@ -104,7 +104,7 @@ class OrganizationApiTest extends TestCase
             ->assertCreated()
             ->assertJsonPath('data.name', 'Ecole communale de Dinant')
             ->assertJsonPath('data.type', OrganizationType::ECOLE_COMMUNALE->value)
-            ->assertJsonPath('data.type_label', 'Ecole communale')
+            ->assertJsonPath('data.type_label', 'École communale')
             ->assertJsonPath('data.is_priority', true)
             ->assertJsonPath('data.location.id', $location->id);
 

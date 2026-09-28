@@ -19,7 +19,7 @@ enum OrganizationType: string
     public function label(): string
     {
         return match ($this) {
-            self::ECOLE_COMMUNALE    => 'Ecole communale',
+            self::ECOLE_COMMUNALE    => 'École communale',
             self::PERSONNEL_COMMUNAL => 'Personnel communal',
             self::CPAS               => 'CPAS',
             self::ASBL               => 'ASBL',

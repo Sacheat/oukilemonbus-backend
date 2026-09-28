@@ -95,7 +95,7 @@ class CouncilDecisionGenerateDocumentApiTest extends TestCase
         $this->postJson("/api/council-decisions/{$councilDecision->id}/generate-document")
             ->assertUnprocessable()
             ->assertJsonFragment([
-                'message' => 'La deliberation ne peut etre generee que pour une decision approuvee ou refusee.',
+                'message' => 'La délibération ne peut être générée que pour une décision approuvée ou refusée.',
             ]);
 
         $this->assertDatabaseMissing('documents', [

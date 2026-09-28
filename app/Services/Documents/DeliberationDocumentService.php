@@ -43,7 +43,7 @@ class DeliberationDocumentService
     {
         if (! $this->canGenerateFor($councilDecision)) {
             throw new InvalidArgumentException(
-                'La deliberation ne peut etre generee que pour une decision approuvee ou refusee.'
+                'La délibération ne peut être générée que pour une décision approuvée ou refusée.'
             );
         }
 

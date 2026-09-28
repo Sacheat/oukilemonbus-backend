@@ -10,6 +10,8 @@ use App\Http\Controllers\Api\MunicipalityLocalityController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\NotificationPreferenceController;
 use App\Http\Controllers\Api\OrganizationController;
+use App\Http\Controllers\Api\OrganizationMemberController;
+use App\Http\Controllers\Api\PasswordResetController;
 use App\Http\Controllers\Api\OrgRegistrationRequestController;
 use App\Http\Controllers\Api\PlanningController;
 use App\Http\Controllers\Api\RecurrenceController;
@@ -40,6 +42,12 @@ Route::name('api.')->group(function (): void {
         Route::post('/auth/login', [AuthController::class, 'login'])
             ->middleware('throttle:20,1')
             ->name('auth.login');
+        Route::post('/auth/forgot-password', [PasswordResetController::class, 'forgot'])
+            ->middleware('throttle:6,1')
+            ->name('auth.forgot-password');
+        Route::post('/auth/reset-password', [PasswordResetController::class, 'reset'])
+            ->middleware('throttle:6,1')
+            ->name('auth.reset-password');
     });
 
     // =========================================================================
@@ -106,6 +114,10 @@ Route::name('api.')->group(function (): void {
         Route::patch('/users/{user}/status', [UserController::class, 'updateStatus'])
             ->middleware('permission:users.update-status')
             ->name('users.update-status');
+
+        Route::patch('/users/{user}/roles', [UserController::class, 'updateRoles'])
+            ->middleware('permission:users.manage-roles')
+            ->name('users.update-roles');
 
         Route::patch('/users/{user}/deactivate', [UserController::class, 'deactivate'])
             ->middleware('permission:users.deactivate')
@@ -292,6 +304,21 @@ Route::name('api.')->group(function (): void {
             ->middleware('permission:organizations.update')
             ->name('organizations.update');
 
+        /**
+         * Membres d'une organisation (droits vérifiés par OrganizationPolicy)
+         */
+        Route::get('/organizations/{organization}/members', [OrganizationMemberController::class, 'index'])
+            ->middleware('permission:organizations.view')
+            ->name('organizations.members.index');
+        Route::patch('/organizations/{organization}/members/{user}', [OrganizationMemberController::class, 'update'])
+            ->name('organizations.members.update');
+        Route::delete('/organizations/{organization}/members/{user}', [OrganizationMemberController::class, 'destroy'])
+            ->name('organizations.members.destroy');
+        Route::post('/organizations/{organization}/leave', [OrganizationMemberController::class, 'leave'])
+            ->name('organizations.leave');
+        Route::patch('/organizations/{organization}/default', [OrganizationMemberController::class, 'makeDefault'])
+            ->name('organizations.make-default');
+
         Route::post('/organizations/{organization}/ban', [OrganizationController::class, 'ban'])
             ->middleware('permission:organizations.ban')
             ->name('organizations.ban');
@@ -350,7 +377,7 @@ Route::name('api.')->group(function (): void {
         /**
          * Reservations routes
          */
-        Route::middleware('permission:reservations.view')->middleware('throttle:60,1')->group(function (): void {
+        Route::middleware(['permission:reservations.view', 'throttle:60,1'])->group(function (): void {
             Route::get('/reservations', [ReservationController::class, 'index'])->name('reservations.index');
             Route::get('/reservations/{reservation}', [ReservationController::class, 'show'])->name('reservations.show');
         });

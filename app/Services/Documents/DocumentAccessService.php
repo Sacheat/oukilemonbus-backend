@@ -121,29 +121,17 @@ class DocumentAccessService
         return $user->hasAnyRole(self::INTERNAL_ROLES);
     }
 
-    private function belongsToUserOrganization(User $user, mixed $organizationId): bool
-    {
-        if ($organizationId === null) {
-            return false;
-        }
-
-        return $user->organizations()
-            ->whereKey($organizationId)
-            ->exists();
-    }
-
     private function applyReservationAccessRules(Builder $query, User $user): void
     {
         $query->where('requested_by_user_id', $user->getKey());
 
-        if ($user->hasRole('responsable_organisation')) {
-            $organizationIds = $user->organizations()
-                ->pluck('organizations.id')
-                ->all();
+        // Tout membre accède aux documents des réservations de ses organisations (cf. ReservationPolicy::view).
+        $organizationIds = $user->organizations()
+            ->pluck('organizations.id')
+            ->all();
 
-            if ($organizationIds !== []) {
-                $query->orWhereIn('organization_id', $organizationIds);
-            }
+        if ($organizationIds !== []) {
+            $query->orWhereIn('organization_id', $organizationIds);
         }
 
         if ($user->hasRole('chauffeur') && $user->driver !== null) {
@@ -157,10 +145,7 @@ class DocumentAccessService
             return true;
         }
 
-        if (
-            $user->hasRole('responsable_organisation')
-            && $this->belongsToUserOrganization($user, $reservation->organization_id)
-        ) {
+        if ($user->isMemberOf($reservation->organization_id)) {
             return true;
         }
 

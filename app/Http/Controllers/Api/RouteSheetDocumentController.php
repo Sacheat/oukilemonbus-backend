@@ -43,7 +43,7 @@ class RouteSheetDocumentController extends Controller
 
         return (new DocumentResource($document))
             ->additional([
-                'message' => 'Feuille de route generee avec succes.',
+                'message' => 'Feuille de route générée avec succès.',
             ])
             ->response()
             ->setStatusCode(201);

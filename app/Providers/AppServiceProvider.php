@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
@@ -12,6 +13,8 @@ use Illuminate\Support\ServiceProvider;
  * Surcharge le lien de vérification e-mail de Laravel : l'email pointe vers la SPA
  * (FRONTEND_URL + frontend_email_verification_path) avec id, hash, expires et signature
  * en query string. La SPA appelle ensuite GET /api/email/verify/{id}/{hash}?expires=&signature=.
+ * Même principe pour le mot de passe oublié : FRONTEND_URL/reset-password?token=&email=,
+ * puis POST /api/auth/reset-password.
  */
 class AppServiceProvider extends ServiceProvider
 {
@@ -36,6 +39,12 @@ class AppServiceProvider extends ServiceProvider
             return config('app.frontend_url')
                 .config('app.frontend_email_verification_path')
                 .'?'.http_build_query(['id' => $id, 'hash' => $hash, ...$signature]);
+        });
+
+        ResetPassword::createUrlUsing(function (object $notifiable, string $token): string {
+            return config('app.frontend_url')
+                .config('app.frontend_password_reset_path')
+                .'?'.http_build_query(['token' => $token, 'email' => $notifiable->getEmailForPasswordReset()]);
         });
     }
 }

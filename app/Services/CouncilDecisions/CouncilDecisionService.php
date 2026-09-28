@@ -125,7 +125,7 @@ class CouncilDecisionService
         ?string $notes
     ): void {
         if ($decision->decision_status === CouncilDecisionStatus::REFUSE) {
-            $this->reservationService->reject($reservation, $actor, $notes ?? 'Decision defavorable du college');
+            $this->reservationService->reject($reservation, $actor, $notes ?? 'Décision défavorable du collège');
 
             return;
         }
@@ -139,7 +139,7 @@ class CouncilDecisionService
     {
         if ($reservation->organization->type?->isCouncilDecisionExempt()) {
             throw ValidationException::withMessages([
-                'reservation' => 'Aucune decision du college n est requise pour ce type d organisation.',
+                'reservation' => 'Aucune décision du collège n’est requise pour ce type d’organisation.',
             ]);
         }
     }
@@ -189,8 +189,8 @@ class CouncilDecisionService
             users: collect([$requester]),
             eventKey: 'document.deliberation.generated',
             category: 'reservation_updates',
-            title: 'Deliberation disponible',
-            message: "La decision du college pour votre reservation #{$reservation->id} est {$statusLabel}. La deliberation est disponible.",
+            title: 'Délibération disponible',
+            message: "La décision du collège pour votre réservation #{$reservation->id} est {$statusLabel}. La délibération est disponible.",
             reservation: $reservation,
             document: $document,
             priority: 'normal'

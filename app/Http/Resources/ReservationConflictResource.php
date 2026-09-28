@@ -13,6 +13,7 @@ class ReservationConflictResource extends JsonResource
             'id' => $this->id,
             'reservation_id' => $this->reservation_id,
             'type' => $this->type,
+            'type_label' => $this->type?->label(),
             'message' => $this->message,
             'related_reservation_id' => $this->related_reservation_id,
             'is_resolved' => $this->is_resolved,

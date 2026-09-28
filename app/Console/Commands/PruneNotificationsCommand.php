@@ -40,9 +40,9 @@ class PruneNotificationsCommand extends Command
             ->where('created_at', '<', now()->subDays($failedDays))
             ->delete();
 
-        $this->info("Notifications in-app supprimees: {$deletedInApp}");
-        $this->info("Logs de livraison (sent/pending) supprimes: {$deletedSentDeliveries}");
-        $this->info("Logs de livraison (failed) supprimes: {$deletedFailedDeliveries}");
+        $this->info("Notifications in-app supprimées : {$deletedInApp}");
+        $this->info("Logs de livraison (sent/pending) supprimés : {$deletedSentDeliveries}");
+        $this->info("Logs de livraison (failed) supprimés : {$deletedFailedDeliveries}");
 
         return self::SUCCESS;
     }

@@ -9,7 +9,7 @@ class UserService
 {
     public function create(array $data): User
     {
-        return User::create(Arr::only($data, [
+        $user = User::create(Arr::only($data, [
             'first_name',
             'last_name',
             'email',
@@ -17,6 +17,23 @@ class UserService
             'phone',
             'active',
         ]));
+
+        // Même rôle de départ qu'à l'inscription ; l'admin l'ajuste ensuite via updateRoles().
+        $user->assignRole('user');
+
+        return $user->load('roles');
+    }
+
+    /**
+     * Remplace les rôles globaux de l'utilisateur.
+     *
+     * @param  list<string>  $roles
+     */
+    public function updateRoles(User $user, array $roles): User
+    {
+        $user->syncRoles($roles);
+
+        return $user->load('roles');
     }
 
     public function update(User $user, array $data): User

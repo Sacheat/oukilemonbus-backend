@@ -48,11 +48,11 @@ class ReservationAssignmentService
             $vehicle = $this->availableVehicle($reservation, $window);
 
             if (! $driver) {
-                $this->createConflict($reservation, ReservationConflictType::NO_DRIVER_AVAILABLE, 'Aucun chauffeur disponible pour ce creneau.');
+                $this->createConflict($reservation, ReservationConflictType::NO_DRIVER_AVAILABLE, 'Aucun chauffeur disponible pour ce créneau.');
             }
 
             if (! $vehicle) {
-                $this->createConflict($reservation, ReservationConflictType::NO_VEHICLE_AVAILABLE, 'Aucun vehicule disponible pour ce creneau.');
+                $this->createConflict($reservation, ReservationConflictType::NO_VEHICLE_AVAILABLE, 'Aucun véhicule disponible pour ce créneau.');
             }
 
             if ($driver) {
@@ -186,7 +186,7 @@ class ReservationAssignmentService
     {
         if (! $driver->is_active || ! $this->isDriverAvailable($reservation, $driver)) {
             throw ValidationException::withMessages([
-                'driver_id' => 'Ce chauffeur n est pas disponible pour ce creneau.',
+                'driver_id' => 'Ce chauffeur n’est pas disponible pour ce créneau.',
             ]);
         }
     }
@@ -197,7 +197,7 @@ class ReservationAssignmentService
 
         if (! $vehicle->is_active || $vehicle->capacity < $requiredCapacity || ! $this->isVehicleAvailable($reservation, $vehicle)) {
             throw ValidationException::withMessages([
-                'vehicle_id' => 'Ce vehicule n est pas disponible ou sa capacite est insuffisante.',
+                'vehicle_id' => 'Ce véhicule n’est pas disponible ou sa capacité est insuffisante.',
             ]);
         }
     }

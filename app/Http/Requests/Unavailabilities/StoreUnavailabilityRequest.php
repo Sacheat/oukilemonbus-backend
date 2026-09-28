@@ -34,13 +34,13 @@ class StoreUnavailabilityRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'reason_type.required' => 'Le type d\'indisponibilite est obligatoire.',
-            'start_datetime.required' => 'La date de debut est obligatoire.',
-            'start_datetime.before' => 'La date de debut doit etre avant la date de fin.',
+            'reason_type.required' => 'Le type d\'indisponibilité est obligatoire.',
+            'start_datetime.required' => 'La date de début est obligatoire.',
+            'start_datetime.before' => 'La date de début doit être avant la date de fin.',
             'end_datetime.required' => 'La date de fin est obligatoire.',
-            'end_datetime.after' => 'La date de fin doit etre apres la date de debut.',
+            'end_datetime.after' => 'La date de fin doit être après la date de début.',
             'driver_id.exists' => 'Ce chauffeur n\'existe pas.',
-            'vehicle_id.exists' => 'Ce vehicule n\'existe pas.',
+            'vehicle_id.exists' => 'Ce véhicule n\'existe pas.',
         ];
     }
 }

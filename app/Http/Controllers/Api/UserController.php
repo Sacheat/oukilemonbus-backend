@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Users\StoreUserRequest;
 use App\Http\Requests\Users\UpdatePasswordRequest;
 use App\Http\Requests\Users\UpdateUserRequest;
+use App\Http\Requests\Users\UpdateUserRolesRequest;
 use App\Http\Requests\Users\UpdateUserStatusRequest;
 use App\Http\Resources\UserResource;
 use App\Models\User;
@@ -68,6 +69,13 @@ class UserController extends Controller
         );
 
         return new UserResource($user);
+    }
+
+    public function updateRoles(UpdateUserRolesRequest $request, User $user): UserResource
+    {
+        return new UserResource(
+            $this->userService->updateRoles($user, $request->validated('roles'))
+        );
     }
 
     public function updatePassword(UpdatePasswordRequest $request, User $user): JsonResponse

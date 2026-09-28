@@ -138,7 +138,7 @@ class DeliberationDocumentServiceTest extends TestCase
         );
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('La deliberation ne peut etre generee que pour une decision approuvee ou refusee.');
+        $this->expectExceptionMessage('La délibération ne peut être générée que pour une décision approuvée ou refusée.');
 
         $service->generateFor($councilDecision);
     }

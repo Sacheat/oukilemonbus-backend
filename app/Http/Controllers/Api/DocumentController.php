@@ -61,7 +61,7 @@ class DocumentController extends Controller
         $token = (string) $request->query('token', '');
 
         if ($token === '' || ! $this->tokenService->validateAndConsume($document, $token, $request)) {
-            abort(403, 'Lien de telechargement invalide ou expire.');
+            abort(403, 'Lien de téléchargement invalide ou expiré.');
         }
 
         return $this->documentService->download($document);

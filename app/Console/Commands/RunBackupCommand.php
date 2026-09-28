@@ -17,7 +17,7 @@ class RunBackupCommand extends Command
         {--only=full : Type de backup: full, db ou files.}
         {--include-logs : Inclut les logs applicatifs dans une section separee.}';
 
-    protected $description = 'Cree un backup manuel de la base de donnees et/ou des fichiers prives.';
+    protected $description = 'Crée un backup manuel de la base de données et/ou des fichiers privés.';
 
     public function handle(BackupService $backupService): int
     {
@@ -25,7 +25,7 @@ class RunBackupCommand extends Command
         $includeLogs = (bool) $this->option('include-logs');
 
         $this->info(sprintf(
-            'Creation du backup %s%s...',
+            'Création du backup %s%s...',
             $type,
             $includeLogs ? ' avec logs' : ''
         ));
@@ -40,12 +40,12 @@ class RunBackupCommand extends Command
         } catch (Throwable $exception) {
             // Toute erreur système (permissions, espace disque, dump SQL) est remontée et reportée.
             report($exception);
-            $this->error('Le backup a echoue: '.$exception->getMessage());
+            $this->error('Le backup a échoué : '.$exception->getMessage());
 
             return self::FAILURE;
         }
 
-        $this->info('Backup cree avec succes.');
+        $this->info('Backup créé avec succès.');
         $this->line('Fichier : '.$summary['path']);
         $this->line('Taille : '.$this->formatBytes((int) $summary['size']));
 

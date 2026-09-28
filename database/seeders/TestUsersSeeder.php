@@ -49,7 +49,7 @@ class TestUsersSeeder extends Seeder
                 'email' => 'responsable.test@bus-communal.local',
                 'phone' => '082100005',
                 'password' => Hash::make('password'),
-                'role' => 'responsable_organisation',
+                'role' => 'user',
             ],
             [
                 'first_name' => 'Nora',

@@ -45,14 +45,14 @@ class ApiIdempotencyService
             if ($record !== null) {
                 if ($record->request_hash !== $requestHash) {
                     throw ValidationException::withMessages([
-                        'idempotency_key' => 'Cette cle idempotente est deja utilisee avec un payload different.',
+                        'idempotency_key' => 'Cette clé idempotente est déjà utilisée avec un payload différent.',
                     ]);
                 }
 
                 if ($record->completed_at === null) {
                     return [
                         'status' => 409,
-                        'body' => ['message' => 'Une requete identique est deja en cours de traitement.'],
+                        'body' => ['message' => 'Une requête identique est déjà en cours de traitement.'],
                     ];
                 }
 
