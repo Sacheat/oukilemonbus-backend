@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>Feuille de route journaliere</title>
+    <title>Feuille de route journalière</title>
 
     <style>
         @page {
@@ -130,9 +130,9 @@
 
         <div class="header-block">
             <div class="box">
-                <div class="label">Vehicule</div>
+                <div class="label">Véhicule</div>
                 <div class="value">Plaque : {{ data_get($context, 'service.vehicle.licence_plate') }}</div>
-                <div>Capacite : {{ data_get($context, 'service.vehicle.capacity') }}</div>
+                <div>Capacité : {{ data_get($context, 'service.vehicle.capacity') }}</div>
                 @if(data_get($context, 'service.transporter.emergency_contact'))
                     <div>Urgence : {{ data_get($context, 'service.transporter.emergency_contact') }}</div>
                 @endif
@@ -149,9 +149,9 @@
     <div class="box">
         <div class="label">Conducteur(s)</div>
         @forelse(data_get($context, 'service.drivers', []) as $driver)
-            <span class="value">{{ data_get($driver, 'name') ?: 'Conducteur non renseigne' }}</span>
+            <span class="value">{{ data_get($driver, 'name') ?: 'Conducteur non renseigné' }}</span>
             <span class="small">
-                - Permis/licence conducteur : {{ data_get($driver, 'licence_number') ?: 'non renseigne' }}
+                - Permis/licence conducteur : {{ data_get($driver, 'licence_number') ?: 'non renseigné' }}
                 @if(data_get($driver, 'phone'))
                     - {{ data_get($driver, 'phone') }}
                 @endif
@@ -160,7 +160,7 @@
                 <br>
             @endif
         @empty
-            <span class="value">Aucun conducteur assigne.</span>
+            <span class="value">Aucun conducteur assigné.</span>
         @endforelse
     </div>
 
@@ -168,10 +168,10 @@
         <thead>
             <tr>
                 <th style="width: 13%;">Donneur d'ordre</th>
-                <th style="width: 15%;">Depart</th>
+                <th style="width: 15%;">Départ</th>
                 <th style="width: 15%;">Destination</th>
-                <th style="width: 15%;">Retour / second depart</th>
-                <th style="width: 20%;">Itineraire principal</th>
+                <th style="width: 15%;">Retour / second départ</th>
+                <th style="width: 20%;">Itinéraire principal</th>
                 <th style="width: 7%;">Voyageurs</th>
                 <th style="width: 7%;">Km</th>
                 <th style="width: 8%;">Objet</th>
@@ -211,7 +211,7 @@
             @empty
                 <tr>
                     <td colspan="8" class="empty">
-                        Aucune mission confirmee pour cette date et ce vehicule.
+                        Aucune mission confirmée pour cette date et ce véhicule.
                     </td>
                 </tr>
             @endforelse
@@ -227,14 +227,14 @@
         </div>
         <div class="summary-cell">
             <div class="box">
-                <div class="label">Kilometrage du service</div>
+                <div class="label">Kilométrage du service</div>
                 <div class="value">{{ number_format((float) data_get($context, 'service.total_distance_km', 0), 2, ',', ' ') }} km</div>
             </div>
         </div>
         <div class="summary-cell">
             <div class="box">
-                <div class="label">Archivage legal</div>
-                <div class="value">A conserver jusqu'au {{ data_get($context, 'service.retention_until') }}</div>
+                <div class="label">Archivage légal</div>
+                <div class="value">À conserver jusqu’au {{ data_get($context, 'service.retention_until') }}</div>
             </div>
         </div>
         <div class="summary-cell">
