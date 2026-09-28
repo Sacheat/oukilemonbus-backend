@@ -43,10 +43,11 @@ Route::name('api.')->group(function (): void {
     });
 
     // =========================================================================
-    // Vérification email — lien signé, sans authentification requise
+    // Vérification email — lien signé (signature relative), sans authentification requise.
+    // Appelée par la SPA avec les paramètres reçus dans le lien de l'email.
     // =========================================================================
     Route::get('/email/verify/{id}/{hash}', [EmailVerificationController::class, 'verify'])
-        ->middleware(['signed', 'throttle:6,1'])
+        ->middleware(['signed:relative', 'throttle:6,1'])
         ->name('verification.verify');
 
     // =========================================================================

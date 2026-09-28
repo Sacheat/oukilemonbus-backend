@@ -6,16 +6,16 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
 class EmailVerificationController extends Controller
 {
     /**
-     * Vérifie l'email via le lien signé envoyé par notification.
-     * N'exige pas d'authentification — la signature garantit la sécurité.
+     * Vérifie l'email à partir des paramètres du lien signé envoyé par notification.
+     * Appelée par la SPA (le lien de l'email pointe vers le frontend, pas vers l'API).
+     * N'exige pas d'authentification — la signature (relative) garantit la sécurité.
      */
-    public function verify(Request $request, int $id, string $hash): JsonResponse|RedirectResponse
+    public function verify(Request $request, int $id, string $hash): JsonResponse
     {
         $user = User::findOrFail($id);
 
@@ -23,17 +23,12 @@ class EmailVerificationController extends Controller
             throw new AuthorizationException('Lien de vérification invalide.');
         }
 
-        if (! $request->hasValidSignature()) {
+        if (! $request->hasValidSignature(false)) {
             throw new AuthorizationException('Lien de vérification expiré ou invalide.');
         }
 
         if (! $user->hasVerifiedEmail()) {
             $user->markEmailAsVerified();
-        }
-
-        // Requête navigateur → redirection vers la démo avec indicateur de succès
-        if (! $request->expectsJson()) {
-            return redirect(url('/demo/v2') . '#/login?verified=1');
         }
 
         return response()->json(['message' => 'Adresse email vérifiée avec succès.']);

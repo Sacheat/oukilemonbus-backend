@@ -56,6 +56,20 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Frontend SPA
+    |--------------------------------------------------------------------------
+    |
+    | URL publique de la SPA qui consomme l'API. Utilisée pour construire
+    | les liens envoyés par email (ex. vérification d'adresse email).
+    |
+    */
+
+    'frontend_url' => rtrim((string) env('FRONTEND_URL', 'http://localhost:3000'), '/'),
+
+    'frontend_email_verification_path' => env('FRONTEND_EMAIL_VERIFICATION_PATH', '/verify-email'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Timezone
     |--------------------------------------------------------------------------
     |

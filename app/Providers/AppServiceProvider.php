@@ -9,9 +9,9 @@ use Illuminate\Support\ServiceProvider;
 /**
  * Point d'amorçage de l'application.
  *
- * Surcharge la génération d'URL de vérification e-mail de Laravel pour pointer
- * vers la route nommée 'api.verification.verify' (préfixée 'api.') plutôt que
- * vers la route web par défaut — requis par l'architecture SPA + API REST.
+ * Surcharge le lien de vérification e-mail de Laravel : l'email pointe vers la SPA
+ * (FRONTEND_URL + frontend_email_verification_path) avec id, hash, expires et signature
+ * en query string. La SPA appelle ensuite GET /api/email/verify/{id}/{hash}?expires=&signature=.
  */
 class AppServiceProvider extends ServiceProvider
 {
@@ -19,17 +19,23 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
-        // La route de vérification est préfixée 'api.' — on surcharge la génération d'URL
-        // pour que la notification VerifyEmail pointe vers le bon endpoint.
         VerifyEmail::createUrlUsing(function (object $notifiable): string {
-            return URL::temporarySignedRoute(
+            $id = $notifiable->getKey();
+            $hash = sha1($notifiable->getEmailForVerification());
+
+            // Signature relative : valide quel que soit l'hôte par lequel la SPA joint l'API (proxy, domaine).
+            $signedPath = URL::temporarySignedRoute(
                 'api.verification.verify',
                 now()->addMinutes((int) config('auth.verification.expire', 60)),
-                [
-                    'id'   => $notifiable->getKey(),
-                    'hash' => sha1($notifiable->getEmailForVerification()),
-                ]
+                ['id' => $id, 'hash' => $hash],
+                absolute: false
             );
+
+            parse_str((string) parse_url($signedPath, PHP_URL_QUERY), $signature);
+
+            return config('app.frontend_url')
+                .config('app.frontend_email_verification_path')
+                .'?'.http_build_query(['id' => $id, 'hash' => $hash, ...$signature]);
         });
     }
 }

@@ -40,10 +40,11 @@ L'admin seul peut :
 - `users.deactivate` — désactivation définitive d'un compte
 - `organizations.ban` — bannissement d'une organisation
 - `notifications.monitor` — health check système (outil de support/debug)
+- `tooling.access` — module Tooling : journal Backend Inspector et Dev Toolbox en lecture (voir [`tooling.md`](tooling.md))
 
 ---
 
-## Permissions (50)
+## Permissions (51)
 
 ### users
 
@@ -158,6 +159,12 @@ L'admin seul peut :
 | Permission | admin | agent | responsable | user | chauffeur |
 |---|:---:|:---:|:---:|:---:|:---:|
 | `notifications.monitor` | ✓ | — | — | — | — |
+
+### tooling
+
+| Permission | admin | agent | responsable | user | chauffeur |
+|---|:---:|:---:|:---:|:---:|:---:|
+| `tooling.access` | ✓ | — | — | — | — |
 
 ### recurrences
 
