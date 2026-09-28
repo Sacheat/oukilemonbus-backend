@@ -139,4 +139,4 @@ ReservationConflict::create([
 
 - **Performance et concurrence** : la suite est orientée correction métier, pas charge.
 - **Frontend** : les tests sont purement API REST.
-- **Playwright / E2E** : tests de la démo web gérés séparément.
+- **Playwright / E2E** : relèvent du dépôt frontend.

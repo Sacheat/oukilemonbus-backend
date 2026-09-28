@@ -18,8 +18,8 @@ Le backend couvre l'ensemble du cycle de vie d'une réservation : de la demande 
 | Géocodage / distances | OpenRouteService API |
 | Emails | Mailtrap (dev) / SMTP configurable |
 | Queue | Laravel Queue — 3 niveaux : `critical`, `default`, `low` |
-| Tests | PHPUnit 12 — 419 tests, 1807 assertions |
-| Assets | Vite |
+| Tests | PHPUnit 12 — 439 tests, 1924 assertions |
+| Frontend | SPA séparée (dépôt distinct) — consomme uniquement `/api` |
 
 ---
 
@@ -42,7 +42,8 @@ docker compose up -d
 ## Prérequis
 
 - Docker + Docker Compose
-- Node.js / npm (pour les assets de la démo)
+
+Le backend n'a plus de dépendance Node : il n'expose aucune page (la route `/` renvoie un JSON descriptif).
 
 ---
 
@@ -72,9 +73,6 @@ docker compose exec app php artisan key:generate
 # 7. Migrations + seeders
 docker compose exec app php artisan migrate
 docker compose exec app php artisan db:seed --class=RolesAndPermissionsSeeder
-
-# 8. Assets frontend (démo)
-npm install && npm run build
 ```
 
 ---
@@ -99,9 +97,6 @@ docker compose exec app php artisan config:clear
 docker compose exec app php artisan route:clear
 docker compose exec app php artisan cache:clear
 docker compose exec app php artisan view:clear
-
-# 6. Rebuild assets si vite.config.js ou resources/js/ ont changé
-npm run build
 ```
 
 ---
@@ -149,13 +144,13 @@ Tous les endpoints sont préfixés `/api/` et protégés par Sanctum sauf mentio
 | Indisponibilités | `GET/POST /unavailabilities`, `PATCH /{id}`, `DELETE /{id}`, `GET /{id}/history` |
 | Notifications | `GET /notifications`, `/summary`, `/unread-count`, `/health`, `PATCH /{id}/read`, `/read-all`, `/read-by-filter` |
 | Préférences notif. | `GET/PATCH /notifications/preferences` |
-| Backend inspector | `GET /demo/inspector/live` (démo interne) |
+| Outils admin (module Tooling) | `GET /admin/tooling/inspector/*`, `GET /admin/tooling/toolbox/*` — permission `tooling.access` |
 
 ---
 
 ## Rôles et permissions
 
-5 rôles définis via Spatie Laravel Permission, 50 permissions granulaires au format `module.action` :
+5 rôles définis via Spatie Laravel Permission, 51 permissions granulaires au format `module.action` :
 
 | Rôle | Description |
 |---|---|
@@ -175,16 +170,16 @@ app/
   Enums/                     # Enums PHP typés (ReservationStatus, ConflictType, etc.)
   Http/
     Controllers/Api/         # 22 contrôleurs REST
-    Middleware/              # BackendInspectorMiddleware
+    Middleware/              # EnsureUserIsActive
     Requests/{Module}/       # FormRequests par module
     Resources/               # Resources API JSON
   Models/                    # 20+ modèles Eloquent
   Policies/                  # Policies par ressource
+  Tooling/                   # Module isolé : Backend Inspector + Dev Toolbox (voir docs/tooling.md)
   Services/
     Auth/
     Backups/
     CouncilDecisions/
-    Demo/
     Documents/
     Drivers/
     Locations/
@@ -212,7 +207,8 @@ database/
 docs/                        # Documentation technique par module
 routes/
   api.php                    # 126 routes API nommées
-  web.php                    # Démo et backend inspector
+  web.php                    # Route / (JSON descriptif) — aucune page
+  tooling.php                # API admin du module Tooling (chargée par ToolingServiceProvider)
   console.php                # Tâches planifiées
 tests/
   Unit/                      # 12 fichiers — services, générateurs, contextes
@@ -264,7 +260,7 @@ tests/
 - Idempotence des requêtes critiques via `api_idempotency_keys`
 - Journal de domaine immuable `domain_events` pour l'audit
 - Sessions persistées en base de données
-- Backend inspector : observabilité temps réel des requêtes et événements (démo interne)
+- Module Tooling (admin) : journal des requêtes API mutantes (Backend Inspector) et Dev Toolbox — voir [`docs/tooling.md`](docs/tooling.md)
 
 ---
 
@@ -289,6 +285,10 @@ docker compose exec app php artisan backup:list
 # Santé notifications
 docker compose exec app php artisan notifications:health
 
+# Outils (module Tooling)
+docker compose exec app php artisan dev:toolbox            # menu interactif (local/testing)
+docker compose exec app php artisan tooling:inspector-prune  # purge du journal Inspector
+
 # Caches
 docker compose exec app php artisan config:clear && php artisan route:clear && php artisan cache:clear
 ```
@@ -308,7 +308,11 @@ docker compose exec app php artisan config:clear && php artisan route:clear && p
 | `BACKUP_PATH` | Chemin de stockage des backups |
 | `BACKUP_RETENTION_DAYS` | Durée de rétention des backups (défaut : 14) |
 | `NOTIFICATIONS_OBS_MAX_FAILED_DELIVERIES_24H` | Seuil alerte santé notifications |
-| `BACKEND_INSPECTOR_ENABLED` | Activer le backend inspector (démo) |
+| `FRONTEND_URL` | URL de la SPA (liens envoyés par email) |
+| `FRONTEND_EMAIL_VERIFICATION_PATH` | Chemin de la page de vérification d'email côté SPA (défaut : `/verify-email`) |
+| `BACKEND_INSPECTOR_ENABLED` | Active l'enregistrement du journal Inspector (défaut : `false`) |
+| `BACKEND_INSPECTOR_RETENTION_DAYS` | Rétention du journal Inspector (défaut : 14) |
+| `DEV_TOOLBOX_ENABLED` | Autorise `php artisan dev:toolbox` (local/testing uniquement) |
 
 ---
 
@@ -332,7 +336,7 @@ docker compose exec app php artisan config:clear && php artisan route:clear && p
 | Document | Description |
 |---|---|
 | [`docs/modules.md`](docs/modules.md) | Vue d'ensemble des modules et matrice des permissions |
-| [`docs/access-control.md`](docs/access-control.md) | Rôles, 50 permissions, policies, rate limiting |
+| [`docs/access-control.md`](docs/access-control.md) | Rôles, 51 permissions, policies, rate limiting |
 | [`docs/reservations.md`](docs/reservations.md) | Statuts, règles métier, cycle de vie |
 | [`docs/conflicts.md`](docs/conflicts.md) | 12 types de conflits, hard-block vs soft, résolution |
 | [`docs/recurrences.md`](docs/recurrences.md) | Réservations récurrentes, fréquences, annulation cascade |
@@ -344,9 +348,9 @@ docker compose exec app php artisan config:clear && php artisan route:clear && p
 | [`docs/deliberations.md`](docs/deliberations.md) | Délibérations du Collège communal |
 | [`docs/operational-resources.md`](docs/operational-resources.md) | Chauffeurs, véhicules, indisponibilités |
 | [`docs/logging.md`](docs/logging.md) | Stratégie de logs et audit par domaine |
-| [`docs/testing.md`](docs/testing.md) | 419 tests, patterns, seeders |
+| [`docs/testing.md`](docs/testing.md) | 439 tests, patterns, seeders |
 | [`docs/backups.md`](docs/backups.md) | Stratégie et commandes de backup |
-| [`docs/frontend-integration.md`](docs/frontend-integration.md) | Guide d'intégration SPA |
+| [`docs/tooling.md`](docs/tooling.md) | Module Tooling : Backend Inspector, Dev Toolbox, API admin |
 | [`docs/policies-rights-matrix.md`](docs/policies-rights-matrix.md) | Matrice détaillée des policies Laravel |
 | [`oukilemonbus.dbml`](oukilemonbus.dbml) | Schéma complet de la base de données (DBML v7) |
 

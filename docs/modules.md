@@ -2,7 +2,7 @@
 
 Ce document liste l'ensemble des modules du backend, leur périmètre fonctionnel et leur état actuel.
 
-**État global du projet (juin 2026) :** backend stable, 419 tests, 1807 assertions, 0 échec.
+**État global du projet (septembre 2026) :** backend stable, 439 tests, 1924 assertions, 0 échec.
 
 ---
 
@@ -131,11 +131,11 @@ Ce document liste l'ensemble des modules du backend, leur périmètre fonctionne
 - **Idempotence** : `api_idempotency_keys` pour les requêtes POST/PATCH critiques
 - **Audit** : `domain_events` — journal immuable de tous les événements métier
 - **Sessions** : persistées en base (table `sessions`)
-- **Backend inspector** : observabilité temps réel des requêtes (outil interne démo)
+- **Module Tooling** : Backend Inspector (journal des requêtes API mutantes) et Dev Toolbox — voir [`tooling.md`](tooling.md)
 
 ---
 
-## Permissions (50 au total)
+## Permissions (51 au total)
 
 | Module | Permissions |
 |---|---|
@@ -153,6 +153,7 @@ Ce document liste l'ensemble des modules du backend, leur périmètre fonctionne
 | documents | view, download, generate, update |
 | notifications | monitor |
 | recurrences | cancel |
+| tooling | access (admin uniquement — module Tooling) |
 
 ---
 
@@ -197,4 +198,4 @@ Ce document liste l'ensemble des modules du backend, leur périmètre fonctionne
 | [`logging.md`](logging.md) | Logs structurés, canaux, audit |
 | [`backups.md`](backups.md) | Backups — commandes, format, rétention |
 | [`testing.md`](testing.md) | Stratégie de tests |
-| [`frontend-integration.md`](frontend-integration.md) | Guide intégration SPA |
+| [`tooling.md`](tooling.md) | Module Tooling (Inspector, Toolbox) |
