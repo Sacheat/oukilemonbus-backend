@@ -76,7 +76,9 @@ class ReservationApiTest extends TestCase
         $response = $this->postJson('/api/reservations', $this->payload($organization));
 
         $response->assertCreated()
-            ->assertJsonPath('data.status', ReservationStatus::CONFIRME->value);
+            ->assertJsonPath('data.status', ReservationStatus::CONFIRME->value)
+            ->assertJsonPath('data.status_label', 'Confirmé')
+            ->assertJsonPath('data.approval_type_label', 'Automatique');
 
         $this->assertDatabaseHas('reservations', [
             'organization_id' => $organization->id,

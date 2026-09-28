@@ -61,8 +61,8 @@ class OrganizationMemberController extends Controller
     {
         Gate::authorize('leave', $organization);
 
-        return new UserResource(
+        return (new UserResource(
             $this->membershipService->setDefault($organization, $request->user())->load('roles')
-        );
+        ))->withEffectivePermissions();
     }
 }

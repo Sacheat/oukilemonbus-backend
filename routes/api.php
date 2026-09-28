@@ -377,7 +377,7 @@ Route::name('api.')->group(function (): void {
         /**
          * Reservations routes
          */
-        Route::middleware('permission:reservations.view')->middleware('throttle:60,1')->group(function (): void {
+        Route::middleware(['permission:reservations.view', 'throttle:60,1'])->group(function (): void {
             Route::get('/reservations', [ReservationController::class, 'index'])->name('reservations.index');
             Route::get('/reservations/{reservation}', [ReservationController::class, 'show'])->name('reservations.show');
         });

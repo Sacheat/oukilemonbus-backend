@@ -21,6 +21,9 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->statefulApi();
 
+        // Pas de page de login côté backend : un invité sur /api/* reçoit un 401 JSON (ApiErrorMessage), jamais une redirection.
+        $middleware->redirectGuestsTo(fn (Request $request): ?string => $request->is('api/*') ? null : '/');
+
         $middleware->alias([
             'permission' => PermissionMiddleware::class,
             'role' => RoleMiddleware::class,
@@ -29,6 +32,9 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
+        // Toute réponse d'erreur sous /api/* est en JSON, même sans header Accept (plus de redirection HTML).
+        $exceptions->shouldRenderJsonWhen(fn (Request $request): bool => $request->is('api/*') || $request->expectsJson());
+
         // Messages d'erreur de l'API en français (voir App\Exceptions\ApiErrorMessage).
         $exceptions->render(function (AuthenticationException $e, Request $request) {
             if ($request->is('api/*')) {
