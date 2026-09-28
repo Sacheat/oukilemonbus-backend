@@ -4,6 +4,7 @@ namespace App\Services\Locations;
 
 use App\Exceptions\GeocodingException;
 use App\Models\Location;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 
 /**
@@ -169,15 +170,21 @@ class LocationService
     ): array {
         $this->ensureConfigured();
 
-        $response = Http::timeout(10)->withHeaders([
-            'Authorization' => $this->apiKey,
-            'Content-Type' => 'application/json',
-        ])->post("{$this->baseUrl}/v2/directions/driving-car", [
-            'coordinates' => [
-                [$fromLng, $fromLat],
-                [$toLng,   $toLat],
-            ],
-        ]);
+        try {
+            $response = Http::timeout(10)->withHeaders([
+                'Authorization' => $this->apiKey,
+                'Content-Type' => 'application/json',
+            ])->post("{$this->baseUrl}/v2/directions/driving-car", [
+                'coordinates' => [
+                    [$fromLng, $fromLat],
+                    [$toLng,   $toLat],
+                ],
+            ]);
+        } catch (ConnectionException $exception) {
+            // ORS injoignable ou trop lent : même traitement qu'une réponse en erreur
+            // (les appelants basculent sur l'estimation à vol d'oiseau).
+            throw new GeocodingException('Le service de calcul d’itinéraire est injoignable.', previous: $exception);
+        }
 
         if ($response->failed()) {
             throw new GeocodingException(
