@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace App\Services\DevTools;
+namespace App\Tooling\Toolbox\Services;
 
-use App\Services\Demo\UserInspectorService;
+use App\Tooling\Inspector\Services\UserInspectorService;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Throwable;

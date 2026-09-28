@@ -4,14 +4,14 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Dev Toolbox — Configuration
+    | Dev Toolbox (module Tooling)
     |--------------------------------------------------------------------------
     |
-    | Ce fichier est LE SEUL fichier à modifier pour transplanter le module
-    | DevTools sur un autre projet. Le moteur (services + commande) est générique.
-    |
-    | Pour activer : DEV_TOOLBOX_ENABLED=true dans le .env
-    | Le toolbox est automatiquement bloqué hors des environnements listés dans env_guard.
+    | - Commande interactive `php artisan dev:toolbox` : maintenance, debug,
+    |   backups, reset de la base. Bloquée hors des environnements `env_guard`
+    |   et tant que DEV_TOOLBOX_ENABLED n'est pas à true.
+    | - API lecture seule /api/admin/tooling/toolbox/* (permission tooling.access),
+    |   disponible dans tous les environnements : elle n'exécute aucune action.
     |
     */
 

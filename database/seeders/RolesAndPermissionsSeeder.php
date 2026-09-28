@@ -64,6 +64,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'documents.update',
             'notifications.monitor',
             'recurrences.cancel',
+            'tooling.access',
         ];
 
         foreach ($permissions as $permission) {
@@ -83,6 +84,7 @@ class RolesAndPermissionsSeeder extends Seeder
         //   - users.update-status : modération des comptes (bloquer/débloquer), rôle support
         //   - users.deactivate    : désactivation définitive d'un compte, action destructrice irréversible
         //   - notifications.monitor : health check système, outil de support/debug
+        //   - tooling.access        : module Tooling (Backend Inspector, Dev Toolbox en lecture)
         $admin->givePermissionTo($permissions);
 
         $user->givePermissionTo([

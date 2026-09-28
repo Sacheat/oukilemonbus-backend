@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace App\Console\Commands;
+namespace App\Tooling\Toolbox\Console;
 
-use App\Services\DevTools\CustomCommandsService;
-use App\Services\DevTools\DatabaseService;
-use App\Services\DevTools\DebugService;
-use App\Services\DevTools\DefensePrepService;
-use App\Services\DevTools\MaintenanceService;
-use App\Services\DevTools\ScheduleInspectorService;
+use App\Tooling\Toolbox\Services\CustomCommandsService;
+use App\Tooling\Toolbox\Services\DatabaseService;
+use App\Tooling\Toolbox\Services\DebugService;
+use App\Tooling\Toolbox\Services\DefensePrepService;
+use App\Tooling\Toolbox\Services\MaintenanceService;
+use App\Tooling\Toolbox\Services\ScheduleInspectorService;
 use Illuminate\Console\Command;
 
 class DevToolboxCommand extends Command
@@ -31,8 +31,8 @@ class DevToolboxCommand extends Command
 
     public function handle(): int
     {
-        $enabled = (bool) config('dev_toolbox.enabled', false);
-        $guard   = (array) config('dev_toolbox.env_guard', ['local']);
+        $enabled = (bool) config('tooling.toolbox.enabled', false);
+        $guard   = (array) config('tooling.toolbox.env_guard', ['local']);
 
         if (! $enabled || ! in_array(app()->environment(), $guard, true)) {
             $this->error('Dev Toolbox désactivé hors environnement local.');
@@ -233,7 +233,7 @@ class DevToolboxCommand extends Command
         $rules = $this->defenseService->businessRules();
 
         if ($rules === []) {
-            $this->warn('  Aucune règle configurée dans dev_toolbox.business_rules');
+            $this->warn('  Aucune règle configurée dans tooling.toolbox.business_rules');
 
             return true;
         }
@@ -622,7 +622,7 @@ class DevToolboxCommand extends Command
 
     private function actionResetDemo(): bool
     {
-        $word = (string) config('dev_toolbox.reset_demo.confirmation_word', 'RESET');
+        $word = (string) config('tooling.toolbox.reset_demo.confirmation_word', 'RESET');
 
         $this->newLine();
         $this->line('  <fg=red;options=bold>⚠  RESET COMPLET DE LA DÉMO</>');

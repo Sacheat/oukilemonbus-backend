@@ -4,34 +4,51 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Backend Inspector
+    | Backend Inspector (module Tooling)
     |--------------------------------------------------------------------------
     |
-    | Outil pédagogique réservé à la démo.
-    | Il permet d'expliquer ce qui se passe côté backend lorsqu'une action
-    | est exécutée dans les pages de démonstration.
+    | Outil d'administration : enregistre en base chaque requête API mutante
+    | (POST/PUT/PATCH/DELETE) avec son acteur, son statut HTTP, un payload
+    | expurgé et la clé de flow métier correspondante.
+    | Consultable via /api/admin/tooling/inspector/* (permission tooling.access).
+    |
+    | Désactivé par défaut : BACKEND_INSPECTOR_ENABLED=true pour l'activer.
     |
     */
 
-    'enabled' => env('BACKEND_INSPECTOR_ENABLED', false),
+    'enabled' => (bool) env('BACKEND_INSPECTOR_ENABLED', false),
 
-    'session_keys' => [
-        'enabled' => 'backend_inspector.enabled',
-        'current_scenario' => 'backend_inspector.current_scenario',
-        'last_action' => 'backend_inspector.last_action',
-        'last_context' => 'backend_inspector.last_context',
-        'last_recorded_at' => 'backend_inspector.last_recorded_at',
-        'current_actor_id' => 'backend_inspector.current_actor_id',
-        'history'          => 'backend_inspector.history',
+    // Nombre de jours de conservation des entrées (purge quotidienne planifiée).
+    'retention_days' => (int) env('BACKEND_INSPECTOR_RETENTION_DAYS', 14),
+
+    // Méthodes HTTP enregistrées.
+    'methods' => ['POST', 'PUT', 'PATCH', 'DELETE'],
+
+    // Noms de routes jamais enregistrés (wildcards acceptés).
+    'ignored_routes' => [
+        'api.admin.tooling.*',
     ],
+
+    // Toute clé de payload contenant l'un de ces fragments est masquée (insensible à la casse).
+    'redacted_keys' => [
+        'password',
+        'token',
+        'secret',
+        'signature',
+        'api_key',
+        'authorization',
+    ],
+
+    // Taille maximale (octets, JSON encodé) du payload stocké ; au-delà il est tronqué.
+    'max_payload_bytes' => 16384,
 
     /*
     |--------------------------------------------------------------------------
-    | Route map — API route name → inspector flow key
+    | Route map — nom de route API → clé de flow
     |--------------------------------------------------------------------------
     |
-    | Utilisé par BackendInspectorMiddleware pour identifier le flow à enregistrer
-    | lorsqu’une route API de la démo v2 est appelée avec succès.
+    | Les routes absentes de cette table sont tout de même enregistrées,
+    | mais sans flow associé (flow_key = null).
     |
     */
 
@@ -121,35 +138,12 @@ return [
 
     ],
 
-    'scenarios' => [
-
-        'user' => [
-            'title' => 'Scénario User',
-            'description' => 'Parcours d’un utilisateur classique : demandes d’organisation, rattachement et réservations.',
-            'actor_type' => 'Utilisateur',
-        ],
-
-        'admin' => [
-            'title' => 'Scénario Admin / Agent communal',
-            'description' => 'Parcours de gestion : validation, réservation, planning, documents et notifications.',
-            'actor_type' => 'Admin / Agent communal',
-        ],
-
-        'driver' => [
-            'title' => 'Scénario Chauffeur',
-            'description' => 'Parcours chauffeur : planning, missions assignées, feuilles de route et notifications.',
-            'actor_type' => 'Chauffeur',
-        ],
-
-    ],
-
     'flows' => [
 
         // _________________________________________________________________________________________PLANNING
         'planning.index' => [
             'title' => 'Consultation du planning',
             'category' => 'Planning',
-            'scenario' => 'admin',
             'goal' => 'Afficher les réservations planifiées sur une période donnée.',
 
             'route' => [
@@ -208,8 +202,7 @@ return [
         'reservations.index' => [
             'title' => 'Consultation des réservations',
             'category' => 'Réservations',
-            'scenario' => 'admin',
-            'goal' => 'Afficher les réservations disponibles dans la démo avec leurs affectations et conflits.',
+            'goal' => 'Lister les réservations visibles par l’utilisateur avec leurs affectations et conflits.',
 
             'route' => [
                 'api' => 'GET /api/reservations',
@@ -257,56 +250,10 @@ return [
         ],
 
         // CREATE
-        'reservations.create' => [
-            'title' => 'Ouverture du formulaire de création',
-            'category' => 'Réservations',
-            'scenario' => 'admin',
-            'goal' => 'Afficher le formulaire permettant de créer une nouvelle réservation.',
-
-            'route' => [
-                'api' => 'Non applicable : l’API ne fournit généralement pas de formulaire HTML.',
-            ],
-
-
-            'api_controller' => null,
-
-            'request' => null,
-
-            'service' => [
-                'class' => 'DemoReservationController',
-                'method' => 'create',
-                'internal_methods' => [
-                    'Récupération de l’acteur courant',
-                    'Vérification du droit de création',
-                    'Chargement des organisations visibles',
-                    'Chargement des lieux disponibles',
-                    'Chargement des types d’activité',
-                    'Affichage du formulaire de création',
-                ],
-            ],
-
-            'related_services' => [
-            ],
-
-            'tables' => [
-                'users',
-                'organizations',
-                'locations',
-            ],
-
-            'effects' => [
-                'Le formulaire de création est affiché.',
-                'Aucune réservation n’est encore créée.',
-                'La création réelle se fait uniquement au clic sur Enregistrer.',
-                'L’action suivante attendue est reservations.store.',
-            ],
-        ],
-
         // STORE
         'reservations.store' => [
             'title' => 'Création d’une réservation',
             'category' => 'Réservations',
-            'scenario' => 'admin',
             'goal' => 'Créer une nouvelle réservation à partir des données du formulaire.',
 
             'route' => [
@@ -376,57 +323,10 @@ return [
         ],
 
         // EDIT
-        'reservations.edit' => [
-            'title' => 'Ouverture du formulaire de modification',
-            'category' => 'Réservations',
-            'scenario' => 'admin',
-            'goal' => 'Afficher le formulaire permettant de modifier une réservation existante.',
-
-            'route' => [
-                'api' => 'Non applicable : l’API ne fournit généralement pas de formulaire HTML.',
-            ],
-
-
-            'api_controller' => null,
-
-            'request' => null,
-
-            'service' => [
-                'class' => 'Reservation',
-                'method' => 'load/query',
-                'internal_methods' => [
-                    'Récupération de l’acteur courant',
-                    'Vérification du droit de modification',
-                    'Chargement de la réservation',
-                    'Chargement des données nécessaires au formulaire',
-                    'Affichage de la vue de modification',
-                ],
-            ],
-
-            'related_services' => [
-            ],
-
-            'tables' => [
-                'reservations',
-                'organizations',
-                'locations',
-                'drivers',
-                'vehicles',
-            ],
-
-            'effects' => [
-                'Le formulaire de modification est affiché.',
-                'Aucune donnée métier n’est encore modifiée.',
-                'La modification réelle se fait uniquement au clic sur Enregistrer.',
-                'L’action suivante attendue est reservations.update.',
-            ],
-        ],
-
         // UPDATE
         'reservations.update' => [
             'title' => 'Modification d’une réservation',
             'category' => 'Réservations',
-            'scenario' => 'admin',
             'goal' => 'Mettre à jour les informations principales d’une réservation existante.',
 
             'route' => [
@@ -495,7 +395,6 @@ return [
         'reservations.approve' => [
             'title' => 'Approbation d’une réservation',
             'category' => 'Réservations',
-            'scenario' => 'admin',
             'goal' => 'Faire passer une réservation vers le statut approuvé.',
 
             'route' => [
@@ -556,7 +455,6 @@ return [
         'reservations.auto_assign' => [
             'title' => 'Affectation automatique d’une réservation',
             'category' => 'Réservations',
-            'scenario' => 'admin',
             'goal' => 'Tenter d’assigner automatiquement un chauffeur et un véhicule disponibles à une réservation, en évitant les conflits d’occupation.',
 
             'route' => [
@@ -620,7 +518,6 @@ return [
         'reservations.assign' => [
             'title' => 'Affectation manuelle d’une réservation',
             'category' => 'Réservations',
-            'scenario' => 'admin',
             'goal' => 'Assigner manuellement un chauffeur et/ou un véhicule à une réservation.',
 
             'route' => [
@@ -682,7 +579,6 @@ return [
         'reservations.council_decision' => [
             'title' => 'Encodage d’une décision du collège',
             'category' => 'Réservations',
-            'scenario' => 'admin',
             'goal' => 'Encoder ou mettre à jour la décision du collège communal liée à une réservation.',
 
             'route' => [
@@ -746,7 +642,6 @@ return [
         'reservations.confirm' => [
             'title' => 'Confirmation d’une réservation',
             'category' => 'Réservations',
-            'scenario' => 'admin',
             'goal' => 'Faire passer une réservation vers le statut confirmé.',
 
             'route' => [
@@ -805,7 +700,6 @@ return [
         'reservations.reject' => [
             'title' => 'Refus d’une réservation',
             'category' => 'Réservations',
-            'scenario' => 'admin',
             'goal' => 'Refuser une réservation avec un motif explicite.',
 
             'route' => [
@@ -864,8 +758,7 @@ return [
         'reservations.cancel' => [
             'title' => 'Annulation d’une réservation',
             'category' => 'Réservations',
-            'scenario' => 'admin',
-            'goal' => 'Annuler une réservation depuis la démo.',
+            'goal' => 'Annuler une réservation.',
 
             'route' => [
                 'api' => 'PATCH /api/reservations/{reservation}/cancel',
@@ -922,7 +815,6 @@ return [
         'notifications.index' => [
             'title' => 'Consultation des notifications',
             'category' => 'Notifications',
-            'scenario' => 'admin',
             'goal' => 'Afficher les notifications in-app de l’acteur et la santé du système de notifications.',
 
             'route' => [
@@ -969,7 +861,6 @@ return [
         'notifications.read_all' => [
             'title' => 'Marquage global des notifications comme lues',
             'category' => 'Notifications',
-            'scenario' => 'admin',
             'goal' => 'Marquer toutes les notifications non lues de l’acteur courant comme lues.',
 
             'route' => [
@@ -1014,7 +905,6 @@ return [
         'notifications.read' => [
             'title' => 'Marquage d’une notification comme lue',
             'category' => 'Notifications',
-            'scenario' => 'admin',
             'goal' => 'Marquer une notification précise de l’acteur courant comme lue.',
 
             'route' => [
@@ -1058,58 +948,10 @@ return [
         ],
 
         // _________________________________________________________________________________________DEMANDES (REQUESTS)
-        'requests.index' => [
-            'title' => 'Consultation des demandes administratives',
-            'category' => 'Demandes',
-            'scenario' => 'admin',
-            'goal' => 'Afficher les demandes de création d’organisation et de rattachement utilisateur.',
-
-            'route' => [
-                'api' => 'Composite : GET /api/org-registration-requests + GET /api/user-org-requests',
-            ],
-
-
-            'api_controller' => [
-                'class' => 'OrgRegistrationRequestController / UserOrgRequestController',
-                'method' => 'index',
-            ],
-            'request' => null,
-
-            'service' => [
-                'class' => 'OrgRegistrationRequest / UserOrgRequest',
-                'method' => 'query',
-                'internal_methods' => [
-                    'chargement des demandes de création d’organisation',
-                    'chargement des demandes de rattachement utilisateur',
-                    'préchargement des utilisateurs et organisations liés',
-                ],
-            ],
-
-            'related_services' => [
-                'OrgRegistrationRequestService',
-                'UserOrgRequestService',
-            ],
-
-            'tables' => [
-                'org_registration_requests',
-                'user_org_requests',
-                'users',
-                'organizations',
-                'locations',
-            ],
-
-            'effects' => [
-                'Les demandes administratives sont affichées.',
-                'Les demandes en attente peuvent être approuvées ou refusées.',
-                'Les demandes déjà traitées sont affichées comme telles.',
-            ],
-        ],
-
         'requests.organizations.store' => [
             'title' => 'Création d’une demande d’organisation',
             'category' => 'Demandes',
-            'scenario' => 'admin',
-            'goal' => 'Créer une demande de création d’organisation depuis la démo.',
+            'goal' => 'Créer une demande de création d’organisation.',
 
             'route' => [
                 'api' => 'POST /api/org-registration-requests',
@@ -1174,7 +1016,6 @@ return [
         'requests.organizations.approve' => [
             'title' => 'Approbation d’une demande d’organisation',
             'category' => 'Demandes',
-            'scenario' => 'admin',
             'goal' => 'Approuver une demande de création d’organisation et créer l’organisation correspondante.',
 
             'route' => [
@@ -1225,7 +1066,6 @@ return [
         'requests.organizations.reject' => [
             'title' => 'Refus d’une demande d’organisation',
             'category' => 'Demandes',
-            'scenario' => 'admin',
             'goal' => 'Refuser une demande de création d’organisation avec un motif explicite.',
 
             'route' => [
@@ -1281,7 +1121,6 @@ return [
         'requests.user_organizations.store' => [
             'title' => 'Création d’une demande de rattachement',
             'category' => 'Demandes',
-            'scenario' => 'admin',
             'goal' => 'Créer une demande de rattachement d’un utilisateur à une organisation existante.',
 
             'route' => [
@@ -1340,7 +1179,6 @@ return [
         'requests.user_organizations.approve' => [
             'title' => 'Approbation d’une demande de rattachement',
             'category' => 'Demandes',
-            'scenario' => 'admin',
             'goal' => 'Approuver une demande de rattachement et associer l’utilisateur à l’organisation.',
 
             'route' => [
@@ -1392,7 +1230,6 @@ return [
         'requests.user_organizations.reject' => [
             'title' => 'Refus d’une demande de rattachement',
             'category' => 'Demandes',
-            'scenario' => 'admin',
             'goal' => 'Refuser une demande de rattachement avec un motif explicite.',
 
             'route' => [
@@ -1451,7 +1288,6 @@ return [
         'documents.index' => [
             'title' => 'Consultation des documents',
             'category' => 'Documents',
-            'scenario' => 'admin',
             'goal' => 'Afficher les documents générés et les formulaires de génération de feuilles de route.',
 
             'route' => [
@@ -1498,7 +1334,6 @@ return [
         'documents.route_sheets.generate' => [
             'title' => 'Génération d’une feuille de route',
             'category' => 'Documents',
-            'scenario' => 'admin',
             'goal' => 'Générer un document de feuille de route à partir des réservations planifiées.',
 
             'route' => [
@@ -1555,7 +1390,6 @@ return [
         'documents.download' => [
             'title' => 'Téléchargement d’un document',
             'category' => 'Documents',
-            'scenario' => 'admin',
             'goal' => 'Télécharger un document généré par le backend.',
 
             'route' => [
@@ -1598,7 +1432,6 @@ return [
         'organizations.index' => [
             'title' => 'Consultation des organisations',
             'category' => 'Organisations',
-            'scenario' => 'admin',
             'goal' => 'Afficher les organisations visibles par l’acteur courant.',
 
             'route' => [
@@ -1619,7 +1452,7 @@ return [
                 'internal_methods' => [
                     'Identification de l’acteur courant',
                     'Filtrage des organisations visibles',
-                    'Préparation de la liste affichée dans la démo',
+                    'Préparation de la liste renvoyée au client',
                 ],
             ],
 
@@ -1637,7 +1470,7 @@ return [
             'effects' => [
                 'Les organisations visibles sont chargées.',
                 'La liste est adaptée aux droits de l’acteur courant.',
-                'Les informations sont préparées pour la page de démonstration.',
+                'Les informations sont renvoyées au client via une API Resource.',
             ],
         ],
 
@@ -1645,7 +1478,6 @@ return [
         'auth.register' => [
             'title' => 'Inscription d’un utilisateur',
             'category' => 'Authentification',
-            'scenario' => null,
             'goal' => 'Créer un nouveau compte utilisateur avec envoi automatique d’un email de vérification.',
 
             'route' => [
@@ -1701,7 +1533,6 @@ return [
         'auth.login' => [
             'title' => 'Connexion d’un utilisateur',
             'category' => 'Authentification',
-            'scenario' => null,
             'goal' => 'Authentifier un utilisateur via Sanctum en mode cookie stateful.',
 
             'route' => [
@@ -1753,7 +1584,6 @@ return [
         'auth.logout' => [
             'title' => 'Déconnexion',
             'category' => 'Authentification',
-            'scenario' => null,
             'goal' => 'Terminer la session et invalider les cookies d’authentification.',
 
             'route' => [
@@ -1793,11 +1623,10 @@ return [
             ],
         ],
 
-        // _________________________________________________________________________________________RÉSERVATIONS (NOUVELLES ACTIONS V2)
+        // _________________________________________________________________________________________RÉSERVATIONS (ACTIONS COMPLÉMENTAIRES)
         'reservations.retry_assign' => [
             'title' => 'Tentative de réassignation automatique',
             'category' => 'Réservations',
-            'scenario' => 'admin',
             'goal' => 'Retenter l’assignation automatique d’un chauffeur et d’un véhicule disponibles sur une réservation en conflit.',
 
             'route' => [
@@ -1851,7 +1680,6 @@ return [
         'reservations.confirm_passengers' => [
             'title' => 'Confirmation du nombre de passagers',
             'category' => 'Réservations',
-            'scenario' => null,
             'goal' => 'Mettre à jour le nombre de passagers et enregistrer l’horodatage de confirmation. Si le trajet est aujourd’hui, la feuille de route est régénérée.',
 
             'route' => [
@@ -1905,7 +1733,6 @@ return [
         'reservations.conflicts.resolve' => [
             'title' => 'Résolution manuelle d’un conflit',
             'category' => 'Réservations',
-            'scenario' => 'admin',
             'goal' => 'Marquer un conflit spécifique comme résolu et déclencher la transition automatique de statut si plus aucun conflit actif.',
 
             'route' => [
@@ -1955,7 +1782,6 @@ return [
         'recurrences.store' => [
             'title' => 'Création d’une réservation récurrente',
             'category' => 'Réservations',
-            'scenario' => 'admin',
             'goal' => 'Créer un ensemble de réservations périodiques pour une école communale sur une plage de dates avec une fréquence définie.',
 
             'route' => [
@@ -2022,7 +1848,6 @@ return [
         'requests.organizations.proof_upload' => [
             'title' => 'Upload du justificatif d’organisation',
             'category' => 'Demandes',
-            'scenario' => null,
             'goal' => 'Attacher un document justificatif (PDF, JPG, PNG) à une demande de création d’organisation.',
 
             'route' => [
@@ -2069,7 +1894,6 @@ return [
         'requests.organizations.proof_delete' => [
             'title' => 'Suppression du justificatif d’organisation',
             'category' => 'Demandes',
-            'scenario' => null,
             'goal' => 'Supprimer le document justificatif d’une demande d’organisation en attente.',
 
             'route' => [
@@ -2113,7 +1937,6 @@ return [
         'requests.user_organizations.proof_upload' => [
             'title' => 'Upload du justificatif d’adhésion',
             'category' => 'Demandes',
-            'scenario' => null,
             'goal' => 'Attacher un document justificatif à une demande d’adhésion à une organisation.',
 
             'route' => [
@@ -2159,7 +1982,6 @@ return [
         'requests.user_organizations.proof_delete' => [
             'title' => 'Suppression du justificatif d’adhésion',
             'category' => 'Demandes',
-            'scenario' => null,
             'goal' => 'Supprimer le justificatif d’une demande d’adhésion en attente.',
 
             'route' => [
@@ -2203,7 +2025,6 @@ return [
         'notifications.preferences.update' => [
             'title' => 'Mise à jour des préférences de notification',
             'category' => 'Notifications',
-            'scenario' => null,
             'goal' => 'Modifier les canaux actifs (database, mail) par catégorie et la fréquence des digests.',
 
             'route' => [
@@ -2252,7 +2073,6 @@ return [
         'locations.store' => [
             'title' => 'Création ou déduplication d’un lieu',
             'category' => 'Lieux',
-            'scenario' => null,
             'goal' => 'Enregistrer un lieu depuis une suggestion ORS, ou retourner le lieu existant si le place_id est déjà connu (déduplication).',
 
             'route' => [
@@ -2308,7 +2128,6 @@ return [
         'admin.unavailabilities.store' => [
             'title' => 'Création d’une indisponibilité',
             'category' => 'Administration',
-            'scenario' => 'admin',
             'goal' => 'Enregistrer une période d’indisponibilité pour un chauffeur ou un véhicule et recalculer l’impact sur les réservations existantes.',
 
             'route' => [
@@ -2371,7 +2190,6 @@ return [
         'admin.unavailabilities.update' => [
             'title' => 'Modification d’une indisponibilité',
             'category' => 'Administration',
-            'scenario' => 'admin',
             'goal' => 'Mettre à jour les dates ou le motif d’une indisponibilité et recalculer son impact.',
 
             'route' => [
@@ -2423,7 +2241,6 @@ return [
         'admin.unavailabilities.cancel' => [
             'title' => 'Annulation d’une indisponibilité',
             'category' => 'Administration',
-            'scenario' => 'admin',
             'goal' => 'Annuler une indisponibilité et tenter de réassigner automatiquement les réservations précédemment impactées.',
 
             'route' => [
@@ -2471,7 +2288,6 @@ return [
         'admin.drivers.store' => [
             'title' => 'Création d’un chauffeur',
             'category' => 'Administration',
-            'scenario' => 'admin',
             'goal' => 'Enregistrer un utilisateur existant en tant que chauffeur actif.',
 
             'route' => [
@@ -2515,7 +2331,6 @@ return [
         'admin.drivers.update' => [
             'title' => 'Modification d’un chauffeur',
             'category' => 'Administration',
-            'scenario' => 'admin',
             'goal' => 'Mettre à jour le numéro de permis ou la date d’expiration d’un chauffeur.',
 
             'route' => [
@@ -2555,7 +2370,6 @@ return [
         'admin.drivers.activate' => [
             'title' => 'Activation d’un chauffeur',
             'category' => 'Administration',
-            'scenario' => 'admin',
             'goal' => 'Rendre un chauffeur inactif à nouveau disponible pour les assignations.',
 
             'route' => [
@@ -2593,7 +2407,6 @@ return [
         'admin.drivers.deactivate' => [
             'title' => 'Désactivation d’un chauffeur',
             'category' => 'Administration',
-            'scenario' => 'admin',
             'goal' => 'Rendre un chauffeur inactif pour qu’il ne soit plus proposé dans les assignations.',
 
             'route' => [
@@ -2633,7 +2446,6 @@ return [
         'admin.vehicles.store' => [
             'title' => 'Création d’un véhicule',
             'category' => 'Administration',
-            'scenario' => 'admin',
             'goal' => 'Ajouter un véhicule à la flotte avec son immatriculation et sa capacité.',
 
             'route' => [
@@ -2675,7 +2487,6 @@ return [
         'admin.vehicles.update' => [
             'title' => 'Modification d’un véhicule',
             'category' => 'Administration',
-            'scenario' => 'admin',
             'goal' => 'Mettre à jour l’immatriculation ou la capacité d’un véhicule.',
 
             'route' => [
@@ -2715,7 +2526,6 @@ return [
         'admin.vehicles.activate' => [
             'title' => 'Activation d’un véhicule',
             'category' => 'Administration',
-            'scenario' => 'admin',
             'goal' => 'Rendre un véhicule inactif à nouveau disponible pour les assignations.',
 
             'route' => [
@@ -2753,7 +2563,6 @@ return [
         'admin.vehicles.deactivate' => [
             'title' => 'Désactivation d’un véhicule',
             'category' => 'Administration',
-            'scenario' => 'admin',
             'goal' => 'Retirer un véhicule du service actif.',
 
             'route' => [
@@ -2793,7 +2602,6 @@ return [
         'admin.users.update_status' => [
             'title' => 'Blocage ou déblocage d’un utilisateur',
             'category' => 'Administration',
-            'scenario' => 'admin',
             'goal' => 'Modifier le statut actif/bloqué d’un utilisateur sans supprimer ses tokens.',
 
             'route' => [
@@ -2835,7 +2643,6 @@ return [
         'admin.users.deactivate' => [
             'title' => 'Désactivation définitive d’un utilisateur',
             'category' => 'Administration',
-            'scenario' => 'admin',
             'goal' => 'Désactiver définitivement un compte utilisateur et révoquer tous ses tokens d’accès.',
 
             'route' => [
@@ -2881,7 +2688,6 @@ return [
         'reservations.preview' => [
             'title' => 'Calcul du preview de réservation',
             'category' => 'Réservations',
-            'scenario' => null,
             'goal' => 'Calculer en temps réel la faisabilit’d’une réservation sans rien écrire en base — distance ORS, fenêtre d’occupation, conflits, disponibilité.',
 
             'route' => [
@@ -2948,7 +2754,6 @@ return [
         'recurrences.preview' => [
             'title' => 'Calcul du preview de récurrence',
             'category' => 'Réservations',
-            'scenario' => null,
             'goal' => 'Calculer les occurrences valides d’une récurrence, les dates ignorées et les conflits potentiels sans créer aucune réservation.',
 
             'route' => [
@@ -3007,7 +2812,6 @@ return [
         'organizations.store' => [
             'title' => 'Création directe d’une organisation',
             'category' => 'Organisations',
-            'scenario' => 'admin',
             'goal' => 'Créer une organisation directement sans passer par une demande d’enregistrement. Réservé aux agents internes.',
 
             'route' => [
@@ -3054,7 +2858,6 @@ return [
         'organizations.ban' => [
             'title' => 'Bannissement d’une organisation',
             'category' => 'Organisations',
-            'scenario' => 'admin',
             'goal' => 'Interdire à une organisation de soumettre de nouvelles réservations, avec un motif obligatoire.',
 
             'route' => [
@@ -3098,7 +2901,6 @@ return [
         'organizations.unban' => [
             'title' => 'Levée du bannissement',
             'category' => 'Organisations',
-            'scenario' => 'admin',
             'goal' => 'Réactiver une organisation précédemment bannie.',
 
             'route' => [
@@ -3138,7 +2940,6 @@ return [
         'auth.email_resend' => [
             'title' => 'Renvoi de l’email de vérification',
             'category' => 'Authentification',
-            'scenario' => null,
             'goal' => 'Renvoyer l’email de vérification à un utilisateur dont le lien a expiré ou qui ne l’a pas reçu.',
 
             'route' => [

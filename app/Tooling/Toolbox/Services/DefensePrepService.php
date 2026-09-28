@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Services\DevTools;
+namespace App\Tooling\Toolbox\Services;
 
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
@@ -33,8 +33,8 @@ final class DefensePrepService
      */
     public function businessRules(): array
     {
-        $configKey = (string) config('dev_toolbox.business_rules.config_key', 'reservations');
-        $labelDefs = (array) config('dev_toolbox.business_rules.labels', []);
+        $configKey = (string) config('tooling.toolbox.business_rules.config_key', 'reservations');
+        $labelDefs = (array) config('tooling.toolbox.business_rules.labels', []);
         $rules     = (array) config($configKey, []);
 
         $result = [];
@@ -62,7 +62,7 @@ final class DefensePrepService
      */
     public function architecture(): array
     {
-        $paths  = (array) config('dev_toolbox.architecture.paths', []);
+        $paths  = (array) config('tooling.toolbox.architecture.paths', []);
         $result = [];
 
         foreach ($paths as $label => $relativePath) {
@@ -91,7 +91,7 @@ final class DefensePrepService
      */
     public function dbStats(): array
     {
-        $statDefs = (array) config('dev_toolbox.db_stats', []);
+        $statDefs = (array) config('tooling.toolbox.db_stats', []);
         $result   = [];
 
         foreach ($statDefs as $def) {
@@ -122,7 +122,7 @@ final class DefensePrepService
     {
         return [
             'internal' => $this->internalRoutes(),
-            'external' => (array) config('dev_toolbox.api_catalog.external', []),
+            'external' => (array) config('tooling.toolbox.api_catalog.external', []),
         ];
     }
 
@@ -144,7 +144,7 @@ final class DefensePrepService
 
     private function checkDemoUsers(): array
     {
-        $pattern  = (string) config('dev_toolbox.demo.email_pattern', '.test@');
+        $pattern  = (string) config('tooling.toolbox.demo.email_pattern', '.test@');
         $userModel = config('auth.providers.users.model', \App\Models\User::class);
 
         try {
@@ -233,7 +233,7 @@ final class DefensePrepService
             return collect(Route::getRoutes()->getRoutes())
                 ->filter(fn ($r): bool =>
                     str_starts_with($r->uri(), 'api/')
-                    && ! str_contains($r->uri(), 'demo')
+                    && ! str_starts_with($r->uri(), 'api/admin/tooling')
                     && ! str_contains($r->uri(), 'signed')
                 )
                 ->map(fn ($r): array => [

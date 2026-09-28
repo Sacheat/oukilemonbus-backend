@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Services\DevTools;
+namespace App\Tooling\Toolbox\Services;
 
 use Illuminate\Console\Command;
 use Throwable;
@@ -15,7 +15,7 @@ final class MaintenanceService
      */
     public function repairPermissions(Command $command): array
     {
-        $seeder = (string) config('dev_toolbox.repair_permissions.seeder', 'RolesAndPermissionsSeeder');
+        $seeder = (string) config('tooling.toolbox.repair_permissions.seeder', 'RolesAndPermissionsSeeder');
 
         $command->call('permission:cache-reset');
         $command->call('db:seed', ['--class' => $seeder, '--force' => true]);
@@ -40,7 +40,7 @@ final class MaintenanceService
      */
     public function validateDemoEmails(): int
     {
-        $pattern   = (string) config('dev_toolbox.demo.email_pattern', '.test@');
+        $pattern   = (string) config('tooling.toolbox.demo.email_pattern', '.test@');
         $userModel = config('auth.providers.users.model', \App\Models\User::class);
 
         try {

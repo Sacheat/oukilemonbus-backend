@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Services\DevTools;
+namespace App\Tooling\Toolbox\Services;
 
 use Illuminate\Support\Facades\Artisan;
 

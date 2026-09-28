@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Services\DevTools;
+namespace App\Tooling\Toolbox\Services;
 
 final class CustomCommandsService
 {
@@ -11,7 +11,7 @@ final class CustomCommandsService
      */
     public function list(): array
     {
-        return (array) config('dev_toolbox.custom_commands', []);
+        return (array) config('tooling.toolbox.custom_commands', []);
     }
 
     /**

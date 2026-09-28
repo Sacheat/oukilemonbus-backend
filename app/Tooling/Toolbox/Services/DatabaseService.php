@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Services\DevTools;
+namespace App\Tooling\Toolbox\Services;
 
 use Illuminate\Console\Command;
 
@@ -14,7 +14,7 @@ final class DatabaseService
      */
     public function resetDemo(Command $command): void
     {
-        $seeders = (array) config('dev_toolbox.reset_demo.seeders', ['DatabaseSeeder']);
+        $seeders = (array) config('tooling.toolbox.reset_demo.seeders', ['DatabaseSeeder']);
 
         $command->call('migrate:fresh', ['--force' => true]);
 

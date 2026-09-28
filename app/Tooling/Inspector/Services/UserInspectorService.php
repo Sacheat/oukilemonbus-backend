@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace App\Services\Demo;
+namespace App\Tooling\Inspector\Services;
 
 use App\Models\User;
 
 /**
- * Construit la fiche d'inspection d'un utilisateur pour le panneau Backend Inspector.
+ * Construit la fiche d'inspection d'un utilisateur (module Tooling : Inspector et Toolbox).
  *
  * `inspect()` retourne les rôles, permissions et capacités lisibles de l'acteur.
- * Les capacités (capabilities) sont traduites en phrases françaises pour le panneau démo
+ * Les capacités (capabilities) sont traduites en phrases françaises pour l'admin
  * — elles ne correspondent pas aux permissions Spatie mais à des groupes fonctionnels.
  *
  * Compatible avec les utilisateurs sans Spatie (méthodes testées via method_exists) pour
@@ -26,7 +26,7 @@ final class UserInspectorService
         if ($user === null) {
             return [
                 'selected' => false,
-                'message' => 'Aucun utilisateur sélectionné dans la démo.',
+                'message' => 'Aucun utilisateur sélectionné.',
             ];
         }
 
@@ -140,8 +140,8 @@ final class UserInspectorService
             $capabilities[] = 'Surveiller les notifications';
         }
 
-        if ($this->can($user, 'backend-inspector.view')) {
-            $capabilities[] = 'Utiliser le Backend Inspector';
+        if ($this->can($user, 'tooling.access')) {
+            $capabilities[] = 'Utiliser les outils d’administration (Inspector, Toolbox)';
         }
 
         return $capabilities;
