@@ -85,7 +85,7 @@ class ReservationPreviewService
             fn () => $this->ensureBookableDate($data['trip_date']),
             fn () => $this->ensureBelgianTrip($pickup, $destination),
             fn () => $checkPassengers ? $this->ensureVehicleCapacity($data) : null,
-            fn () => $this->quotaService->ensureCanCreate($organization, $data['trip_date']),
+            fn () => $this->quotaService->ensureCanCreate($organization, $data['trip_date'], $data['ignore_reservation_id'] ?? null),
             fn () => $this->ensureMaximumDistance($distance['distance_km']),
         ]);
 

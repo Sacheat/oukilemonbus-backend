@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Reservations;
 
 use App\Models\Reservation;
+use Illuminate\Support\Arr;
 
 class StoreReservationRequest extends PreviewReservationRequest
 {
@@ -14,7 +15,8 @@ class StoreReservationRequest extends PreviewReservationRequest
     public function rules(): array
     {
         return [
-            ...parent::rules(),
+            // reservation_id ne concerne que la vérification d'une modification (preview, check-trip).
+            ...Arr::except(parent::rules(), ['reservation_id']),
             'requested_by_user_id' => ['sometimes', 'integer', 'exists:users,id'],
         ];
     }

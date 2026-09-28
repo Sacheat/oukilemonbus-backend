@@ -32,6 +32,8 @@ class PreviewReservationRequest extends FormRequest
             'nb_adults' => ['required', 'integer', 'min:1'],
             'trip_purpose' => ['required', 'string', 'max:500'],
             'activity_type' => ['sometimes', new Enum(ReservationActivityType::class)],
+            // Modification : réservation à exclure des calculs (chevauchement, quota), cf. ReservationController::previewPayload().
+            'reservation_id' => ['sometimes', 'integer', 'exists:reservations,id'],
         ];
     }
 }

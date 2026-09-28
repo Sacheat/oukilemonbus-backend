@@ -141,17 +141,24 @@ class ReservationService
     public function update(Reservation $reservation, array $data, User $actor): Reservation
     {
         return DB::transaction(function () use ($reservation, $data, $actor): Reservation {
-            $payload = array_merge($reservation->only([
-                'organization_id',
-                'pickup_location_id',
-                'destination_location_id',
-                'trip_date',
-                'departure_time',
-                'return_time',
-                'nb_children',
-                'nb_adults',
-                'trip_purpose',
-            ]), $data, ['ignore_reservation_id' => $reservation->id]);
+            // Valeurs actuelles au format des données entrantes (Y-m-d, H:i) : les attributs castés
+            // (dates Carbon, enum) faisaient échouer le preview lors d'une modification partielle.
+            $current = [
+                ...$reservation->only([
+                    'organization_id',
+                    'pickup_location_id',
+                    'destination_location_id',
+                    'nb_children',
+                    'nb_adults',
+                    'trip_purpose',
+                ]),
+                'trip_date' => $reservation->trip_date?->toDateString(),
+                'departure_time' => $reservation->departure_time?->format('H:i'),
+                'return_time' => $reservation->return_time?->format('H:i'),
+                'activity_type' => $reservation->activity_type?->value,
+            ];
+
+            $payload = array_merge($current, $data, ['ignore_reservation_id' => $reservation->id]);
 
             $preview = $this->previewService->preview($payload);
             $currentStatus = $reservation->status;
@@ -184,6 +191,11 @@ class ReservationService
 
             $reservation->conflicts()->delete();
             $this->syncConflicts($reservation, $preview['conflicts']);
+
+            // Réservation en conflit corrigée par la modification (plus aucun conflit) : même logique
+            // que la résolution manuelle (en_attente, ou approbation / affectation auto selon le cas).
+            $this->checkAndAutoTransition($reservation, $actor);
+
             $this->logger->reservationUpdated($reservation, $actor, $preview);
             $this->eventLogger->log(
                 aggregateType: 'reservation',
