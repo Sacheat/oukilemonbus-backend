@@ -18,7 +18,7 @@ Le backend couvre l'ensemble du cycle de vie d'une réservation : de la demande 
 | Géocodage / distances | OpenRouteService API |
 | Emails | Mailtrap (dev) / SMTP configurable |
 | Queue | Laravel Queue — 3 niveaux : `critical`, `default`, `low` |
-| Tests | PHPUnit 12 — 439 tests, 1924 assertions |
+| Tests | PHPUnit 12 — 470 tests, 2024 assertions |
 | Frontend | SPA séparée (dépôt distinct) — consomme uniquement `/api` |
 
 ---
@@ -72,7 +72,7 @@ docker compose exec app php artisan migrate
 docker compose exec app php artisan db:seed   # rôles/permissions + comptes et données de test (APP_ENV=local)
 ```
 
-Comptes de test créés en local (mot de passe `password`) : `admin`, `agent`, `reviewer`, `responsable`, `user`, `chauffeur` `.test@bus-communal.local`.
+Comptes de test créés en local (mot de passe `password`) : `admin`, `agent`, `reviewer`, `responsable`, `user`, `chauffeur` `.test@bus-communal.local` (`responsable` a le rôle `user` et est responsable de l'ASBL Les Amis du Parc).
 En production, ne lancer que `db:seed --class=RolesAndPermissionsSeeder`.
 
 ---
@@ -120,17 +120,18 @@ La suite couvre : structure des migrations, contraintes SQL, relations Eloquent,
 
 ## Modules API
 
-121 routes, toutes préfixées `/api`. Sauf mention contraire, elles exigent une session Sanctum (cookie SPA), un compte actif et un email vérifié, plus la permission indiquée dans `routes/api.php`.
+129 routes, toutes préfixées `/api`. Sauf mention contraire, elles exigent une session Sanctum (cookie SPA), un compte actif et un email vérifié, plus la permission indiquée dans `routes/api.php`.
 La référence complète pour le frontend (paramètres, réponses, règles métier, types TypeScript) est le **Guide API** partagé avec l'équipe front : https://claude.ai/artifact/J8W8b7YRXNaYgxPGKqZwEX (accès sur partage).
 
 | Module | Endpoints |
 |---|---|
-| Auth | `POST /auth/register`, `POST /auth/login` (invité) · `GET /auth/me`, `POST /auth/logout` |
+| Auth | `POST /auth/register`, `POST /auth/login`, `POST /auth/forgot-password`, `POST /auth/reset-password` (invité) · `GET /auth/me`, `POST /auth/logout` |
 | Vérification email | `GET /email/verify/{id}/{hash}` (lien signé, public) · `POST /email/verify/resend` |
-| Utilisateurs | `GET /users`, `GET /users/{user}`, `POST /users`, `PATCH /users/{user}`, `PATCH /users/{user}/password`, `/status`, `/deactivate` |
+| Utilisateurs | `GET /users`, `GET /users/{user}`, `POST /users`, `PATCH /users/{user}`, `PATCH /users/{user}/password`, `/status`, `/roles`, `/deactivate` |
 | Lieux | `GET /locations/suggest`, `GET /locations`, `GET /locations/{location}`, `POST /locations`, `PATCH /locations/{location}` |
 | Communes | `GET /municipalities`, `GET /municipalities/{municipality}`, `POST /municipalities`, `PATCH /municipalities/{municipality}`, `POST /{municipality}/sync-localities`, `POST /{municipality}/localities`, `PATCH /municipality-localities/{id}`, `/deactivate` |
 | Organisations | `GET /organizations`, `GET /organizations/{organization}`, `POST /organizations`, `PATCH /organizations/{organization}`, `POST /{organization}/ban`, `POST /{organization}/unban` |
+| Membres d'une organisation | `GET /organizations/{organization}/members`, `PATCH /members/{user}`, `DELETE /members/{user}`, `POST /{organization}/leave`, `PATCH /{organization}/default` |
 | Demandes de création d'organisation | `GET /org-registration-requests`, `GET /{id}`, `POST /org-registration-requests`, `PATCH /{id}/approve`, `PATCH /{id}/reject`, `POST /{id}/proof`, `DELETE /{id}/proof` |
 | Demandes d'adhésion | `GET /user-org-requests/available-organizations`, `GET /user-org-requests`, `GET /{id}`, `POST /user-org-requests`, `PATCH /{id}/approve`, `PATCH /{id}/reject`, `POST /{id}/proof`, `DELETE /{id}/proof` |
 | Chauffeurs | `GET /drivers`, `GET /drivers/{driver}`, `POST /drivers`, `PATCH /drivers/{driver}`, `/activate`, `/deactivate` |
@@ -150,15 +151,16 @@ La référence complète pour le frontend (paramètres, réponses, règles méti
 
 ## Rôles et permissions
 
-5 rôles définis via Spatie Laravel Permission, 51 permissions granulaires au format `module.action` :
+4 rôles globaux définis via Spatie Laravel Permission, 52 permissions granulaires au format `module.action` :
 
 | Rôle | Description |
 |---|---|
 | `admin` | Accès complet à toutes les ressources |
 | `agent_communal` | Gestion opérationnelle quotidienne |
-| `responsable_organisation` | Accès restreint à son organisation |
 | `user` | Création de demandes, consultation de ses réservations |
 | `chauffeur` | Lecture planning et véhicules assignés |
+
+Être **responsable d'une organisation** n'est pas un rôle : cela dépend de la relation avec chaque organisation (`responsable` ou `directeur`), voir [`docs/access-control.md`](docs/access-control.md).
 
 ---
 
@@ -170,7 +172,7 @@ app/
   Enums/                     # Enums PHP typés (ReservationStatus, ReservationConflictType, etc.)
   Exceptions/
   Http/
-    Controllers/Api/         # 22 contrôleurs REST
+    Controllers/Api/         # 24 contrôleurs REST
     Middleware/              # EnsureUserIsActive
     Requests/{Module}/       # Form Requests par module
     Resources/               # API Resources JSON
@@ -181,17 +183,17 @@ app/
   Services/                  # Logique métier par domaine (Reservations, Planning, Documents, Notifications…)
   Tooling/                   # Module isolé : Backend Inspector + Dev Toolbox (voir docs/tooling.md)
 database/
-  migrations/                # 42 migrations (+ 1 dans app/Tooling/database/migrations)
+  migrations/                # 43 migrations (+ 1 dans app/Tooling/database/migrations)
   seeders/                   # RolesAndPermissionsSeeder + jeux de test (Test*Seeder, RouteSheetDemoSeeder)
 docs/                        # Documentation technique par module
 routes/
-  api.php                    # 109 routes API métier
+  api.php                    # 117 routes API métier
   tooling.php                # 12 routes admin du module Tooling (chargées par ToolingServiceProvider)
   web.php                    # Route / (JSON descriptif), aucune page
   console.php                # Tâches planifiées
 tests/
   Unit/                      # 12 fichiers
-  Feature/                   # 30 fichiers (API, commandes, workflows, module Tooling)
+  Feature/                   # 36 fichiers (API, commandes, workflows, module Tooling)
 ```
 
 ---
@@ -239,6 +241,7 @@ tests/
 - Idempotence des requêtes critiques via `api_idempotency_keys`
 - Journal de domaine immuable `domain_events` pour l'audit
 - Sessions persistées en base de données
+- Messages de l'API en français : `lang/fr` (généré par `laravel-lang/common`, noms de champs du projet dans `lang/fr/validation.php`) et `App\Exceptions\ApiErrorMessage` pour les erreurs HTTP
 - Module Tooling (admin) : journal des requêtes API mutantes (Backend Inspector) et Dev Toolbox — voir [`docs/tooling.md`](docs/tooling.md)
 
 ---
@@ -296,6 +299,7 @@ docker compose exec app php artisan config:clear && php artisan route:clear && p
 | `NOTIFICATIONS_OBS_MAX_FAILED_DELIVERIES_24H` | Seuil alerte santé notifications |
 | `FRONTEND_URL` | URL de la SPA (liens envoyés par email) |
 | `FRONTEND_EMAIL_VERIFICATION_PATH` | Chemin de la page de vérification d'email côté SPA (défaut : `/verify-email`) |
+| `FRONTEND_PASSWORD_RESET_PATH` | Chemin de la page de réinitialisation du mot de passe côté SPA (défaut : `/reset-password`) |
 | `BACKEND_INSPECTOR_ENABLED` | Active l'enregistrement du journal Inspector (défaut : `false`) |
 | `BACKEND_INSPECTOR_RETENTION_DAYS` | Rétention du journal Inspector (défaut : 14) |
 | `DEV_TOOLBOX_ENABLED` | Autorise `php artisan dev:toolbox` (local/testing uniquement) |
@@ -322,7 +326,7 @@ docker compose exec app php artisan config:clear && php artisan route:clear && p
 | Document | Description |
 |---|---|
 | [`docs/modules.md`](docs/modules.md) | Vue d'ensemble des modules et matrice des permissions |
-| [`docs/access-control.md`](docs/access-control.md) | Rôles, 51 permissions, policies, rate limiting |
+| [`docs/access-control.md`](docs/access-control.md) | Rôles, 52 permissions, policies, rate limiting |
 | [`docs/reservations.md`](docs/reservations.md) | Statuts, règles métier, cycle de vie |
 | [`docs/conflicts.md`](docs/conflicts.md) | 12 types de conflits, hard-block vs soft, résolution |
 | [`docs/recurrences.md`](docs/recurrences.md) | Réservations récurrentes, fréquences, annulation cascade |
@@ -334,7 +338,7 @@ docker compose exec app php artisan config:clear && php artisan route:clear && p
 | [`docs/deliberations.md`](docs/deliberations.md) | Délibérations du Collège communal |
 | [`docs/operational-resources.md`](docs/operational-resources.md) | Chauffeurs, véhicules, indisponibilités |
 | [`docs/logging.md`](docs/logging.md) | Stratégie de logs et audit par domaine |
-| [`docs/testing.md`](docs/testing.md) | 439 tests, patterns, seeders |
+| [`docs/testing.md`](docs/testing.md) | 470 tests, patterns, seeders |
 | [`docs/backups.md`](docs/backups.md) | Stratégie et commandes de backup |
 | [`docs/tooling.md`](docs/tooling.md) | Module Tooling : Backend Inspector, Dev Toolbox, API admin |
 | [`docs/policies-rights-matrix.md`](docs/policies-rights-matrix.md) | Matrice détaillée des policies Laravel |

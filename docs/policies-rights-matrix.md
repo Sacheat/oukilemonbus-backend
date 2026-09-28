@@ -7,6 +7,8 @@ Il complete les permissions Spatie existantes :
 - Spatie verifie le droit global : `reservations.update`, `users.update`, etc.
 - Une policy verifie le droit sur une ressource precise : cette reservation, cet utilisateur, cette organisation, etc.
 
+> **Mise à jour (septembre 2026)** : le rôle global responsable de l'organisation a été supprimé. Être responsable d'une organisation dépend désormais de la relation avec chaque organisation (`relationship_type` = `responsable` ou `directeur`). Dans ce document, « responsable » désigne donc un responsable **de l'organisation concernée**. Référence à jour : [`access-control.md`](access-control.md).
+
 ## Portee recommandee
 
 Pour la V1, il n'est pas necessaire de creer une policy pour chaque modele.
@@ -54,7 +56,6 @@ Permissions Spatie proposees :
 | --- | --- |
 | `admin` | Toutes les permissions `reservations.*` et `council-decisions.*` |
 | `agent_communal` | Toutes les permissions `reservations.*` et `council-decisions.*` |
-| `responsable_organisation` | `reservations.view`, `reservations.create`, `reservations.update`, `reservations.cancel`, `council-decisions.view` |
 | `user` | `reservations.view`, `reservations.create`, `reservations.update`, `reservations.cancel`, `council-decisions.view` |
 | `chauffeur` | `reservations.view`, `council-decisions.view` |
 
@@ -123,13 +124,13 @@ Pour la V1, `confirme` est considere actif mais beaucoup d'actions metier seront
 `view`
 
 - `admin` et `agent_communal` : toutes les reservations.
-- `responsable_organisation` : reservations des organisations auxquelles il est rattache.
+- responsable de l'organisation : reservations des organisations auxquelles il est rattache.
 - `user` : reservations dont `requested_by_user_id` vaut son id.
 - `chauffeur` : reservations dont `driver_id` correspond a son profil chauffeur.
 
 `preview`
 
-- Autorise `admin`, `agent_communal`, `responsable_organisation` et `user`.
+- Autorise `admin`, `agent_communal`, responsable de l'organisation et `user`.
 - Refuse `chauffeur`.
 - Les utilisateurs non internes doivent preview uniquement pour une organisation rattachee.
 
@@ -141,7 +142,7 @@ Pour la V1, `confirme` est considere actif mais beaucoup d'actions metier seront
 `createForOrganization`
 
 - `admin` et `agent_communal` : toute organisation.
-- `responsable_organisation` et `user` : uniquement une organisation rattachee via `user_organization`.
+- responsable de l'organisation et `user` : uniquement une organisation rattachee via `user_organization`.
 - `chauffeur` : refuse.
 
 `update`
@@ -149,7 +150,7 @@ Pour la V1, `confirme` est considere actif mais beaucoup d'actions metier seront
 - Requiert `reservations.update`.
 - Refuse si la reservation est `refuse` ou `annule`.
 - `admin` et `agent_communal` : autorises tant que la reservation n'est pas finale.
-- `responsable_organisation` : autorise si l'organisation est rattachee et si le statut est `en_attente` ou `en_conflit`.
+- responsable de l'organisation : autorise si l'organisation est rattachee et si le statut est `en_attente` ou `en_conflit`.
 - `user` : autorise si createur et si le statut est `en_attente` ou `en_conflit`.
 - `chauffeur` : refuse.
 
@@ -172,7 +173,7 @@ Pour la V1, `confirme` est considere actif mais beaucoup d'actions metier seront
 - Requiert `reservations.cancel`.
 - Autorise seulement sur reservation active.
 - `admin` et `agent_communal` : toutes les reservations actives.
-- `responsable_organisation` : reservations actives des organisations rattachees.
+- responsable de l'organisation : reservations actives des organisations rattachees.
 - `user` : reservations actives creees par lui.
 - `chauffeur` : refuse.
 - La raison d'annulation est obligatoire dans la request.
@@ -210,7 +211,7 @@ Regles de filtrage :
 
 - `admin` et `agent_communal` : toutes les reservations.
 - `chauffeur` : reservations ou `driver_id` vaut l'id de son profil chauffeur.
-- `responsable_organisation` : reservations des organisations rattachees.
+- responsable de l'organisation : reservations des organisations rattachees.
 - `user` : reservations creees par lui.
 
 Si un utilisateur a plusieurs roles, appliquer le perimetre le plus large autorise par ses roles.
@@ -364,7 +365,7 @@ Regles recommandees :
 - `view` : meme logique que `viewAny` mais sur une demande precise.
 - `create` : tout utilisateur authentifie avec `user-org-requests.create`.
 - `approve` / `reject` : `admin` et `agent_communal`, statut `en_attente` uniquement.
-- La possibilite pour un `responsable_organisation` d'approuver une demande de rattachement est reportee apres la V1.
+- La possibilite pour un responsable de l'organisation d'approuver une demande de rattachement est reportee apres la V1.
 
 ## Ressources sans policy dediee en V1
 

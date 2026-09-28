@@ -22,155 +22,167 @@ La vérification email est requise pour toutes les routes métier (`middleware('
 
 ## Rôles
 
-5 rôles définis dans `RolesAndPermissionsSeeder` via Spatie Laravel Permission :
+4 rôles globaux définis dans `RolesAndPermissionsSeeder` via Spatie Laravel Permission :
 
 | Rôle | Description |
 |---|---|
 | `admin` | Toutes les permissions. Réservé aux développeurs et au support applicatif. |
 | `agent_communal` | Toutes les permissions métier. Gère le flux opérationnel quotidien. |
-| `responsable_organisation` | Accès restreint à son organisation et ses réservations. |
-| `user` | Peut créer des demandes et consulter ses réservations. |
-| `chauffeur` | Lecture seule de son planning et de ses véhicules. |
+| `user` | Rôle de tout nouvel inscrit : demande à rejoindre ou créer une organisation, réserve pour ses organisations. |
+| `chauffeur` | Lecture seule de ses missions, indisponibilités et feuilles de route. Attribué automatiquement par `POST /api/drivers`. |
+
+Les rôles globaux se modifient via `PATCH /api/users/{user}/roles` (permission `users.manage-roles`, admin uniquement).
+
+### Responsable d'organisation : une relation, pas un rôle
+
+Être responsable dépend de la relation avec **chaque** organisation (`user_organization.relationship_type`) :
+
+- `responsable` ou `directeur` (`UserOrganization::MANAGER_TYPES`) : gère les réservations **et** les membres de cette organisation ;
+- `prof`, `animateur`, `referent`, `membre` : simple membre, voit les réservations, décisions et documents de l'organisation, gère seulement ses propres réservations.
+
+Un même utilisateur peut donc être responsable d'une ASBL et simple membre d'une école. Méthodes : `User::isMemberOf()`, `User::managesOrganization()`. L'ancien rôle global `responsable_organisation` a été supprimé (il donnait les droits de gestion sur toutes les organisations d'un membre).
 
 **Distinction admin / agent_communal**
 
 L'admin seul peut :
-- `users.create` — la création de comptes passe par l'inscription, pas par un agent
+- `users.create` — création de comptes hors inscription
 - `users.update-status` — modération des comptes (bloquer/débloquer)
 - `users.deactivate` — désactivation définitive d'un compte
+- `users.manage-roles` — attribution des rôles globaux
 - `organizations.ban` — bannissement d'une organisation
 - `notifications.monitor` — health check système (outil de support/debug)
 - `tooling.access` — module Tooling : journal Backend Inspector et Dev Toolbox en lecture (voir [`tooling.md`](tooling.md))
 
 ---
 
-## Permissions (51)
+## Permissions (52)
 
 ### users
 
-| Permission | admin | agent | responsable | user | chauffeur |
-|---|:---:|:---:|:---:|:---:|:---:|
-| `users.view` | ✓ | ✓ | ✓ | ✓ | ✓ |
-| `users.create` | ✓ | — | — | — | — |
-| `users.update` | ✓ | ✓ | — | — | — |
-| `users.update-status` | ✓ | — | — | — | — |
-| `users.deactivate` | ✓ | — | — | — | — |
+| Permission | admin | agent | user | chauffeur |
+|---|:---:|:---:|:---:|:---:|
+| `users.view` | ✓ | ✓ | ✓ | ✓ |
+| `users.create` | ✓ | — | — | — |
+| `users.update` | ✓ | ✓ | — | — |
+| `users.update-status` | ✓ | — | — | — |
+| `users.deactivate` | ✓ | — | — | — |
+| `users.manage-roles` | ✓ | — | — | — |
 
 ### locations
 
-| Permission | admin | agent | responsable | user | chauffeur |
-|---|:---:|:---:|:---:|:---:|:---:|
-| `locations.view` | ✓ | ✓ | ✓ | ✓ | ✓ |
-| `locations.create` | ✓ | ✓ | ✓ | ✓ | — |
-| `locations.update` | ✓ | ✓ | — | — | — |
+| Permission | admin | agent | user | chauffeur |
+|---|:---:|:---:|:---:|:---:|
+| `locations.view` | ✓ | ✓ | ✓ | ✓ |
+| `locations.create` | ✓ | ✓ | ✓ | — |
+| `locations.update` | ✓ | ✓ | — | — |
 
 ### municipalities
 
-| Permission | admin | agent | responsable | user | chauffeur |
-|---|:---:|:---:|:---:|:---:|:---:|
-| `municipalities.view` | ✓ | ✓ | ✓ | ✓ | ✓ |
-| `municipalities.manage` | ✓ | ✓ | — | — | — |
+| Permission | admin | agent | user | chauffeur |
+|---|:---:|:---:|:---:|:---:|
+| `municipalities.view` | ✓ | ✓ | ✓ | ✓ |
+| `municipalities.manage` | ✓ | ✓ | — | — |
 
 ### vehicles
 
-| Permission | admin | agent | responsable | user | chauffeur |
-|---|:---:|:---:|:---:|:---:|:---:|
-| `vehicles.view` | ✓ | ✓ | — | — | ✓ |
-| `vehicles.create` | ✓ | ✓ | — | — | — |
-| `vehicles.update` | ✓ | ✓ | — | — | — |
-| `vehicles.deactivate` | ✓ | ✓ | — | — | — |
+| Permission | admin | agent | user | chauffeur |
+|---|:---:|:---:|:---:|:---:|
+| `vehicles.view` | ✓ | ✓ | — | ✓ |
+| `vehicles.create` | ✓ | ✓ | — | — |
+| `vehicles.update` | ✓ | ✓ | — | — |
+| `vehicles.deactivate` | ✓ | ✓ | — | — |
 
 ### drivers
 
-| Permission | admin | agent | responsable | user | chauffeur |
-|---|:---:|:---:|:---:|:---:|:---:|
-| `drivers.view` | ✓ | ✓ | — | — | ✓ |
-| `drivers.create` | ✓ | ✓ | — | — | — |
-| `drivers.update` | ✓ | ✓ | — | — | — |
-| `drivers.deactivate` | ✓ | ✓ | — | — | — |
+| Permission | admin | agent | user | chauffeur |
+|---|:---:|:---:|:---:|:---:|
+| `drivers.view` | ✓ | ✓ | — | ✓ |
+| `drivers.create` | ✓ | ✓ | — | — |
+| `drivers.update` | ✓ | ✓ | — | — |
+| `drivers.deactivate` | ✓ | ✓ | — | — |
 
 ### org-registration-requests
 
-| Permission | admin | agent | responsable | user | chauffeur |
-|---|:---:|:---:|:---:|:---:|:---:|
-| `org-registration-requests.view` | ✓ | ✓ | ✓ | ✓ | ✓ |
-| `org-registration-requests.create` | ✓ | ✓ | ✓ | ✓ | ✓ |
-| `org-registration-requests.review` | ✓ | ✓ | — | — | — |
+| Permission | admin | agent | user | chauffeur |
+|---|:---:|:---:|:---:|:---:|
+| `org-registration-requests.view` | ✓ | ✓ | ✓ | ✓ |
+| `org-registration-requests.create` | ✓ | ✓ | ✓ | ✓ |
+| `org-registration-requests.review` | ✓ | ✓ | — | — |
 
 ### user-org-requests
 
-| Permission | admin | agent | responsable | user | chauffeur |
-|---|:---:|:---:|:---:|:---:|:---:|
-| `user-org-requests.view` | ✓ | ✓ | ✓ | ✓ | ✓ |
-| `user-org-requests.create` | ✓ | ✓ | ✓ | ✓ | ✓ |
-| `user-org-requests.review` | ✓ | ✓ | — | — | — |
+| Permission | admin | agent | user | chauffeur |
+|---|:---:|:---:|:---:|:---:|
+| `user-org-requests.view` | ✓ | ✓ | ✓ | ✓ |
+| `user-org-requests.create` | ✓ | ✓ | ✓ | ✓ |
+| `user-org-requests.review` | ✓ | ✓ | — | — |
 
 ### organizations
 
-| Permission | admin | agent | responsable | user | chauffeur |
-|---|:---:|:---:|:---:|:---:|:---:|
-| `organizations.view` | ✓ | ✓ | ✓ | ✓ | ✓ |
-| `organizations.create` | ✓ | ✓ | — | — | — |
-| `organizations.update` | ✓ | ✓ | — | — | — |
-| `organizations.ban` | ✓ | — | — | — | — |
+| Permission | admin | agent | user | chauffeur |
+|---|:---:|:---:|:---:|:---:|
+| `organizations.view` | ✓ | ✓ | ✓ | ✓ |
+| `organizations.create` | ✓ | ✓ | — | — |
+| `organizations.update` | ✓ | ✓ | — | — |
+| `organizations.ban` | ✓ | — | — | — |
 
 ### unavailabilities
 
-| Permission | admin | agent | responsable | user | chauffeur |
-|---|:---:|:---:|:---:|:---:|:---:|
-| `unavailabilities.view` | ✓ | ✓ | — | — | ✓ |
-| `unavailabilities.create` | ✓ | ✓ | — | — | — |
-| `unavailabilities.update` | ✓ | ✓ | — | — | — |
-| `unavailabilities.cancel` | ✓ | ✓ | — | — | — |
+| Permission | admin | agent | user | chauffeur |
+|---|:---:|:---:|:---:|:---:|
+| `unavailabilities.view` | ✓ | ✓ | — | ✓ |
+| `unavailabilities.create` | ✓ | ✓ | — | — |
+| `unavailabilities.update` | ✓ | ✓ | — | — |
+| `unavailabilities.cancel` | ✓ | ✓ | — | — |
 
 ### reservations
 
-| Permission | admin | agent | responsable | user | chauffeur |
-|---|:---:|:---:|:---:|:---:|:---:|
-| `reservations.view` | ✓ | ✓ | ✓ | ✓ | ✓ |
-| `reservations.create` | ✓ | ✓ | ✓ | ✓ | — |
-| `reservations.update` | ✓ | ✓ | ✓ | ✓ | — |
-| `reservations.approve` | ✓ | ✓ | — | — | — |
-| `reservations.reject` | ✓ | ✓ | — | — | — |
-| `reservations.cancel` | ✓ | ✓ | ✓ | ✓ | — |
-| `reservations.assign` | ✓ | ✓ | — | — | — |
-| `reservations.confirm` | ✓ | ✓ | — | — | — |
-| `reservations.manage-conflicts` | ✓ | ✓ | — | — | — |
+| Permission | admin | agent | user | chauffeur |
+|---|:---:|:---:|:---:|:---:|
+| `reservations.view` | ✓ | ✓ | ✓ | ✓ |
+| `reservations.create` | ✓ | ✓ | ✓ | — |
+| `reservations.update` | ✓ | ✓ | ✓ | — |
+| `reservations.approve` | ✓ | ✓ | — | — |
+| `reservations.reject` | ✓ | ✓ | — | — |
+| `reservations.cancel` | ✓ | ✓ | ✓ | — |
+| `reservations.assign` | ✓ | ✓ | — | — |
+| `reservations.confirm` | ✓ | ✓ | — | — |
+| `reservations.manage-conflicts` | ✓ | ✓ | — | — |
 
 ### council-decisions
 
-| Permission | admin | agent | responsable | user | chauffeur |
-|---|:---:|:---:|:---:|:---:|:---:|
-| `council-decisions.view` | ✓ | ✓ | ✓ | ✓ | ✓ |
-| `council-decisions.create` | ✓ | ✓ | — | — | — |
-| `council-decisions.update` | ✓ | ✓ | — | — | — |
+| Permission | admin | agent | user | chauffeur |
+|---|:---:|:---:|:---:|:---:|
+| `council-decisions.view` | ✓ | ✓ | ✓ | ✓ |
+| `council-decisions.create` | ✓ | ✓ | — | — |
+| `council-decisions.update` | ✓ | ✓ | — | — |
 
 ### documents
 
-| Permission | admin | agent | responsable | user | chauffeur |
-|---|:---:|:---:|:---:|:---:|:---:|
-| `documents.view` | ✓ | ✓ | ✓ | ✓ | ✓ |
-| `documents.download` | ✓ | ✓ | ✓ | ✓ | ✓ |
-| `documents.generate` | ✓ | ✓ | — | — | — |
-| `documents.update` | ✓ | ✓ | — | — | — |
+| Permission | admin | agent | user | chauffeur |
+|---|:---:|:---:|:---:|:---:|
+| `documents.view` | ✓ | ✓ | ✓ | ✓ |
+| `documents.download` | ✓ | ✓ | ✓ | ✓ |
+| `documents.generate` | ✓ | ✓ | — | — |
+| `documents.update` | ✓ | ✓ | — | — |
 
 ### notifications
 
-| Permission | admin | agent | responsable | user | chauffeur |
-|---|:---:|:---:|:---:|:---:|:---:|
-| `notifications.monitor` | ✓ | — | — | — | — |
-
-### tooling
-
-| Permission | admin | agent | responsable | user | chauffeur |
-|---|:---:|:---:|:---:|:---:|:---:|
-| `tooling.access` | ✓ | — | — | — | — |
+| Permission | admin | agent | user | chauffeur |
+|---|:---:|:---:|:---:|:---:|
+| `notifications.monitor` | ✓ | — | — | — |
 
 ### recurrences
 
-| Permission | admin | agent | responsable | user | chauffeur |
-|---|:---:|:---:|:---:|:---:|:---:|
-| `recurrences.cancel` | ✓ | ✓ | ✓ | ✓ | — |
+| Permission | admin | agent | user | chauffeur |
+|---|:---:|:---:|:---:|:---:|
+| `recurrences.cancel` | ✓ | ✓ | ✓ | — |
+
+### tooling
+
+| Permission | admin | agent | user | chauffeur |
+|---|:---:|:---:|:---:|:---:|
+| `tooling.access` | ✓ | — | — | — |
 
 ---
 
@@ -181,9 +193,14 @@ Au-delà des permissions, les **Policies Laravel** affinent l'accès selon le co
 ### Règles principales par ressource
 
 **Réservations**
-- `user` / `responsable_organisation` : ne voient que les réservations de leur organisation
-- `chauffeur` : ne voit que les réservations où il est assigné
-- `agent_communal` / `admin` : voient tout
+- Membre d'une organisation : voit (liste et détail) les réservations de ses organisations
+- Modifier, annuler, confirmer les passagers : le demandeur ou un responsable de l'organisation
+- `chauffeur` : voit aussi les réservations où il est assigné
+- `agent_communal` / `admin` : voient et gèrent tout
+
+**Membres d'une organisation**
+- Liste : membres de l'organisation et internes
+- Changer le type ou retirer un membre : responsables de l'organisation et agents ; l'organisation garde toujours au moins un responsable
 
 **Documents**
 - `file_path` n'est **jamais** exposé dans les réponses API (masqué dans `DocumentResource`)
@@ -194,7 +211,7 @@ Au-delà des permissions, les **Policies Laravel** affinent l'accès selon le co
 - `chauffeur` : ne voit que ses propres indisponibilités (driver_id = son profil)
 
 **Décisions du Collège**
-- `user` / `responsable_organisation` : ne voient que les décisions liées à leurs réservations
+- Externes : décisions liées aux réservations de leurs organisations (ou dont ils sont chauffeur)
 
 **Organisations (ban)**
 - `organizations.ban` est exclusif à l'`admin`
@@ -255,6 +272,8 @@ if (! Gate::forUser($actor)->allows('createForOrganization', [Reservation::class
 |---|---|
 | `POST /api/auth/register` | 10 req/min |
 | `POST /api/auth/login` | 20 req/min |
+| `POST /api/auth/forgot-password` | 6 req/min |
+| `POST /api/auth/reset-password` | 6 req/min |
 | `POST /api/auth/logout` | 30 req/min |
 | `GET /api/notifications/health` | 30 req/min |
 | `GET /api/planning/export` | 20 req/min |

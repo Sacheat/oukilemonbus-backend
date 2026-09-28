@@ -2,7 +2,7 @@
 
 Ce document liste l'ensemble des modules du backend, leur périmètre fonctionnel et leur état actuel.
 
-**État global du projet (septembre 2026) :** backend stable, 439 tests, 1924 assertions, 0 échec.
+**État global du projet (septembre 2026) :** backend stable, 470 tests, 2024 assertions, 0 échec.
 
 ---
 
@@ -135,11 +135,11 @@ Ce document liste l'ensemble des modules du backend, leur périmètre fonctionne
 
 ---
 
-## Permissions (51 au total)
+## Permissions (52 au total)
 
 | Module | Permissions |
 |---|---|
-| users | view, create, update, update-status, deactivate |
+| users | view, create, update, update-status, deactivate, manage-roles |
 | locations | view, create, update |
 | municipalities | view, manage |
 | vehicles | view, create, update, deactivate |
@@ -159,24 +159,28 @@ Ce document liste l'ensemble des modules du backend, leur périmètre fonctionne
 
 ## Matrice des rôles
 
-| Permission | admin | agent_communal | responsable_org | user | chauffeur |
-|---|:---:|:---:|:---:|:---:|:---:|
-| users.view | ✓ | ✓ | ✓ | ✓ | ✓ |
-| users.create | ✓ | — | — | — | — |
-| users.update | ✓ | ✓ | — | — | — |
-| users.update-status | ✓ | — | — | — | — |
-| users.deactivate | ✓ | — | — | — | — |
-| locations.create/update | ✓ | ✓ | ✓ | ✓ | — |
-| municipalities.manage | ✓ | ✓ | — | — | — |
-| vehicles/drivers CRUD | ✓ | ✓ | — | — | — |
-| organizations.ban | ✓ | — | — | — | — |
-| org-registration-requests.review | ✓ | ✓ | — | — | — |
-| user-org-requests.review | ✓ | ✓ | — | — | — |
-| reservations.approve/reject/assign | ✓ | ✓ | — | — | — |
-| reservations.manage-conflicts | ✓ | ✓ | — | — | — |
-| documents.generate | ✓ | ✓ | — | — | — |
-| notifications.monitor | ✓ | — | — | — | — |
-| recurrences.cancel | ✓ | ✓ | ✓ | ✓ | — |
+4 rôles globaux. Être responsable d'une organisation dépend de la relation avec chaque organisation (`responsable` ou `directeur`), voir [`access-control.md`](access-control.md).
+
+| Permission | admin | agent_communal | user | chauffeur |
+|---|:---:|:---:|:---:|:---:|
+| users.view | ✓ | ✓ | ✓ | ✓ |
+| users.create | ✓ | — | — | — |
+| users.update | ✓ | ✓ | — | — |
+| users.update-status | ✓ | — | — | — |
+| users.deactivate | ✓ | — | — | — |
+| users.manage-roles | ✓ | — | — | — |
+| locations.create/update | ✓ | ✓ | ✓ | — |
+| municipalities.manage | ✓ | ✓ | — | — |
+| vehicles/drivers CRUD | ✓ | ✓ | — | — |
+| organizations.ban | ✓ | — | — | — |
+| org-registration-requests.review | ✓ | ✓ | — | — |
+| user-org-requests.review | ✓ | ✓ | — | — |
+| reservations.approve/reject/assign | ✓ | ✓ | — | — |
+| reservations.manage-conflicts | ✓ | ✓ | — | — |
+| documents.generate | ✓ | ✓ | — | — |
+| notifications.monitor | ✓ | — | — | — |
+| recurrences.cancel | ✓ | ✓ | ✓ | — |
+| tooling.access | ✓ | — | — | — |
 
 ---
 

@@ -272,7 +272,6 @@ documents.update
 | `admin` | toutes les permissions |
 | `agent_communal` | view, download, generate, update |
 | `user` | view, download |
-| `responsable_organisation` | view, download |
 | `chauffeur` | view, download |
 
 Il n’existe actuellement pas de rôle `college` dans le seeder. Nous n’avons donc pas ajouté de logique spéciale `college` dans le module Documents.
