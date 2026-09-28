@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\NotificationPreferenceController;
 use App\Http\Controllers\Api\OrganizationController;
 use App\Http\Controllers\Api\OrganizationMemberController;
+use App\Http\Controllers\Api\PasswordResetController;
 use App\Http\Controllers\Api\OrgRegistrationRequestController;
 use App\Http\Controllers\Api\PlanningController;
 use App\Http\Controllers\Api\RecurrenceController;
@@ -41,6 +42,12 @@ Route::name('api.')->group(function (): void {
         Route::post('/auth/login', [AuthController::class, 'login'])
             ->middleware('throttle:20,1')
             ->name('auth.login');
+        Route::post('/auth/forgot-password', [PasswordResetController::class, 'forgot'])
+            ->middleware('throttle:6,1')
+            ->name('auth.forgot-password');
+        Route::post('/auth/reset-password', [PasswordResetController::class, 'reset'])
+            ->middleware('throttle:6,1')
+            ->name('auth.reset-password');
     });
 
     // =========================================================================

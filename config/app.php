@@ -68,6 +68,8 @@ return [
 
     'frontend_email_verification_path' => env('FRONTEND_EMAIL_VERIFICATION_PATH', '/verify-email'),
 
+    'frontend_password_reset_path' => env('FRONTEND_PASSWORD_RESET_PATH', '/reset-password'),
+
     /*
     |--------------------------------------------------------------------------
     | Application Timezone
