@@ -9,6 +9,7 @@ use App\Http\Requests\Reservations\CancelReservationRequest;
 use App\Http\Requests\Reservations\ConfirmPassengersRequest;
 use App\Http\Requests\Reservations\RetryAutoAssignRequest;
 use App\Http\Requests\Reservations\ConfirmReservationRequest;
+use App\Http\Requests\Reservations\ListReservationsRequest;
 use App\Http\Requests\Reservations\PreviewReservationRequest;
 use App\Http\Requests\Reservations\RejectReservationRequest;
 use App\Http\Requests\Reservations\StoreReservationRequest;
@@ -38,25 +39,27 @@ class ReservationController extends Controller
         private readonly ApiIdempotencyService $idempotencyService
     ) {}
 
-    public function index(): AnonymousResourceCollection
+    public function index(ListReservationsRequest $request): AnonymousResourceCollection
     {
         Gate::authorize('viewAny', Reservation::class);
 
-        $user = request()->user();
+        $user = $request->user();
 
         return ReservationResource::collection(
             Reservation::query()
                 ->with(['organization', 'pickupLocation', 'destinationLocation', 'driver', 'vehicle', 'conflicts'])
-                // Le scope visibleTo filtre selon le rôle : admin/agent voit tout,
-                // user voit ses réservations, chauffeur voit celles où il est assigné.
+                // Le scope visibleTo filtre selon le rôle : admin/agent voit tout ; les autres voient
+                // leurs réservations et celles de leurs organisations, le chauffeur celles où il est assigné.
                 ->visibleTo($user)
                 ->when(request('status'), fn ($query, $status) => $query->where('status', $status))
                 ->when(request('organization_id'), fn ($query, $organizationId) => $query->where('organization_id', $organizationId))
                 ->when(request('date_from'), fn ($query, $date) => $query->whereDate('trip_date', '>=', $date))
                 ->when(request('date_to'), fn ($query, $date) => $query->whereDate('trip_date', '<=', $date))
-                ->orderByDesc('trip_date')
+                // sort=asc : trajet le plus proche d'abord (onglet « À venir ») ; desc par défaut.
+                ->orderBy('trip_date', $request->sortDirection())
                 ->orderBy('departure_time')
                 ->paginate()
+                ->withQueryString()
         );
     }
 
