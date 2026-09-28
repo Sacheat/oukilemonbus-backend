@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Enums\CouncilDecisionStatus;
+use App\Enums\OrganizationType;
 use App\Enums\ReservationActivityType;
 use App\Enums\ReservationConflictType;
 use App\Enums\ReservationStatus;
@@ -760,6 +761,82 @@ class ReservationApiTest extends TestCase
         $this->postJson('/api/reservations', $this->payload($organization, $pickup, $destination))
             ->assertUnprocessable()
             ->assertJsonValidationErrors('destination_location_id');
+    }
+
+    public function test_reservation_index_is_sorted_by_trip_date_desc_by_default_and_asc_on_demand(): void
+    {
+        [$organization, $ids] = $this->reservationsOnDates(['2026-06-10', '2026-06-20', '2026-06-15']);
+        Sanctum::actingAs($this->seededUser('admin.test@bus-communal.local'));
+
+        $default = $this->getJson("/api/reservations?organization_id={$organization->id}")->assertOk();
+        $this->assertSame([$ids['2026-06-20'], $ids['2026-06-15'], $ids['2026-06-10']], $default->json('data.*.id'));
+
+        $desc = $this->getJson("/api/reservations?organization_id={$organization->id}&sort=desc")->assertOk();
+        $this->assertSame($default->json('data.*.id'), $desc->json('data.*.id'));
+
+        $asc = $this->getJson("/api/reservations?organization_id={$organization->id}&sort=asc")->assertOk();
+        $this->assertSame([$ids['2026-06-10'], $ids['2026-06-15'], $ids['2026-06-20']], $asc->json('data.*.id'));
+    }
+
+    public function test_reservation_index_sort_combines_with_date_filter_and_keeps_query_in_pagination_links(): void
+    {
+        [$organization, $ids] = $this->reservationsOnDates(['2026-06-10', '2026-06-20', '2026-06-15']);
+        Sanctum::actingAs($this->seededUser('admin.test@bus-communal.local'));
+
+        $response = $this->getJson("/api/reservations?organization_id={$organization->id}&date_from=2026-06-12&sort=asc")->assertOk();
+
+        $this->assertSame([$ids['2026-06-15'], $ids['2026-06-20']], $response->json('data.*.id'));
+        $this->assertStringContainsString('sort=asc', (string) $response->json('links.first'));
+    }
+
+    public function test_reservation_index_rejects_an_invalid_sort_value(): void
+    {
+        Sanctum::actingAs($this->seededUser('admin.test@bus-communal.local'));
+
+        $this->getJson('/api/reservations?sort=up')
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('sort')
+            ->assertJsonPath('errors.sort.0', 'L’ordre de tri doit valoir asc ou desc.');
+    }
+
+    /**
+     * @param  list<string>  $dates
+     * @return array{0: Organization, 1: array<string, int>}
+     */
+    private function reservationsOnDates(array $dates): array
+    {
+        $organization = Organization::create([
+            'name' => 'ASBL Tri',
+            'type' => OrganizationType::ASBL,
+            'official_email' => 'tri@asbl.test',
+            'annual_quota' => 5,
+            'reservations_used_this_year' => 0,
+            'quota_reset_year' => now(),
+        ]);
+        [$pickup, $destination] = $this->seededLocations();
+        $requester = $this->seededUser('user.test@bus-communal.local');
+
+        $ids = [];
+        foreach ($dates as $date) {
+            $ids[$date] = Reservation::create([
+                'requested_by_user_id' => $requester->id,
+                'organization_id' => $organization->id,
+                'pickup_location_id' => $pickup->id,
+                'destination_location_id' => $destination->id,
+                'trip_date' => $date,
+                'departure_time' => '09:00:00',
+                'return_time' => '11:00:00',
+                'nb_children' => 10,
+                'nb_adults' => 1,
+                'trip_purpose' => 'Tri',
+                'activity_type' => ReservationActivityType::STANDARD,
+                'estimated_duration_min' => 30,
+                'status' => ReservationStatus::EN_ATTENTE,
+                'approval_type' => 'manuel',
+            ])->id;
+        }
+
+        return [$organization, $ids];
     }
 
     private function payload(Organization $organization, ?Location $pickup = null, ?Location $destination = null): array
