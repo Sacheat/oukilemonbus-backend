@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\MunicipalityLocalityController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\NotificationPreferenceController;
 use App\Http\Controllers\Api\OrganizationController;
+use App\Http\Controllers\Api\OrganizationMemberController;
 use App\Http\Controllers\Api\OrgRegistrationRequestController;
 use App\Http\Controllers\Api\PlanningController;
 use App\Http\Controllers\Api\RecurrenceController;
@@ -295,6 +296,21 @@ Route::name('api.')->group(function (): void {
         Route::patch('/organizations/{organization}', [OrganizationController::class, 'update'])
             ->middleware('permission:organizations.update')
             ->name('organizations.update');
+
+        /**
+         * Membres d'une organisation (droits vérifiés par OrganizationPolicy)
+         */
+        Route::get('/organizations/{organization}/members', [OrganizationMemberController::class, 'index'])
+            ->middleware('permission:organizations.view')
+            ->name('organizations.members.index');
+        Route::patch('/organizations/{organization}/members/{user}', [OrganizationMemberController::class, 'update'])
+            ->name('organizations.members.update');
+        Route::delete('/organizations/{organization}/members/{user}', [OrganizationMemberController::class, 'destroy'])
+            ->name('organizations.members.destroy');
+        Route::post('/organizations/{organization}/leave', [OrganizationMemberController::class, 'leave'])
+            ->name('organizations.leave');
+        Route::patch('/organizations/{organization}/default', [OrganizationMemberController::class, 'makeDefault'])
+            ->name('organizations.make-default');
 
         Route::post('/organizations/{organization}/ban', [OrganizationController::class, 'ban'])
             ->middleware('permission:organizations.ban')
