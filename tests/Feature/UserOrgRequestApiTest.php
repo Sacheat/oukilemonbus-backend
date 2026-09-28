@@ -126,7 +126,7 @@ class UserOrgRequestApiTest extends TestCase
             ->assertJsonPath('data.confidence_note', 70)
             ->assertJsonPath('data.confidence_details.score', 70)
             ->assertJsonFragment([
-                'Justification coherente avec le role demande.',
+                'Justification cohérente avec le rôle demandé.',
             ]);
     }
 

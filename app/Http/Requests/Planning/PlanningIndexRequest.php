@@ -49,7 +49,7 @@ class PlanningIndexRequest extends FormRequest
                     }
 
                     if ($start->diffInDays($end) > self::MAX_PERIOD_DAYS - 1) {
-                        $fail('La periode du planning ne peut pas depasser 31 jours.');
+                        $fail('La période du planning ne peut pas dépasser 31 jours.');
                     }
                 },
             ],
@@ -68,15 +68,15 @@ class PlanningIndexRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'start_date.required' => 'La date de debut est obligatoire.',
-            'start_date.date_format' => 'La date de debut doit etre au format YYYY-MM-DD.',
+            'start_date.required' => 'La date de début est obligatoire.',
+            'start_date.date_format' => 'La date de début doit être au format YYYY-MM-DD.',
             'end_date.required' => 'La date de fin est obligatoire.',
-            'end_date.date_format' => 'La date de fin doit etre au format YYYY-MM-DD.',
-            'end_date.after_or_equal' => 'La date de fin doit etre egale ou posterieure a la date de debut.',
+            'end_date.date_format' => 'La date de fin doit être au format YYYY-MM-DD.',
+            'end_date.after_or_equal' => 'La date de fin doit être égale ou postérieure à la date de début.',
             'statuses.*.in' => 'Un des statuts demandes est invalide.',
-            'vehicle_id.exists' => 'Le vehicule demande est introuvable.',
-            'driver_id.exists' => 'Le chauffeur demande est introuvable.',
-            'organization_id.exists' => 'L organisation demandee est introuvable.',
+            'vehicle_id.exists' => 'Le véhicule demandé est introuvable.',
+            'driver_id.exists' => 'Le chauffeur demandé est introuvable.',
+            'organization_id.exists' => 'L’organisation demandée est introuvable.',
         ];
     }
 

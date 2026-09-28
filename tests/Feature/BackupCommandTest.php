@@ -48,8 +48,8 @@ class BackupCommandTest extends TestCase
         File::put($this->publicPath.'/avatar.txt', 'fake-public-file');
 
         $this->artisan('backup:run', ['--only' => 'files'])
-            ->expectsOutput('Creation du backup files...')
-            ->expectsOutput('Backup cree avec succes.')
+            ->expectsOutput('Création du backup files...')
+            ->expectsOutput('Backup créé avec succès.')
             ->assertExitCode(0);
 
         $archives = collect(File::files($this->backupPath))
@@ -64,8 +64,8 @@ class BackupCommandTest extends TestCase
     public function test_it_creates_a_database_backup_archive_from_console_command(): void
     {
         $this->artisan('backup:run', ['--only' => 'db'])
-            ->expectsOutput('Creation du backup db...')
-            ->expectsOutput('Backup cree avec succes.')
+            ->expectsOutput('Création du backup db...')
+            ->expectsOutput('Backup créé avec succès.')
             ->assertExitCode(0);
 
         $archives = collect(File::files($this->backupPath))
@@ -83,7 +83,7 @@ class BackupCommandTest extends TestCase
 
         $this->artisan('backup:list')
             ->expectsTable(
-                ['Nom', 'Taille', 'Cree le', 'Chemin'],
+                ['Nom', 'Taille', 'Créé le', 'Chemin'],
                 [[
                     'bus-communal-2026-05-20-120000-files.tar.gz',
                     '7 B',
@@ -97,8 +97,8 @@ class BackupCommandTest extends TestCase
     public function test_it_rejects_an_invalid_backup_type(): void
     {
         $this->artisan('backup:run', ['--only' => 'users'])
-            ->expectsOutput('Creation du backup users...')
-            ->expectsOutput('Le type de backup doit etre full, db ou files.')
+            ->expectsOutput('Création du backup users...')
+            ->expectsOutput('Le type de backup doit être full, db ou files.')
             ->assertExitCode(1);
     }
 }

@@ -41,18 +41,18 @@ enum ReservationConflictType: string
     public function label(): string
     {
         return match ($this) {
-            self::DISTANCE_NOT_CALCULATED      => 'Distance non calculee',
+            self::DISTANCE_NOT_CALCULATED      => 'Distance non calculée',
             self::SCHEDULE_OVERLAP             => 'Chevauchement de planning',
-            self::DEPARTURE_BEFORE_08H         => 'Depart avant 08h00',
-            self::RETURN_AFTER_17H             => 'Retour apres 17h00',
-            self::DEPARTURE_BEFORE_ALLOWED_TIME => 'Depart avant l heure autorisee',
-            self::RETURN_AFTER_ALLOWED_TIME    => 'Retour apres l heure autorisee',
-            self::IMPOSSIBLE_TIME_WINDOW       => 'Creneau impossible',
-            self::DURATION_OVER_ALLOWED_LIMIT  => 'Duree maximale depassee',
-            self::QUOTA_EXCEEDED               => 'Quota depasse',
+            self::DEPARTURE_BEFORE_08H         => 'Départ avant 08h00',
+            self::RETURN_AFTER_17H             => 'Retour après 17h00',
+            self::DEPARTURE_BEFORE_ALLOWED_TIME => 'Départ avant l’heure autorisée',
+            self::RETURN_AFTER_ALLOWED_TIME    => 'Retour après l’heure autorisée',
+            self::IMPOSSIBLE_TIME_WINDOW       => 'Créneau impossible',
+            self::DURATION_OVER_ALLOWED_LIMIT  => 'Durée maximale dépassée',
+            self::QUOTA_EXCEEDED               => 'Quota dépassé',
             self::NO_DRIVER_AVAILABLE          => 'Aucun chauffeur disponible',
-            self::NO_VEHICLE_AVAILABLE         => 'Aucun vehicule disponible',
-            self::VEHICLE_CAPACITY_UNAVAILABLE => 'Aucun vehicule de capacite suffisante',
+            self::NO_VEHICLE_AVAILABLE         => 'Aucun véhicule disponible',
+            self::VEHICLE_CAPACITY_UNAVAILABLE => 'Aucun véhicule de capacité suffisante',
         };
     }
 

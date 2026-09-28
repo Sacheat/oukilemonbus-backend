@@ -19,7 +19,7 @@ enum ReservationActivityType: string
         return match ($this) {
             self::STANDARD        => 'Standard',
             self::GYMNASTIQUE     => 'Gymnastique',
-            self::PSYCHOMOTRICITE => 'Psychomotricite',
+            self::PSYCHOMOTRICITE => 'Psychomotricité',
         };
     }
 

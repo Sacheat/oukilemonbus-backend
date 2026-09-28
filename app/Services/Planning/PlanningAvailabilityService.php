@@ -221,13 +221,13 @@ class PlanningAvailabilityService
         }
 
         if (in_array($driver->id, $driverUnavailabilities, true)) {
-            return 'Chauffeur indisponible sur ce creneau.';
+            return 'Chauffeur indisponible sur ce créneau.';
         }
 
         $overlap = $this->firstOverlap($window, $overlappingByDriver[$driver->id] ?? [], $overlapWindowsByReservationId);
 
         if ($overlap) {
-            return "Deja affecte a la reservation #{$overlap->id} sur ce creneau.";
+            return "Déjà affecté à la réservation #{$overlap->id} sur ce créneau.";
         }
 
         return null;
@@ -243,7 +243,7 @@ class PlanningAvailabilityService
     ): ?string
     {
         if (! $vehicle->is_active) {
-            return 'Vehicule inactif.';
+            return 'Véhicule inactif.';
         }
 
         $requiredCapacity = $reservation->nb_children + $reservation->nb_adults + 1;
@@ -253,13 +253,13 @@ class PlanningAvailabilityService
         }
 
         if (in_array($vehicle->id, $vehicleUnavailabilities, true)) {
-            return 'Vehicule indisponible sur ce creneau.';
+            return 'Véhicule indisponible sur ce créneau.';
         }
 
         $overlap = $this->firstOverlap($window, $overlappingByVehicle[$vehicle->id] ?? [], $overlapWindowsByReservationId);
 
         if ($overlap) {
-            return "Deja affecte a la reservation #{$overlap->id} sur ce creneau.";
+            return "Déjà affecté à la réservation #{$overlap->id} sur ce créneau.";
         }
 
         return null;

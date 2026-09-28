@@ -24,9 +24,9 @@ class StoreVehicleRequest extends FormRequest
     {
         return [
             'licence_plate.required' => "La plaque d'immatriculation est obligatoire.",
-            'licence_plate.unique' => 'Ce vehicule existe deja.',
-            'capacity.required' => 'La capacite est obligatoire.',
-            'capacity.min' => 'La capacite doit etre au moins 1.',
+            'licence_plate.unique' => 'Ce véhicule existe déjà.',
+            'capacity.required' => 'La capacité est obligatoire.',
+            'capacity.min' => 'La capacité doit être au moins 1.',
         ];
     }
 }

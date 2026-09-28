@@ -42,14 +42,14 @@ class UserOrgRequestConfidenceScoreService
 
     private function scoreCompleteness(UserOrgRequest $request, int &$score, array &$reasons, array &$warnings): void
     {
-        $this->addWhenFilled($request->organization_id, 10, 'Organisation cible selectionnee.', $score, $reasons);
-        $this->addWhenFilled($request->requested_role, 15, 'Role demande renseigne.', $score, $reasons);
+        $this->addWhenFilled($request->organization_id, 10, 'Organisation cible sélectionnée.', $score, $reasons);
+        $this->addWhenFilled($request->requested_role, 15, 'Rôle demandé renseigné.', $score, $reasons);
         $this->addWhenFilled($request->justification, 20, 'Justification fournie.', $score, $reasons);
         $this->addWhenFilled($request->proof_document_id, 25, 'Document justificatif fourni.', $score, $reasons);
 
         if (filled($request->justification) && mb_strlen(trim($request->justification)) >= 30) {
             $score += 10;
-            $reasons[] = 'Justification suffisamment detaillee.';
+            $reasons[] = 'Justification suffisamment détaillée.';
         }
 
         if (blank($request->justification) && blank($request->proof_document_id)) {
@@ -64,7 +64,7 @@ class UserOrgRequestConfidenceScoreService
 
         if ($this->requiresProof($request->requested_role) && blank($request->proof_document_id)) {
             $score -= 5;
-            $warnings[] = 'Role sensible sans justificatif.';
+            $warnings[] = 'Rôle sensible sans justificatif.';
         }
     }
 
@@ -85,7 +85,7 @@ class UserOrgRequestConfidenceScoreService
 
         if ($this->containsAny($request->justification, $keywords)) {
             $score += 10;
-            $reasons[] = 'Justification coherente avec le role demande.';
+            $reasons[] = 'Justification cohérente avec le rôle demandé.';
         }
     }
 
@@ -106,12 +106,12 @@ class UserOrgRequestConfidenceScoreService
 
         if ($request->requestedByUser->email_verified_at !== null) {
             $score += 4;
-            $reasons[] = 'Email du demandeur verifie.';
+            $reasons[] = 'Email du demandeur vérifié.';
         }
 
         if (filled($request->requestedByUser->phone)) {
             $score += 3;
-            $reasons[] = 'Telephone du demandeur renseigne.';
+            $reasons[] = 'Téléphone du demandeur renseigné.';
         }
     }
 

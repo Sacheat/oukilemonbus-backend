@@ -168,7 +168,7 @@ class ProofDocumentService
         if ($file->getSize() > $max) {
             $maxMb = round($max / 1024 / 1024, 1);
             throw ValidationException::withMessages([
-                'proof_document' => "Le fichier ne doit pas depasser {$maxMb} Mo.",
+                'proof_document' => "Le fichier ne doit pas dépasser {$maxMb} Mo.",
             ]);
         }
     }
@@ -180,7 +180,7 @@ class ProofDocumentService
 
         if (! in_array($ext, $allowed, true)) {
             throw ValidationException::withMessages([
-                'proof_document' => 'Format non autorise. Seuls les fichiers PDF, JPG et PNG sont acceptes.',
+                'proof_document' => 'Format non autorisé. Seuls les fichiers PDF, JPG et PNG sont acceptés.',
             ]);
         }
     }
@@ -217,7 +217,7 @@ class ProofDocumentService
 
         if ($expectedMime !== null && $realMime !== $expectedMime) {
             throw ValidationException::withMessages([
-                'proof_document' => "L extension du fichier ne correspond pas a son contenu reel.",
+                'proof_document' => "L’extension du fichier ne correspond pas à son contenu réel.",
             ]);
         }
     }
@@ -268,7 +268,7 @@ class ProofDocumentService
         foreach (self::GENERIC_DANGEROUS_SIGNATURES as $signature) {
             if (str_contains($content, $signature)) {
                 throw ValidationException::withMessages([
-                    'proof_document' => 'Le fichier contient du contenu non autorise.',
+                    'proof_document' => 'Le fichier contient du contenu non autorisé.',
                 ]);
             }
         }

@@ -28,8 +28,8 @@ class UpdateDriverRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'licence_number.unique' => 'Ce numero de permis existe deja.',
-            'licence_expiry_date.after' => "La date d'expiration doit etre dans le futur.",
+            'licence_number.unique' => 'Ce numéro de permis existe déjà.',
+            'licence_expiry_date.after' => "La date d'expiration doit être dans le futur.",
         ];
     }
 }

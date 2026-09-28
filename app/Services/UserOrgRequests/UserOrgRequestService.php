@@ -54,7 +54,7 @@ class UserOrgRequestService
             eventKey: 'user_org_request.created',
             category: 'admin_workflow',
             title: 'Nouvelle demande de rattachement organisation',
-            message: "La demande #{$request->id} doit etre revue par un agent communal."
+            message: "La demande #{$request->id} doit être revue par un agent communal."
         );
 
         return $request->refresh();
@@ -89,8 +89,8 @@ class UserOrgRequestService
                 users: collect([$requester]),
                 eventKey: 'user_org_request.approved',
                 category: 'admin_workflow',
-                title: 'Adhesion approuvee',
-                message: "Votre demande d adhesion a l organisation \"{$orgName}\" a ete approuvee."
+                title: 'Adhésion approuvée',
+                message: "Votre demande d’adhésion à l’organisation \"{$orgName}\" a été approuvée."
             );
 
             return $request->refresh();
@@ -123,8 +123,8 @@ class UserOrgRequestService
                 users: collect([$requester]),
                 eventKey: 'user_org_request.rejected',
                 category: 'admin_workflow',
-                title: 'Adhesion refusee',
-                message: "Votre demande d adhesion a l organisation \"{$orgName}\" a ete refusee. Motif : {$reason}"
+                title: 'Adhésion refusée',
+                message: "Votre demande d’adhésion à l’organisation \"{$orgName}\" a été refusée. Motif : {$reason}"
             );
         }
 
@@ -143,7 +143,7 @@ class UserOrgRequestService
 
         if ($hasPendingRequest) {
             throw ValidationException::withMessages([
-                'organization_id' => 'Une demande est deja en attente pour cette organisation.',
+                'organization_id' => 'Une demande est déjà en attente pour cette organisation.',
             ]);
         }
     }
@@ -152,7 +152,7 @@ class UserOrgRequestService
     {
         if ($user->organizations()->whereKey($organizationId)->exists()) {
             throw ValidationException::withMessages([
-                'organization_id' => 'Cet utilisateur est deja rattache a cette organisation.',
+                'organization_id' => 'Cet utilisateur est déjà rattaché à cette organisation.',
             ]);
         }
     }
@@ -161,7 +161,7 @@ class UserOrgRequestService
     {
         if (! $request->status->isPending()) {
             throw ValidationException::withMessages([
-                'status' => 'Cette demande a deja ete traitee.',
+                'status' => 'Cette demande a déjà été traitée.',
             ]);
         }
     }

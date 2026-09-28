@@ -42,12 +42,12 @@ class SendPassengerConfirmationRemindersCommand extends Command
             ->get();
 
         if ($reservations->isEmpty()) {
-            $this->info("Aucune reservation a rappeler pour le {$targetDate}.");
+            $this->info("Aucune réservation à rappeler pour le {$targetDate}.");
             return self::SUCCESS;
         }
 
         $this->info(sprintf(
-            '%d reservation(s) a rappeler pour le %s%s.',
+            '%d réservation(s) à rappeler pour le %s%s.',
             $reservations->count(),
             $targetDate,
             $dryRun ? ' (dry-run)' : ''
@@ -72,11 +72,11 @@ class SendPassengerConfirmationRemindersCommand extends Command
                 eventKey: 'reservation.confirmation_reminder',
                 category: 'reservation_updates',
                 title: 'Confirmez vos passagers avant le trajet',
-                message: "Votre reservation #{$reservation->id} du {$reservation->trip_date?->format('d/m/Y')} est confirmee. Veuillez verifier et confirmer le nombre de passagers avant le depart.",
+                message: "Votre réservation #{$reservation->id} du {$reservation->trip_date?->format('d/m/Y')} est confirmée. Veuillez vérifier et confirmer le nombre de passagers avant le départ.",
                 reservation: $reservation,
             );
 
-            $this->line("  #{$reservation->id} : rappel envoye a {$requester->email}");
+            $this->line("  #{$reservation->id} : rappel envoyé à {$requester->email}");
         }
 
         $this->info('Termine.');

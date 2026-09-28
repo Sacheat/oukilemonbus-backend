@@ -178,7 +178,7 @@ class PlanningApiTest extends TestCase
             ->assertJsonPath('data.0.is_fully_assigned', true)
             ->assertJsonPath('data.0.display.title', 'Ecole communale de Dinant - Sortie scolaire')
             ->assertJsonPath('data.0.display.time_label', '09:00 - 11:45')
-            ->assertJsonPath('data.0.display.status_label', 'Confirme')
+            ->assertJsonPath('data.0.display.status_label', 'Confirmé')
             ->assertJsonPath('data.0.display.assignment_label', 'Affecte')
             ->assertJsonPath('data.0.display.color', 'success')
             ->assertJsonStructure([

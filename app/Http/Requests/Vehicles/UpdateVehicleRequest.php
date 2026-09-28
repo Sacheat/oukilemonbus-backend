@@ -28,8 +28,8 @@ class UpdateVehicleRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'licence_plate.unique' => "Cette plaque d'immatriculation est deja utilisee.",
-            'capacity.min' => 'La capacite doit etre au moins 1.',
+            'licence_plate.unique' => "Cette plaque d'immatriculation est déjà utilisée.",
+            'capacity.min' => 'La capacité doit être au moins 1.',
         ];
     }
 }

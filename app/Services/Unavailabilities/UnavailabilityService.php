@@ -43,12 +43,12 @@ class UnavailabilityService
         if ($reasonType === UnavailabilityReasonType::DRIVER) {
             if (blank($driverId)) {
                 throw new UnavailabilityException(
-                    'Un driver_id est obligatoire pour une indisponibilite de type driver.'
+                    'Un driver_id est obligatoire pour une indisponibilité de type driver.'
                 );
             }
             if (filled($vehicleId)) {
                 throw new UnavailabilityException(
-                    'vehicle_id doit etre null pour une indisponibilite de type driver.'
+                    'vehicle_id doit être null pour une indisponibilité de type driver.'
                 );
             }
         }
@@ -56,12 +56,12 @@ class UnavailabilityService
         if ($reasonType === UnavailabilityReasonType::VEHICLE) {
             if (blank($vehicleId)) {
                 throw new UnavailabilityException(
-                    'Un vehicle_id est obligatoire pour une indisponibilite de type vehicle.'
+                    'Un vehicle_id est obligatoire pour une indisponibilité de type vehicle.'
                 );
             }
             if (filled($driverId)) {
                 throw new UnavailabilityException(
-                    'driver_id doit etre null pour une indisponibilite de type vehicle.'
+                    'driver_id doit être null pour une indisponibilité de type vehicle.'
                 );
             }
         }
@@ -74,7 +74,7 @@ class UnavailabilityService
     {
         if (Carbon::parse($endDatetime)->lessThanOrEqualTo(Carbon::parse($startDatetime))) {
             throw new UnavailabilityException(
-                'La date de fin doit etre apres la date de debut.'
+                'La date de fin doit être après la date de début.'
             );
         }
     }
@@ -171,7 +171,7 @@ class UnavailabilityService
                 'old_reason' => $unavailability->reason,
                 'new_reason' => $unavailability->reason,
                 'changed_by_user_id' => $actor->id,
-                'change_reason' => 'Indisponibilite annulee.',
+                'change_reason' => 'Indisponibilité annulée.',
             ]);
 
             $unavailability->update(['is_active' => false]);

@@ -109,7 +109,7 @@ class MunicipalitySettingsService
 
             if ($nameAlreadyExists) {
                 throw ValidationException::withMessages([
-                    'name' => 'Cette localite existe deja pour cette commune.',
+                    'name' => 'Cette localité existe déjà pour cette commune.',
                 ]);
             }
         }

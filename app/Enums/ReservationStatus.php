@@ -29,10 +29,10 @@ enum ReservationStatus: string
     {
         return match ($this) {
             self::EN_ATTENTE => 'En attente',
-            self::APPROUVE   => 'Approuve',
-            self::CONFIRME   => 'Confirme',
-            self::REFUSE     => 'Refuse',
-            self::ANNULE     => 'Annule',
+            self::APPROUVE   => 'Approuvé',
+            self::CONFIRME   => 'Confirmé',
+            self::REFUSE     => 'Refusé',
+            self::ANNULE     => 'Annulé',
             self::EN_CONFLIT => 'En conflit',
         };
     }

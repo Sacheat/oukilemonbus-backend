@@ -71,7 +71,7 @@ class RouteSheetDocumentApiTest extends TestCase
 
         $response->assertCreated();
 
-        $response->assertJsonPath('message', 'Feuille de route generee avec succes.');
+        $response->assertJsonPath('message', 'Feuille de route générée avec succès.');
         $response->assertJsonPath('data.id', $document->id);
         $response->assertJsonPath('data.document_type', DocumentType::FEUILLE_ROUTE->value);
         $response->assertJsonPath('data.file_name', 'route-sheet-2026-03-02-2026-03-06-v001.pdf');
@@ -140,7 +140,7 @@ class RouteSheetDocumentApiTest extends TestCase
         ]);
 
         $response->assertCreated();
-        $response->assertJsonPath('message', 'Feuille de route generee avec succes.');
+        $response->assertJsonPath('message', 'Feuille de route générée avec succès.');
         $response->assertJsonPath('data.id', $document->id);
         $response->assertJsonPath('data.template_key', 'route_sheets.daily');
     }

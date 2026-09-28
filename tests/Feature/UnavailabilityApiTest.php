@@ -230,7 +230,7 @@ class UnavailabilityApiTest extends TestCase
             'start_datetime' => '2026-06-10 20:00:00',
         ])
             ->assertUnprocessable()
-            ->assertJsonPath('message', 'La date de debut doit etre avant la date de fin.');
+            ->assertJsonPath('message', 'La date de début doit être avant la date de fin.');
     }
 
     public function test_update_rejects_partial_end_datetime_before_existing_start_datetime(): void
@@ -251,7 +251,7 @@ class UnavailabilityApiTest extends TestCase
             'end_datetime' => '2026-06-10 07:00:00',
         ])
             ->assertUnprocessable()
-            ->assertJsonPath('message', 'La date de fin doit etre apres la date de debut.');
+            ->assertJsonPath('message', 'La date de fin doit être après la date de début.');
     }
 
     public function test_agent_can_cancel_unavailability(): void

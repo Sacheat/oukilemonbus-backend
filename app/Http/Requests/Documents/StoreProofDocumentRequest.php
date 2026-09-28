@@ -27,9 +27,9 @@ class StoreProofDocumentRequest extends FormRequest
     {
         return [
             'proof_document.required' => 'Un fichier justificatif est requis.',
-            'proof_document.file'     => 'Le champ doit etre un fichier.',
-            'proof_document.mimes'    => 'Seuls les formats PDF, JPG et PNG sont acceptes.',
-            'proof_document.max'      => 'Le fichier ne doit pas depasser 5 Mo.',
+            'proof_document.file'     => 'Le champ doit être un fichier.',
+            'proof_document.mimes'    => 'Seuls les formats PDF, JPG et PNG sont acceptés.',
+            'proof_document.max'      => 'Le fichier ne doit pas dépasser 5 Mo.',
         ];
     }
 }

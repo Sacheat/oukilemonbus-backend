@@ -68,7 +68,7 @@ class ReservationPreviewService
         $distance = $this->calculateDistance($pickup, $destination);
         if ($distance['distance_km'] !== null && $distance['distance_km'] > config('reservations.max_distance_km', 50)) {
             throw ValidationException::withMessages([
-                'destination_location_id' => 'La distance entre le lieu de depart et la destination depasse 50 km.',
+                'destination_location_id' => 'La distance entre le lieu de départ et la destination dépasse 50 km.',
             ]);
         }
 
@@ -79,7 +79,7 @@ class ReservationPreviewService
         if ($distance['distance_km'] === null) {
             $conflicts[] = [
                 'type' => ReservationConflictType::DISTANCE_NOT_CALCULATED->value,
-                'message' => 'La distance n a pas pu etre calculee automatiquement.',
+                'message' => 'La distance n’a pas pu être calculée automatiquement.',
                 'related_reservation_id' => null,
             ];
         }
@@ -145,7 +145,7 @@ class ReservationPreviewService
                     'next_available_occupation' => $this->formatOccupationWindow($candidateWindow),
                     'message' => $blockingReservation
                         ? sprintf(
-                            'Le bus n est pas disponible a %s. Prochain depart possible estime: %s.',
+                            'Le bus n’est pas disponible à %s. Prochain départ possible estimé: %s.',
                             $this->formatTimeString($data['departure_time']),
                             $this->formatTimeString($candidateData['departure_time'])
                         )
@@ -177,7 +177,7 @@ class ReservationPreviewService
             'overlap_duration_min' => $overlapDuration,
             'requested_occupation' => $this->formatOccupationWindow($requestedWindow),
             'next_available_occupation' => null,
-            'message' => 'Aucun depart disponible n a pu etre estime pour cette journee.',
+            'message' => 'Aucun départ disponible n’a pu être estimé pour cette journée.',
         ];
     }
 
@@ -193,7 +193,7 @@ class ReservationPreviewService
         if ($estimatedDurationMin !== null && $departure->addMinutes($duration)->greaterThan($returnDeparture)) {
             $conflicts[] = [
                 'type'                   => ReservationConflictType::IMPOSSIBLE_TIME_WINDOW->value,
-                'message'                => 'Le creneau demande ne permet pas de realiser le trajet aller avant le retour souhaite.',
+                'message'                => 'Le créneau demandé ne permet pas de réaliser le trajet aller avant le retour souhaité.',
                 'related_reservation_id' => null,
                 'is_hard_block'          => true,
             ];
@@ -248,14 +248,14 @@ class ReservationPreviewService
         if ($departure->format('H:i') < $minDepartureTime) {
             $warnings[] = [
                 'type' => ReservationConflictType::DEPARTURE_BEFORE_ALLOWED_TIME->value,
-                'message' => "L heure de depart est avant {$minDepartureTime}. Une motivation est requise — soumis a decision du college.",
+                'message' => "L’heure de départ est avant {$minDepartureTime}. Une motivation est requise — soumis à décision du collège.",
             ];
         }
 
         if ($returnDeparture->format('H:i') > $maxReturnTime) {
             $warnings[] = [
                 'type' => ReservationConflictType::RETURN_AFTER_ALLOWED_TIME->value,
-                'message' => "L heure de retour depasse {$maxReturnTime}. Une motivation est requise — soumis a decision du college.",
+                'message' => "L’heure de retour dépasse {$maxReturnTime}. Une motivation est requise — soumis à décision du collège.",
             ];
         }
 
@@ -264,7 +264,7 @@ class ReservationPreviewService
             if ($window['duration_min'] > $maxTotalDuration) {
                 $warnings[] = [
                     'type' => ReservationConflictType::DURATION_OVER_ALLOWED_LIMIT->value,
-                    'message' => "La duree totale d utilisation depasse {$maxTotalDuration} minutes. Une motivation est requise — soumis a decision du college.",
+                    'message' => "La durée totale d’utilisation dépasse {$maxTotalDuration} minutes. Une motivation est requise — soumis à décision du collège.",
                 ];
             }
         }
@@ -278,13 +278,13 @@ class ReservationPreviewService
 
         if ($date->isWeekend()) {
             throw ValidationException::withMessages([
-                'trip_date' => 'Les reservations ne sont pas autorisees le week-end.',
+                'trip_date' => 'Les réservations ne sont pas autorisées le week-end.',
             ]);
         }
 
         if (in_array($date->toDateString(), config('reservations.closed_dates', []), true)) {
             throw ValidationException::withMessages([
-                'trip_date' => 'Les reservations ne sont pas autorisees a cette date.',
+                'trip_date' => 'Les réservations ne sont pas autorisées à cette date.',
             ]);
         }
     }
@@ -295,7 +295,7 @@ class ReservationPreviewService
 
         if (CarbonImmutable::parse($tripDate)->startOfDay()->lessThan($minimumDate)) {
             throw ValidationException::withMessages([
-                'trip_date' => 'La demande doit etre introduite au moins 15 jours avant la date souhaitee.',
+                'trip_date' => 'La demande doit être introduite au moins 15 jours avant la date souhaitée.',
             ]);
         }
     }
@@ -308,7 +308,7 @@ class ReservationPreviewService
                 : '';
 
             throw ValidationException::withMessages([
-                'organization_id' => "Cette organisation est interdite d acces au service.{$reason}",
+                'organization_id' => "Cette organisation est interdite d’accès au service.{$reason}",
             ]);
         }
     }
@@ -324,7 +324,7 @@ class ReservationPreviewService
 
         if (! $hasCapacity) {
             throw ValidationException::withMessages([
-                'nb_children' => "Aucun vehicule de la flotte n'a une capacite suffisante pour {$required} occupants ({$required} = passagers + chauffeur). Verifiez le nombre de participants.",
+                'nb_children' => "Aucun véhicule de la flotte n'a une capacité suffisante pour {$required} occupants ({$required} = passagers + chauffeur). Vérifiez le nombre de participants.",
             ]);
         }
     }
@@ -339,7 +339,7 @@ class ReservationPreviewService
         foreach ([$pickup, $destination] as $location) {
             if (! in_array(mb_strtolower((string) $location->country), $allowedCountries, true)) {
                 throw ValidationException::withMessages([
-                    'destination_location_id' => 'Le trajet doit etre effectue sur le territoire belge uniquement.',
+                    'destination_location_id' => 'Le trajet doit être effectué sur le territoire belge uniquement.',
                 ]);
             }
         }
@@ -481,7 +481,7 @@ class ReservationPreviewService
 
         $relatedWindow = $this->occupationService->windowForReservation($overlappingReservation);
         $details = sprintf(
-            ' Reservation #%d occupe le bus de %s a %s; cette demande occuperait le bus de %s a %s. Chevauchement estime: %d min.',
+            ' Réservation #%d occupe le bus de %s à %s; cette demande occuperait le bus de %s à %s. Chevauchement estimé: %d min.',
             $overlappingReservation->id,
             $this->formatWindowTime($relatedWindow['start']),
             $this->formatWindowTime($relatedWindow['end']),
@@ -491,14 +491,14 @@ class ReservationPreviewService
         );
 
         if ($candidatePriority > $existingPriority) {
-            return 'Le creneau chevauche une autre reservation active, mais cette demande est prioritaire selon le reglement.'.$details;
+            return 'Le créneau chevauche une autre réservation active, mais cette demande est prioritaire selon le règlement.'.$details;
         }
 
         if ($candidatePriority < $existingPriority) {
-            return 'Le creneau chevauche une reservation plus prioritaire selon le reglement.'.$details;
+            return 'Le créneau chevauche une réservation plus prioritaire selon le règlement.'.$details;
         }
 
-        return 'Le creneau chevauche une autre reservation active de meme priorite. La demande introduite en premier est prioritaire.'.$details;
+        return 'Le créneau chevauche une autre réservation active de même priorité. La demande introduite en premier est prioritaire.'.$details;
     }
 
     private function formatWindowTime(CarbonImmutable $dateTime): string

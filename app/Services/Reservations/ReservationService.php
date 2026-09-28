@@ -68,7 +68,7 @@ class ReservationService
                 : $actor->id;
 
             if (! Gate::forUser($actor)->allows('createForOrganization', [Reservation::class, $organization])) {
-                throw new AuthorizationException('Action non autorisee pour cette organisation.');
+                throw new AuthorizationException('Action non autorisée pour cette organisation.');
             }
 
             $preview = $this->previewService->preview($data);
@@ -76,7 +76,7 @@ class ReservationService
             if (! ($preview['is_allowed'] ?? true)) {
                 $hardBlock = collect($preview['conflicts'])->first(fn (array $c): bool => $c['is_hard_block'] ?? false);
                 throw ValidationException::withMessages([
-                    'schedule' => [$hardBlock['message'] ?? 'La reservation ne peut pas etre creee : le creneau est physiquement bloquant et ne peut pas etre resolu par l\'agent.'],
+                    'schedule' => [$hardBlock['message'] ?? 'La réservation ne peut pas être créée : le créneau est physiquement bloquant et ne peut pas être résolu par l\'agent.'],
                 ]);
             }
 
@@ -105,7 +105,7 @@ class ReservationService
                 'validated_at' => $status === ReservationStatus::APPROUVE ? now() : null,
             ]);
 
-            $this->recordStatus($reservation, null, $status, $actor, 'Creation de la demande');
+            $this->recordStatus($reservation, null, $status, $actor, 'Création de la demande');
             $this->syncConflicts($reservation, $preview['conflicts']);
             $this->logger->reservationCreated($reservation, $actor, $preview);
             $this->eventLogger->log(
@@ -128,8 +128,8 @@ class ReservationService
                 $this->notifyInternalUsers(
                     'reservation.conflict_detected',
                     'admin_workflow',
-                    'Conflit de reservation detecte',
-                    "La reservation #{$reservation->id} a ete creee avec un conflit.",
+                    'Conflit de réservation détecté',
+                    "La réservation #{$reservation->id} a été créée avec un conflit.",
                     $reservation
                 );
             }
@@ -238,7 +238,7 @@ class ReservationService
             'reservation.passengers_confirmed',
             'reservation_updates',
             'Passagers confirmes',
-            "Les informations passagers de la reservation #{$reservation->id} ont ete confirmees ({$reservation->nb_adults} adulte(s), {$reservation->nb_children} enfant(s))."
+            "Les informations passagers de la réservation #{$reservation->id} ont été confirmées ({$reservation->nb_adults} adulte(s), {$reservation->nb_children} enfant(s))."
         );
 
         // Si le trajet est aujourd'hui et qu'un véhicule est assigné, régénérer la feuille de route
@@ -265,15 +265,15 @@ class ReservationService
             $reservation = $this->assignmentService->autoAssign($reservation, $actor);
 
             if ($this->assignmentService->hasRequiredAssignments($reservation) && ! $reservation->conflicts()->where('is_resolved', false)->exists()) {
-                $reservation = $this->transition($reservation, ReservationStatus::CONFIRME, $actor, 'Confirmation apres approbation');
+                $reservation = $this->transition($reservation, ReservationStatus::CONFIRME, $actor, 'Confirmation après approbation');
             }
 
             $this->notifyRequester(
                 $reservation,
                 'reservation.approved',
                 'reservation_updates',
-                'Reservation approuvee',
-                "Votre reservation #{$reservation->id} a ete approuvee.",
+                'Réservation approuvée',
+                "Votre réservation #{$reservation->id} a été approuvée.",
                 document: $this->latestDeliberationDocumentForReservation($reservation)
             );
 
@@ -305,8 +305,8 @@ class ReservationService
                 $reservation,
                 'reservation.rejected',
                 'reservation_updates',
-                'Reservation refusee',
-                "Votre reservation #{$reservation->id} a ete refusee. Motif: {$reason}",
+                'Réservation refusée',
+                "Votre réservation #{$reservation->id} a été refusée. Motif: {$reason}",
                 document: $this->latestDeliberationDocumentForReservation($reservation)
             );
 
@@ -347,8 +347,8 @@ class ReservationService
                 $reservation,
                 'reservation.cancelled',
                 $category,
-                'Reservation annulee',
-                "Votre reservation #{$reservation->id} a ete annulee. Motif: {$reason}",
+                'Réservation annulée',
+                "Votre réservation #{$reservation->id} a été annulée. Motif: {$reason}",
                 $priority,
                 $isLastMinute
             );
@@ -357,8 +357,8 @@ class ReservationService
                 $reservation,
                 'reservation.cancelled',
                 $category,
-                'Annulation de reservation',
-                "La reservation #{$reservation->id} a ete annulee. Motif: {$reason}",
+                'Annulation de réservation',
+                "La réservation #{$reservation->id} a été annulée. Motif: {$reason}",
                 $priority,
                 $isLastMinute
             );
@@ -373,13 +373,13 @@ class ReservationService
     {
         if (! $this->assignmentService->hasRequiredAssignments($reservation)) {
             throw ValidationException::withMessages([
-                'reservation' => 'La reservation doit avoir un chauffeur et un vehicule assignes.',
+                'reservation' => 'La réservation doit avoir un chauffeur et un véhicule assignés.',
             ]);
         }
 
         if ($reservation->conflicts()->where('is_resolved', false)->exists()) {
             throw ValidationException::withMessages([
-                'reservation' => 'Tous les conflits doivent etre resolus avant confirmation.',
+                'reservation' => 'Tous les conflits doivent être résolus avant confirmation.',
             ]);
         }
 
@@ -389,16 +389,16 @@ class ReservationService
             $reservation,
             'reservation.confirmed',
             'reservation_updates',
-            'Reservation confirmee',
-            "Votre reservation #{$reservation->id} est confirmee."
+            'Réservation confirmée',
+            "Votre réservation #{$reservation->id} est confirmée."
         );
 
         $this->notifyDriver(
             $reservation,
             'reservation.confirmed',
             'driver_planning',
-            'Mission confirmee',
-            "La mission liee a la reservation #{$reservation->id} est confirmee."
+            'Mission confirmée',
+            "La mission liée à la réservation #{$reservation->id} est confirmée."
         );
 
         return $reservation;
@@ -544,20 +544,20 @@ class ReservationService
             if (! $reservation->status->canTransitionTo(ReservationStatus::CONFIRME)) {
                 return;
             }
-            $reservation = $this->transition($reservation, ReservationStatus::CONFIRME, $actor, 'Retour automatique a CONFIRME apres resolution de tous les conflits.');
+            $reservation = $this->transition($reservation, ReservationStatus::CONFIRME, $actor, 'Retour automatique à CONFIRME après résolution de tous les conflits.');
             $this->notifyRequester(
                 $reservation,
                 'reservation.confirmed',
                 'reservation_updates',
-                'Reservation de nouveau confirmee',
-                "Votre reservation #{$reservation->id} est de nouveau confirmee apres resolution des conflits."
+                'Réservation de nouveau confirmée',
+                "Votre réservation #{$reservation->id} est de nouveau confirmée après résolution des conflits."
             );
             $this->notifyDriver(
                 $reservation,
                 'reservation.confirmed',
                 'driver_planning',
-                'Mission de nouveau confirmee',
-                "La mission liee a la reservation #{$reservation->id} est de nouveau confirmee."
+                'Mission de nouveau confirmée',
+                "La mission liée à la réservation #{$reservation->id} est de nouveau confirmée."
             );
             return;
         }
@@ -567,20 +567,20 @@ class ReservationService
             if (! $reservation->status->canTransitionTo(ReservationStatus::APPROUVE)) {
                 return;
             }
-            $reservation = $this->transition($reservation, ReservationStatus::APPROUVE, $actor, 'Retour automatique a APPROUVE apres resolution des conflits.');
+            $reservation = $this->transition($reservation, ReservationStatus::APPROUVE, $actor, 'Retour automatique à APPROUVE après résolution des conflits.');
             $reservation = $this->assignmentService->autoAssign($reservation, $actor);
 
             if ($this->assignmentService->hasRequiredAssignments($reservation)
                 && ! $reservation->conflicts()->where('is_resolved', false)->exists()
             ) {
-                $reservation = $this->transition($reservation, ReservationStatus::CONFIRME, $actor, 'Confirmation automatique apres resolution de conflit.');
+                $reservation = $this->transition($reservation, ReservationStatus::CONFIRME, $actor, 'Confirmation automatique après résolution de conflit.');
             }
             $this->notifyRequester(
                 $reservation,
                 'reservation.approved',
                 'reservation_updates',
-                'Reservation disponible',
-                "Votre reservation #{$reservation->id} est de nouveau disponible suite a la resolution des conflits."
+                'Réservation disponible',
+                "Votre réservation #{$reservation->id} est de nouveau disponible suite à la résolution des conflits."
             );
             return;
         }
@@ -589,7 +589,7 @@ class ReservationService
         if (! $reservation->status->canTransitionTo(ReservationStatus::EN_ATTENTE)) {
             return;
         }
-        $reservation = $this->transition($reservation, ReservationStatus::EN_ATTENTE, $actor, 'Retour automatique apres resolution des conflits.');
+        $reservation = $this->transition($reservation, ReservationStatus::EN_ATTENTE, $actor, 'Retour automatique après résolution des conflits.');
 
         $reservation->loadMissing('organization');
 
@@ -597,21 +597,21 @@ class ReservationService
             if (! $reservation->status->canTransitionTo(ReservationStatus::APPROUVE)) {
                 return;
             }
-            $reservation = $this->transition($reservation, ReservationStatus::APPROUVE, $actor, 'Approbation automatique apres resolution des conflits.');
+            $reservation = $this->transition($reservation, ReservationStatus::APPROUVE, $actor, 'Approbation automatique après résolution des conflits.');
             $reservation = $this->assignmentService->autoAssign($reservation, $actor);
 
             if ($this->assignmentService->hasRequiredAssignments($reservation)
                 && ! $reservation->conflicts()->where('is_resolved', false)->exists()
             ) {
-                $reservation = $this->transition($reservation, ReservationStatus::CONFIRME, $actor, 'Confirmation automatique apres resolution des conflits.');
+                $reservation = $this->transition($reservation, ReservationStatus::CONFIRME, $actor, 'Confirmation automatique après résolution des conflits.');
             }
 
             $this->notifyRequester(
                 $reservation,
                 'reservation.approved',
                 'reservation_updates',
-                'Reservation disponible',
-                "Votre reservation #{$reservation->id} est de nouveau disponible suite a la resolution des conflits."
+                'Réservation disponible',
+                "Votre réservation #{$reservation->id} est de nouveau disponible suite à la résolution des conflits."
             );
 
             return;
@@ -621,8 +621,8 @@ class ReservationService
             $reservation,
             'reservation.conflict_resolved',
             'reservation_updates',
-            'Conflit resolu',
-            "Le conflit sur votre reservation #{$reservation->id} a ete resolu. Elle est en attente de validation."
+            'Conflit résolu',
+            "Le conflit sur votre réservation #{$reservation->id} a été résolu. Elle est en attente de validation."
         );
     }
 
@@ -647,7 +647,7 @@ class ReservationService
 
         if ($reservation->councilDecision?->decision_status !== CouncilDecisionStatus::APPROUVE) {
             throw ValidationException::withMessages([
-                'conflict' => 'Ce conflit necessite une decision favorable du college communal avant d etre resolu. Ajoutez ou mettez a jour la decision du college pour cette reservation.',
+                'conflict' => 'Ce conflit nécessite une décision favorable du collège communal avant d’être résolu. Ajoutez ou mettez à jour la décision du collège pour cette réservation.',
             ]);
         }
     }
@@ -660,7 +660,7 @@ class ReservationService
 
         if ($reservation->councilDecision?->decision_status !== CouncilDecisionStatus::APPROUVE) {
             throw ValidationException::withMessages([
-                'reservation' => 'Une decision favorable du college est obligatoire avant approbation.',
+                'reservation' => 'Une décision favorable du collège est obligatoire avant approbation.',
             ]);
         }
     }
@@ -733,14 +733,14 @@ class ReservationService
                 $reservation->update([$unassignField => null]);
 
                 if ($reservation->status->canTransitionTo(ReservationStatus::EN_CONFLIT)) {
-                    $this->transition($reservation, ReservationStatus::EN_CONFLIT, $actor, 'Indisponibilite creee pour le chauffeur ou vehicule assigne.');
+                    $this->transition($reservation, ReservationStatus::EN_CONFLIT, $actor, 'Indisponibilité créée pour le chauffeur ou véhicule assigné.');
                 }
 
                 $this->notifyInternalUsers(
                     'reservation.conflict_detected',
                     'admin_workflow',
-                    'Conflit : indisponibilite',
-                    "La reservation #{$reservation->id} est en conflit suite a une indisponibilite de {$this->subjectLabel($unavailability)}.",
+                    'Conflit : indisponibilité',
+                    "La réservation #{$reservation->id} est en conflit suite à une indisponibilité de {$this->subjectLabel($unavailability)}.",
                     $reservation
                 );
 
@@ -777,7 +777,7 @@ class ReservationService
     {
         if (! $reservation->status->canTransitionTo($target)) {
             throw ValidationException::withMessages([
-                'reservation' => "La transition « {$reservation->status->label()} » → « {$target->label()} » n'est pas autorisee.",
+                'reservation' => "La transition « {$reservation->status->label()} » → « {$target->label()} » n'est pas autorisée.",
             ]);
         }
     }
@@ -937,7 +937,7 @@ class ReservationService
 
             if (CarbonImmutable::today()->gte($deadline)) {
                 throw ValidationException::withMessages([
-                    'reservation' => 'La commune ne peut plus annuler cette reservation : le delai d annulation est depasse (jusqu a la veille du trajet).',
+                    'reservation' => 'La commune ne peut plus annuler cette réservation : le délai d’annulation est dépassé (jusqu’à la veille du trajet).',
                 ]);
             }
         } else {
@@ -947,7 +947,7 @@ class ReservationService
 
             if (CarbonImmutable::now()->gte($deadline)) {
                 throw ValidationException::withMessages([
-                    'reservation' => "L annulation n est plus possible : le delai de {$minHoursBefore}h avant le depart est depasse.",
+                    'reservation' => "L’annulation n’est plus possible : le délai de {$minHoursBefore}h avant le départ est dépassé.",
                 ]);
             }
         }

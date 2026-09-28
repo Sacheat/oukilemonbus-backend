@@ -129,8 +129,8 @@ class PlanningExportService
             '.$this->centeredCell($reservation->trip_date?->format('d/m/Y'), $backgroundColor).'
             <td align="center" valign="middle" bgcolor="'.$backgroundColor.'" style="text-align: center; vertical-align: middle; white-space: nowrap; background-color: '.$backgroundColor.';">'.$departure.'</td>
             <td align="center" valign="middle" bgcolor="'.$backgroundColor.'" style="text-align: center; vertical-align: middle; white-space: nowrap; background-color: '.$backgroundColor.';">'.$return.'</td>
-            '.$this->centeredCell($driverName !== '' ? $driverName : 'Non assigne', $backgroundColor).'
-            '.$this->centeredCell($reservation->vehicle?->licence_plate ?? 'Non assigne', $backgroundColor).'
+            '.$this->centeredCell($driverName !== '' ? $driverName : 'Non assigné', $backgroundColor).'
+            '.$this->centeredCell($reservation->vehicle?->licence_plate ?? 'Non assigné', $backgroundColor).'
             '.$this->normalCell($reservation->organization?->name, $backgroundColor).'
             '.$this->normalCell($reservation->pickupLocation?->formatted_address, $backgroundColor).'
             '.$this->normalCell($reservation->destinationLocation?->formatted_address, $backgroundColor).'

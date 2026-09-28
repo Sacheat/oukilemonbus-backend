@@ -32,15 +32,15 @@ class GenerateRouteSheetRequest extends FormRequest
     {
         return [
             'service_date.required_without' => 'La date de service est obligatoire.',
-            'service_date.date_format' => 'La date de service doit etre au format YYYY-MM-DD.',
-            'vehicle_id.required_with' => 'Le vehicule est obligatoire pour generer une feuille de route journaliere.',
-            'vehicle_id.integer' => 'Le vehicule selectionne est invalide.',
-            'vehicle_id.exists' => 'Le vehicule selectionne est introuvable.',
-            'start_date.required_without' => 'La date de debut est obligatoire.',
-            'start_date.date_format' => 'La date de debut doit etre au format YYYY-MM-DD.',
+            'service_date.date_format' => 'La date de service doit être au format YYYY-MM-DD.',
+            'vehicle_id.required_with' => 'Le véhicule est obligatoire pour générer une feuille de route journalière.',
+            'vehicle_id.integer' => 'Le véhicule sélectionné est invalide.',
+            'vehicle_id.exists' => 'Le véhicule sélectionné est introuvable.',
+            'start_date.required_without' => 'La date de début est obligatoire.',
+            'start_date.date_format' => 'La date de début doit être au format YYYY-MM-DD.',
             'end_date.required_with' => 'La date de fin est obligatoire.',
-            'end_date.date_format' => 'La date de fin doit etre au format YYYY-MM-DD.',
-            'end_date.after_or_equal' => 'La date de fin doit etre egale ou posterieure a la date de debut.',
+            'end_date.date_format' => 'La date de fin doit être au format YYYY-MM-DD.',
+            'end_date.after_or_equal' => 'La date de fin doit être égale ou postérieure à la date de début.',
         ];
     }
 }

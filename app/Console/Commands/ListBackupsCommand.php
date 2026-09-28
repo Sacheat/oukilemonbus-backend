@@ -26,7 +26,7 @@ class ListBackupsCommand extends Command
         }
 
         $this->table(
-            ['Nom', 'Taille', 'Cree le', 'Chemin'],
+            ['Nom', 'Taille', 'Créé le', 'Chemin'],
             collect($backups)->map(fn (array $backup): array => [
                 $backup['name'],
                 $this->formatBytes((int) $backup['size']),

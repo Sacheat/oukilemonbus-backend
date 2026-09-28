@@ -17,8 +17,8 @@ enum RequestStatus: string
     {
         return match ($this) {
             self::EN_ATTENTE => 'En attente',
-            self::APPROUVE   => 'Approuve',
-            self::REFUSE     => 'Refuse',
+            self::APPROUVE   => 'Approuvé',
+            self::REFUSE     => 'Refusé',
         };
     }
 

@@ -26,11 +26,11 @@ class StoreDriverRequest extends FormRequest
         return [
             'user_id.required' => "L'utilisateur est obligatoire.",
             'user_id.exists' => "Cet utilisateur n'existe pas.",
-            'user_id.unique' => 'Cet utilisateur est deja chauffeur.',
-            'licence_number.required' => 'Le numero de permis est obligatoire.',
-            'licence_number.unique' => 'Ce numero de permis existe deja.',
+            'user_id.unique' => 'Cet utilisateur est déjà chauffeur.',
+            'licence_number.required' => 'Le numéro de permis est obligatoire.',
+            'licence_number.unique' => 'Ce numéro de permis existe déjà.',
             'licence_expiry_date.required' => "La date d'expiration du permis est obligatoire.",
-            'licence_expiry_date.after' => "La date d'expiration doit etre dans le futur.",
+            'licence_expiry_date.after' => "La date d'expiration doit être dans le futur.",
         ];
     }
 }

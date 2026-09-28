@@ -38,7 +38,7 @@ class ReservationQuotaService
 
         if ($pendingFutureCount >= config('reservations.max_pending_requests', 2)) {
             throw ValidationException::withMessages([
-                'organization_id' => 'Cette organisation a deja atteint le maximum de demandes en attente de decision.',
+                'organization_id' => 'Cette organisation a déjà atteint le maximum de demandes en attente de décision.',
             ]);
         }
 
@@ -49,7 +49,7 @@ class ReservationQuotaService
 
         if ($confirmedFutureCount >= config('reservations.max_confirmed_reservations', 2)) {
             throw ValidationException::withMessages([
-                'organization_id' => 'Cette organisation a deja atteint le maximum de reservations confirmees.',
+                'organization_id' => 'Cette organisation a déjà atteint le maximum de réservations confirmées.',
             ]);
         }
 
@@ -65,7 +65,7 @@ class ReservationQuotaService
 
         if ($yearlyCount >= $annualQuota) {
             throw ValidationException::withMessages([
-                'organization_id' => 'Cette organisation a deja atteint son quota annuel de reservations.',
+                'organization_id' => 'Cette organisation a déjà atteint son quota annuel de réservations.',
             ]);
         }
     }

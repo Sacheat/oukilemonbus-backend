@@ -32,10 +32,10 @@ class UpdateUnavailabilityRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'start_datetime.before' => 'La date de debut doit etre avant la date de fin.',
-            'end_datetime.after' => 'La date de fin doit etre apres la date de debut.',
+            'start_datetime.before' => 'La date de début doit être avant la date de fin.',
+            'end_datetime.after' => 'La date de fin doit être après la date de début.',
             'driver_id.exists' => 'Ce chauffeur n\'existe pas.',
-            'vehicle_id.exists' => 'Ce vehicule n\'existe pas.',
+            'vehicle_id.exists' => 'Ce véhicule n\'existe pas.',
         ];
     }
 }

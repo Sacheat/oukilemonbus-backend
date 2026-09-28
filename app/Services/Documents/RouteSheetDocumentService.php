@@ -222,13 +222,13 @@ class RouteSheetDocumentService
             $end = CarbonImmutable::parse($endDate)->startOfDay();
         } catch (Throwable) {
             throw new InvalidArgumentException(
-                'Les dates doivent etre valides.'
+                'Les dates doivent être valides.'
             );
         }
 
         if ($end->lessThan($start)) {
             throw new InvalidArgumentException(
-                'La date de fin doit etre egale ou posterieure a la date de debut.'
+                'La date de fin doit être égale ou postérieure à la date de début.'
             );
         }
 
@@ -244,7 +244,7 @@ class RouteSheetDocumentService
             return CarbonImmutable::parse($date)->startOfDay()->toDateString();
         } catch (Throwable) {
             throw new InvalidArgumentException(
-                'La date de service doit etre valide.'
+                'La date de service doit être valide.'
             );
         }
     }
