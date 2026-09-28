@@ -20,7 +20,11 @@ use Illuminate\Validation\ValidationException;
  */
 class ReservationQuotaService
 {
-    public function ensureCanCreate(Organization $organization, string $tripDate): void
+    /**
+     * @param  int|null  $ignoreReservationId  réservation en cours de modification : exclue des compteurs,
+     *                                          sinon elle se compterait elle-même (ex. 2 demandes en attente sur 2).
+     */
+    public function ensureCanCreate(Organization $organization, string $tripDate, ?int $ignoreReservationId = null): void
     {
         if ($this->isExempt($organization)) {
             return;
@@ -32,6 +36,7 @@ class ReservationQuotaService
         ];
 
         $pendingFutureCount = $organization->reservations()
+            ->when($ignoreReservationId !== null, fn ($query) => $query->whereKeyNot($ignoreReservationId))
             ->whereIn('status', $pendingStatuses)
             ->whereDate('trip_date', '>=', now()->toDateString())
             ->count();
@@ -43,6 +48,7 @@ class ReservationQuotaService
         }
 
         $confirmedFutureCount = $organization->reservations()
+            ->when($ignoreReservationId !== null, fn ($query) => $query->whereKeyNot($ignoreReservationId))
             ->where('status', ReservationStatus::CONFIRME->value)
             ->whereDate('trip_date', '>=', now()->toDateString())
             ->count();
@@ -59,6 +65,7 @@ class ReservationQuotaService
         );
 
         $yearlyCount = $organization->reservations()
+            ->when($ignoreReservationId !== null, fn ($query) => $query->whereKeyNot($ignoreReservationId))
             ->whereIn('status', [ReservationStatus::APPROUVE->value, ReservationStatus::CONFIRME->value])
             ->whereYear('trip_date', substr($tripDate, 0, 4))
             ->count();

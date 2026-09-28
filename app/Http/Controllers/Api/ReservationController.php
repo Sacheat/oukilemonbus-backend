@@ -24,7 +24,9 @@ use App\Services\Reservations\ReservationService;
 use App\Services\Idempotency\ApiIdempotencyService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Gère le cycle de vie complet des réservations via l'API.
@@ -66,10 +68,7 @@ class ReservationController extends Controller
 
     public function preview(PreviewReservationRequest $request): JsonResponse
     {
-        // Vérifie que l'utilisateur peut créer pour cette organisation avant de calculer le preview.
-        Gate::authorize('createForOrganization', [Reservation::class, Organization::findOrFail($request->validated('organization_id'))]);
-
-        $preview = $this->previewService->preview($request->validated());
+        $preview = $this->previewService->preview($this->previewPayload($request->validated()));
 
         return response()->json(['data' => $preview]);
     }
@@ -80,9 +79,39 @@ class ReservationController extends Controller
      */
     public function checkTrip(CheckTripRequest $request): JsonResponse
     {
-        Gate::authorize('createForOrganization', [Reservation::class, Organization::findOrFail($request->validated('organization_id'))]);
+        return response()->json(['data' => $this->previewService->checkTrip($this->previewPayload($request->validated()))]);
+    }
 
-        return response()->json(['data' => $this->previewService->checkTrip($request->validated())]);
+    /**
+     * Prépare les données du preview et du check-trip après contrôle d'accès.
+     *
+     * Création : l'utilisateur doit pouvoir réserver pour l'organisation.
+     * Modification (reservation_id fourni) : il doit pouvoir modifier cette réservation (403 sinon),
+     * l'organisation doit être la sienne (422 sinon), et la réservation est exclue des calculs
+     * de chevauchement et de quota — exactement comme lors du PATCH.
+     */
+    private function previewPayload(array $validated): array
+    {
+        $organization = Organization::findOrFail($validated['organization_id']);
+        Gate::authorize('createForOrganization', [Reservation::class, $organization]);
+
+        if (! isset($validated['reservation_id'])) {
+            return $validated;
+        }
+
+        $reservation = Reservation::findOrFail($validated['reservation_id']);
+        Gate::authorize('update', $reservation);
+
+        if ($reservation->organization_id !== $organization->getKey()) {
+            throw ValidationException::withMessages([
+                'organization_id' => 'L’organisation doit être celle de la réservation modifiée.',
+            ]);
+        }
+
+        return [
+            ...Arr::except($validated, ['reservation_id']),
+            'ignore_reservation_id' => $reservation->getKey(),
+        ];
     }
 
     public function store(StoreReservationRequest $request): JsonResponse

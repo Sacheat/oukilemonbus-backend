@@ -10,6 +10,7 @@ use Illuminate\Validation\Rules\Enum;
 /**
  * Vérification du trajet seul (POST /api/reservations/check-trip) : mêmes champs que le preview,
  * sans les passagers ni le motif, pour valider l'étape 1 du formulaire en direct.
+ * `reservation_id` : vérification d'une modification (la réservation est exclue des calculs).
  */
 class CheckTripRequest extends FormRequest
 {
@@ -28,6 +29,8 @@ class CheckTripRequest extends FormRequest
             'departure_time' => ['required', 'date_format:H:i'],
             'return_time' => ['required', 'date_format:H:i', 'after:departure_time'],
             'activity_type' => ['sometimes', new Enum(ReservationActivityType::class)],
+            // Modification : réservation à exclure des calculs (chevauchement, quota), cf. ReservationController::previewPayload().
+            'reservation_id' => ['sometimes', 'integer', 'exists:reservations,id'],
         ];
     }
 }
