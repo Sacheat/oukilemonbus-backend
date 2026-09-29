@@ -54,7 +54,7 @@ class UserOrgRequestService
             eventKey: 'user_org_request.created',
             category: 'admin_workflow',
             title: 'Nouvelle demande de rattachement organisation',
-            message: "La demande #{$request->id} doit être revue par un agent communal."
+            message: "La demande #{$request->request_id} doit être revue par un agent communal."
         );
 
         return $request->refresh();

@@ -73,6 +73,29 @@ class UserOrgRequestApiTest extends TestCase
         ]);
     }
 
+    public function test_agents_are_notified_with_the_request_number(): void
+    {
+        $user = User::factory()->create();
+        $user->assignRole('user');
+        Sanctum::actingAs($user);
+
+        $requestId = $this->postJson('/api/user-org-requests', [
+            'organization_id' => $this->seededOrganization()->id,
+            'requested_role' => 'animateur',
+        ])->assertCreated()->json('data.request_id');
+
+        $agent = User::query()->where('email', 'agent.test@bus-communal.local')->firstOrFail();
+        $notification = $agent->notifications()
+            ->where('data->event_key', 'user_org_request.created')
+            ->latest()
+            ->firstOrFail();
+
+        $this->assertSame(
+            "La demande #{$requestId} doit être revue par un agent communal.",
+            $notification->data['message']
+        );
+    }
+
     public function test_confidence_score_does_not_use_organization_address(): void
     {
         config([

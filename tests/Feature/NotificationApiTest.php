@@ -77,6 +77,58 @@ class NotificationApiTest extends TestCase
             ->assertJsonPath('data.quiet_hours_end', 7);
     }
 
+    public function test_quiet_hours_can_be_disabled_with_null(): void
+    {
+        $user = User::factory()->create();
+        $user->assignRole('user');
+        Sanctum::actingAs($user);
+
+        $this->patchJson('/api/notifications/preferences', ['quiet_hours_start' => 22, 'quiet_hours_end' => 7])
+            ->assertSuccessful();
+
+        $this->patchJson('/api/notifications/preferences', ['quiet_hours_start' => null, 'quiet_hours_end' => null])
+            ->assertOk()
+            ->assertJsonPath('data.quiet_hours_start', null)
+            ->assertJsonPath('data.quiet_hours_end', null);
+
+        $this->assertDatabaseHas('user_notification_preferences', [
+            'user_id' => $user->id,
+            'quiet_hours_start' => null,
+            'quiet_hours_end' => null,
+        ]);
+    }
+
+    public function test_quiet_hours_need_both_bounds_or_none(): void
+    {
+        $user = User::factory()->create();
+        $user->assignRole('user');
+        Sanctum::actingAs($user);
+
+        $this->getJson('/api/notifications/preferences')->assertOk();
+
+        $message = 'Les heures silencieuses doivent avoir une heure de début et une heure de fin, ou aucune des deux pour les désactiver.';
+
+        // Fin à null, début renseigné : erreur sur la fin.
+        $this->patchJson('/api/notifications/preferences', ['quiet_hours_start' => 22, 'quiet_hours_end' => null])
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.quiet_hours_end.0', $message)
+            ->assertJsonMissingValidationErrors('quiet_hours_start');
+
+        // Début seul envoyé : erreur sur la fin manquante.
+        $this->patchJson('/api/notifications/preferences', ['quiet_hours_start' => 22])
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.quiet_hours_end.0', $message);
+
+        // Fin seule envoyée : erreur sur le début.
+        $this->patchJson('/api/notifications/preferences', ['quiet_hours_end' => 7])
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.quiet_hours_start.0', $message);
+
+        // Les autres préférences restent modifiables sans toucher aux heures silencieuses.
+        $this->patchJson('/api/notifications/preferences', ['digest_frequency' => 'daily'])
+            ->assertOk();
+    }
+
     public function test_user_can_get_unread_count_filter_and_bulk_mark_as_read(): void
     {
         $user = User::factory()->create();
