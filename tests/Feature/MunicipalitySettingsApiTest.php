@@ -234,6 +234,8 @@ class MunicipalitySettingsApiTest extends TestCase
                     'adminCode2'  => '93',
                     'adminCode3'  => '91',
                     'adminCode4'  => '91034',
+                    'lat'         => '50.26064',
+                    'lng'         => '4.91247',
                 ]],
             ]),
             // fetchSubLocalities → sections de Dinant via childrenJSON
@@ -250,7 +252,10 @@ class MunicipalitySettingsApiTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.external_id', '2799366')
             ->assertJsonPath('data.nis_code', '91034')
-            ->assertJsonPath('data.source', 'geonames');
+            ->assertJsonPath('data.source', 'geonames')
+            // Le centre GeoNames devient le point de référence de repli.
+            ->assertJsonPath('data.latitude', '50.26064000')
+            ->assertJsonPath('data.longitude', '4.91247000');
 
         $this->assertDatabaseHas('municipality_localities', [
             'municipality_id' => $municipality->id,
@@ -403,6 +408,69 @@ class MunicipalitySettingsApiTest extends TestCase
             'external_id'     => '2799366',
             'source'          => 'geonames',
         ]);
+    }
+
+    public function test_agent_can_configure_depot_and_distance_limits(): void
+    {
+        Sanctum::actingAs($this->seededUser('agent.test@bus-communal.local'));
+
+        $municipality = $this->activeMunicipality();
+        $depot = Location::query()->where('place_id', 'seed-dinant-centre')->firstOrFail();
+
+        $this->patchJson("/api/municipalities/{$municipality->id}", [
+            'depot_location_id'      => $depot->id,
+            'max_trip_distance_km'   => 40,
+            'max_pickup_distance_km' => 30,
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.depot_location_id', $depot->id)
+            ->assertJsonPath('data.depot_location.id', $depot->id)
+            ->assertJsonPath('data.max_trip_distance_km', 40)
+            ->assertJsonPath('data.max_pickup_distance_km', 30)
+            ->assertJsonPath('data.effective_max_trip_distance_km', 40)
+            ->assertJsonPath('data.effective_max_pickup_distance_km', 30);
+
+        // Remise à null : retour aux valeurs par défaut de la config.
+        config(['reservations.max_distance_km' => 50, 'reservations.max_pickup_distance_km' => 45]);
+
+        $this->patchJson("/api/municipalities/{$municipality->id}", [
+            'depot_location_id'      => null,
+            'max_trip_distance_km'   => null,
+            'max_pickup_distance_km' => null,
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.depot_location', null)
+            ->assertJsonPath('data.effective_max_trip_distance_km', 50)
+            ->assertJsonPath('data.effective_max_pickup_distance_km', 45);
+    }
+
+    public function test_regular_user_cannot_change_depot_or_limits(): void
+    {
+        Sanctum::actingAs($this->seededUser('user.test@bus-communal.local'));
+
+        $this->patchJson("/api/municipalities/{$this->activeMunicipality()->id}", [
+            'max_pickup_distance_km' => 500,
+        ])->assertForbidden();
+    }
+
+    public function test_depot_must_be_geolocated_and_limits_bounded(): void
+    {
+        Sanctum::actingAs($this->seededUser('agent.test@bus-communal.local'));
+
+        $unlocated = Location::create([
+            'formatted_address' => 'Adresse sans coordonnées, Dinant',
+            'city' => 'Dinant',
+            'country' => 'Belgique',
+        ]);
+
+        $this->patchJson("/api/municipalities/{$this->activeMunicipality()->id}", [
+            'depot_location_id'      => $unlocated->id,
+            'max_trip_distance_km'   => 0,
+            'max_pickup_distance_km' => 501,
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['depot_location_id', 'max_trip_distance_km', 'max_pickup_distance_km'])
+            ->assertJsonPath('errors.depot_location_id.0', 'Le lieu choisi comme dépôt doit être géolocalisé (latitude et longitude).');
     }
 
     private function seededUser(string $email): User

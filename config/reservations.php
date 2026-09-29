@@ -1,7 +1,12 @@
 <?php
 
 return [
+    // Valeurs par défaut : la commune active peut les surcharger (max_trip_distance_km,
+    // max_pickup_distance_km) via PATCH /municipalities/{id}.
+    // Distance maximale du trajet, lieu de départ → destination (itinéraire ORS).
     'max_distance_km' => 50,
+    // Distance maximale, à vol d'oiseau, entre le dépôt du bus (ou le centre de la commune) et le lieu de départ.
+    'max_pickup_distance_km' => 50,
     'duration_margin_min' => 15,
     'pickup_buffer_min' => 0,
     'dropoff_buffer_min' => 10,

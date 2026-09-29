@@ -18,7 +18,7 @@ use Illuminate\Validation\ValidationException;
  * lors de la synchronisation. La normalisation est commune avec MunicipalityService.
  *
  * `syncFromExternalProvider()` :
- *   1. Met à jour l'external_id et le source de la commune depuis GeoNames.
+ *   1. Met à jour l'external_id, le source et le centre (latitude/longitude) de la commune depuis GeoNames.
  *   2. Récupère toutes les sous-localités via GeoNamesMunicipalityProvider.
  *   3. Ajoute / réactive celles reçues.
  *   4. Désactive (soft) les localités source='geonames' absentes de la liste retournée.
@@ -26,6 +26,9 @@ use Illuminate\Validation\ValidationException;
  */
 class MunicipalitySettingsService
 {
+    /** Point de référence et limites de distance appliqués aux réservations. */
+    private const REFERENCE_FIELDS = ['latitude', 'longitude', 'depot_location_id', 'max_trip_distance_km', 'max_pickup_distance_km'];
+
     public function __construct(
         private readonly GeoNamesMunicipalityProvider $municipalityProvider
     ) {}
@@ -41,6 +44,7 @@ class MunicipalitySettingsService
                 'postal_code' => $data['postal_code'] ?? null,
                 'source' => $data['source'] ?? 'manual',
                 'is_active' => $data['is_active'] ?? false,
+                ...Arr::only($data, self::REFERENCE_FIELDS),
             ]);
 
             if ($municipality->is_active) {
@@ -73,6 +77,7 @@ class MunicipalitySettingsService
                 'postal_code',
                 'source',
                 'is_active',
+                ...self::REFERENCE_FIELDS,
             ]));
 
             if (($data['is_active'] ?? false) === true) {
@@ -147,6 +152,9 @@ class MunicipalitySettingsService
                     'external_id' => $providerMunicipality['geonameId'] ?? $municipality->external_id,
                     'source' => 'geonames',
                     'synced_at' => now(),
+                    // Centre de la commune : point de référence de repli quand aucun dépôt n'est défini.
+                    'latitude' => $providerMunicipality['lat'] ?? $municipality->latitude,
+                    'longitude' => $providerMunicipality['lng'] ?? $municipality->longitude,
                 ]);
             }
 

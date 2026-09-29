@@ -16,6 +16,9 @@ use Illuminate\Support\Facades\Schema;
  *
  * `name()` retourne le nom de la commune active ou la valeur config par défaut ('Dinant').
  * Utilisé par OrgRegistrationConfidenceScoreService pour personnaliser les messages du score.
+ *
+ * Fournit aussi à ReservationPreviewService les limites de distance de la commune active
+ * (`maxTripDistanceKm()`, `maxPickupDistanceKm()`) et le point de référence (`referencePoint()`).
  */
 class MunicipalityService
 {
@@ -43,6 +46,55 @@ class MunicipalityService
         return config('municipality.name', 'Dinant');
     }
 
+    /** Distance maximale départ → destination : valeur de la commune active, sinon config. */
+    public function maxTripDistanceKm(): int
+    {
+        return $this->activeMunicipality()?->max_trip_distance_km
+            ?? (int) config('reservations.max_distance_km', 50);
+    }
+
+    /** Distance maximale point de référence → lieu de départ : valeur de la commune active, sinon config. */
+    public function maxPickupDistanceKm(): int
+    {
+        return $this->activeMunicipality()?->max_pickup_distance_km
+            ?? (int) config('reservations.max_pickup_distance_km', 50);
+    }
+
+    /**
+     * Point d'où se mesure la distance jusqu'au lieu de départ : le dépôt du bus s'il est défini
+     * et géolocalisé, sinon le centre de la commune. Null si aucun des deux n'est connu
+     * (la règle n'est alors pas appliquée).
+     *
+     * @return array{latitude: float, longitude: float, label: string}|null
+     */
+    public function referencePoint(): ?array
+    {
+        $municipality = $this->activeMunicipality();
+
+        if (! $municipality) {
+            return null;
+        }
+
+        $depot = $municipality->depotLocation;
+        if ($depot && filled($depot->latitude) && filled($depot->longitude)) {
+            return [
+                'latitude' => (float) $depot->latitude,
+                'longitude' => (float) $depot->longitude,
+                'label' => 'du dépôt',
+            ];
+        }
+
+        if (filled($municipality->latitude) && filled($municipality->longitude)) {
+            return [
+                'latitude' => (float) $municipality->latitude,
+                'longitude' => (float) $municipality->longitude,
+                'label' => "du centre de {$municipality->name}",
+            ];
+        }
+
+        return null;
+    }
+
     private function normalizedLocalities(): array
     {
         $municipality = $this->activeMunicipality();
@@ -65,7 +117,7 @@ class MunicipalityService
         }
 
         return Municipality::query()
-            ->with('activeLocalities')
+            ->with(['activeLocalities', 'depotLocation'])
             ->where('is_active', true)
             ->first();
     }
