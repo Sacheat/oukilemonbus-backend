@@ -6,6 +6,7 @@ use App\Enums\RequestStatus;
 use App\Models\Organization;
 use App\Models\OrgRegistrationRequest;
 use App\Models\User;
+use App\Models\UserOrganization;
 use App\Services\Documents\ProofDocumentService;
 use App\Services\Notifications\NotificationDispatchService;
 use App\Services\Notifications\NotificationRecipientResolver;
@@ -18,7 +19,8 @@ use Illuminate\Validation\ValidationException;
  * `create()` : calcule le score de confiance immédiatement après la création de la demande,
  *   puis notifie les utilisateurs internes (admin/agent).
  *
- * `approve()` : crée l'organisation, ajoute le demandeur en tant que responsable (is_default = true),
+ * `approve()` : crée l'organisation, ajoute le demandeur en tant que responsable (is_default = true
+ *   seulement s'il n'a encore aucune organisation par défaut : une seule par utilisateur),
  *   passe la demande en APPROUVE, supprime le justificatif si conservé pour refus futur,
  *   et notifie le demandeur.
  *
@@ -78,10 +80,15 @@ class OrgRegistrationRequestService
                 'proof_document_id' => $request->proof_document_id,
             ])->refresh();
 
+            $hasDefault = UserOrganization::query()
+                ->where('user_id', $request->request_by_user_id)
+                ->where('is_default', true)
+                ->exists();
+
             $organization->users()->syncWithoutDetaching([
                 $request->request_by_user_id => [
                     'relationship_type' => 'responsable',
-                    'is_default' => true,
+                    'is_default' => ! $hasDefault,
                 ],
             ]);
 

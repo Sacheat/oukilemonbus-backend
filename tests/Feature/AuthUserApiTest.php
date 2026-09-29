@@ -6,6 +6,7 @@ use App\Models\User;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Database\Seeders\TestUsersSeeder;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\RateLimiter;
 use Spatie\Permission\PermissionRegistrar;
@@ -223,6 +224,50 @@ class AuthUserApiTest extends TestCase
             ->assertNoContent();
 
         $this->assertTrue(Hash::check('NewPassword123!', $user->fresh()->password));
+    }
+
+    public function test_password_change_keeps_the_current_session_and_closes_the_others(): void
+    {
+        config(['session.driver' => 'database']);
+
+        $user = User::factory()->create([
+            'email' => 'motdepasse@example.test',
+            'password' => 'OldPassword123!',
+            'active' => true,
+        ]);
+        $user->assignRole('user');
+        $user->createToken('autre-appareil');
+
+        $this->withHeader('Referer', 'http://localhost')
+            ->postJson('/api/auth/login', ['email' => 'motdepasse@example.test', 'password' => 'OldPassword123!'])
+            ->assertOk();
+
+        // Une autre session du même utilisateur (autre navigateur).
+        DB::table('sessions')->insert([
+            'id' => 'autre-session-navigateur',
+            'user_id' => $user->id,
+            'payload' => base64_encode(serialize([])),
+            'last_activity' => now()->getTimestamp(),
+        ]);
+
+        $this->withHeader('Referer', 'http://localhost')
+            ->patchJson("/api/users/{$user->id}/password", [
+                'current_password' => 'OldPassword123!',
+                'password' => 'NewPassword123!',
+                'password_confirmation' => 'NewPassword123!',
+            ])
+            ->assertNoContent();
+
+        // Nouvelle requête : la garde repart de la session, comme dans un vrai navigateur.
+        $this->app['auth']->forgetGuards();
+
+        $this->withHeader('Referer', 'http://localhost')
+            ->getJson('/api/auth/me')
+            ->assertOk()
+            ->assertJsonPath('data.id', $user->id);
+
+        $this->assertDatabaseMissing('sessions', ['id' => 'autre-session-navigateur']);
+        $this->assertSame(0, $user->tokens()->count());
     }
 
     public function test_admin_can_deactivate_a_user(): void

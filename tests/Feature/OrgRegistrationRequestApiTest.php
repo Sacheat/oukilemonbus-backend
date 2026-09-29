@@ -262,6 +262,39 @@ class OrgRegistrationRequestApiTest extends TestCase
         ]);
     }
 
+    public function test_approval_keeps_a_single_default_organization(): void
+    {
+        $agent = User::factory()->create();
+        $agent->assignRole('agent_communal');
+        Sanctum::actingAs($agent);
+
+        $requester = User::factory()->create();
+
+        // Première organisation : devient l'organisation par défaut.
+        $first = $this->approvedOrganizationFor($requester, 'Première organisation');
+        // Deuxième : l'organisation par défaut reste la première.
+        $second = $this->approvedOrganizationFor($requester, 'Deuxième organisation');
+
+        $this->assertDatabaseHas('user_organization', ['user_id' => $requester->id, 'organization_id' => $first->id, 'is_default' => true]);
+        $this->assertDatabaseHas('user_organization', ['user_id' => $requester->id, 'organization_id' => $second->id, 'is_default' => false, 'relationship_type' => 'responsable']);
+        $this->assertSame(1, $requester->organizations()->wherePivot('is_default', true)->count());
+    }
+
+    private function approvedOrganizationFor(User $requester, string $name): Organization
+    {
+        $registrationRequest = OrgRegistrationRequest::create([
+            'request_by_user_id' => $requester->id,
+            'organization_name' => $name,
+            'organization_type' => OrganizationType::ASBL,
+            'official_email' => 'contact@example.test',
+            'status' => RequestStatus::EN_ATTENTE,
+        ]);
+
+        $this->patchJson("/api/org-registration-requests/{$registrationRequest->id}/approve")->assertCreated();
+
+        return Organization::where('name', $name)->firstOrFail();
+    }
+
     public function test_agent_can_reject_registration_request(): void
     {
         $agent = User::factory()->create();

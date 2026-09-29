@@ -6,6 +6,7 @@ use App\Enums\OrganizationType;
 use App\Models\Location;
 use App\Models\Organization;
 use App\Models\User;
+use App\Models\UserOrganization;
 use Illuminate\Database\Seeder;
 
 class TestOrganizationsSeeder extends Seeder
@@ -68,15 +69,28 @@ class TestOrganizationsSeeder extends Seeder
         $school->users()->syncWithoutDetaching([
             $user->id => [
                 'relationship_type' => 'membre',
-                'is_default' => true,
+                'is_default' => ! $this->hasDefaultOrganization($user, $school),
             ],
         ]);
 
         $asbl->users()->syncWithoutDetaching([
             $responsable->id => [
                 'relationship_type' => 'responsable',
-                'is_default' => true,
+                'is_default' => ! $this->hasDefaultOrganization($responsable, $asbl),
             ],
         ]);
+    }
+
+    /**
+     * Une seule organisation par défaut par utilisateur : on ne marque la nouvelle appartenance
+     * que si l'utilisateur n'en a pas déjà une ailleurs (seeder relancé sur une base existante).
+     */
+    private function hasDefaultOrganization(User $user, Organization $except): bool
+    {
+        return UserOrganization::query()
+            ->where('user_id', $user->id)
+            ->where('organization_id', '!=', $except->id)
+            ->where('is_default', true)
+            ->exists();
     }
 }

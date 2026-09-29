@@ -13,6 +13,7 @@ use App\Models\User;
 use App\Services\Users\UserService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 
 /**
@@ -78,9 +79,26 @@ class UserController extends Controller
         );
     }
 
+    /**
+     * Change le mot de passe sans fermer la session qui fait le changement : l'utilisateur de la garde
+     * reçoit le nouveau hash, que le middleware AuthenticateSession (Sanctum) enregistre en session
+     * en fin de requête. Les autres sessions et les tokens API de l'utilisateur sont fermés.
+     */
     public function updatePassword(UpdatePasswordRequest $request, User $user): JsonResponse
     {
-        $this->userService->updatePassword($user, $request->validated('password'));
+        $user = $this->userService->updatePassword($user, $request->validated('password'));
+
+        $currentSessionId = null;
+        if ($request->user()?->is($user)) {
+            Auth::guard('web')->setUser($user);
+
+            if ($request->hasSession()) {
+                $request->session()->regenerate();
+                $currentSessionId = $request->session()->getId();
+            }
+        }
+
+        $this->userService->closeOtherSessions($user, $currentSessionId);
 
         return response()->json(null, 204);
     }
