@@ -2,6 +2,7 @@
 
 namespace App\Services\Documents;
 
+use App\Enums\DocumentType;
 use App\Models\Document;
 use App\Models\Reservation;
 use App\Models\User;
@@ -14,6 +15,13 @@ use Illuminate\Database\Eloquent\Builder;
  * - à construire les requêtes filtrées pour lister les documents visibles ;
  * - à vérifier les droits sur un document précis ;
  * - à éviter de dupliquer la logique entre DocumentPolicy et DocumentService.
+ *
+ * Règles pour les non-internes (liste et accès par identifiant appliquent les mêmes) :
+ * - feuilles de route : uniquement pour le chauffeur d'au moins une des missions qu'elles couvrent.
+ *   Une feuille de route regroupe tous les trajets d'un véhicule sur une journée, toutes
+ *   organisations confondues : un usager ne doit jamais y accéder ;
+ * - autres documents : les siens (justificatifs) et ceux des réservations auxquelles il a accès
+ *   (demandeur, membre de l'organisation, chauffeur affecté).
  */
 class DocumentAccessService
 {
@@ -35,16 +43,27 @@ class DocumentAccessService
             return $query;
         }
 
+        $driverId = $this->driverIdOf($user);
+
         return $query
             ->where('is_available', true)
-            ->where(function (Builder $query) use ($user): void {
-                $query->where('user_id', $user->getKey())
-                    ->orWhereHas('reservation', function (Builder $reservationQuery) use ($user): void {
-                        $this->applyReservationAccessRules($reservationQuery, $user);
-                    })
-                    ->orWhereHas('routeSheetReservations', function (Builder $reservationQuery) use ($user): void {
-                        $this->applyReservationAccessRules($reservationQuery, $user);
+            ->where(function (Builder $query) use ($user, $driverId): void {
+                $query->where(function (Builder $query) use ($user): void {
+                    $query->where('document_type', '!=', DocumentType::FEUILLE_ROUTE->value)
+                        ->where(function (Builder $query) use ($user): void {
+                            $query->where('user_id', $user->getKey())
+                                ->orWhereHas('reservation', function (Builder $reservationQuery) use ($user): void {
+                                    $this->applyReservationAccessRules($reservationQuery, $user);
+                                });
+                        });
+                });
+
+                if ($driverId !== null) {
+                    $query->orWhere(function (Builder $query) use ($driverId): void {
+                        $query->where('document_type', DocumentType::FEUILLE_ROUTE->value)
+                            ->whereHas('routeSheetReservations', fn (Builder $reservationQuery) => $reservationQuery->where('driver_id', $driverId));
                     });
+                }
             });
     }
 
@@ -74,21 +93,20 @@ class DocumentAccessService
             return false;
         }
 
+        if ($document->document_type === DocumentType::FEUILLE_ROUTE) {
+            $driverId = $this->driverIdOf($user);
+
+            return $driverId !== null
+                && $document->routeSheetReservations()->where('driver_id', $driverId)->exists();
+        }
+
         if ($document->user_id === $user->getKey()) {
             return true;
         }
 
         $reservation = $document->reservation;
 
-        if ($reservation !== null && $this->canAccessReservation($user, $reservation)) {
-            return true;
-        }
-
-        return $document->routeSheetReservations()
-            ->where(function (Builder $query) use ($user): void {
-                $this->applyReservationAccessRules($query, $user);
-            })
-            ->exists();
+        return $reservation !== null && $this->canAccessReservation($user, $reservation);
     }
 
     /**
@@ -114,6 +132,16 @@ class DocumentAccessService
     {
         return $user->can('documents.update')
             && $this->isInternal($user);
+    }
+
+    /** Identifiant du profil chauffeur, ou null si l'utilisateur n'est pas chauffeur. */
+    private function driverIdOf(User $user): ?int
+    {
+        if (! $user->hasRole('chauffeur') || $user->driver === null) {
+            return null;
+        }
+
+        return $user->driver->getKey();
     }
 
     private function isInternal(User $user): bool

@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Enums\DocumentType;
 use App\Models\DocumentAccessToken;
+use App\Models\Driver;
 use App\Models\Document;
 use App\Models\Location;
 use App\Models\Organization;
@@ -62,8 +63,8 @@ class DocumentApiTest extends TestCase
 
         $response->assertOk()
             ->assertJsonPath('data.0.id', $document->id)
-            ->assertJsonPath('data.0.document_type', DocumentType::FEUILLE_ROUTE->value)
-            ->assertJsonPath('data.0.document_type_label', DocumentType::FEUILLE_ROUTE->label())
+            ->assertJsonPath('data.0.document_type', DocumentType::JUSTIFICATIF->value)
+            ->assertJsonPath('data.0.document_type_label', DocumentType::JUSTIFICATIF->label())
             ->assertJsonPath('data.0.generation_context.source', 'test');
 
         $this->assertArrayNotHasKey('file_path', $response->json('data.0'));
@@ -81,8 +82,7 @@ class DocumentApiTest extends TestCase
         $response->assertOk()
             ->assertJsonPath('data.id', $document->id)
             ->assertJsonPath('data.user_id', $user->id)
-            ->assertJsonPath('data.file_name', 'feuille-route-test.pdf')
-            ->assertJsonPath('data.template_key', 'route_sheets.default');
+            ->assertJsonPath('data.file_name', 'justificatif-test.pdf');
 
         $this->assertArrayNotHasKey('file_path', $response->json('data'));
         $this->assertArrayNotHasKey('generation_context', $response->json('data'));
@@ -148,7 +148,7 @@ class DocumentApiTest extends TestCase
 
         $document = Document::create([
             'user_id' => $user->id,
-            'document_type' => DocumentType::FEUILLE_ROUTE,
+            'document_type' => DocumentType::JUSTIFICATIF,
             'file_name' => 'fichier-manquant.pdf',
             'file_path' => 'documents/tests/fichier-manquant.pdf',
             'mime_type' => 'application/pdf',
@@ -189,26 +189,101 @@ class DocumentApiTest extends TestCase
             ->assertJsonPath('data.0.id', $visibleDocument->id);
     }
 
-    public function test_user_can_show_route_sheet_document_linked_through_reservations(): void
+    public function test_user_never_sees_route_sheets_even_with_a_reservation_on_them(): void
     {
+        // Une feuille de route couvre tous les trajets d'un véhicule sur une journée, toutes organisations
+        // confondues : l'usager n'y a pas accès, même si une de ses réservations y figure.
         $user = $this->userWithRole('user');
         $reservation = $this->createReservationForUser($user);
-        $document = $this->createRouteSheetDocument();
+        $routeSheet = $this->createRouteSheetDocument();
+        $routeSheet->routeSheetReservations()->attach($reservation->id, ['position' => 1]);
 
-        $document->routeSheetReservations()->attach($reservation->id, [
-            'position' => 1,
-        ]);
+        // Il garde les documents de ses réservations (ex. délibération).
+        $deliberation = $this->createReservationDocument($reservation, DocumentType::DELIBERATION);
 
         Sanctum::actingAs($user);
 
-        $response = $this->getJson("/api/documents/{$document->id}");
+        $this->getJson('/api/documents')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $deliberation->id);
 
-        $response->assertOk()
-            ->assertJsonPath('data.id', $document->id)
-            ->assertJsonPath('data.document_type', DocumentType::FEUILLE_ROUTE->value);
+        $this->getJson("/api/documents/{$routeSheet->id}")->assertForbidden();
+        $this->get("/api/documents/{$routeSheet->id}/download")->assertForbidden();
+        $this->getJson("/api/documents/{$deliberation->id}")->assertOk();
+    }
 
-        $this->assertArrayNotHasKey('generation_context', $response->json('data'));
-        $this->assertArrayNotHasKey('file_path', $response->json('data'));
+    public function test_route_sheet_is_hidden_from_user_even_if_marked_as_theirs(): void
+    {
+        // Défense en profondeur : même avec user_id ou reservation_id renseigné, une feuille de route reste réservée au chauffeur.
+        $user = $this->userWithRole('user');
+        $reservation = $this->createReservationForUser($user);
+        $routeSheet = $this->createRouteSheetDocument();
+        $routeSheet->update(['user_id' => $user->id, 'reservation_id' => $reservation->id]);
+
+        Sanctum::actingAs($user);
+
+        $this->getJson('/api/documents')->assertOk()->assertJsonCount(0, 'data');
+        $this->getJson("/api/documents/{$routeSheet->id}")->assertForbidden();
+    }
+
+    public function test_driver_only_sees_route_sheets_of_their_own_missions(): void
+    {
+        $owner = $this->userWithRole('user');
+        $reservation = $this->createReservationForUser($owner);
+
+        $driverUser = $this->driverUser();
+        $otherDriverUser = $this->driverUser();
+        $reservation->update(['driver_id' => $driverUser->driver->id]);
+
+        $ownSheet = $this->createRouteSheetDocument();
+        $ownSheet->routeSheetReservations()->attach($reservation->id, ['position' => 1]);
+
+        // Feuille d'une mission d'un autre chauffeur, même organisation.
+        $otherReservation = $this->createReservationForUser($owner);
+        $otherReservation->update(['driver_id' => $otherDriverUser->driver->id]);
+        $otherSheet = $this->createRouteSheetDocument();
+        $otherSheet->routeSheetReservations()->attach($otherReservation->id, ['position' => 1]);
+
+        Sanctum::actingAs($driverUser);
+
+        $this->getJson('/api/documents')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $ownSheet->id);
+
+        $this->getJson("/api/documents/{$ownSheet->id}")->assertOk();
+        $this->getJson("/api/documents/{$otherSheet->id}")->assertForbidden();
+    }
+
+    public function test_driver_member_of_an_organization_does_not_see_its_route_sheets_without_mission(): void
+    {
+        $owner = $this->userWithRole('user');
+        $reservation = $this->createReservationForUser($owner);
+
+        $driverUser = $this->driverUser();
+        $driverUser->organizations()->attach($reservation->organization_id, ['relationship_type' => 'membre', 'is_default' => true]);
+
+        $routeSheet = $this->createRouteSheetDocument();
+        $routeSheet->routeSheetReservations()->attach($reservation->id, ['position' => 1]);
+
+        Sanctum::actingAs($driverUser);
+
+        $this->getJson('/api/documents')->assertOk()->assertJsonCount(0, 'data');
+        $this->getJson("/api/documents/{$routeSheet->id}")->assertForbidden();
+    }
+
+    public function test_agent_still_sees_every_route_sheet(): void
+    {
+        $owner = $this->userWithRole('user');
+        $reservation = $this->createReservationForUser($owner);
+        $routeSheet = $this->createRouteSheetDocument();
+        $routeSheet->routeSheetReservations()->attach($reservation->id, ['position' => 1]);
+
+        Sanctum::actingAs($this->userWithRole('agent_communal'));
+
+        $this->getJson('/api/documents')->assertOk()->assertJsonPath('data.0.id', $routeSheet->id);
+        $this->getJson("/api/documents/{$routeSheet->id}")->assertOk();
     }
 
     public function test_signed_download_link_can_be_used_only_once(): void
@@ -284,14 +359,15 @@ class DocumentApiTest extends TestCase
     private function createStoredDocument(User $user, bool $isAvailable = true): Document
     {
         $content = 'PDF TEST CONTENT';
-        $filePath = 'documents/tests/feuille-route-test.pdf';
+        $filePath = 'documents/tests/justificatif-test.pdf';
 
         Storage::disk('local')->put($filePath, $content);
 
+        // Justificatif téléversé par l'usager : un document qui lui appartient en propre.
         return Document::create([
             'user_id' => $user->id,
-            'document_type' => DocumentType::FEUILLE_ROUTE,
-            'file_name' => 'feuille-route-test.pdf',
+            'document_type' => DocumentType::JUSTIFICATIF,
+            'file_name' => 'justificatif-test.pdf',
             'file_path' => $filePath,
             'mime_type' => 'application/pdf',
             'file_size' => strlen($content),
@@ -307,6 +383,40 @@ class DocumentApiTest extends TestCase
             'is_official' => true,
             'version' => 1,
             'is_available' => $isAvailable,
+        ]);
+    }
+
+    private function driverUser(): User
+    {
+        $user = $this->userWithRole('chauffeur');
+        Driver::create([
+            'user_id' => $user->id,
+            'licence_number' => 'LIC-'.$user->id,
+            'licence_expiry_date' => now()->addYear()->toDateString(),
+            'is_active' => true,
+        ]);
+
+        return $user->load('driver');
+    }
+
+    private function createReservationDocument(Reservation $reservation, DocumentType $type): Document
+    {
+        return Document::create([
+            'reservation_id' => $reservation->id,
+            'user_id' => null,
+            'document_type' => $type,
+            'file_name' => 'deliberation-test.pdf',
+            'file_path' => 'documents/tests/deliberation-test.pdf',
+            'mime_type' => 'application/pdf',
+            'file_size' => 123,
+            'checksum' => hash('sha256', 'deliberation'),
+            'generation_mode' => 'auto',
+            'template_key' => 'deliberations.default',
+            'template_version' => '1.0',
+            'generated_at' => now(),
+            'is_official' => true,
+            'version' => 1,
+            'is_available' => true,
         ]);
     }
 
