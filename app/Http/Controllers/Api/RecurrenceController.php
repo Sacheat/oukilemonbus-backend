@@ -10,6 +10,7 @@ use App\Http\Resources\RecurrenceResource;
 use App\Models\Organization;
 use App\Models\Recurrence;
 use App\Models\Reservation;
+use App\Services\Idempotency\ApiIdempotencyService;
 use App\Services\Recurrences\RecurrenceService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -22,8 +23,12 @@ use Illuminate\Support\Facades\Gate;
  */
 class RecurrenceController extends Controller
 {
+    /** Relations des occurrences, identiques à GET /reservations/{id}. */
+    private const OCCURRENCE_RELATIONS = ['organization', 'pickupLocation', 'destinationLocation', 'driver', 'vehicle', 'conflicts'];
+
     public function __construct(
-        private readonly RecurrenceService $recurrenceService
+        private readonly RecurrenceService $recurrenceService,
+        private readonly ApiIdempotencyService $idempotencyService
     ) {}
 
     public function index(): AnonymousResourceCollection
@@ -39,7 +44,7 @@ class RecurrenceController extends Controller
                 })
             )
             ->when(request('is_active') !== null, fn ($q) => $q->where('is_active', (bool) request('is_active')))
-            ->withCount('reservations')
+            ->withSummary()
             ->orderByDesc('created_at')
             ->paginate();
 
@@ -62,11 +67,47 @@ class RecurrenceController extends Controller
         $organization = Organization::findOrFail($request->validated('organization_id'));
         Gate::authorize('createForOrganization', [Reservation::class, $organization]);
 
-        $recurrence = $this->recurrenceService->create($request->validated(), $request->user());
+        $idempotencyKey = $request->header('Idempotency-Key');
+        if (is_string($idempotencyKey) && $idempotencyKey !== '') {
+            // Même mécanisme que POST /reservations : même clé + même corps → réponse initiale rejouée.
+            $response = $this->idempotencyService->execute(
+                user: $request->user(),
+                key: $idempotencyKey,
+                method: 'POST',
+                routeName: (string) ($request->route()?->getName() ?? 'api.recurrences.store'),
+                requestHash: hash('sha256', json_encode($request->validated(), JSON_THROW_ON_ERROR)),
+                action: fn (): array => [
+                    'status' => 201,
+                    'body' => $this->createdResponseBody($request),
+                ]
+            );
+
+            return response()->json($response['body'], $response['status']);
+        }
+
+        return response()->json($this->createdResponseBody($request), 201);
+    }
+
+    /**
+     * Corps de la réponse 201 : la resource enrichie et, dans `meta`, le rapport de création
+     * (trajets créés, dates ignorées au preview, dates en échec avec leur motif).
+     */
+    private function createdResponseBody(StoreRecurrenceRequest $request): array
+    {
+        $report = $this->recurrenceService->createWithReport($request->validated(), $request->user());
+
+        $recurrence = $report['recurrence']
+            ->load(['reservations' => fn ($q) => $q->orderBy('trip_date')->with(self::OCCURRENCE_RELATIONS)])
+            ->loadSummary();
 
         return (new RecurrenceResource($recurrence))
+            ->additional(['meta' => [
+                'created_count' => $report['created_count'],
+                'skipped_dates' => $report['skipped_dates'],
+                'failed_dates'  => $report['failed_dates'],
+            ]])
             ->response()
-            ->setStatusCode(201);
+            ->getData(true);
     }
 
     public function show(Recurrence $recurrence): RecurrenceResource
@@ -82,7 +123,9 @@ class RecurrenceController extends Controller
         }
 
         return new RecurrenceResource(
-            $recurrence->load(['reservations' => fn ($q) => $q->orderBy('trip_date')])
+            $recurrence
+                ->load(['reservations' => fn ($q) => $q->orderBy('trip_date')->with(self::OCCURRENCE_RELATIONS)])
+                ->loadSummary()
         );
     }
 

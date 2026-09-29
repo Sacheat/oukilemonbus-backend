@@ -15,6 +15,7 @@ use Database\Seeders\TestOrganizationsSeeder;
 use Database\Seeders\TestUsersSeeder;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Laravel\Sanctum\Sanctum;
 use Spatie\Permission\PermissionRegistrar;
@@ -515,8 +516,190 @@ class RecurrenceApiTest extends TestCase
     }
 
     // -------------------------------------------------------------------------
+    // Résumé de la série (index / show)
+    // -------------------------------------------------------------------------
+
+    public function test_index_exposes_series_summary(): void
+    {
+        Http::fake(['https://ors.test/*' => $this->orsResponse()]);
+
+        $user = $this->seededUser('user.test@bus-communal.local');
+        $school = $this->seededOrg('Ecole communale de Dinant');
+        [$pickup, $destination] = $this->seededLocations();
+
+        Sanctum::actingAs($user);
+        $this->postJson('/api/recurrences', $this->weeklyPayload($school))->assertCreated();
+
+        $this->getJson('/api/recurrences')
+            ->assertOk()
+            ->assertJsonPath('data.0.reservations_count', 3)
+            ->assertJsonPath('data.0.organization.id', $school->id)
+            ->assertJsonPath('data.0.organization.name', 'Ecole communale de Dinant')
+            ->assertJsonPath('data.0.organization.type', $school->type->value)
+            ->assertJsonPath('data.0.pickup_location.id', $pickup->id)
+            ->assertJsonPath('data.0.destination_location.id', $destination->id)
+            ->assertJsonPath('data.0.departure_time', '09:00')
+            ->assertJsonPath('data.0.return_time', '11:00')
+            ->assertJsonPath('data.0.trip_purpose', 'Sortie récurrente')
+            ->assertJsonPath('data.0.nb_children', 10)
+            ->assertJsonPath('data.0.nb_adults', 1)
+            ->assertJsonPath('data.0.status_counts.confirme', 3)
+            ->assertJsonPath('data.0.status_counts.annule', 0)
+            ->assertJsonPath('data.0.next_trip_date', '2026-05-11')
+            ->assertJsonStructure(['data' => [['activity_type', 'activity_type_label']]]);
+    }
+
+    public function test_next_trip_date_ignores_cancelled_and_past_occurrences(): void
+    {
+        Http::fake(['https://ors.test/*' => $this->orsResponse()]);
+
+        $user = $this->seededUser('user.test@bus-communal.local');
+        $agent = $this->seededUser('agent.test@bus-communal.local');
+        $school = $this->seededOrg('Ecole communale de Dinant');
+
+        Sanctum::actingAs($user);
+        $recurrenceId = $this->postJson('/api/recurrences', $this->weeklyPayload($school))->json('data.id');
+
+        $first = Reservation::query()->where('recurrence_id', $recurrenceId)->orderBy('trip_date')->first();
+        Sanctum::actingAs($agent);
+        $this->patchJson("/api/reservations/{$first->id}/cancel", ['reason' => 'Annulation individuelle.'])->assertOk();
+
+        $this->getJson("/api/recurrences/{$recurrenceId}")
+            ->assertOk()
+            ->assertJsonPath('data.next_trip_date', '2026-05-18')
+            ->assertJsonPath('data.status_counts.annule', 1)
+            ->assertJsonPath('data.status_counts.confirme', 2);
+
+        // Au lendemain du dernier trajet, plus aucune occurrence à venir.
+        Carbon::setTestNow('2026-05-26 09:00:00');
+        $this->getJson("/api/recurrences/{$recurrenceId}")
+            ->assertOk()
+            ->assertJsonPath('data.next_trip_date', null);
+    }
+
+    public function test_index_query_count_does_not_grow_with_recurrences(): void
+    {
+        Http::fake(['https://ors.test/*' => $this->orsResponse()]);
+
+        $user = $this->seededUser('user.test@bus-communal.local');
+        $school = $this->seededOrg('Ecole communale de Dinant');
+        Sanctum::actingAs($user);
+
+        $this->postJson('/api/recurrences', $this->weeklyPayload($school))->assertCreated();
+        $queriesForOne = $this->countIndexQueries();
+
+        $this->postJson('/api/recurrences', array_merge(
+            $this->weeklyPayload($school),
+            ['start_date' => '2026-06-01', 'end_date' => '2026-06-15']
+        ))->assertCreated();
+        $queriesForTwo = $this->countIndexQueries();
+
+        $this->assertSame($queriesForOne, $queriesForTwo);
+    }
+
+    public function test_show_loads_occurrence_locations_and_conflicts(): void
+    {
+        Http::fake(['https://ors.test/*' => $this->orsResponse()]);
+
+        $user = $this->seededUser('user.test@bus-communal.local');
+        $school = $this->seededOrg('Ecole communale de Dinant');
+        [$pickup, $destination] = $this->seededLocations();
+
+        Sanctum::actingAs($user);
+        $recurrenceId = $this->postJson('/api/recurrences', $this->weeklyPayload($school))->json('data.id');
+
+        $response = $this->getJson("/api/recurrences/{$recurrenceId}")->assertOk();
+
+        foreach ([0, 1, 2] as $index) {
+            $response
+                ->assertJsonPath("data.reservations.{$index}.pickup_location.id", $pickup->id)
+                ->assertJsonPath("data.reservations.{$index}.destination_location.id", $destination->id)
+                ->assertJsonPath("data.reservations.{$index}.organization.id", $school->id)
+                ->assertJsonPath("data.reservations.{$index}.conflicts", []);
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Idempotency-Key et rapport de création
+    // -------------------------------------------------------------------------
+
+    public function test_store_replays_response_for_same_idempotency_key(): void
+    {
+        Http::fake(['https://ors.test/*' => $this->orsResponse()]);
+
+        $user = $this->seededUser('user.test@bus-communal.local');
+        $school = $this->seededOrg('Ecole communale de Dinant');
+        Sanctum::actingAs($user);
+
+        $headers = ['Idempotency-Key' => 'd8f1c0a2-5b1e-4f0e-9a51-8f3b2c7d1e11'];
+
+        $first = $this->postJson('/api/recurrences', $this->weeklyPayload($school), $headers)->assertCreated();
+        $second = $this->postJson('/api/recurrences', $this->weeklyPayload($school), $headers)->assertCreated();
+
+        $this->assertSame($first->json(), $second->json());
+        $this->assertDatabaseCount('recurrences', 1);
+        $this->assertDatabaseCount('reservations', 3);
+    }
+
+    public function test_store_rejects_same_idempotency_key_with_different_body(): void
+    {
+        Http::fake(['https://ors.test/*' => $this->orsResponse()]);
+
+        $user = $this->seededUser('user.test@bus-communal.local');
+        $school = $this->seededOrg('Ecole communale de Dinant');
+        Sanctum::actingAs($user);
+
+        $headers = ['Idempotency-Key' => 'd8f1c0a2-5b1e-4f0e-9a51-8f3b2c7d1e12'];
+
+        $this->postJson('/api/recurrences', $this->weeklyPayload($school), $headers)->assertCreated();
+        $this->postJson('/api/recurrences', array_merge($this->weeklyPayload($school), ['nb_children' => 12]), $headers)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('idempotency_key');
+
+        $this->assertDatabaseCount('recurrences', 1);
+    }
+
+    public function test_store_returns_creation_report_in_meta(): void
+    {
+        // 18 mai fermé → ignoré au preview ; 25 mai à 70 km (> 50 km) → échec à la création.
+        config(['reservations.closed_dates' => ['2026-05-18']]);
+        Http::fake([
+            'https://ors.test/*' => Http::sequence()
+                ->push(['routes' => [['summary' => ['distance' => 12000, 'duration' => 1800]]]])
+                ->push(['routes' => [['summary' => ['distance' => 70000, 'duration' => 5000]]]]),
+        ]);
+
+        $user = $this->seededUser('user.test@bus-communal.local');
+        $school = $this->seededOrg('Ecole communale de Dinant');
+        Sanctum::actingAs($user);
+
+        $response = $this->postJson('/api/recurrences', $this->weeklyPayload($school))
+            ->assertCreated()
+            ->assertJsonPath('data.occurrence_count', 1)
+            ->assertJsonPath('data.status_counts.confirme', 1)
+            ->assertJsonPath('meta.created_count', 1)
+            ->assertJsonPath('meta.skipped_dates.0.date', '2026-05-18')
+            ->assertJsonPath('meta.skipped_dates.0.reason', 'Jour férié ou date de fermeture')
+            ->assertJsonPath('meta.failed_dates.0.date', '2026-05-25')
+            ->assertJsonCount(1, 'meta.skipped_dates')
+            ->assertJsonCount(1, 'meta.failed_dates');
+
+        $this->assertNotSame('', $response->json('meta.failed_dates.0.reason'));
+    }
+
+    // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
+
+    private function countIndexQueries(): int
+    {
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+        $this->getJson('/api/recurrences')->assertOk();
+        DB::disableQueryLog();
+
+        return count(DB::getQueryLog());
+    }
 
     private function weeklyPayload(Organization $org): array
     {
