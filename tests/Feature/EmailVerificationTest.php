@@ -3,7 +3,10 @@
 namespace Tests\Feature;
 
 use App\Models\User;
-use Illuminate\Auth\Notifications\VerifyEmail;
+use App\Notifications\Auth\QueuedVerifyEmail;
+use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Notifications\SendQueuedNotifications;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Str;
@@ -53,9 +56,54 @@ class EmailVerificationTest extends TestCase
         $query = $this->verificationQuery($user);
 
         $this->getJson("/api/email/verify/{$query['id']}/{$query['hash']}?expires={$query['expires']}&signature=invalid")
-            ->assertForbidden();
+            ->assertForbidden()
+            ->assertExactJson([
+                'message' => 'Ce lien de vérification est invalide ou a expiré. Demandez un nouvel e-mail de vérification.',
+            ]);
 
         $this->assertFalse($user->fresh()->hasVerifiedEmail());
+    }
+
+    public function test_expired_link_returns_the_french_message(): void
+    {
+        $user = User::factory()->unverified()->create();
+        $query = $this->verificationQuery($user);
+
+        $this->travel(61)->minutes();
+
+        $this->getJson("/api/email/verify/{$query['id']}/{$query['hash']}?expires={$query['expires']}&signature={$query['signature']}")
+            ->assertForbidden()
+            ->assertJsonPath('message', 'Ce lien de vérification est invalide ou a expiré. Demandez un nouvel e-mail de vérification.');
+    }
+
+    public function test_verification_email_is_queued_so_registration_does_not_depend_on_smtp(): void
+    {
+        // Avec une vraie file, la requête HTTP ne fait que pousser le job : un SMTP en échec ne peut plus la faire échouer.
+        Queue::fake();
+
+        $this->postJson('/api/auth/register', [
+            'first_name' => 'Alice',
+            'last_name' => 'Martin',
+            'email' => 'file@example.test',
+            'password' => 'Password123!',
+            'password_confirmation' => 'Password123!',
+        ])->assertCreated();
+
+        Queue::assertPushed(SendQueuedNotifications::class, fn (SendQueuedNotifications $job): bool => $job->notification instanceof QueuedVerifyEmail);
+        $this->assertInstanceOf(ShouldQueue::class, new QueuedVerifyEmail);
+    }
+
+    public function test_resend_queues_the_verification_email(): void
+    {
+        Queue::fake();
+        $user = User::factory()->unverified()->create();
+
+        $this->actingAs($user)
+            ->postJson('/api/email/verify/resend')
+            ->assertOk()
+            ->assertJsonPath('message', 'Email de vérification envoyé.');
+
+        Queue::assertPushed(SendQueuedNotifications::class, fn (SendQueuedNotifications $job): bool => $job->notification instanceof QueuedVerifyEmail);
     }
 
     private function verificationQuery(User $user): array
@@ -64,7 +112,7 @@ class EmailVerificationTest extends TestCase
         $user->sendEmailVerificationNotification();
 
         $url = null;
-        Notification::assertSentTo($user, VerifyEmail::class, function (VerifyEmail $notification) use ($user, &$url): bool {
+        Notification::assertSentTo($user, QueuedVerifyEmail::class, function (QueuedVerifyEmail $notification) use ($user, &$url): bool {
             $url = $notification->toMail($user)->actionUrl;
 
             return true;

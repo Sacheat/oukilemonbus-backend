@@ -33,6 +33,16 @@ final class ApiErrorMessage
         503 => 'Le service est momentanément indisponible.',
     ];
 
+    /** Message d'un lien signé invalide ou expiré, selon la route appelée. */
+    public static function invalidSignature(?string $routeName): string
+    {
+        return match ($routeName) {
+            'api.verification.verify' => 'Ce lien de vérification est invalide ou a expiré. Demandez un nouvel e-mail de vérification.',
+            'api.documents.signed-download' => 'Ce lien de téléchargement est invalide ou a expiré.',
+            default => 'Ce lien est invalide ou a expiré.',
+        };
+    }
+
     public static function for(int $status, string $message): string
     {
         if (isset(self::KNOWN[$message])) {

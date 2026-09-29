@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Notifications\Auth\QueuedResetPassword;
+use App\Notifications\Auth\QueuedVerifyEmail;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -163,6 +165,18 @@ class User extends Authenticatable implements MustVerifyEmail
     public function notificationDeliveries(): MorphMany
     {
         return $this->morphMany(NotificationDelivery::class, 'notifiable');
+    }
+
+    /** Envoi en file d'attente : l'inscription et le renvoi ne dépendent pas du serveur SMTP. */
+    public function sendEmailVerificationNotification(): void
+    {
+        $this->notify(new QueuedVerifyEmail);
+    }
+
+    /** Envoi en file d'attente : POST /auth/forgot-password ne dépend pas du serveur SMTP. */
+    public function sendPasswordResetNotification(#[\SensitiveParameter] $token): void
+    {
+        $this->notify(new QueuedResetPassword($token));
     }
 
     /**

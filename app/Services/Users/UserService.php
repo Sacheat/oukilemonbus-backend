@@ -4,6 +4,7 @@ namespace App\Services\Users;
 
 use App\Models\User;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\DB;
 
 class UserService
 {
@@ -64,6 +65,25 @@ class UserService
         ]);
 
         return $user->refresh();
+    }
+
+    /**
+     * Ferme toutes les sessions de l'utilisateur sauf $keepSessionId (session en base) et révoque
+     * ses tokens API. Sans session en base, les autres sessions restent de toute façon rejetées
+     * par AuthenticateSession, dont le hash de mot de passe ne correspond plus.
+     */
+    public function closeOtherSessions(User $user, ?string $keepSessionId = null): void
+    {
+        $user->tokens()->delete();
+
+        if (config('session.driver') !== 'database') {
+            return;
+        }
+
+        DB::table(config('session.table', 'sessions'))
+            ->where('user_id', $user->getKey())
+            ->when($keepSessionId, fn ($query, $id) => $query->where('id', '!=', $id))
+            ->delete();
     }
 
     public function deactivate(User $user): User

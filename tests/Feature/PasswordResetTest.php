@@ -3,7 +3,9 @@
 namespace Tests\Feature;
 
 use App\Models\User;
-use Illuminate\Auth\Notifications\ResetPassword;
+use App\Notifications\Auth\QueuedResetPassword;
+use Illuminate\Notifications\SendQueuedNotifications;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Notification;
@@ -28,12 +30,22 @@ class PasswordResetTest extends TestCase
 
         $this->postJson('/api/auth/forgot-password', ['email' => 'oubli@example.test'])->assertOk();
 
-        Notification::assertSentTo($user, ResetPassword::class, function (ResetPassword $notification) use ($user): bool {
+        Notification::assertSentTo($user, QueuedResetPassword::class, function (QueuedResetPassword $notification) use ($user): bool {
             $url = $notification->toMail($user)->actionUrl;
 
             return str_starts_with($url, 'https://front.example.test/reset-password?token=')
                 && str_contains($url, 'email=oubli%40example.test');
         });
+    }
+
+    public function test_forgot_password_email_is_queued_so_the_request_does_not_depend_on_smtp(): void
+    {
+        Queue::fake();
+        User::factory()->create(['email' => 'file@example.test']);
+
+        $this->postJson('/api/auth/forgot-password', ['email' => 'file@example.test'])->assertOk();
+
+        Queue::assertPushed(SendQueuedNotifications::class, fn (SendQueuedNotifications $job): bool => $job->notification instanceof QueuedResetPassword);
     }
 
     public function test_unknown_email_gets_the_same_response(): void
