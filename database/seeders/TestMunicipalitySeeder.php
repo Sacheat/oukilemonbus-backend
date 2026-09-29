@@ -18,6 +18,9 @@ class TestMunicipalitySeeder extends Seeder
                 'nis_code' => '91034',
                 'country' => 'BE',
                 'postal_code' => '5500',
+                // Centre de Dinant : point de référence tant qu'aucun dépôt n'est défini.
+                'latitude' => 50.26060000,
+                'longitude' => 4.91220000,
                 'source' => 'manual',
                 'is_active' => true,
                 'synced_at' => now(),

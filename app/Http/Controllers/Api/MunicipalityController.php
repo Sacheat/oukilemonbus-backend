@@ -27,7 +27,7 @@ class MunicipalityController extends Controller
     {
         return MunicipalityResource::collection(
             Municipality::query()
-                ->with('localities')
+                ->with(['localities', 'depotLocation'])
                 ->orderByDesc('is_active')
                 ->orderBy('name')
                 ->paginate()
@@ -38,21 +38,21 @@ class MunicipalityController extends Controller
     {
         $municipality = $this->municipalitySettingsService->create($request->validated());
 
-        return (new MunicipalityResource($municipality->load('localities')))
+        return (new MunicipalityResource($municipality->load(['localities', 'depotLocation'])))
             ->response()
             ->setStatusCode(201);
     }
 
     public function show(Municipality $municipality): MunicipalityResource
     {
-        return new MunicipalityResource($municipality->load('localities'));
+        return new MunicipalityResource($municipality->load(['localities', 'depotLocation']));
     }
 
     public function update(UpdateMunicipalityRequest $request, Municipality $municipality): MunicipalityResource
     {
         $municipality = $this->municipalitySettingsService->update($municipality, $request->validated());
 
-        return new MunicipalityResource($municipality->load('localities'));
+        return new MunicipalityResource($municipality->load(['localities', 'depotLocation']));
     }
 
     public function syncLocalities(
@@ -61,6 +61,6 @@ class MunicipalityController extends Controller
     ): MunicipalityResource {
         $municipality = $this->municipalitySettingsService->syncFromExternalProvider($municipality);
 
-        return new MunicipalityResource($municipality->load('localities'));
+        return new MunicipalityResource($municipality->load(['localities', 'depotLocation']));
     }
 }

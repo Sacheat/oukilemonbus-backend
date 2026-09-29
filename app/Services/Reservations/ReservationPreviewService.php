@@ -13,6 +13,7 @@ use App\Models\Organization;
 use App\Models\Reservation;
 use App\Models\Vehicle;
 use App\Services\Locations\LocationService;
+use App\Services\Locations\MunicipalityService;
 use App\Services\Logging\DomainLogger;
 use Carbon\CarbonImmutable;
 use Illuminate\Validation\ValidationException;
@@ -27,7 +28,10 @@ use Illuminate\Validation\ValidationException;
  *   4. Trajet belge uniquement
  *   5. Capacité fleet suffisante pour les passagers demandés
  *   6. Quota organisation via ReservationQuotaService
- *   7. Distance ≤ max_distance_km (via ORS ; fallback haversine × 1.25 si ORS indisponible)
+ *   7. Distance du trajet (départ → destination) ≤ max_trip_distance_km de la commune active
+ *      (défaut config max_distance_km ; via ORS, fallback haversine × 1.25 si ORS indisponible)
+ *   7b. Lieu de départ à ≤ max_pickup_distance_km, à vol d'oiseau, du dépôt de la commune
+ *      (ou de son centre à défaut). Règle ignorée si aucun point de référence n'est connu.
  *   8. Conflits bloquants (IMPOSSIBLE_TIME_WINDOW, SCHEDULE_OVERLAP)
  *   9. Avertissements de dérogation (horaire / durée — non bloquants, soumis au collège)
  *
@@ -52,6 +56,7 @@ class ReservationPreviewService
         private readonly LocationService $locationService,
         private readonly ReservationQuotaService $quotaService,
         private readonly ReservationOccupationService $occupationService,
+        private readonly MunicipalityService $municipalityService,
         ?DomainLogger $logger = null
     ) {
         $this->logger = $logger ?? app(DomainLogger::class);
@@ -87,6 +92,7 @@ class ReservationPreviewService
             fn () => $checkPassengers ? $this->ensureVehicleCapacity($data) : null,
             fn () => $this->quotaService->ensureCanCreate($organization, $data['trip_date'], $data['ignore_reservation_id'] ?? null),
             fn () => $this->ensureMaximumDistance($distance['distance_km']),
+            fn () => $this->ensurePickupNearReferencePoint($pickup),
         ]);
 
         $estimatedDuration = $distance['estimated_duration_min'];
@@ -163,9 +169,44 @@ class ReservationPreviewService
 
     private function ensureMaximumDistance(?float $distanceKm): void
     {
-        if ($distanceKm !== null && $distanceKm > config('reservations.max_distance_km', 50)) {
+        $maxKm = $this->municipalityService->maxTripDistanceKm();
+
+        if ($distanceKm !== null && $distanceKm > $maxKm) {
             throw ValidationException::withMessages([
-                'destination_location_id' => 'La distance entre le lieu de départ et la destination dépasse 50 km.',
+                'destination_location_id' => "La distance entre le lieu de départ et la destination dépasse {$maxKm} km.",
+            ]);
+        }
+    }
+
+    /**
+     * Le lieu de départ doit être proche du dépôt du bus (ou du centre de la commune) : sans cette
+     * règle, un trajet court mais loin de la commune passerait la limite de distance du trajet.
+     * Mesure à vol d'oiseau, sans appel ORS.
+     */
+    private function ensurePickupNearReferencePoint(Location $pickup): void
+    {
+        $reference = $this->municipalityService->referencePoint();
+
+        if ($reference === null || blank($pickup->latitude) || blank($pickup->longitude)) {
+            return;
+        }
+
+        $maxKm = $this->municipalityService->maxPickupDistanceKm();
+        $distanceKm = $this->haversineDistanceKm(
+            $reference['latitude'],
+            $reference['longitude'],
+            (float) $pickup->latitude,
+            (float) $pickup->longitude
+        );
+
+        if ($distanceKm > $maxKm) {
+            throw ValidationException::withMessages([
+                'pickup_location_id' => sprintf(
+                    'Le lieu de départ est à %s km %s, au-delà de la limite de %d km.',
+                    number_format($distanceKm, 1, ',', ''),
+                    $reference['label'],
+                    $maxKm
+                ),
             ]);
         }
     }
