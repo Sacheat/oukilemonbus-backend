@@ -105,6 +105,23 @@ class RecurrenceService
 
     public function create(array $data, User $actor): Recurrence
     {
+        return $this->createWithReport($data, $actor)['recurrence'];
+    }
+
+    /**
+     * Crée la série et renvoie le rapport exposé par POST /recurrences :
+     * dates ignorées au preview (avec motif) et dates dont la création a échoué.
+     * Le motif d'un échec n'est détaillé que pour une erreur de validation métier.
+     *
+     * @return array{
+     *     recurrence: Recurrence,
+     *     created_count: int,
+     *     skipped_dates: list<array{date: string, reason: string}>,
+     *     failed_dates: list<array{date: string, reason: string}>
+     * }
+     */
+    public function createWithReport(array $data, User $actor): array
+    {
         $preview = $this->preview($data);
 
         if ($preview['valid_dates'] === []) {
@@ -113,7 +130,7 @@ class RecurrenceService
             ]);
         }
 
-        return DB::transaction(function () use ($data, $preview, $actor): Recurrence {
+        return DB::transaction(function () use ($data, $preview, $actor): array {
             $frequency = RecurrenceFrequency::from($data['frequency']);
             $daysOfWeek = $data['days_of_week'] ?? [];
 
@@ -132,6 +149,7 @@ class RecurrenceService
 
             $created = 0;
             $failedDates = [];
+            $failures = [];
 
             foreach ($preview['valid_dates'] as $date) {
                 try {
@@ -142,6 +160,12 @@ class RecurrenceService
                     $created++;
                 } catch (\Throwable $e) {
                     $failedDates[] = $date;
+                    $failures[] = [
+                        'date'   => $date,
+                        'reason' => $e instanceof ValidationException
+                            ? (string) collect($e->errors())->flatten()->first()
+                            : 'Erreur inattendue lors de la création de ce trajet.',
+                    ];
                     logger()->warning('Recurrence occurrence skipped during create', [
                         'recurrence_id' => $recurrence->id,
                         'date'          => $date,
@@ -173,7 +197,12 @@ class RecurrenceService
                 ]
             );
 
-            return $recurrence->load(['reservations' => fn ($q) => $q->orderBy('trip_date')]);
+            return [
+                'recurrence'    => $recurrence->load(['reservations' => fn ($q) => $q->orderBy('trip_date')]),
+                'created_count' => $created,
+                'skipped_dates' => $preview['skipped_dates'],
+                'failed_dates'  => $failures,
+            ];
         });
     }
 
