@@ -809,6 +809,80 @@ class ReservationApiTest extends TestCase
      * @param  list<string>  $dates
      * @return array{0: Organization, 1: array<string, int>}
      */
+    public function test_preview_exposes_estimated_arrival_times(): void
+    {
+        Http::fake([
+            'https://ors.test/*' => Http::response([
+                'routes' => [['summary' => ['distance' => 12000, 'duration' => 1080]]],
+            ]),
+        ]);
+
+        $user = $this->seededUser('user.test@bus-communal.local');
+        $organization = $this->seededOrganization('Ecole communale de Dinant');
+
+        Sanctum::actingAs($user);
+
+        $this->postJson('/api/reservations/preview', [
+            ...$this->payload($organization),
+            'departure_time' => '10:00',
+            'return_time' => '13:00',
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.estimated_duration_min', 18)
+            ->assertJsonPath('data.estimated_occupation.outbound_arrival_at', '2026-06-16T10:18:00')
+            ->assertJsonPath('data.estimated_occupation.return_arrival_at', '2026-06-16T13:18:00');
+    }
+
+    public function test_show_exposes_estimated_arrival_times(): void
+    {
+        $user = $this->seededUser('user.test@bus-communal.local');
+        $reservation = $this->reservationForArrivalTimes($user, 18);
+
+        Sanctum::actingAs($user);
+
+        $this->getJson("/api/reservations/{$reservation->id}")
+            ->assertOk()
+            ->assertJsonPath('data.estimated_occupation.outbound_arrival_at', '2026-06-16T10:18:00')
+            ->assertJsonPath('data.estimated_occupation.return_arrival_at', '2026-06-16T13:18:00');
+    }
+
+    public function test_estimated_arrival_times_are_null_without_estimated_duration(): void
+    {
+        $user = $this->seededUser('user.test@bus-communal.local');
+        $reservation = $this->reservationForArrivalTimes($user, null);
+
+        Sanctum::actingAs($user);
+
+        $this->getJson("/api/reservations/{$reservation->id}")
+            ->assertOk()
+            ->assertJsonPath('data.estimated_occupation.start_at', '2026-06-16T10:00:00')
+            ->assertJsonPath('data.estimated_occupation.outbound_arrival_at', null)
+            ->assertJsonPath('data.estimated_occupation.return_arrival_at', null);
+    }
+
+    private function reservationForArrivalTimes(User $user, ?int $estimatedDurationMin): Reservation
+    {
+        config(['reservations.pickup_buffer_min' => 0]);
+        [$pickup, $destination] = $this->seededLocations();
+
+        return Reservation::create([
+            'requested_by_user_id' => $user->id,
+            'organization_id' => $this->seededOrganization('Ecole communale de Dinant')->id,
+            'pickup_location_id' => $pickup->id,
+            'destination_location_id' => $destination->id,
+            'trip_date' => '2026-06-16',
+            'departure_time' => '10:00:00',
+            'return_time' => '13:00:00',
+            'nb_children' => 10,
+            'nb_adults' => 1,
+            'trip_purpose' => 'Sortie educative',
+            'activity_type' => ReservationActivityType::STANDARD,
+            'estimated_duration_min' => $estimatedDurationMin,
+            'status' => ReservationStatus::EN_ATTENTE,
+            'approval_type' => 'auto',
+        ]);
+    }
+
     private function reservationsOnDates(array $dates): array
     {
         $organization = Organization::create([

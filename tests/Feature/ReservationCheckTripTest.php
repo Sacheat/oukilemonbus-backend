@@ -184,6 +184,21 @@ class ReservationCheckTripTest extends TestCase
         );
     }
 
+    public function test_check_trip_exposes_estimated_arrival_times(): void
+    {
+        $this->orsSeconds = 1080;
+        Sanctum::actingAs($this->seeded('user.test@bus-communal.local'));
+
+        $this->postJson('/api/reservations/check-trip', $this->payload('Ecole communale de Dinant', [
+            'departure_time' => '10:00',
+            'return_time' => '13:00',
+        ]))
+            ->assertOk()
+            ->assertJsonPath('data.estimated_duration_min', 18)
+            ->assertJsonPath('data.estimated_occupation.outbound_arrival_at', '2026-05-11T10:18:00')
+            ->assertJsonPath('data.estimated_occupation.return_arrival_at', '2026-05-11T13:18:00');
+    }
+
     private function payload(string $organizationName, array $overrides = []): array
     {
         $organization = Organization::query()->where('name', $organizationName)->firstOrFail();

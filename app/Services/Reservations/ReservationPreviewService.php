@@ -546,6 +546,8 @@ class ReservationPreviewService
         return [
             'start_at' => $window['start']->format('Y-m-d\TH:i:s'),
             'end_at' => $window['end']->format('Y-m-d\TH:i:s'),
+            'outbound_arrival_at' => $window['outbound_arrival']?->format('Y-m-d\TH:i:s'),
+            'return_arrival_at' => $window['return_arrival']?->format('Y-m-d\TH:i:s'),
             'duration_min' => $window['duration_min'],
             'return_trip_duration_min' => $window['return_trip_duration_min'],
             'pickup_buffer_min' => $window['pickup_buffer_min'],
