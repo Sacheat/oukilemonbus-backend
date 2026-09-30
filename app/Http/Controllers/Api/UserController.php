@@ -11,7 +11,9 @@ use App\Http\Requests\Users\UpdateUserStatusRequest;
 use App\Http\Resources\UserResource;
 use App\Models\User;
 use App\Services\Users\UserService;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
@@ -27,15 +29,34 @@ class UserController extends Controller
         private readonly UserService $userService
     ) {}
 
-    public function index(): AnonymousResourceCollection
+    /**
+     * `search` : chaque mot doit apparaître dans le prénom, le nom ou l'email (ex. « paul sec »).
+     */
+    public function index(Request $request): AnonymousResourceCollection
     {
         Gate::authorize('viewAny', User::class);
+
+        $validated = $request->validate([
+            'search' => ['nullable', 'string', 'max:100'],
+        ]);
+
+        $terms = preg_split('/\s+/', trim($validated['search'] ?? ''), -1, PREG_SPLIT_NO_EMPTY);
 
         return UserResource::collection(
             User::query()
                 ->with('roles')
+                ->when($terms !== [], function (Builder $query) use ($terms): void {
+                    foreach ($terms as $term) {
+                        $like = '%'.addcslashes($term, '%_\\').'%';
+                        $query->where(fn (Builder $q) => $q
+                            ->where('first_name', 'like', $like)
+                            ->orWhere('last_name', 'like', $like)
+                            ->orWhere('email', 'like', $like));
+                    }
+                })
                 ->latest()
                 ->paginate()
+                ->withQueryString()
         );
     }
 

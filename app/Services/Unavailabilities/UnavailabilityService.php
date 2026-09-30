@@ -2,13 +2,13 @@
 
 namespace App\Services\Unavailabilities;
 
+use App\Casts\LocalDateTime;
 use App\Enums\UnavailabilityReasonType;
 use App\Exceptions\UnavailabilityException;
 use App\Models\Unavailability;
 use App\Models\UnavailabilityHistory;
 use App\Models\User;
 use App\Services\Reservations\ReservationService;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -72,7 +72,7 @@ class UnavailabilityService
      */
     private function validateDateRange(mixed $startDatetime, mixed $endDatetime): void
     {
-        if (Carbon::parse($endDatetime)->lessThanOrEqualTo(Carbon::parse($startDatetime))) {
+        if (LocalDateTime::normalize($endDatetime)->lessThanOrEqualTo(LocalDateTime::normalize($startDatetime))) {
             throw new UnavailabilityException(
                 'La date de fin doit être après la date de début.'
             );

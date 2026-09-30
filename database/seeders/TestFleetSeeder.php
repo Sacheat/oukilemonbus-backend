@@ -42,6 +42,11 @@ class TestFleetSeeder extends Seeder
             ]
         );
 
+        // Comme POST /drivers (DriverService::create) : un profil chauffeur donne le rôle chauffeur.
+        if (! $secondDriverUser->hasRole('chauffeur')) {
+            $secondDriverUser->assignRole('chauffeur');
+        }
+
         $vehicles = [
             [
                 'licence_plate' => '1-VJX-649',
