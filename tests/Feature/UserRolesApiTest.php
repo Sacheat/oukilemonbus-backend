@@ -2,8 +2,10 @@
 
 namespace Tests\Feature;
 
+use App\Models\Driver;
 use App\Models\User;
 use Database\Seeders\RolesAndPermissionsSeeder;
+use Database\Seeders\TestFleetSeeder;
 use Database\Seeders\TestUsersSeeder;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Laravel\Sanctum\Sanctum;
@@ -94,6 +96,16 @@ class UserRolesApiTest extends TestCase
         ])->assertCreated();
 
         $this->assertTrue($user->fresh()->hasRole('chauffeur'));
+    }
+
+    public function test_seeded_driver_profiles_have_the_chauffeur_role(): void
+    {
+        $this->seed(TestFleetSeeder::class);
+
+        $this->assertTrue($this->seeded('driver.second@bus-communal.local')->hasRole('chauffeur'));
+        Driver::query()->with('user')->get()->each(
+            fn (Driver $driver) => $this->assertTrue($driver->user->hasRole('chauffeur'), $driver->user->email)
+        );
     }
 
     private function seeded(string $email): User

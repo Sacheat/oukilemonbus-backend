@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Casts\LocalDateTime;
 use App\Enums\UnavailabilityReasonType;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -22,12 +23,18 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 /**
  * Indisponibilité d'un chauffeur ou d'un véhicule.
  * `is_active = false` = annulation logique — la ligne est conservée pour l'historique.
+ * `start_datetime` / `end_datetime` : heure locale de Bruxelles sans fuseau (voir LocalDateTime).
  * `driver_id` XOR `vehicle_id` : une indisponibilité cible soit un chauffeur soit un véhicule,
  * jamais les deux (validé par UnavailabilityService).
  */
 class Unavailability extends Model
 {
     use HasFactory;
+
+    /** Aligné sur la valeur par défaut de la colonne, pour que le modèle créé la connaisse sans refresh. */
+    protected $attributes = [
+        'is_active' => true,
+    ];
 
     public function driver(): BelongsTo
     {
@@ -53,8 +60,8 @@ class Unavailability extends Model
     {
         return [
             'reason_type' => UnavailabilityReasonType::class,
-            'start_datetime' => 'datetime',
-            'end_datetime' => 'datetime',
+            'start_datetime' => LocalDateTime::class,
+            'end_datetime' => LocalDateTime::class,
             'is_active' => 'boolean',
         ];
     }

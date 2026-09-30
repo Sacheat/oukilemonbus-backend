@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Casts\LocalDateTime;
 use App\Enums\UnavailabilityReasonType;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -49,10 +50,10 @@ class UnavailabilityHistory extends Model
         return [
             'old_reason_type' => UnavailabilityReasonType::class,
             'new_reason_type' => UnavailabilityReasonType::class,
-            'old_start_datetime' => 'datetime',
-            'new_start_datetime' => 'datetime',
-            'old_end_datetime' => 'datetime',
-            'new_end_datetime' => 'datetime',
+            'old_start_datetime' => LocalDateTime::class,
+            'new_start_datetime' => LocalDateTime::class,
+            'old_end_datetime' => LocalDateTime::class,
+            'new_end_datetime' => LocalDateTime::class,
             'created_at' => 'datetime',
         ];
     }

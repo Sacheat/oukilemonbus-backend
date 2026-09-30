@@ -8,6 +8,9 @@ return [
     // Distance maximale, à vol d'oiseau, entre le dépôt du bus (ou le centre de la commune) et le lieu de départ.
     'max_pickup_distance_km' => 50,
     'duration_margin_min' => 15,
+    // Fuseau des heures « murales » (réservations, indisponibilités) : les valeurs reçues avec
+    // un décalage explicite y sont converties avant stockage.
+    'local_timezone' => 'Europe/Brussels',
     'pickup_buffer_min' => 0,
     'dropoff_buffer_min' => 10,
     'safety_buffer_min' => 5,

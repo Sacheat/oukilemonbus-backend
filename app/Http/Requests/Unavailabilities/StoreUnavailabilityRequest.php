@@ -14,6 +14,8 @@ use Illuminate\Validation\Rule;
  */
 class StoreUnavailabilityRequest extends FormRequest
 {
+    use NormalizesUnavailabilityDates;
+
     public function authorize(): bool
     {
         return $this->user()?->can('create', Unavailability::class) ?? false;

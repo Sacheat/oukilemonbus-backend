@@ -8,6 +8,8 @@ use Illuminate\Validation\Rule;
 
 class UpdateUnavailabilityRequest extends FormRequest
 {
+    use NormalizesUnavailabilityDates;
+
     public function authorize(): bool
     {
         $unavailability = $this->route('unavailability');

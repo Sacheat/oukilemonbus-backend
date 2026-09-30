@@ -2,6 +2,7 @@
 
 namespace Tests\Unit;
 
+use App\Casts\LocalDateTime;
 use App\Enums\ApprovalType;
 use App\Enums\AssignmentType;
 use App\Enums\CouncilDecisionStatus;
@@ -145,8 +146,8 @@ class ModelConfigurationTest extends TestCase
             [CouncilDecision::class, ['decision_status' => CouncilDecisionStatus::class, 'decision_date' => 'date', 'validated_at' => 'datetime']],
             [Document::class, ['document_type' => DocumentType::class, 'file_size' => 'integer', 'generation_context' => 'array', 'generated_at' => 'datetime', 'is_official' => 'boolean', 'version' => 'integer', 'is_available' => 'boolean']],
             [NotificationDelivery::class, ['status' => DeliveryStatus::class, 'attempt_number' => 'integer', 'payload' => 'json', 'sent_at' => 'datetime', 'failed_at' => 'datetime']],
-            [Unavailability::class, ['reason_type' => UnavailabilityReasonType::class, 'start_datetime' => 'datetime', 'end_datetime' => 'datetime', 'is_active' => 'boolean']],
-            [UnavailabilityHistory::class, ['old_reason_type' => UnavailabilityReasonType::class, 'new_reason_type' => UnavailabilityReasonType::class, 'old_start_datetime' => 'datetime', 'new_start_datetime' => 'datetime', 'old_end_datetime' => 'datetime', 'new_end_datetime' => 'datetime', 'created_at' => 'datetime']],
+            [Unavailability::class, ['reason_type' => UnavailabilityReasonType::class, 'start_datetime' => LocalDateTime::class, 'end_datetime' => LocalDateTime::class, 'is_active' => 'boolean']],
+            [UnavailabilityHistory::class, ['old_reason_type' => UnavailabilityReasonType::class, 'new_reason_type' => UnavailabilityReasonType::class, 'old_start_datetime' => LocalDateTime::class, 'new_start_datetime' => LocalDateTime::class, 'old_end_datetime' => LocalDateTime::class, 'new_end_datetime' => LocalDateTime::class, 'created_at' => 'datetime']],
             [ReservationStatusHistory::class, ['old_status' => ReservationStatus::class, 'new_status' => ReservationStatus::class, 'created_at' => 'datetime']],
             [ReservationAssignmentHistory::class, ['assignment_type' => AssignmentType::class, 'created_at' => 'datetime']],
             [ReservationConflict::class, ['type' => ReservationConflictType::class, 'is_resolved' => 'boolean', 'resolved_at' => 'datetime', 'created_at' => 'datetime']],

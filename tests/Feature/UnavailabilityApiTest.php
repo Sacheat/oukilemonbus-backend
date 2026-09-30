@@ -2,12 +2,19 @@
 
 namespace Tests\Feature;
 
+use App\Enums\ApprovalType;
+use App\Enums\ReservationStatus;
 use App\Models\Driver;
+use App\Models\Location;
+use App\Models\Organization;
+use App\Models\Reservation;
 use App\Models\Unavailability;
 use App\Models\User;
 use App\Models\Vehicle;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Database\Seeders\TestFleetSeeder;
+use Database\Seeders\TestLocationsSeeder;
+use Database\Seeders\TestOrganizationsSeeder;
 use Database\Seeders\TestUsersSeeder;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Laravel\Sanctum\Sanctum;
@@ -290,6 +297,118 @@ class UnavailabilityApiTest extends TestCase
         $this->getJson("/api/unavailabilities/{$unavailability->id}")
             ->assertOk()
             ->assertJsonPath('data.id', $unavailability->id);
+    }
+
+    /**
+     * Les dates d'indisponibilité sont des heures locales de Bruxelles sans fuseau, comme les réservations :
+     * une date reçue avec un décalage est convertie, une date sans décalage est conservée.
+     */
+    public function test_dates_are_stored_and_returned_as_brussels_local_time(): void
+    {
+        Sanctum::actingAs($this->seededUser('agent.test@bus-communal.local'));
+        $vehicle = $this->createVehicle();
+
+        $cases = [
+            ['2026-07-10T06:00:00Z', '2026-07-10T16:00:00.000Z', '2026-07-10T08:00:00', '2026-07-10T18:00:00'], // été : UTC+2
+            ['2026-07-11T08:00:00+02:00', '2026-07-11T18:00:00+02:00', '2026-07-11T08:00:00', '2026-07-11T18:00:00'],
+            ['2026-12-10T07:00:00Z', '2026-12-10T17:00:00Z', '2026-12-10T08:00:00', '2026-12-10T18:00:00'], // hiver : UTC+1
+            ['2026-12-11T08:00:00', '2026-12-11 18:00', '2026-12-11T08:00:00', '2026-12-11T18:00:00'], // déjà local
+        ];
+
+        foreach ($cases as [$start, $end, $expectedStart, $expectedEnd]) {
+            $id = $this->postJson('/api/unavailabilities', [
+                'reason_type' => 'vehicle',
+                'vehicle_id' => $vehicle->id,
+                'start_datetime' => $start,
+                'end_datetime' => $end,
+            ])
+                ->assertCreated()
+                ->assertJsonPath('data.start_datetime', $expectedStart)
+                ->assertJsonPath('data.end_datetime', $expectedEnd)
+                ->json('data.id');
+
+            $this->getJson("/api/unavailabilities/{$id}")
+                ->assertJsonPath('data.start_datetime', $expectedStart)
+                ->assertJsonPath('data.end_datetime', $expectedEnd);
+
+            $this->assertDatabaseHas('unavailabilities', [
+                'id' => $id,
+                'start_datetime' => str_replace('T', ' ', $expectedStart),
+                'end_datetime' => str_replace('T', ' ', $expectedEnd),
+            ]);
+        }
+    }
+
+    public function test_update_converts_offset_dates_to_local_time_in_history(): void
+    {
+        Sanctum::actingAs($this->seededUser('agent.test@bus-communal.local'));
+        $unavailability = Unavailability::create([
+            'reason_type' => 'vehicle',
+            'vehicle_id' => $this->createVehicle()->id,
+            'start_datetime' => '2026-07-10 08:00:00',
+            'end_datetime' => '2026-07-10 18:00:00',
+            'created_by_user_id' => $this->seededUser('agent.test@bus-communal.local')->id,
+        ]);
+
+        $this->patchJson("/api/unavailabilities/{$unavailability->id}", [
+            'end_datetime' => '2026-07-10T18:00:00Z',
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.end_datetime', '2026-07-10T20:00:00');
+
+        $this->getJson("/api/unavailabilities/{$unavailability->id}/history")
+            ->assertOk()
+            ->assertJsonPath('data.0.old_end_datetime', '2026-07-10T18:00:00')
+            ->assertJsonPath('data.0.new_end_datetime', '2026-07-10T20:00:00');
+    }
+
+    public function test_created_unavailability_is_returned_as_active(): void
+    {
+        Sanctum::actingAs($this->seededUser('agent.test@bus-communal.local'));
+
+        $this->postJson('/api/unavailabilities', [
+            'reason_type' => 'vehicle',
+            'vehicle_id' => $this->createVehicle()->id,
+            'start_datetime' => '2026-06-10 08:00:00',
+            'end_datetime' => '2026-06-10 18:00:00',
+        ])
+            ->assertCreated()
+            ->assertJsonPath('data.is_active', true);
+    }
+
+    /** Une indisponibilité envoyée en UTC bloque bien les trajets aux heures locales correspondantes. */
+    public function test_utc_unavailability_conflicts_with_reservation_at_matching_local_time(): void
+    {
+        $this->seed([TestLocationsSeeder::class, TestOrganizationsSeeder::class]);
+        Sanctum::actingAs($this->seededUser('agent.test@bus-communal.local'));
+        $driver = $this->createDriver();
+
+        $reservation = Reservation::create([
+            'requested_by_user_id' => $this->seededUser('user.test@bus-communal.local')->id,
+            'organization_id' => Organization::query()->where('name', 'Ecole communale de Dinant')->firstOrFail()->id,
+            'pickup_location_id' => Location::query()->where('place_id', 'seed-dinant-pickup')->firstOrFail()->id,
+            'destination_location_id' => Location::query()->where('place_id', 'seed-dinant-destination')->firstOrFail()->id,
+            'trip_date' => '2026-07-10',
+            'departure_time' => '16:30:00', // après 16:00Z, mais avant 18:00 à Bruxelles
+            'return_time' => '17:00:00',
+            'nb_children' => 10,
+            'nb_adults' => 1,
+            'trip_purpose' => 'Sortie',
+            'estimated_duration_min' => 20,
+            'driver_id' => $driver->id,
+            'status' => ReservationStatus::CONFIRME,
+            'approval_type' => ApprovalType::AUTO,
+        ]);
+
+        $this->postJson('/api/unavailabilities', [
+            'reason_type' => 'driver',
+            'driver_id' => $driver->id,
+            'start_datetime' => '2026-07-10T06:00:00Z',
+            'end_datetime' => '2026-07-10T16:00:00Z',
+        ])->assertCreated();
+
+        $this->assertSame(ReservationStatus::EN_CONFLIT, $reservation->refresh()->status);
+        $this->assertNull($reservation->driver_id);
     }
 
     private function seededUser(string $email): User
