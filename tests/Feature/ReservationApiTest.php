@@ -11,6 +11,7 @@ use App\Models\Location;
 use App\Models\Organization;
 use App\Models\Reservation;
 use App\Models\User;
+use App\Models\Vehicle;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Database\Seeders\TestFleetSeeder;
 use Database\Seeders\TestLocationsSeeder;
@@ -881,6 +882,32 @@ class ReservationApiTest extends TestCase
             'status' => ReservationStatus::EN_ATTENTE,
             'approval_type' => 'auto',
         ]);
+    }
+
+    public function test_preview_max_passengers_matches_the_capacity_validation(): void
+    {
+        $this->fakeOrsDistance();
+        $this->replaceFleet([[20, true], [30, true], [50, false]]);
+        Sanctum::actingAs($this->seededUser('user.test@bus-communal.local'));
+        $payload = $this->payload($this->seededOrganization('Ecole communale de Dinant'));
+
+        $this->postJson('/api/reservations/preview', [...$payload, 'nb_children' => 27, 'nb_adults' => 2])
+            ->assertOk()
+            ->assertJsonPath('data.max_passengers', 29);
+
+        $this->postJson('/api/reservations/preview', [...$payload, 'nb_children' => 28, 'nb_adults' => 2])
+            ->assertStatus(422)
+            ->assertJsonPath('errors.nb_children.0', "Aucun véhicule de la flotte n'a une capacité suffisante pour 31 occupants (31 = passagers + chauffeur). Vérifiez le nombre de participants.");
+    }
+
+    /** Flotte de test : actifs de 20 et 30 places, inactif de 50 → max_passengers = 29. */
+    private function replaceFleet(array $vehicles): void
+    {
+        Vehicle::query()->update(['is_active' => false]);
+
+        foreach ($vehicles as $i => [$capacity, $isActive]) {
+            Vehicle::create(['licence_plate' => "MAX-{$i}-{$capacity}", 'capacity' => $capacity, 'is_active' => $isActive]);
+        }
     }
 
     private function reservationsOnDates(array $dates): array

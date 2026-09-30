@@ -8,6 +8,7 @@ use App\Models\Organization;
 use App\Models\Recurrence;
 use App\Models\Reservation;
 use App\Models\User;
+use App\Models\Vehicle;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Database\Seeders\TestFleetSeeder;
 use Database\Seeders\TestLocationsSeeder;
@@ -690,6 +691,26 @@ class RecurrenceApiTest extends TestCase
     // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
+
+    public function test_recurrence_preview_exposes_max_passengers(): void
+    {
+        $this->replaceFleet([[20, true], [30, true], [50, false]]);
+        Sanctum::actingAs($this->seededUser('user.test@bus-communal.local'));
+
+        $this->postJson('/api/recurrences/preview', $this->weeklyPayload($this->seededOrg('Ecole communale de Dinant')))
+            ->assertOk()
+            ->assertJsonPath('data.max_passengers', 29);
+    }
+
+    /** Flotte de test : actifs de 20 et 30 places, inactif de 50 → max_passengers = 29. */
+    private function replaceFleet(array $vehicles): void
+    {
+        Vehicle::query()->update(['is_active' => false]);
+
+        foreach ($vehicles as $i => [$capacity, $isActive]) {
+            Vehicle::create(['licence_plate' => "MAX-{$i}-{$capacity}", 'capacity' => $capacity, 'is_active' => $isActive]);
+        }
+    }
 
     private function countIndexQueries(): int
     {
