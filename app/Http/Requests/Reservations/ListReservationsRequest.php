@@ -2,12 +2,15 @@
 
 namespace App\Http\Requests\Reservations;
 
+use App\Enums\ReservationStatus;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 /**
  * Paramètres de GET /api/reservations.
- * Seul `sort` est validé : les filtres existants (status, organization_id, date_from, date_to)
- * gardent leur comportement tolérant. L'accès est contrôlé par la Policy dans le contrôleur.
+ * Les filtres historiques (status, organization_id, date_from, date_to) gardent leur comportement
+ * tolérant. `statuses[]` filtre sur plusieurs statuts et ne se combine pas avec `status` (422).
+ * `q` : recherche libre (voir ReservationController::index). L'accès est contrôlé par la Policy dans le contrôleur.
  */
 class ListReservationsRequest extends FormRequest
 {
@@ -20,6 +23,9 @@ class ListReservationsRequest extends FormRequest
     {
         return [
             'sort' => ['sometimes', 'in:asc,desc'],
+            'statuses' => ['sometimes', 'array', 'min:1', 'prohibits:status'],
+            'statuses.*' => ['string', Rule::enum(ReservationStatus::class)],
+            'q' => ['sometimes', 'nullable', 'string', 'max:100'],
         ];
     }
 
@@ -27,6 +33,8 @@ class ListReservationsRequest extends FormRequest
     {
         return [
             'sort.in' => 'L’ordre de tri doit valoir asc ou desc.',
+            'statuses.prohibits' => 'Utilisez soit status, soit statuses[], pas les deux.',
+            'statuses.*.enum' => 'Statut inconnu.',
         ];
     }
 

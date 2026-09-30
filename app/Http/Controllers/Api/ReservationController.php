@@ -24,6 +24,8 @@ use App\Services\Reservations\ReservationService;
 use App\Services\Idempotency\ApiIdempotencyService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use App\Support\LikeSearch;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\ValidationException;
@@ -55,6 +57,8 @@ class ReservationController extends Controller
                 // leurs réservations et celles de leurs organisations, le chauffeur celles où il est assigné.
                 ->visibleTo($user)
                 ->when(request('status'), fn ($query, $status) => $query->where('status', $status))
+                ->when($request->validated('statuses'), fn ($query, $statuses) => $query->whereIn('status', $statuses))
+                ->when(LikeSearch::patterns($request->validated('q')), fn ($query, $patterns) => $this->applySearch($query, $patterns, $request->validated('q')))
                 ->when(request('organization_id'), fn ($query, $organizationId) => $query->where('organization_id', $organizationId))
                 ->when(request('date_from'), fn ($query, $date) => $query->whereDate('trip_date', '>=', $date))
                 ->when(request('date_to'), fn ($query, $date) => $query->whereDate('trip_date', '<=', $date))
@@ -254,5 +258,33 @@ class ReservationController extends Controller
         $reservation = $this->reservationService->confirmPassengers($reservation, $request->validated(), $request->user());
 
         return new ReservationResource($reservation->load(['organization', 'pickupLocation', 'destinationLocation', 'driver', 'vehicle', 'conflicts']));
+    }
+
+    /**
+     * Recherche libre : chaque mot doit apparaître dans le motif, le nom de l'organisation,
+     * le prénom, le nom ou l'email du demandeur ; un nombre seul cherche aussi l'id exact.
+     * S'ajoute au scope visibleTo : un externe ne trouve que son périmètre.
+     *
+     * @param  list<string>  $patterns
+     */
+    private function applySearch(Builder $query, array $patterns, string $search): void
+    {
+        $query->where(function (Builder $query) use ($patterns, $search): void {
+            $query->where(function (Builder $words) use ($patterns): void {
+                foreach ($patterns as $like) {
+                    $words->where(fn (Builder $word) => $word
+                        ->where('trip_purpose', 'like', $like)
+                        ->orWhereHas('organization', fn (Builder $o) => $o->where('name', 'like', $like))
+                        ->orWhereHas('requestedByUser', fn (Builder $u) => $u
+                            ->where('first_name', 'like', $like)
+                            ->orWhere('last_name', 'like', $like)
+                            ->orWhere('email', 'like', $like)));
+                }
+            });
+
+            if (ctype_digit(trim($search))) {
+                $query->orWhereKey((int) trim($search));
+            }
+        });
     }
 }

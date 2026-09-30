@@ -57,6 +57,19 @@ enum OrganizationType: string
         return $this->isInConfig('council_decision_exempt_types');
     }
 
+    /**
+     * Types dont les réservations exigent une décision du Collège (non exemptés).
+     *
+     * @return list<string>
+     */
+    public static function councilDecisionRequiredValues(): array
+    {
+        return array_values(array_map(
+            fn (self $type): string => $type->value,
+            array_filter(self::cases(), fn (self $type): bool => ! $type->isCouncilDecisionExempt())
+        ));
+    }
+
     /** Ce type est-il autorisé à utiliser les réservations récurrentes ? */
     public function canUseRecurrences(): bool
     {

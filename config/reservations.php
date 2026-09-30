@@ -18,6 +18,9 @@ return [
     'non_school_max_return_time' => '16:00',
     'non_school_max_total_duration_min' => 300,
     'min_notice_days' => 15,
+    // Fenêtre (en jours, à partir d'aujourd'hui) dans laquelle un trajet actif sans passagers
+    // confirmés est signalé à traiter (tableau de bord de gestion).
+    'passenger_confirmation_window_days' => 14,
     'allowed_countries' => ['BE', 'Belgique', 'Belgium'],
     'annual_quota' => 5,
     'max_pending_requests' => 2,

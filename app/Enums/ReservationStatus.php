@@ -62,6 +62,32 @@ enum ReservationStatus: string
     }
 
     /**
+     * Valeurs des statuts encore actifs (non terminaux), pour filtrer en base.
+     *
+     * @return list<string>
+     */
+    public static function activeValues(): array
+    {
+        return array_values(array_map(
+            fn (self $status): string => $status->value,
+            array_filter(self::cases(), fn (self $status): bool => ! $status->isTerminal())
+        ));
+    }
+
+    /**
+     * Valeurs des statuts depuis lesquels une approbation est possible (machine à états).
+     *
+     * @return list<string>
+     */
+    public static function approvableValues(): array
+    {
+        return array_values(array_map(
+            fn (self $status): string => $status->value,
+            array_filter(self::cases(), fn (self $status): bool => in_array(self::APPROUVE, $status->allowedTransitions(), true))
+        ));
+    }
+
+    /**
      * Transitions autorisées depuis ce statut.
      * Ces règles constituent la machine à états métier de la réservation.
      * Toute tentative de transition non listée ici doit être rejetée par le service.
