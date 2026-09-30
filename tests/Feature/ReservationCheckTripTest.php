@@ -7,6 +7,7 @@ use App\Enums\ReservationStatus;
 use App\Models\Location;
 use App\Models\Organization;
 use App\Models\User;
+use App\Models\Vehicle;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Database\Seeders\TestFleetSeeder;
 use Database\Seeders\TestLocationsSeeder;
@@ -197,6 +198,36 @@ class ReservationCheckTripTest extends TestCase
             ->assertJsonPath('data.estimated_duration_min', 18)
             ->assertJsonPath('data.estimated_occupation.outbound_arrival_at', '2026-05-11T10:18:00')
             ->assertJsonPath('data.estimated_occupation.return_arrival_at', '2026-05-11T13:18:00');
+    }
+
+    public function test_check_trip_exposes_max_passengers_of_largest_active_vehicle(): void
+    {
+        $this->replaceFleet([[20, true], [30, true], [50, false]]);
+        Sanctum::actingAs($this->seeded('user.test@bus-communal.local'));
+
+        $this->postJson('/api/reservations/check-trip', $this->payload('Ecole communale de Dinant'))
+            ->assertOk()
+            ->assertJsonPath('data.max_passengers', 29);
+    }
+
+    public function test_check_trip_max_passengers_is_null_without_active_vehicle(): void
+    {
+        $this->replaceFleet([[50, false]]);
+        Sanctum::actingAs($this->seeded('user.test@bus-communal.local'));
+
+        $this->postJson('/api/reservations/check-trip', $this->payload('Ecole communale de Dinant'))
+            ->assertOk()
+            ->assertJsonPath('data.max_passengers', null);
+    }
+
+    /** Flotte de test : actifs de 20 et 30 places, inactif de 50 → max_passengers = 29. */
+    private function replaceFleet(array $vehicles): void
+    {
+        Vehicle::query()->update(['is_active' => false]);
+
+        foreach ($vehicles as $i => [$capacity, $isActive]) {
+            Vehicle::create(['licence_plate' => "MAX-{$i}-{$capacity}", 'capacity' => $capacity, 'is_active' => $isActive]);
+        }
     }
 
     private function payload(string $organizationName, array $overrides = []): array

@@ -97,6 +97,8 @@ class RecurrenceService
             'conflicts_by_date'       => $conflictsByDate,
             'total_valid_occurrences' => count($validDates),
             'total_skipped'           => count($skippedDates),
+            // Même limite que la vérification de capacité appliquée à chaque occurrence.
+            'max_passengers'          => $this->previewService->maxPassengers(),
             // Les conflits sont estimés sans calcul de distance (ORS non appelé par occurrence).
             // La détection définitive et précise a lieu à la création de chaque occurrence.
             'conflicts_are_approximate' => true,

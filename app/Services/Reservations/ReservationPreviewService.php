@@ -50,6 +50,9 @@ class ReservationPreviewService
     private const float DISTANCE_FALLBACK_ROUTE_FACTOR = 1.25;
     private const int DISTANCE_FALLBACK_AVERAGE_SPEED_KMH = 45;
 
+    /** Places occupées par le chauffeur dans la capacité d'un véhicule. */
+    private const int DRIVER_SEATS = 1;
+
     private DomainLogger $logger;
 
     public function __construct(
@@ -128,6 +131,7 @@ class ReservationPreviewService
             'is_allowed' => ! $hasHardBlock,
             'distance_km' => $distance['distance_km'],
             'estimated_duration_min' => $estimatedDuration,
+            'max_passengers' => $this->maxPassengers(),
             'duration_margin_min' => config('reservations.duration_margin_min', 15),
             'estimated_occupation' => $estimatedOccupation,
             'availability' => $availability,
@@ -407,16 +411,24 @@ class ReservationPreviewService
         }
     }
 
+    /**
+     * Nombre maximal de passagers (enfants + adultes) qu'accepte ensureVehicleCapacity() :
+     * capacité du plus grand véhicule actif moins le chauffeur. null sans véhicule actif.
+     */
+    public function maxPassengers(): ?int
+    {
+        $maxCapacity = Vehicle::query()->where('is_active', true)->max('capacity');
+
+        return $maxCapacity === null ? null : (int) $maxCapacity - self::DRIVER_SEATS;
+    }
+
     private function ensureVehicleCapacity(array $data): void
     {
-        $required = ($data['nb_children'] ?? 0) + ($data['nb_adults'] ?? 0) + 1;
+        $passengers = ($data['nb_children'] ?? 0) + ($data['nb_adults'] ?? 0);
+        $required = $passengers + self::DRIVER_SEATS;
+        $maxPassengers = $this->maxPassengers();
 
-        $hasCapacity = Vehicle::query()
-            ->where('is_active', true)
-            ->where('capacity', '>=', $required)
-            ->exists();
-
-        if (! $hasCapacity) {
+        if ($maxPassengers === null || $passengers > $maxPassengers) {
             throw ValidationException::withMessages([
                 'nb_children' => "Aucun véhicule de la flotte n'a une capacité suffisante pour {$required} occupants ({$required} = passagers + chauffeur). Vérifiez le nombre de participants.",
             ]);
