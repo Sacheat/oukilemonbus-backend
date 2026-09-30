@@ -66,6 +66,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'recurrences.cancel',
             'tooling.access',
             'users.manage-roles',
+            'dashboard.view',
         ];
 
         foreach ($permissions as $permission) {
@@ -181,6 +182,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'documents.download',
             'documents.generate',
             'documents.update',
+            'dashboard.view',
         ]);
 
         app(PermissionRegistrar::class)->forgetCachedPermissions();

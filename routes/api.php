@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\OrganizationMemberController;
 use App\Http\Controllers\Api\PasswordResetController;
 use App\Http\Controllers\Api\OrgRegistrationRequestController;
 use App\Http\Controllers\Api\PlanningController;
+use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\RecurrenceController;
 use App\Http\Controllers\Api\ReservationConflictController;
 use App\Http\Controllers\Api\ReservationController;
@@ -373,6 +374,13 @@ Route::name('api.')->group(function (): void {
         Route::patch('/recurrences/{recurrence}/cancel', [RecurrenceController::class, 'cancel'])
             ->middleware('permission:recurrences.cancel')
             ->name('recurrences.cancel');
+
+        /**
+         * Tableau de bord de gestion (admin, agents)
+         */
+        Route::get('/dashboard', [DashboardController::class, 'show'])
+            ->middleware(['permission:dashboard.view', 'throttle:60,1'])
+            ->name('dashboard.show');
 
         /**
          * Reservations routes

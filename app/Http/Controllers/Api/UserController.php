@@ -11,6 +11,7 @@ use App\Http\Requests\Users\UpdateUserStatusRequest;
 use App\Http\Resources\UserResource;
 use App\Models\User;
 use App\Services\Users\UserService;
+use App\Support\LikeSearch;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -40,14 +41,13 @@ class UserController extends Controller
             'search' => ['nullable', 'string', 'max:100'],
         ]);
 
-        $terms = preg_split('/\s+/', trim($validated['search'] ?? ''), -1, PREG_SPLIT_NO_EMPTY);
+        $patterns = LikeSearch::patterns($validated['search'] ?? null);
 
         return UserResource::collection(
             User::query()
                 ->with('roles')
-                ->when($terms !== [], function (Builder $query) use ($terms): void {
-                    foreach ($terms as $term) {
-                        $like = '%'.addcslashes($term, '%_\\').'%';
+                ->when($patterns !== [], function (Builder $query) use ($patterns): void {
+                    foreach ($patterns as $like) {
                         $query->where(fn (Builder $q) => $q
                             ->where('first_name', 'like', $like)
                             ->orWhere('last_name', 'like', $like)
