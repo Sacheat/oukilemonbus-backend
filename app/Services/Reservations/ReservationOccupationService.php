@@ -18,6 +18,10 @@ use Illuminate\Database\Eloquent\Builder;
  * window_start = departure_time − pickup_buffer
  * window_end   = return_time   + estimated_duration_min + dropoff_buffer + safety_buffer
  *
+ * Arrivées estimées (sans marges, null si la durée est inconnue) :
+ * outbound_arrival = departure_time + estimated_duration_min (à destination)
+ * return_arrival   = return_time    + estimated_duration_min (au lieu de prise en charge)
+ *
  * `overlappingQuery()` réplique ce calcul en SQL (TIMESTAMPADD) pour les requêtes de conflit.
  * `dataWithDepartureTime()` recalcule un créneau décalé en conservant la durée du séjour.
  */
@@ -42,6 +46,8 @@ class ReservationOccupationService
         return [
             'start' => $start,
             'end' => $end,
+            'outbound_arrival' => $estimatedDurationMin === null ? null : $departure->addMinutes($estimatedDurationMin),
+            'return_arrival' => $estimatedDurationMin === null ? null : $returnDeparture->addMinutes($estimatedDurationMin),
             'duration_min' => (int) $start->diffInMinutes($end),
             'return_trip_duration_min' => $estimatedDurationMin,
             'pickup_buffer_min' => $this->pickupBufferMinutes(),
