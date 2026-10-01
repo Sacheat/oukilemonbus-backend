@@ -18,7 +18,9 @@ use App\Enums\DocumentType;
  *   - `buildForServiceDateVehicle()` : contexte journalier pour un véhicule donné
  *     (template 'route_sheets.daily') — inclut chauffeurs, passagers, itinéraire, etc.
  *   - `buildForPeriod()` : contexte hebdomadaire pour toutes les réservations CONFIRME
- *     sur la période (template 'route_sheets.weekly').
+ *     sur la période (template 'route_sheets.weekly') ;
+ *   - `buildForDriverWeek()` : feuille de travail d'un chauffeur pour une semaine (template 'route_sheets.driver'),
+ *     ses seules missions confirmées, avec des cases à remplir à la main (non enregistrée, générée à la demande).
  *
  * L'URL de navigation Google Maps est construite depuis les coordonnées ORS si disponibles,
  * sinon depuis l'adresse formatée (fallback dégradé mais fonctionnel).
@@ -29,6 +31,7 @@ class RouteSheetContextBuilder
 {
     private const TEMPLATE_KEY = 'route_sheets.weekly';
     private const DAILY_TEMPLATE_KEY = 'route_sheets.daily';
+    public const DRIVER_TEMPLATE_KEY = 'route_sheets.driver';
     private const TEMPLATE_VERSION = '1.0';
 
     public function buildForServiceDateVehicle(string $serviceDate, int $vehicleId): array
@@ -149,6 +152,83 @@ class RouteSheetContextBuilder
                 ->map(fn (Reservation $reservation): array => $this->buildRow($reservation))
                 ->values()
                 ->all(),
+        ];
+    }
+
+    /**
+     * Semaine d'un chauffeur (lundi → dimanche contenant $dayInWeek) : un bloc par jour, du lundi au vendredi
+     * toujours (même vide, comme la feuille papier), samedi et dimanche seulement s'ils ont des missions.
+     */
+    public function buildForDriverWeek(Driver $driver, string $dayInWeek): array
+    {
+        $monday = CarbonImmutable::parse($dayInWeek)->startOfWeek(CarbonInterface::MONDAY);
+        $sunday = $monday->addDays(6);
+        $driver->loadMissing('user');
+
+        $reservations = Reservation::query()
+            ->with(['organization', 'requestedByUser', 'pickupLocation', 'destinationLocation', 'vehicle'])
+            ->where('driver_id', $driver->getKey())
+            ->where('status', ReservationStatus::CONFIRME->value)
+            ->whereBetween('trip_date', [$monday->toDateString(), $sunday->toDateString()])
+            ->orderBy('trip_date')
+            ->orderBy('departure_time')
+            ->get()
+            // Toutes au même chauffeur : évite de recharger driver et driver.user pour chaque ligne (buildDailyRow)
+            ->each(fn (Reservation $reservation) => $reservation->setRelation('driver', $driver));
+
+        $reservationsByDay = $reservations->groupBy(fn (Reservation $reservation): string => $reservation->trip_date->toDateString());
+
+        $days = [];
+        for ($offset = 0; $offset < 7; $offset++) {
+            $day = $monday->addDays($offset);
+            $dayReservations = $reservationsByDay->get($day->toDateString(), collect());
+
+            if ($offset >= 5 && $dayReservations->isEmpty()) {
+                continue;
+            }
+
+            $days[] = [
+                'date' => $day->toDateString(),
+                'date_label' => $day->format('d/m/Y'),
+                'day_label' => ucfirst($day->locale('fr')->isoFormat('dddd')),
+                'rows' => $dayReservations
+                    ->map(fn (Reservation $reservation): array => [
+                        ...$this->buildDailyRow($reservation),
+                        'vehicle' => $reservation->vehicle ? [
+                            'licence_plate' => $reservation->vehicle->licence_plate,
+                            'capacity' => $reservation->vehicle->capacity,
+                        ] : null,
+                    ])
+                    ->values()
+                    ->all(),
+            ];
+        }
+
+        return [
+            'document' => [
+                'type' => DocumentType::FEUILLE_ROUTE->value,
+                'label' => DocumentType::FEUILLE_ROUTE->label(),
+                'template_key' => self::DRIVER_TEMPLATE_KEY,
+                'template_version' => self::TEMPLATE_VERSION,
+                'generated_at' => now()->toISOString(),
+            ],
+            'period' => [
+                'start_date' => $monday->toDateString(),
+                'end_date' => $sunday->toDateString(),
+                'label' => sprintf('du %s au %s', $monday->format('d/m/Y'), $monday->addDays(4)->format('d/m/Y')),
+            ],
+            'driver' => $this->formatDriver($driver),
+            'transporter' => [
+                'name' => config('route_sheets.transporter.name'),
+                'identifier' => config('route_sheets.transporter.identifier'),
+                'emergency_contact' => config('route_sheets.transporter.emergency_contact'),
+            ],
+            'totals' => [
+                'missions' => $reservations->count(),
+                'planned_passengers' => $reservations->sum(fn (Reservation $reservation): int => ($reservation->nb_children ?? 0) + ($reservation->nb_adults ?? 0)),
+                'planned_distance_km' => round($reservations->sum(fn (Reservation $reservation): float => (float) ($reservation->distance_km ?? 0)), 2),
+            ],
+            'days' => $days,
         ];
     }
 

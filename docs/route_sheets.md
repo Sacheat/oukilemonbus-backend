@@ -408,6 +408,30 @@ générer une version par chauffeur si nécessaire ;
 intégrer un vrai module d’archivage légal ;
 améliorer le PDF avec des informations légales complémentaires ;
 produire un export complémentaire pour les agents.
+Espace chauffeur : feuille de la semaine et feuilles officielles paginées
+
+- GET /api/route-sheets/driver?week=AAAA-MM-JJ[&driver_id=] (permission documents.view) : PDF de la semaine
+  (lundi → dimanche contenant la date) d'un chauffeur, généré à la demande, jamais enregistré (toujours à jour).
+  Chauffeur : lui-même (un autre driver_id : 403) ; agent ou admin : driver_id obligatoire (422 sinon) ; autres : 403.
+  Contenu (template route_sheets.driver, RouteSheetContextBuilder::buildForDriverWeek) : ses seules missions
+  `confirme`, un bloc par jour du lundi au vendredi (même vide), samedi et dimanche seulement s'ils ont des missions ;
+  par trajet, le prévu (horaire, bus, organisation et contact, adresses, passagers, km, objet) puis des cases à remplir
+  à la main (réalisé ou non, heures et passagers réels, compteur kilométrique, remarques) ; signature du chauffeur.
+  C'est le support papier si le téléphone ne fonctionne pas ; l'archive officielle reste la feuille journalière.
+- GET /api/route-sheets?date_from=&date_to=&page= (documents.view) : feuilles journalières officielles visibles
+  (chauffeur : celles qui contiennent au moins une de ses missions), dernière version seulement pour chaque jour et
+  véhicule, `service_date` décroissante, 15 par page. Champs : id, service_date, vehicle, version, file_name,
+  generated_at, trip_count, own_trip_count (chauffeur connecté, null sinon). Téléchargement :
+  GET /documents/{id}/download.
+- Colonnes `documents.service_date` et `documents.vehicle_id` (migration 2026_10_02_000001, reprise des feuilles
+  existantes depuis leur chemin) : remplies par generateForServiceDateVehicle, pour filtrer et paginer en base.
+
+Points relevés, non traités dans cette PR :
+- la génération automatique de 20:00 ignore un véhicule dont la feuille du lendemain existe déjà : une mission
+  modifiée ou ajoutée après 20:00 n'est pas reportée sur la feuille officielle (régénération à prévoir, avec --force
+  ou à chaque changement de mission) ;
+- GET /documents n'est pas paginé (Collection complète) : à paginer quand le volume grandira.
+
 30. Résumé final
 
 Le module Feuilles de route permet de générer les documents officiels liés aux services journaliers des véhicules.
