@@ -2,7 +2,6 @@
 
 namespace App\Services\Dashboard;
 
-use App\Enums\CouncilDecisionStatus;
 use App\Enums\OrganizationType;
 use App\Enums\RequestStatus;
 use App\Enums\ReservationStatus;
@@ -95,16 +94,11 @@ class DashboardService
     /**
      * Réservations encore approuvables d'un type soumis au Collège, sans décision
      * ou avec une décision encore en attente : l'approbation est bloquée par le Collège.
+     * Même règle que GET /reservations?council=a_decider (scope Reservation::awaitingCouncilDecision).
      */
     private function councilPendingCount(): int
     {
-        return Reservation::query()
-            ->whereIn('status', ReservationStatus::approvableValues())
-            ->whereHas('organization', fn (Builder $q) => $q->whereIn('type', OrganizationType::councilDecisionRequiredValues()))
-            ->where(fn (Builder $q) => $q
-                ->whereDoesntHave('councilDecision')
-                ->orWhereHas('councilDecision', fn (Builder $d) => $d->where('decision_status', CouncilDecisionStatus::EN_ATTENTE->value)))
-            ->count();
+        return Reservation::query()->awaitingCouncilDecision()->count();
     }
 
     private function todayTrips(CarbonImmutable $today): array

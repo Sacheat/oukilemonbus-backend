@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\CouncilDecisionStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\CouncilDecisions\StoreCouncilDecisionRequest;
 use App\Http\Requests\CouncilDecisions\UpdateCouncilDecisionRequest;
@@ -11,6 +12,7 @@ use App\Services\CouncilDecisions\CouncilDecisionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\Rule;
 use App\Http\Resources\DocumentResource;
 use App\Models\Document;
 use App\Services\Documents\DeliberationDocumentService;
@@ -28,9 +30,17 @@ class CouncilDecisionController extends Controller
         private readonly CouncilDecisionService $councilDecisionService
     ) {}
 
+    /**
+     * Filtres : `reservation_id`, `decision_status` (approuve, refuse, en_attente ; 422 sinon).
+     */
     public function index(): AnonymousResourceCollection
     {
         Gate::authorize('viewAny', CouncilDecision::class);
+
+        $validated = request()->validate(
+            ['decision_status' => ['sometimes', Rule::enum(CouncilDecisionStatus::class)]],
+            ['decision_status.enum' => 'Le statut de décision doit valoir approuve, refuse ou en_attente.'],
+        );
 
         $user = request()->user();
 
@@ -49,9 +59,11 @@ class CouncilDecisionController extends Controller
                     });
                 })
                 ->when(request('reservation_id'), fn ($query, $reservationId) => $query->where('reservation_id', $reservationId))
+                ->when($validated['decision_status'] ?? null, fn ($query, $status) => $query->where('decision_status', $status))
                 ->latest('decision_date')
                 ->latest()
                 ->paginate()
+                ->withQueryString()
         );
     }
 

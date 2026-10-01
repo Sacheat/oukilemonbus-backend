@@ -138,11 +138,11 @@ La référence complète pour le frontend (paramètres, réponses, règles méti
 | Demandes d'adhésion | `GET /user-org-requests/available-organizations`, `GET /user-org-requests`, `GET /{id}`, `POST /user-org-requests`, `PATCH /{id}/approve`, `PATCH /{id}/reject`, `POST /{id}/proof`, `DELETE /{id}/proof` |
 | Chauffeurs | `GET /drivers`, `GET /drivers/{driver}`, `POST /drivers`, `PATCH /drivers/{driver}`, `/activate`, `/deactivate` |
 | Véhicules | `GET /vehicles`, `GET /vehicles/{vehicle}`, `POST /vehicles`, `PATCH /vehicles/{vehicle}`, `/activate`, `/deactivate` |
-| Réservations | `GET /reservations`, `GET /reservations/{reservation}`, `POST /reservations/preview`, `POST /reservations`, `PATCH /reservations/{reservation}`, `/approve`, `/reject`, `/cancel`, `/assign`, `/confirm`, `/retry-assign`, `/confirm-passengers` |
+| Réservations | `GET /reservations` (filtres `status` ou `statuses[]`, `q`, `organization_id`, `date_from`, `date_to`, `council=a_decider`, `sort`), `GET /reservations/{reservation}`, `POST /reservations/preview`, `POST /reservations`, `PATCH /reservations/{reservation}`, `/approve`, `/reject`, `/cancel`, `/assign`, `/confirm`, `/retry-assign`, `/confirm-passengers` |
 | Conflits | `GET /reservations/{reservation}/conflicts`, `PATCH /reservations/{reservation}/conflicts/{conflict}/resolve` |
 | Récurrences | `GET /recurrences`, `POST /recurrences/preview`, `POST /recurrences`, `GET /recurrences/{recurrence}`, `PATCH /recurrences/{recurrence}/cancel` |
 | Planning | `GET /planning`, `GET /planning/export` (fichier), `POST /planning/exports` (asynchrone), `GET /planning/exports/{id}` |
-| Décisions du Collège | `GET /council-decisions`, `GET /{councilDecision}`, `POST /council-decisions`, `PATCH /{councilDecision}`, `POST /{councilDecision}/generate-document` |
+| Décisions du Collège | `GET /council-decisions` (filtres `reservation_id`, `decision_status`), `GET /{councilDecision}`, `POST /council-decisions`, `PATCH /{councilDecision}`, `POST /{councilDecision}/generate-document` |
 | Documents | `GET /documents`, `GET /documents/{document}`, `GET /documents/{document}/download`, `GET /documents/{document}/signed-download` (lien signé), `POST /documents/route-sheets/generate` |
 | Indisponibilités | `GET /unavailabilities`, `GET /{unavailability}`, `POST /unavailabilities`, `PATCH /{unavailability}`, `PATCH /{unavailability}/cancel`, `GET /{unavailability}/history`, `GET /{unavailability}/history/{history}` |
 | Notifications | `GET /notifications`, `/summary`, `/unread-count`, `/health`, `PATCH /notifications/{id}/read`, `PATCH /notifications/read`, `/read-by-filter`, `/read-all` |

@@ -49,6 +49,12 @@ class CouncilDecisionService
 
         $this->ensureCouncilDecisionRequired($reservation);
 
+        if ($reservation->hasTripDatePassed()) {
+            throw ValidationException::withMessages([
+                'reservation' => 'Le trajet est déjà passé : aucune décision du collège ne peut plus être encodée.',
+            ]);
+        }
+
         $decision = DB::transaction(function () use ($reservation, $data, $actor): CouncilDecision {
             $decision = CouncilDecision::create([
                 'reservation_id' => $reservation->id,
@@ -85,6 +91,11 @@ class CouncilDecisionService
         $councilDecision->loadMissing(['reservation.organization', 'recordedByUser']);
 
         $this->ensureCouncilDecisionRequired($councilDecision->reservation);
+
+        // Trajet passé : la décision est figée, seules les notes peuvent encore être corrigées
+        if ($councilDecision->reservation->hasTripDatePassed()) {
+            return $this->updateNotesOnly($councilDecision, $data, $actor);
+        }
 
         $councilDecision = DB::transaction(function () use ($councilDecision, $data, $actor): CouncilDecision {
             $councilDecision->update([
@@ -133,6 +144,40 @@ class CouncilDecisionService
         if ($decision->decision_status === CouncilDecisionStatus::APPROUVE) {
             $this->resolveCouncilDerogationConflicts($reservation, $actor);
         }
+    }
+
+    /**
+     * Décision d'un trajet passé : statut, date et référence sont figés (422 si on tente de les changer) ;
+     * seules les notes sont mises à jour, sans réappliquer les conséquences ni régénérer la délibération.
+     */
+    private function updateNotesOnly(CouncilDecision $councilDecision, array $data, User $actor): CouncilDecision
+    {
+        $statusChanged = ($data['decision_status'] ?? null) !== null
+            && $data['decision_status'] !== $councilDecision->decision_status?->value;
+        $dateChanged = array_key_exists('decision_date', $data)
+            && ($data['decision_date'] ?? null) !== $councilDecision->decision_date?->toDateString();
+        $referenceChanged = array_key_exists('decision_reference', $data)
+            && ($data['decision_reference'] ?? null) !== $councilDecision->decision_reference;
+
+        if ($statusChanged || $dateChanged || $referenceChanged) {
+            throw ValidationException::withMessages([
+                'reservation' => 'Le trajet est passé : seules les notes de la décision peuvent encore être modifiées.',
+            ]);
+        }
+
+        $oldNotes = $councilDecision->notes;
+        $councilDecision->update(['notes' => $data['notes'] ?? null]);
+
+        $this->eventLogger->log(
+            aggregateType: 'council_decision',
+            aggregateId: $councilDecision->id,
+            eventType: 'council_decision.notes_updated',
+            actor: $actor,
+            oldValues: ['notes' => $oldNotes],
+            newValues: ['notes' => $councilDecision->notes]
+        );
+
+        return $councilDecision->refresh()->load(['reservation.organization', 'recordedByUser']);
     }
 
     private function ensureCouncilDecisionRequired(Reservation $reservation): void
