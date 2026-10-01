@@ -124,6 +124,28 @@ class ReservationCheckTripTest extends TestCase
         );
     }
 
+    public function test_minimum_notice_is_counted_from_today_in_brussels(): void
+    {
+        Sanctum::actingAs($this->seeded('user.test@bus-communal.local'));
+
+        // 23:30 à Bruxelles le lundi 20/04 = 21:30 UTC : le mardi 5 mai est à 15 jours, accepté
+        Carbon::setTestNow('2026-04-20 21:30:00');
+        $this->postJson('/api/reservations/check-trip', $this->payload('Ecole communale de Dinant', [
+            'trip_date' => '2026-05-05',
+        ]))->assertOk();
+
+        // 00:30 à Bruxelles le mardi 21/04 = 22:30 UTC le 20/04 : le 5 mai n'est plus qu'à 14 jours
+        Carbon::setTestNow('2026-04-20 22:30:00');
+        $response = $this->postJson('/api/reservations/check-trip', $this->payload('Ecole communale de Dinant', [
+            'trip_date' => '2026-05-05',
+        ]))->assertUnprocessable();
+
+        $this->assertContains(
+            'La demande doit être introduite au moins 15 jours avant la date souhaitée.',
+            $response->json('errors.trip_date')
+        );
+    }
+
     public function test_unreachable_routing_service_falls_back_to_straight_line_estimate(): void
     {
         Http::swap(new \Illuminate\Http\Client\Factory());

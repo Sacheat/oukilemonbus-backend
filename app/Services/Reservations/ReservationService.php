@@ -254,10 +254,10 @@ class ReservationService
         );
 
         // Si le trajet est aujourd'hui et qu'un véhicule est assigné, régénérer la feuille de route
-        if ($reservation->vehicle_id !== null && $reservation->trip_date?->isToday()) {
+        if ($reservation->vehicle_id !== null && $reservation->trip_date?->toDateString() === Reservation::localToday()) {
             try {
                 $this->routeSheetDocumentService->generateForServiceDateVehicle(
-                    now()->toDateString(),
+                    Reservation::localToday(),
                     $reservation->vehicle_id
                 );
             } catch (\Throwable) {
@@ -940,10 +940,9 @@ class ReservationService
 
     private function ensureCancellationDeadlineNotPassed(Reservation $reservation, User $actor): void
     {
-        $tripDate = $reservation->trip_date?->toDateString();
-        $departureTime = $reservation->departure_time?->format('H:i:s');
+        $departureAt = $reservation->departureAt();
 
-        if ($tripDate === null || $departureTime === null) {
+        if ($departureAt === null) {
             return;
         }
 
@@ -951,16 +950,16 @@ class ReservationService
 
         if ($isInternal) {
             $minDaysBefore = (int) config('reservations.cancellation_commune_min_days_before', 1);
-            $deadline = CarbonImmutable::parse($tripDate)->startOfDay()->subDays($minDaysBefore - 1)->startOfDay();
+            $deadline = CarbonImmutable::parse($reservation->trip_date->toDateString())->subDays($minDaysBefore - 1);
 
-            if (CarbonImmutable::today()->gte($deadline)) {
+            // Jours comparés à Bruxelles : le jour J commence à minuit heure belge, pas UTC
+            if (CarbonImmutable::parse(Reservation::localToday())->gte($deadline)) {
                 throw ValidationException::withMessages([
                     'reservation' => 'La commune ne peut plus annuler cette réservation : le délai d’annulation est dépassé (jusqu’à la veille du trajet).',
                 ]);
             }
         } else {
             $minHoursBefore = (int) config('reservations.cancellation_requester_min_hours_before', 24);
-            $departureAt = CarbonImmutable::parse($tripDate.' '.$departureTime);
             $deadline = $departureAt->subHours($minHoursBefore);
 
             if (CarbonImmutable::now()->gte($deadline)) {
@@ -973,14 +972,12 @@ class ReservationService
 
     private function isLastMinuteCancellation(Reservation $reservation): bool
     {
-        $tripDate = $reservation->trip_date?->toDateString();
-        $departureTime = $reservation->departure_time?->format('H:i:s');
+        $departureAt = $reservation->departureAt();
 
-        if ($tripDate === null || $departureTime === null) {
+        if ($departureAt === null) {
             return false;
         }
 
-        $departureAt = CarbonImmutable::parse($tripDate.' '.$departureTime);
         $threshold = now()->addHours((int) config('notifications.last_minute_cancellation_hours', 24));
 
         return $departureAt->lessThanOrEqualTo($threshold);
