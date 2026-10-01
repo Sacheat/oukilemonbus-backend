@@ -70,6 +70,7 @@ services:
   # Tâches planifiées de routes/console.php (feuilles de route, rappels, clôture des réservations expirées…),
   # comme le cron d'un serveur de production. En www-data, comme php-fpm et le worker : les fichiers créés
   # restent lisibles par l'API ; l'entrypoint (root) remet storage/ à www-data au démarrage.
+  # setpriv plutôt que runuser : voir le service queue (arrêt propre sur SIGTERM).
   scheduler:
     build:
       context: .
@@ -77,7 +78,7 @@ services:
     container_name: bus-communal-scheduler
     restart: unless-stopped
     working_dir: /var/www/html
-    command: runuser -u www-data -- php artisan schedule:work
+    command: setpriv --reuid=www-data --regid=www-data --init-groups -- php artisan schedule:work
     volumes:
       - .:/var/www/html
     depends_on:
