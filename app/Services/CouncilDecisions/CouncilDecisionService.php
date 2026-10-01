@@ -14,6 +14,7 @@ use App\Services\Documents\DeliberationDocumentService;
 use App\Services\Notifications\NotificationDispatchService;
 use App\Services\Notifications\NotificationRecipientResolver;
 use App\Services\Reservations\ReservationService;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -154,8 +155,12 @@ class CouncilDecisionService
     {
         $statusChanged = ($data['decision_status'] ?? null) !== null
             && $data['decision_status'] !== $councilDecision->decision_status?->value;
+        // Date comparée au jour près, quel que soit le format reçu (« 2026-06-10 » ou « 2026-06-10T00:00:00Z »)
+        $receivedDate = filled($data['decision_date'] ?? null)
+            ? Carbon::parse($data['decision_date'])->toDateString()
+            : null;
         $dateChanged = array_key_exists('decision_date', $data)
-            && ($data['decision_date'] ?? null) !== $councilDecision->decision_date?->toDateString();
+            && $receivedDate !== $councilDecision->decision_date?->toDateString();
         $referenceChanged = array_key_exists('decision_reference', $data)
             && ($data['decision_reference'] ?? null) !== $councilDecision->decision_reference;
 
@@ -167,6 +172,11 @@ class CouncilDecisionService
 
         $oldNotes = $councilDecision->notes;
         $councilDecision->update(['notes' => $data['notes'] ?? null]);
+
+        // Rien n'a changé : pas d'événement d'audit
+        if (! $councilDecision->wasChanged('notes')) {
+            return $councilDecision->refresh()->load(['reservation.organization', 'recordedByUser']);
+        }
 
         $this->eventLogger->log(
             aggregateType: 'council_decision',

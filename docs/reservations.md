@@ -157,8 +157,8 @@ Selon le type d'organisation et les règles métier, certaines réservations peu
   « Le délai de cette réservation est désormais dépassé : elle a été clôturée. Pour plus d’informations, veuillez
   contacter un agent. » ; historique de statut avec `changed_by_user_id` null (migration 2026_10_01_000001) ;
   événement `reservation.expired`.
-- Notifications : le demandeur et le chauffeur éventuellement affecté (`reservation.expired`, catégorie
-  reservation_updates) ; un récapitulatif unique pour les agents et admins actifs (`reservation.expired.summary`,
+- Notifications : le demandeur (« Réservation clôturée ») et le chauffeur éventuellement affecté, avec un message
+  propre à sa mission (« Mission annulée ») (`reservation.expired`, catégorie reservation_updates) ; un récapitulatif unique pour les agents et admins actifs (`reservation.expired.summary`,
   catégorie admin_workflow), avec la liste des réservations clôturées.
 - `--dry-run` : liste les réservations concernées sans rien clôturer.
 
