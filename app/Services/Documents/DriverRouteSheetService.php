@@ -76,6 +76,8 @@ class DriverRouteSheetService
         return $this->documentAccessService->visibleQueryFor($user)
             ->where('documents.document_type', DocumentType::FEUILLE_ROUTE->value)
             ->whereNotNull('documents.service_date')
+            // visibleQueryFor ne filtre pas is_available pour un agent / admin
+            ->where('documents.is_available', true)
             // Dernière version : aucune version plus récente (disponible) pour le même jour et le même véhicule
             ->whereNotExists(function ($newer): void {
                 $newer->selectRaw('1')

@@ -125,6 +125,24 @@ class DriverRouteSheetApiTest extends TestCase
         $this->assertSame($ownTrip->id, $latestVersion->routeSheetReservations()->orderBy('reservations.id')->first()->id);
     }
 
+    public function test_official_sheets_skip_unavailable_versions_for_internal_users(): void
+    {
+        $vehicleId = $this->vehicle()->id;
+        $this->reservation(['trip_date' => '2026-06-16']);
+
+        $service = app(RouteSheetDocumentService::class);
+        $firstVersion = $service->generateForServiceDateVehicle('2026-06-16', $vehicleId);
+        $latestVersion = $service->generateForServiceDateVehicle('2026-06-16', $vehicleId);
+        $latestVersion->update(['is_available' => false]);
+
+        // Dernière version indisponible : seule la version précédente est listée
+        Sanctum::actingAs($this->user('agent.test@bus-communal.local'));
+        $this->getJson('/api/route-sheets')
+            ->assertOk()
+            ->assertJsonPath('meta.total', 1)
+            ->assertJsonPath('data.0.id', $firstVersion->id);
+    }
+
     private function reservation(array $attributes = []): Reservation
     {
         return Reservation::create([

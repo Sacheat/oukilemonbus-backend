@@ -172,7 +172,9 @@ class RouteSheetContextBuilder
             ->whereBetween('trip_date', [$monday->toDateString(), $sunday->toDateString()])
             ->orderBy('trip_date')
             ->orderBy('departure_time')
-            ->get();
+            ->get()
+            // Toutes au même chauffeur : évite de recharger driver et driver.user pour chaque ligne (buildDailyRow)
+            ->each(fn (Reservation $reservation) => $reservation->setRelation('driver', $driver));
 
         $reservationsByDay = $reservations->groupBy(fn (Reservation $reservation): string => $reservation->trip_date->toDateString());
 
