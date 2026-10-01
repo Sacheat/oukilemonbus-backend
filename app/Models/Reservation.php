@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use App\Enums\ApprovalType;
+use App\Enums\CouncilDecisionStatus;
+use App\Enums\OrganizationType;
 use App\Enums\ReservationActivityType;
 use App\Enums\ReservationStatus;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -132,6 +134,20 @@ class Reservation extends Model
         return $this->belongsToMany(Document::class, 'document_reservation')
             ->withPivot('position')
             ->withTimestamps();
+    }
+
+    /**
+     * Réservations qui attendent le Collège : encore approuvables, d'un type d'organisation soumis au Collège
+     * (CPAS, ASBL, externe), sans décision ou avec une décision encore « en attente ».
+     * Règle unique, utilisée par GET /reservations?council=a_decider et par le compteur du tableau de bord.
+     */
+    public function scopeAwaitingCouncilDecision(Builder $query): void
+    {
+        $query->whereIn('status', ReservationStatus::approvableValues())
+            ->whereHas('organization', fn (Builder $q) => $q->whereIn('type', OrganizationType::councilDecisionRequiredValues()))
+            ->where(fn (Builder $q) => $q
+                ->whereDoesntHave('councilDecision')
+                ->orWhereHas('councilDecision', fn (Builder $d) => $d->where('decision_status', CouncilDecisionStatus::EN_ATTENTE->value)));
     }
 
     public function scopeVisibleTo(Builder $query, User $user): void

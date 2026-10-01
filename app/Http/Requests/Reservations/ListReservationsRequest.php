@@ -10,7 +10,10 @@ use Illuminate\Validation\Rule;
  * Paramètres de GET /api/reservations.
  * Les filtres historiques (status, organization_id, date_from, date_to) gardent leur comportement
  * tolérant. `statuses[]` filtre sur plusieurs statuts et ne se combine pas avec `status` (422).
- * `q` : recherche libre (voir ReservationController::index). L'accès est contrôlé par la Policy dans le contrôleur.
+ * `q` : recherche libre (voir ReservationController::index).
+ * `council=a_decider` : réservations qui attendent le Collège (scope Reservation::awaitingCouncilDecision,
+ * même règle que le compteur council_pending du tableau de bord).
+ * L'accès est contrôlé par la Policy dans le contrôleur.
  */
 class ListReservationsRequest extends FormRequest
 {
@@ -26,6 +29,7 @@ class ListReservationsRequest extends FormRequest
             'statuses' => ['sometimes', 'array', 'min:1', 'prohibits:status'],
             'statuses.*' => ['string', Rule::enum(ReservationStatus::class)],
             'q' => ['sometimes', 'nullable', 'string', 'max:100'],
+            'council' => ['sometimes', 'in:a_decider'],
         ];
     }
 
@@ -35,6 +39,7 @@ class ListReservationsRequest extends FormRequest
             'sort.in' => 'L’ordre de tri doit valoir asc ou desc.',
             'statuses.prohibits' => 'Utilisez soit status, soit statuses[], pas les deux.',
             'statuses.*.enum' => 'Statut inconnu.',
+            'council.in' => 'Le filtre council n’accepte que la valeur a_decider.',
         ];
     }
 

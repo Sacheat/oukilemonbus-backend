@@ -45,6 +45,19 @@ Génération d'un document de délibération
 Stockage dans le module Documents
 ↓
 Téléchargement contrôlé selon les droits
+
+3.1 Trouver les réservations à décider et les décisions par statut
+
+Une réservation « attend le Collège » si elle est encore approuvable (en_attente, en_conflit), que son organisation
+est d'un type soumis au Collège (CPAS, ASBL, externe) et qu'elle n'a pas de décision ou une décision encore en_attente.
+Cette règle est écrite une seule fois : scope `Reservation::awaitingCouncilDecision()`.
+
+GET /api/reservations?council=a_decider        → ces réservations (paginé, combinable avec les autres filtres ; autre valeur : 422)
+GET /api/council-decisions?decision_status=…   → décisions approuve, refuse ou en_attente (autre valeur : 422)
+
+Le compteur `to_process.council_pending` de GET /api/dashboard utilise le même scope : le chiffre du tableau de bord
+et la liste ne peuvent pas diverger.
+
 4. Décisions du Collège
 
 Certaines réservations ne sont pas automatiquement acceptées.

@@ -60,6 +60,8 @@ class ReservationController extends Controller
                 ->when($request->validated('statuses'), fn ($query, $statuses) => $query->whereIn('status', $statuses))
                 ->when(LikeSearch::patterns($request->validated('q')), fn ($query, $patterns) => $this->applySearch($query, $patterns, $request->validated('q')))
                 ->when(request('organization_id'), fn ($query, $organizationId) => $query->where('organization_id', $organizationId))
+                // council=a_decider : réservations qui attendent le Collège (même règle que le tableau de bord)
+                ->when($request->validated('council') === 'a_decider', fn ($query) => $query->awaitingCouncilDecision())
                 ->when(request('date_from'), fn ($query, $date) => $query->whereDate('trip_date', '>=', $date))
                 ->when(request('date_to'), fn ($query, $date) => $query->whereDate('trip_date', '<=', $date))
                 // sort=asc : trajet le plus proche d'abord (onglet « À venir ») ; desc par défaut.

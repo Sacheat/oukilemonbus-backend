@@ -75,6 +75,57 @@ class CouncilDecisionApiTest extends TestCase
             ->assertJsonPath('data.decision_status', CouncilDecisionStatus::APPROUVE->value);
     }
 
+    public function test_internal_user_can_filter_council_decisions_by_status(): void
+    {
+        $agent = $this->seededUser('agent.test@bus-communal.local');
+        $approvedDecision = $this->createCouncilDecisionForNonSchoolReservation();
+        $refusedDecision = $this->createCouncilDecisionForNonSchoolReservation('ASBL Refusee');
+        $refusedDecision->update(['decision_status' => CouncilDecisionStatus::REFUSE]);
+
+        Sanctum::actingAs($agent);
+
+        $this->getJson('/api/council-decisions?decision_status=refuse')
+            ->assertOk()
+            ->assertJsonFragment(['id' => $refusedDecision->id])
+            ->assertJsonMissing(['id' => $approvedDecision->id]);
+
+        $this->getJson('/api/council-decisions?decision_status=approuve')
+            ->assertOk()
+            ->assertJsonFragment(['id' => $approvedDecision->id])
+            ->assertJsonMissing(['id' => $refusedDecision->id]);
+
+        $this->getJson('/api/council-decisions?decision_status=inconnu')
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('decision_status');
+    }
+
+    public function test_reservations_can_be_filtered_on_awaiting_council_decision(): void
+    {
+        $agent = $this->seededUser('agent.test@bus-communal.local');
+
+        // Décision approuvée : le Collège a tranché, la réservation n'attend plus
+        $approvedDecision = $this->createCouncilDecisionForNonSchoolReservation();
+        // Décision encore en attente : la réservation attend toujours le Collège
+        $pendingDecision = $this->createCouncilDecisionForNonSchoolReservation('ASBL En Attente');
+        $pendingDecision->update(['decision_status' => CouncilDecisionStatus::EN_ATTENTE]);
+        // Aucune décision : la réservation attend le Collège
+        $withoutDecision = $this->createCouncilDecisionForNonSchoolReservation('ASBL Sans Decision');
+        $reservationWithoutDecisionId = $withoutDecision->reservation_id;
+        $withoutDecision->delete();
+
+        Sanctum::actingAs($agent);
+
+        $ids = collect($this->getJson('/api/reservations?council=a_decider')->assertOk()->json('data'))->pluck('id');
+
+        $this->assertTrue($ids->contains($pendingDecision->reservation_id));
+        $this->assertTrue($ids->contains($reservationWithoutDecisionId));
+        $this->assertFalse($ids->contains($approvedDecision->reservation_id));
+
+        $this->getJson('/api/reservations?council=autre')
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('council');
+    }
+
     public function test_user_can_view_council_decision_for_visible_reservation_only(): void
     {
         $user = $this->seededUser('user.test@bus-communal.local');
