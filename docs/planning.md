@@ -432,6 +432,18 @@ application/vnd.ms-excel
 
 Cela fonctionne pour une V1, mais une amélioration future pourrait consister à générer un vrai fichier .xlsx.
 
+17.1 Export en tâche de fond
+
+Pour les grosses périodes, l'export peut être préparé par la file de jobs :
+
+POST /api/planning/exports        (mêmes paramètres que GET /api/planning/export) → 202, PlanningExport en `pending`
+GET  /api/planning/exports/{id}   → `pending`, `processing`, `succeeded` (avec `document_id`) ou `failed` (avec `error_message`)
+GET  /api/documents/{document_id}/download → le fichier
+
+Le job `GeneratePlanningExportJob` écrit le fichier dans `storage/app/private/documents/planning/AAAA/MM/` (mois de génération).
+
+Le worker de file doit tourner sous le même utilisateur que php-fpm (`www-data`). En root, Laravel crée les dossiers privés en 0700 : l'API (www-data) ne peut plus les lire et le téléchargement répond 404 « Ressource introuvable » alors que le fichier existe. C'est pourquoi le service `queue` du `docker-compose.yml` lance `runuser -u www-data -- php artisan queue:work …` (voir le README).
+
 18. Tests automatisés
 
 Les tests du module se trouvent dans :
