@@ -144,6 +144,24 @@ Feuille de route
 
 Selon le type d'organisation et les règles métier, certaines réservations peuvent être approuvées automatiquement, tandis que d'autres doivent passer par une décision du Collège.
 
+6.1 Trajets passés et clôture automatique
+
+« Passé » = la date du trajet est strictement avant aujourd'hui à Bruxelles (`Reservation::hasTripDatePassed()`,
+`Reservation::localToday()`) ; le jour même du trajet n'est pas passé.
+
+- PATCH /api/reservations/{id}/approve sur un trajet passé : 422 sur `reservation`.
+- Clôture automatique : commande `reservations:close-expired`, planifiée chaque nuit à 00:15 (Europe/Brussels),
+  service `ReservationExpirationService`. Elle concerne les réservations **non confirmées** (en_attente, en_conflit,
+  approuve) dont le trajet est passé ; les confirmées (le trajet a eu lieu) et les statuts finaux ne sont jamais touchés.
+- Effet : statut `annule`, `cancelled_by_user_id` null (action du système), `cancellation_reason` =
+  « Le délai de cette réservation est désormais dépassé : elle a été clôturée. Pour plus d’informations, veuillez
+  contacter un agent. » ; historique de statut avec `changed_by_user_id` null (migration 2026_10_01_000001) ;
+  événement `reservation.expired`.
+- Notifications : le demandeur et le chauffeur éventuellement affecté (`reservation.expired`, catégorie
+  reservation_updates) ; un récapitulatif unique pour les agents et admins actifs (`reservation.expired.summary`,
+  catégorie admin_workflow), avec la liste des réservations clôturées.
+- `--dry-run` : liste les réservations concernées sans rien clôturer.
+
 7. Types d'approbation
 
 Le champ approval_type permet de distinguer le type de validation.
