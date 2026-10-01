@@ -72,6 +72,8 @@ docker compose exec app php artisan migrate
 docker compose exec app php artisan db:seed   # rôles/permissions + comptes et données de test (APP_ENV=local)
 ```
 
+Utilisateur des processus : php-fpm et le worker de file (`queue`) tournent en `www-data`, pour que les fichiers générés en tâche de fond (exports du planning, feuilles de route…) restent lisibles par l'API. Un `docker compose exec app php artisan …` tourne en root : pour une commande qui écrit dans `storage/` (génération de documents, cache des vues…), préférer `docker compose exec -u www-data app php artisan …`. Au démarrage, l'entrypoint remet `storage/` et `bootstrap/cache/` à `www-data`.
+
 Comptes de test créés en local (mot de passe `password`) : `admin`, `agent`, `reviewer`, `responsable`, `user`, `chauffeur` `.test@bus-communal.local` (`responsable` a le rôle `user` et est responsable de l'ASBL Les Amis du Parc).
 En production, ne lancer que `db:seed --class=RolesAndPermissionsSeeder`.
 
