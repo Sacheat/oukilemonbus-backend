@@ -215,7 +215,8 @@ class RouteSheetContextBuilder
             'period' => [
                 'start_date' => $monday->toDateString(),
                 'end_date' => $sunday->toDateString(),
-                'label' => sprintf('du %s au %s', $monday->format('d/m/Y'), $monday->addDays(4)->format('d/m/Y')),
+                // Jusqu'au dernier jour affiché : vendredi, ou samedi / dimanche s'ils ont des missions
+                'label' => sprintf('du %s au %s', $monday->format('d/m/Y'), end($days)['date_label']),
             ],
             'driver' => $this->formatDriver($driver),
             'transporter' => [

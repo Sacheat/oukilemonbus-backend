@@ -136,11 +136,11 @@ class RouteSheetDocumentService
                     'is_official' => false,
                     'version' => $version,
                     'is_available' => true,
+                    // Date et véhicule en colonnes : liste filtrée et paginée (GET /route-sheets), dernière version
+                    'service_date' => $serviceDate,
+                    'vehicle_id' => $vehicleId,
                 ]
             );
-
-            // Date et véhicule en colonnes : liste filtrée et paginée (GET /route-sheets), dernière version
-            $document->update(['service_date' => $serviceDate, 'vehicle_id' => $vehicleId]);
 
             $this->attachRouteSheetReservations($document, $context);
 

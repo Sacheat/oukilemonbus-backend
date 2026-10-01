@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Enums\ApprovalType;
 use App\Enums\OrganizationType;
 use App\Enums\ReservationStatus;
+use App\Models\DomainEvent;
 use App\Models\Driver;
 use App\Models\Location;
 use App\Models\Organization;
@@ -152,6 +153,35 @@ class TripReportApiTest extends TestCase
                 'event_key' => 'trip_report.not_realised',
             ]);
         }
+    }
+
+    public function test_agent_is_not_notified_of_own_report_and_history_keeps_hh_mm_times(): void
+    {
+        $reservation = $this->confirmedReservation();
+        $agent = $this->user('agent.test@bus-communal.local');
+        Sanctum::actingAs($agent);
+        Carbon::setTestNow('2026-06-16 09:30:00');
+
+        $this->putJson($this->url($reservation), self::REALISED)->assertCreated();
+        $this->putJson($this->url($reservation), ['outcome' => 'non_realise', 'remarks' => 'Bus en panne.'])->assertOk();
+
+        // L'admin est prévenu, pas l'agent qui a saisi
+        $this->assertDatabaseHas('notification_deliveries', [
+            'notifiable_id' => $this->user('admin.test@bus-communal.local')->id,
+            'event_key' => 'trip_report.not_realised',
+        ]);
+        $this->assertDatabaseMissing('notification_deliveries', [
+            'notifiable_id' => $agent->id,
+            'event_key' => 'trip_report.not_realised',
+        ]);
+
+        // Anciennes valeurs relues en base, au même format que la saisie (HH:MM)
+        $event = DomainEvent::query()
+            ->where('aggregate_id', $reservation->id)
+            ->where('event_type', 'trip_report.updated')
+            ->firstOrFail();
+        $this->assertSame(self::REALISED['actual_departure_time'], $event->old_values['actual_departure_time']);
+        $this->assertNull($event->new_values['actual_departure_time']);
     }
 
     public function test_only_confirmed_trips_can_have_a_report(): void
