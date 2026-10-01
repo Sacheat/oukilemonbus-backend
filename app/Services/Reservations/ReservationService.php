@@ -158,7 +158,10 @@ class ReservationService
                 'activity_type' => $reservation->activity_type?->value,
             ];
 
-            $payload = array_merge($current, $data, ['ignore_reservation_id' => $reservation->id]);
+            $payload = array_merge($current, $data, [
+                'ignore_reservation_id' => $reservation->id,
+                'skip_minimum_notice' => ! $this->previewService->minimumNoticeAppliesToEdit($reservation, $data['trip_date'] ?? null, $actor),
+            ]);
 
             $preview = $this->previewService->preview($payload);
             $currentStatus = $reservation->status;

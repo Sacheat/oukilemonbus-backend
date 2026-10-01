@@ -177,6 +177,18 @@ qui dépend d'« aujourd'hui » ou de « maintenant » passe donc par :
 Ne jamais utiliser `now()->toDateString()`, `today()` ou `isToday()` pour ces règles : entre minuit et 1h/2h à
 Bruxelles, le jour UTC est encore la veille.
 
+6.3 Préavis de 15 jours : création et modification
+
+- Création (POST /reservations, POST /recurrences) : préavis de 15 jours pour tout le monde, agents compris.
+- Modification d'une réservation existante (PATCH /reservations/{id}, et POST /reservations/preview ou
+  /reservations/check-trip avec `reservation_id`) :
+  - rôle interne (admin, agent_communal) : pas de préavis, pour régler les conflits tardifs (indisponibilité déclarée
+    à J-3, chevauchement à décaler, lieu à corriger) ;
+  - externe (demandeur, responsable) : préavis appliqué seulement si `trip_date` change.
+- Règle unique : `ReservationPreviewService::minimumNoticeAppliesToEdit()`, qui pose `skip_minimum_notice` dans les
+  données du preview (clé interne, jamais lue depuis la requête).
+- Toutes les autres règles bloquantes restent appliquées (week-end, jour fermé, distance, pays, capacité, quota…).
+
 7. Types d'approbation
 
 Le champ approval_type permet de distinguer le type de validation.
