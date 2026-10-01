@@ -209,6 +209,10 @@ réservation), à part du cycle de statuts : la réservation reste `confirme`.
 - Un `non_realise` (nouveau, ou qui le devient) notifie les agents et admins, sauf l'auteur de la saisie
   (`trip_report.not_realised`, admin_workflow, priorité haute). Événements `trip_report.created` /
   `trip_report.updated`, heures en HH:MM dans les anciennes et nouvelles valeurs.
+- Un compte rendu fige le trajet (422, clé `reservation`) : plus de modification (`PATCH /reservations/{id}`), de
+  réaffectation (`/assign`) ni de confirmation des passagers (`/confirm-passengers`) ; plus d'annulation si le trajet
+  est réalisé (un « non réalisé » reste annulable, dans le délai habituel). Une indisponibilité saisie après coup
+  ignore les trajets qui ont un compte rendu (ni conflit ni désaffectation).
 
 7. Types d'approbation
 

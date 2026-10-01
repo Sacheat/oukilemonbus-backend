@@ -8,6 +8,7 @@ use App\Enums\DocumentType;
 use App\Enums\OrganizationType;
 use App\Enums\ReservationConflictType;
 use App\Enums\ReservationStatus;
+use App\Enums\TripReportOutcome;
 use App\Models\Document;
 use App\Models\Organization;
 use App\Models\Reservation;
@@ -140,6 +141,8 @@ class ReservationService
 
     public function update(Reservation $reservation, array $data, User $actor): Reservation
     {
+        $this->ensureNoTripReport($reservation, 'modifiée');
+
         return DB::transaction(function () use ($reservation, $data, $actor): Reservation {
             // Valeurs actuelles au format des données entrantes (Y-m-d, H:i) : les attributs castés
             // (dates Carbon, enum) faisaient échouer le preview lors d'une modification partielle.
@@ -216,6 +219,8 @@ class ReservationService
 
     public function confirmPassengers(Reservation $reservation, array $data, User $actor): Reservation
     {
+        $this->ensureNoTripReport($reservation, 'modifiée');
+
         $nbAdults   = (int) ($data['nb_adults']   ?? $reservation->nb_adults);
         $nbChildren = (int) ($data['nb_children'] ?? $reservation->nb_children);
 
@@ -340,6 +345,8 @@ class ReservationService
     public function cancel(Reservation $reservation, User $actor, string $reason): Reservation
     {
         $this->assertCanTransition($reservation, ReservationStatus::ANNULE);
+        // Un trajet « non réalisé » peut encore être annulé ; un trajet réalisé, non
+        $this->ensureNoTripReport($reservation, 'annulée', TripReportOutcome::REALISE);
         $this->ensureCancellationDeadlineNotPassed($reservation, $actor);
 
         return DB::transaction(function () use ($reservation, $actor, $reason): Reservation {
@@ -435,6 +442,8 @@ class ReservationService
 
     public function assign(Reservation $reservation, array $data, User $actor): Reservation
     {
+        $this->ensureNoTripReport($reservation, 'réaffectée');
+
         $reservation = $this->assignmentService->assign($reservation, $data, $actor);
         $this->checkAndAutoTransition($reservation, $actor);
 
@@ -706,7 +715,9 @@ class ReservationService
         $query = Reservation::query()
             ->whereIn('status', [ReservationStatus::APPROUVE->value, ReservationStatus::CONFIRME->value])
             ->whereDate('trip_date', '>=', $start->toDateString())
-            ->whereDate('trip_date', '<=', $end->toDateString());
+            ->whereDate('trip_date', '<=', $end->toDateString())
+            // Trajet déjà déclaré (compte rendu) : ni conflit ni désaffectation après coup
+            ->whereDoesntHave('tripReport');
 
         if ($driverId !== null) {
             $query->where('driver_id', $driverId);
@@ -939,6 +950,23 @@ class ReservationService
             priority: $priority,
             urgent: $urgent
         );
+    }
+
+    /**
+     * Le compte rendu fige le trajet (date, heures, lieux, passagers, chauffeur et véhicule) : sinon il resterait
+     * rattaché à un trajet qui n'est plus celui déclaré. $onlyOutcome : ne bloque que pour ce résultat.
+     */
+    private function ensureNoTripReport(Reservation $reservation, string $action, ?TripReportOutcome $onlyOutcome = null): void
+    {
+        $report = $reservation->tripReport()->first();
+
+        if ($report === null || ($onlyOutcome !== null && $report->outcome !== $onlyOutcome)) {
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            'reservation' => "Ce trajet a déjà un compte rendu ({$report->outcome->label()}) : la réservation ne peut plus être {$action}.",
+        ]);
     }
 
     private function ensureCancellationDeadlineNotPassed(Reservation $reservation, User $actor): void

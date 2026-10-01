@@ -5,13 +5,16 @@ namespace Tests\Feature;
 use App\Enums\ApprovalType;
 use App\Enums\OrganizationType;
 use App\Enums\ReservationStatus;
+use App\Enums\UnavailabilityReasonType;
 use App\Models\DomainEvent;
 use App\Models\Driver;
 use App\Models\Location;
 use App\Models\Organization;
 use App\Models\Reservation;
 use App\Models\User;
+use App\Models\Unavailability;
 use App\Models\Vehicle;
+use App\Services\Reservations\ReservationService;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Database\Seeders\TestFleetSeeder;
 use Database\Seeders\TestLocationsSeeder;
@@ -182,6 +185,55 @@ class TripReportApiTest extends TestCase
             ->firstOrFail();
         $this->assertSame(self::REALISED['actual_departure_time'], $event->old_values['actual_departure_time']);
         $this->assertNull($event->new_values['actual_departure_time']);
+    }
+
+    public function test_a_report_locks_the_reservation_against_changes_reassignment_and_cancellation(): void
+    {
+        $reservation = $this->confirmedReservation();
+        $agent = $this->user('agent.test@bus-communal.local');
+        Sanctum::actingAs($agent);
+        Carbon::setTestNow('2026-06-16 09:30:00');
+
+        $this->putJson($this->url($reservation), self::REALISED)->assertCreated();
+
+        $locked = fn ($response) => $response->assertUnprocessable()
+            ->assertJsonPath('errors.reservation.0', fn (string $message): bool => str_contains($message, 'compte rendu'));
+
+        $locked($this->patchJson("/api/reservations/{$reservation->id}", ['trip_date' => '2026-07-01']));
+        $locked($this->patchJson("/api/reservations/{$reservation->id}/assign", ['driver_id' => $this->otherDriver()->id]));
+        $locked($this->patchJson("/api/reservations/{$reservation->id}/confirm-passengers", ['nb_adults' => 2]));
+        $locked($this->patchJson("/api/reservations/{$reservation->id}/cancel", ['reason' => 'Nettoyage']));
+
+        // Indisponibilité saisie après coup : le trajet déclaré n'est ni mis en conflit ni désaffecté
+        $unavailability = Unavailability::create([
+            'reason_type' => UnavailabilityReasonType::DRIVER,
+            'reason' => 'Maladie',
+            'driver_id' => $reservation->driver_id,
+            'start_datetime' => '2026-06-16 08:00:00',
+            'end_datetime' => '2026-06-16 18:00:00',
+            'created_by_user_id' => $agent->id,
+            'is_active' => true,
+        ]);
+        $this->assertSame(0, app(ReservationService::class)->applyUnavailabilityImpact($unavailability, $agent));
+
+        $reservation->refresh();
+        $this->assertSame('2026-06-16', $reservation->trip_date->toDateString());
+        $this->assertSame(ReservationStatus::CONFIRME, $reservation->status);
+        $this->assertNotNull($reservation->driver_id);
+    }
+
+    public function test_a_not_realised_trip_is_not_locked_against_cancellation(): void
+    {
+        $reservation = $this->confirmedReservation();
+        Sanctum::actingAs($this->user('agent.test@bus-communal.local'));
+        Carbon::setTestNow('2026-06-16 09:30:00');
+
+        $this->putJson($this->url($reservation), ['outcome' => 'non_realise', 'remarks' => 'Groupe absent.'])->assertCreated();
+
+        // Seul le délai d'annulation (veille du trajet) s'applique encore, pas le verrou du compte rendu
+        $this->patchJson("/api/reservations/{$reservation->id}/cancel", ['reason' => 'Trajet non réalisé'])
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.reservation.0', fn (string $message): bool => ! str_contains($message, 'compte rendu'));
     }
 
     public function test_only_confirmed_trips_can_have_a_report(): void
