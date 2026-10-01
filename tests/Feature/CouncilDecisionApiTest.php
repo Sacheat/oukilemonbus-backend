@@ -126,6 +126,68 @@ class CouncilDecisionApiTest extends TestCase
             ->assertJsonValidationErrors('council');
     }
 
+    public function test_past_trips_are_no_longer_awaiting_council_decision(): void
+    {
+        $agent = $this->seededUser('agent.test@bus-communal.local');
+        $withoutDecision = $this->createCouncilDecisionForNonSchoolReservation('ASBL Trajet Passe');
+        $reservationId = $withoutDecision->reservation_id;
+        $withoutDecision->delete();
+
+        Sanctum::actingAs($agent);
+
+        // Le jour même du trajet (16/06, 22:00 à Bruxelles = 20:00 UTC), la réservation attend encore le Collège
+        Carbon::setTestNow('2026-06-16 20:00:00');
+        $ids = collect($this->getJson('/api/reservations?council=a_decider')->assertOk()->json('data'))->pluck('id');
+        $this->assertTrue($ids->contains($reservationId));
+
+        // Le lendemain à Bruxelles (00:30 le 17/06 = 22:30 UTC le 16/06), le trajet est passé :
+        // elle n'apparaît plus et aucune décision ne peut être encodée
+        Carbon::setTestNow('2026-06-16 22:30:00');
+        $ids = collect($this->getJson('/api/reservations?council=a_decider')->assertOk()->json('data'))->pluck('id');
+        $this->assertFalse($ids->contains($reservationId));
+
+        $this->postJson('/api/council-decisions', [
+            'reservation_id' => $reservationId,
+            'decision_status' => CouncilDecisionStatus::APPROUVE->value,
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('reservation');
+    }
+
+    public function test_only_notes_can_change_once_the_trip_is_past(): void
+    {
+        $agent = $this->seededUser('agent.test@bus-communal.local');
+        $decision = $this->createCouncilDecisionForNonSchoolReservation();
+
+        Sanctum::actingAs($agent);
+        Carbon::setTestNow('2026-06-17 08:00:00');
+
+        $unchanged = [
+            'decision_status' => CouncilDecisionStatus::APPROUVE->value,
+            'decision_date' => '2026-06-01',
+            'decision_reference' => 'COL-2026-050',
+        ];
+
+        $this->patchJson("/api/council-decisions/{$decision->id}", [...$unchanged, 'notes' => 'Note corrigée après le trajet.'])
+            ->assertOk()
+            ->assertJsonPath('data.notes', 'Note corrigée après le trajet.')
+            ->assertJsonPath('data.decision_status', CouncilDecisionStatus::APPROUVE->value);
+
+        $this->patchJson("/api/council-decisions/{$decision->id}", [...$unchanged, 'decision_status' => CouncilDecisionStatus::REFUSE->value])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('reservation');
+
+        $this->patchJson("/api/council-decisions/{$decision->id}", [...$unchanged, 'decision_reference' => 'COL-AUTRE'])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('reservation');
+
+        $this->assertDatabaseHas('council_decisions', [
+            'id' => $decision->id,
+            'decision_status' => CouncilDecisionStatus::APPROUVE->value,
+            'decision_reference' => 'COL-2026-050',
+        ]);
+    }
+
     public function test_user_can_view_council_decision_for_visible_reservation_only(): void
     {
         $user = $this->seededUser('user.test@bus-communal.local');

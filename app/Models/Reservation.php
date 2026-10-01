@@ -7,6 +7,7 @@ use App\Enums\CouncilDecisionStatus;
 use App\Enums\OrganizationType;
 use App\Enums\ReservationActivityType;
 use App\Enums\ReservationStatus;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -136,14 +137,27 @@ class Reservation extends Model
             ->withTimestamps();
     }
 
+    /** « Aujourd'hui » des règles métier : le jour à Bruxelles (config reservations.local_timezone), Y-m-d. */
+    public static function localToday(): string
+    {
+        return CarbonImmutable::now(config('reservations.local_timezone', 'Europe/Brussels'))->toDateString();
+    }
+
+    /** Le jour du trajet est passé : strictement avant aujourd'hui à Bruxelles (le jour même n'est pas passé). */
+    public function hasTripDatePassed(): bool
+    {
+        return $this->trip_date->toDateString() < self::localToday();
+    }
+
     /**
-     * Réservations qui attendent le Collège : encore approuvables, d'un type d'organisation soumis au Collège
-     * (CPAS, ASBL, externe), sans décision ou avec une décision encore « en attente ».
+     * Réservations qui attendent le Collège : encore approuvables, trajet pas encore passé, d'un type d'organisation
+     * soumis au Collège (CPAS, ASBL, externe), sans décision ou avec une décision encore « en attente ».
      * Règle unique, utilisée par GET /reservations?council=a_decider et par le compteur du tableau de bord.
      */
     public function scopeAwaitingCouncilDecision(Builder $query): void
     {
         $query->whereIn('status', ReservationStatus::approvableValues())
+            ->whereDate('trip_date', '>=', self::localToday())
             ->whereHas('organization', fn (Builder $q) => $q->whereIn('type', OrganizationType::councilDecisionRequiredValues()))
             ->where(fn (Builder $q) => $q
                 ->whereDoesntHave('councilDecision')

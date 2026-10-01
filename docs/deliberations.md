@@ -58,6 +58,17 @@ GET /api/council-decisions?decision_status=…   → décisions approuve, refuse
 Le compteur `to_process.council_pending` de GET /api/dashboard utilise le même scope : le chiffre du tableau de bord
 et la liste ne peuvent pas diverger.
 
+3.2 Trajets passés
+
+« Passé » = la date du trajet est strictement avant aujourd'hui à Bruxelles (`Reservation::hasTripDatePassed()`,
+`Reservation::localToday()`) ; le jour même du trajet n'est pas passé.
+
+- Un trajet passé n'apparaît plus dans « à décider » ni dans `council_pending`.
+- POST /api/council-decisions pour un trajet passé : 422 sur `reservation`.
+- PATCH /api/council-decisions/{id} pour un trajet passé : statut, date et référence sont figés (422 sur `reservation`
+  si l'un d'eux change) ; seules les `notes` sont mises à jour, sans réappliquer les conséquences ni régénérer la
+  délibération (événement `council_decision.notes_updated`).
+
 4. Décisions du Collège
 
 Certaines réservations ne sont pas automatiquement acceptées.
