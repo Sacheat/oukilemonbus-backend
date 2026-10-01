@@ -442,7 +442,7 @@ GET  /api/documents/{document_id}/download → le fichier
 
 Le job `GeneratePlanningExportJob` écrit le fichier dans `storage/app/private/documents/planning/AAAA/MM/` (mois de génération).
 
-Le worker de file doit tourner sous le même utilisateur que php-fpm (`www-data`). En root, Laravel crée les dossiers privés en 0700 : l'API (www-data) ne peut plus les lire et le téléchargement répond 404 « Ressource introuvable » alors que le fichier existe. C'est pourquoi le service `queue` du `docker-compose.yml` lance `runuser -u www-data -- php artisan queue:work …` (voir le README).
+Le worker de file doit tourner sous le même utilisateur que php-fpm (`www-data`). En root, Laravel crée les dossiers privés en 0700 : l'API (www-data) ne peut plus les lire et le téléchargement répond 404 « Ressource introuvable » alors que le fichier existe. C'est pourquoi le service `queue` du `docker-compose.yml` lance `setpriv --reuid=www-data --regid=www-data --init-groups -- php artisan queue:work …` (voir le README). `setpriv` remplace le processus au lieu de le surveiller comme `runuser` : à l'arrêt du conteneur, le worker reçoit SIGTERM directement et termine son job en cours (`stop_grace_period: 130s`).
 
 18. Tests automatisés
 
