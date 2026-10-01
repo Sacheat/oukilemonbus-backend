@@ -59,6 +59,7 @@ class DriverRouteSheetApiTest extends TestCase
         $context = app(RouteSheetContextBuilder::class)->buildForDriverWeek($this->driver(), '2026-06-18');
 
         $this->assertSame('2026-06-15', $context['period']['start_date']);
+        $this->assertSame('du 15/06/2026 au 20/06/2026', $context['period']['label']); // jusqu'au samedi affiché
         $this->assertSame(
             ['2026-06-15', '2026-06-16', '2026-06-17', '2026-06-18', '2026-06-19', '2026-06-20'],
             array_column($context['days'], 'date')

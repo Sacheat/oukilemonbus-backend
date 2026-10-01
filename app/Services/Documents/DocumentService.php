@@ -83,6 +83,8 @@ class DocumentService
                     'is_official' => $data['is_official'] ?? true,
                     'version' => $data['version'] ?? 1,
                     'is_available' => $data['is_available'] ?? true,
+                    'service_date' => $data['service_date'] ?? null,
+                    'vehicle_id' => $data['vehicle_id'] ?? null,
                 ]);
             });
             /*

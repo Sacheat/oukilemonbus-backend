@@ -153,8 +153,8 @@ class TripReportService
                 aggregateId: $reservation->id,
                 eventType: $existing ? 'trip_report.updated' : 'trip_report.created',
                 actor: $actor,
-                oldValues: $existing?->only(['outcome', 'actual_departure_time', 'actual_return_time', 'actual_nb_children', 'actual_nb_adults', 'remarks']),
-                newValues: $report->only(['outcome', 'actual_departure_time', 'actual_return_time', 'actual_nb_children', 'actual_nb_adults', 'remarks'])
+                oldValues: $existing ? $this->auditValues($existing) : null,
+                newValues: $this->auditValues($report)
             );
 
             return $report;
@@ -165,6 +165,22 @@ class TripReportService
         }
 
         return $report->refresh()->load(['driver', 'reportedByUser']);
+    }
+
+    /**
+     * Valeurs journalisées : heures en HH:MM des deux côtés (la base renvoie HH:MM:SS, la requête HH:MM),
+     * pour ne pas faire apparaître de faux changements d'heure dans l'historique.
+     */
+    private function auditValues(TripReport $report): array
+    {
+        return [
+            'outcome' => $report->outcome?->value,
+            'actual_departure_time' => $report->actual_departure_time ? substr((string) $report->actual_departure_time, 0, 5) : null,
+            'actual_return_time' => $report->actual_return_time ? substr((string) $report->actual_return_time, 0, 5) : null,
+            'actual_nb_children' => $report->actual_nb_children,
+            'actual_nb_adults' => $report->actual_nb_adults,
+            'remarks' => $report->remarks,
+        ];
     }
 
     /** Fuseau des règles métier (config reservations.local_timezone). */
@@ -211,7 +227,8 @@ class TripReportService
         $actorName = trim($actor->first_name.' '.$actor->last_name);
 
         $this->notificationDispatchService->dispatch(
-            users: $this->notificationRecipientResolver->internalUsers(),
+            // L'auteur (agent ou admin qui saisit) n'est pas prévenu de sa propre déclaration
+            users: $this->notificationRecipientResolver->internalUsers()->reject(fn (User $user): bool => $user->is($actor)),
             eventKey: 'trip_report.not_realised',
             category: 'admin_workflow',
             title: 'Trajet non réalisé',

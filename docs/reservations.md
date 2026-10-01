@@ -206,8 +206,9 @@ réservation), à part du cycle de statuts : la réservation reste `confirme`.
   sans délai (rattrapage, correction). Avant l'heure de départ, ou trajet non `confirme` : 422.
 - Chaque compte rendu indique qui l'a rempli : `reported_by_name` et `reported_by_driver` (true si c'est le chauffeur
   du trajet, false pour un agent ou un admin).
-- Un `non_realise` (nouveau, ou qui le devient) notifie les agents et admins (`trip_report.not_realised`,
-  admin_workflow, priorité haute). Événements `trip_report.created` / `trip_report.updated`.
+- Un `non_realise` (nouveau, ou qui le devient) notifie les agents et admins, sauf l'auteur de la saisie
+  (`trip_report.not_realised`, admin_workflow, priorité haute). Événements `trip_report.created` /
+  `trip_report.updated`, heures en HH:MM dans les anciennes et nouvelles valeurs.
 
 7. Types d'approbation
 
