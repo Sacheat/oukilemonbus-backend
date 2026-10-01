@@ -37,3 +37,9 @@ Schedule::command('reservations:send-passenger-reminders')
     ->dailyAt('08:00')
     ->timezone('Europe/Brussels')
     ->withoutOverlapping();
+
+// Clôture des réservations non confirmées dont la date du trajet est dépassée (la veille ou avant)
+Schedule::command('reservations:close-expired')
+    ->dailyAt('00:15')
+    ->timezone('Europe/Brussels')
+    ->withoutOverlapping();

@@ -34,6 +34,7 @@ docker compose up -d
 | `app` | PHP-FPM 8.4 | — |
 | `nginx` | Reverse proxy | `8080` |
 | `queue` | Worker de queues | — |
+| `scheduler` | Tâches planifiées de `routes/console.php` (`schedule:work`, en `www-data`) : feuilles de route 20:00, rappels 08:00, clôture des réservations expirées 00:15… | — |
 | `mariadb` | Base de données | `3307` |
 | `adminer` | Interface base de données | `8081` |
 
@@ -275,6 +276,7 @@ docker compose exec app php artisan notifications:send-digests
 docker compose exec app php artisan notifications:prune
 docker compose exec app php artisan documents:prune-orphan-proofs --dry-run
 docker compose exec app php artisan reservations:send-passenger-reminders --dry-run
+docker compose exec -u www-data app php artisan reservations:close-expired --dry-run   # chaque nuit à 00:15
 
 # Outils (module Tooling)
 docker compose exec app php artisan dev:toolbox            # menu interactif (local/testing)

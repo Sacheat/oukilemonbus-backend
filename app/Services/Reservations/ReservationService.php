@@ -270,6 +270,12 @@ class ReservationService
 
     public function approve(Reservation $reservation, User $actor, ?string $reason = null): Reservation
     {
+        if ($reservation->hasTripDatePassed()) {
+            throw ValidationException::withMessages([
+                'reservation' => 'Le trajet est déjà passé : la réservation ne peut plus être approuvée.',
+            ]);
+        }
+
         $this->ensureCouncilDecisionAllowsApproval($reservation);
 
         return DB::transaction(function () use ($reservation, $actor, $reason): Reservation {
