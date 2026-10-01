@@ -5,6 +5,7 @@ namespace App\Services\Reservations;
 use App\Enums\OrganizationType;
 use App\Enums\ReservationStatus;
 use App\Models\Organization;
+use App\Models\Reservation;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -38,7 +39,7 @@ class ReservationQuotaService
         $pendingFutureCount = $organization->reservations()
             ->when($ignoreReservationId !== null, fn ($query) => $query->whereKeyNot($ignoreReservationId))
             ->whereIn('status', $pendingStatuses)
-            ->whereDate('trip_date', '>=', now()->toDateString())
+            ->whereDate('trip_date', '>=', Reservation::localToday())
             ->count();
 
         if ($pendingFutureCount >= config('reservations.max_pending_requests', 2)) {
@@ -50,7 +51,7 @@ class ReservationQuotaService
         $confirmedFutureCount = $organization->reservations()
             ->when($ignoreReservationId !== null, fn ($query) => $query->whereKeyNot($ignoreReservationId))
             ->where('status', ReservationStatus::CONFIRME->value)
-            ->whereDate('trip_date', '>=', now()->toDateString())
+            ->whereDate('trip_date', '>=', Reservation::localToday())
             ->count();
 
         if ($confirmedFutureCount >= config('reservations.max_confirmed_reservations', 2)) {

@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Enums\ApprovalType;
 use App\Enums\OrganizationType;
 use App\Enums\ReservationStatus;
+use App\Models\Driver;
 use App\Models\Location;
 use App\Models\Organization;
 use App\Models\Reservation;
@@ -17,6 +18,7 @@ use Database\Seeders\TestOrganizationsSeeder;
 use Database\Seeders\TestUsersSeeder;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Laravel\Sanctum\Sanctum;
 use Spatie\Permission\PermissionRegistrar;
 use Tests\TestCase;
@@ -109,6 +111,26 @@ class ReservationExpirationTest extends TestCase
         }
 
         $this->assertSame(ReservationStatus::ANNULE, $reservation->refresh()->status);
+    }
+
+    public function test_assigned_driver_receives_a_mission_message(): void
+    {
+        $reservation = $this->reservation($this->organization(OrganizationType::ASBL), '2026-06-12', ReservationStatus::APPROUVE);
+        $chauffeur = $this->user('chauffeur.test@bus-communal.local');
+        $reservation->update(['driver_id' => Driver::query()->where('user_id', $chauffeur->id)->firstOrFail()->id]);
+
+        $this->artisan('reservations:close-expired')->assertSuccessful();
+
+        $titles = fn (User $user) => DB::table('notifications')
+            ->where('notifiable_type', User::class)
+            ->where('notifiable_id', $user->id)
+            ->pluck('data')
+            ->map(fn (string $data) => json_decode($data, true)['title'] ?? null)
+            ->all();
+
+        $this->assertContains('Mission annulée', $titles($chauffeur));
+        $this->assertNotContains('Réservation clôturée', $titles($chauffeur));
+        $this->assertContains('Réservation clôturée', $titles($this->user('user.test@bus-communal.local')));
     }
 
     public function test_dry_run_closes_nothing(): void

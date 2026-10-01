@@ -74,6 +74,7 @@ statusStatut de la réservation
 approval_typeType d'approbation
 passengers_confirmed_atHorodatage de confirmation de la liste des passagers (nullable)
 recurrence_idLien vers la récurrence parente si la réservation fait partie d'une série (nullable)
+council_decision_status(API seulement) État de la décision du Collège : approuve, refuse, en_attente, ou null sans décision. Renvoyé par GET /reservations et GET /reservations/{id} uniquement (relation councilDecision chargée), absent des autres réponses
 4. Sens métier de return_time
 
 Point important :
@@ -157,12 +158,38 @@ Selon le type d'organisation et les règles métier, certaines réservations peu
   « Le délai de cette réservation est désormais dépassé : elle a été clôturée. Pour plus d’informations, veuillez
   contacter un agent. » ; historique de statut avec `changed_by_user_id` null (migration 2026_10_01_000001) ;
   événement `reservation.expired`.
-- Notifications : le demandeur et le chauffeur éventuellement affecté (`reservation.expired`, catégorie
-  reservation_updates) ; un récapitulatif unique pour les agents et admins actifs (`reservation.expired.summary`,
+- Notifications : le demandeur (« Réservation clôturée ») et le chauffeur éventuellement affecté, avec un message
+  propre à sa mission (« Mission annulée ») (`reservation.expired`, catégorie reservation_updates) ; un récapitulatif unique pour les agents et admins actifs (`reservation.expired.summary`,
   catégorie admin_workflow), avec la liste des réservations clôturées.
 - `--dry-run` : liste les réservations concernées sans rien clôturer.
 
-6.2 Compte rendu de trajet (chauffeur)
+6.2 Dates des règles métier : toujours à Bruxelles
+
+L'application tourne en UTC, mais `trip_date` et `departure_time` sont des heures murales de Bruxelles. Toute règle
+qui dépend d'« aujourd'hui » ou de « maintenant » passe donc par :
+
+- `Reservation::localToday()` pour le jour : préavis de 15 jours (réservations et récurrences), plafonds de demandes
+  futures (quotas), annulation de la commune (au plus tard la veille), suite d'une récurrence à annuler, rappels
+  passagers, feuille de route du jour, tableau de bord ;
+- `$reservation->departureAt()` pour l'instant du départ (fuseau de Bruxelles), comparé à `now()` : annulation par le
+  demandeur (24h avant le départ) et détection d'une annulation de dernière minute.
+
+Ne jamais utiliser `now()->toDateString()`, `today()` ou `isToday()` pour ces règles : entre minuit et 1h/2h à
+Bruxelles, le jour UTC est encore la veille.
+
+6.3 Préavis de 15 jours : création et modification
+
+- Création (POST /reservations, POST /recurrences) : préavis de 15 jours pour tout le monde, agents compris.
+- Modification d'une réservation existante (PATCH /reservations/{id}, et POST /reservations/preview ou
+  /reservations/check-trip avec `reservation_id`) :
+  - rôle interne (admin, agent_communal) : pas de préavis, pour régler les conflits tardifs (indisponibilité déclarée
+    à J-3, chevauchement à décaler, lieu à corriger) ;
+  - externe (demandeur, responsable) : préavis appliqué seulement si `trip_date` change.
+- Règle unique : `ReservationPreviewService::minimumNoticeAppliesToEdit()`, qui pose `skip_minimum_notice` dans les
+  données du preview (clé interne, jamais lue depuis la requête).
+- Toutes les autres règles bloquantes restent appliquées (week-end, jour fermé, distance, pays, capacité, quota…).
+
+6.4 Compte rendu de trajet (chauffeur)
 
 Cahier des charges §3 : le chauffeur « réalise et confirme les trajets ». Table `trip_reports` (une ligne par
 réservation), à part du cycle de statuts : la réservation reste `confirme`.

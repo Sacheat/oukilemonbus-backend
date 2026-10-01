@@ -55,9 +55,7 @@ class DashboardService
 
     private function today(): CarbonImmutable
     {
-        return CarbonImmutable::parse(
-            CarbonImmutable::now(config('reservations.local_timezone', 'Europe/Brussels'))->toDateString()
-        );
+        return CarbonImmutable::parse(Reservation::localToday());
     }
 
     private function activeReservations(): Builder

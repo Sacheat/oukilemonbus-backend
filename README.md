@@ -73,6 +73,8 @@ docker compose exec app php artisan migrate
 docker compose exec app php artisan db:seed   # rôles/permissions + comptes et données de test (APP_ENV=local)
 ```
 
+Utilisateur des processus : php-fpm et le worker de file (`queue`) tournent en `www-data`, pour que les fichiers générés en tâche de fond (exports du planning, feuilles de route…) restent lisibles par l'API. Un `docker compose exec app php artisan …` tourne en root : pour une commande qui écrit dans `storage/` (génération de documents, cache des vues…), préférer `docker compose exec -u www-data app php artisan …`. Au démarrage, l'entrypoint remet `storage/` et `bootstrap/cache/` à `www-data`.
+
 Comptes de test créés en local (mot de passe `password`) : `admin`, `agent`, `reviewer`, `responsable`, `user`, `chauffeur` `.test@bus-communal.local` (`responsable` a le rôle `user` et est responsable de l'ASBL Les Amis du Parc).
 En production, ne lancer que `db:seed --class=RolesAndPermissionsSeeder`.
 
@@ -137,7 +139,7 @@ La référence complète pour le frontend (paramètres, réponses, règles méti
 | Demandes d'adhésion | `GET /user-org-requests/available-organizations`, `GET /user-org-requests`, `GET /{id}`, `POST /user-org-requests`, `PATCH /{id}/approve`, `PATCH /{id}/reject`, `POST /{id}/proof`, `DELETE /{id}/proof` |
 | Chauffeurs | `GET /drivers`, `GET /drivers/{driver}`, `POST /drivers`, `PATCH /drivers/{driver}`, `/activate`, `/deactivate` |
 | Véhicules | `GET /vehicles`, `GET /vehicles/{vehicle}`, `POST /vehicles`, `PATCH /vehicles/{vehicle}`, `/activate`, `/deactivate` |
-| Réservations | `GET /reservations` (filtres `status` ou `statuses[]`, `q`, `organization_id`, `date_from`, `date_to`, `council=a_decider`, `sort`), `GET /reservations/{reservation}`, `POST /reservations/preview`, `POST /reservations`, `PATCH /reservations/{reservation}`, `/approve`, `/reject`, `/cancel`, `/assign`, `/confirm`, `/retry-assign`, `/confirm-passengers` |
+| Réservations | `GET /reservations` (filtres `status` ou `statuses[]`, `q`, `organization_id`, `date_from`, `date_to`, `council=a_decider`, `sort` ; chaque ligne porte `council_decision_status`), `GET /reservations/{reservation}` (avec `council_decision_status`), `POST /reservations/preview`, `POST /reservations`, `PATCH /reservations/{reservation}` (préavis de 15 jours levé pour un agent, et pour un externe si la date ne change pas ; voir docs/reservations.md §6.3), `/approve`, `/reject`, `/cancel`, `/assign`, `/confirm`, `/retry-assign`, `/confirm-passengers` |
 | Conflits | `GET /reservations/{reservation}/conflicts`, `PATCH /reservations/{reservation}/conflicts/{conflict}/resolve` |
 | Comptes rendus de trajet | `GET /trip-reports?reservation_ids[]=`, `GET /reservations/{reservation}/trip-report`, `PUT /reservations/{reservation}/trip-report` |
 | Récurrences | `GET /recurrences`, `POST /recurrences/preview`, `POST /recurrences`, `GET /recurrences/{recurrence}`, `PATCH /recurrences/{recurrence}/cancel` |

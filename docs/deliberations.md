@@ -67,7 +67,8 @@ et la liste ne peuvent pas diverger.
 - POST /api/council-decisions pour un trajet passé : 422 sur `reservation`.
 - PATCH /api/council-decisions/{id} pour un trajet passé : statut, date et référence sont figés (422 sur `reservation`
   si l'un d'eux change) ; seules les `notes` sont mises à jour, sans réappliquer les conséquences ni régénérer la
-  délibération (événement `council_decision.notes_updated`).
+  délibération (événement `council_decision.notes_updated`, seulement si les notes changent). La date est comparée
+  au jour près : `2026-06-10` et `2026-06-10T00:00:00Z` sont la même date.
 
 4. Décisions du Collège
 

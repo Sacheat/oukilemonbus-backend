@@ -149,6 +149,22 @@ class Reservation extends Model
         return CarbonImmutable::now(config('reservations.local_timezone', 'Europe/Brussels'))->toDateString();
     }
 
+    /**
+     * Départ du trajet comme instant réel : trip_date + departure_time sont des heures murales de Bruxelles,
+     * à comparer à now() (UTC) pour les délais en heures (annulation 24h avant le départ…).
+     */
+    public function departureAt(): ?CarbonImmutable
+    {
+        if ($this->trip_date === null || $this->departure_time === null) {
+            return null;
+        }
+
+        return CarbonImmutable::parse(
+            $this->trip_date->toDateString().' '.$this->departure_time->format('H:i:s'),
+            config('reservations.local_timezone', 'Europe/Brussels')
+        );
+    }
+
     /** Le jour du trajet est passé : strictement avant aujourd'hui à Bruxelles (le jour même n'est pas passé). */
     public function hasTripDatePassed(): bool
     {
