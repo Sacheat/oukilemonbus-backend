@@ -18,6 +18,7 @@ use Database\Seeders\TestOrganizationsSeeder;
 use Database\Seeders\TestUsersSeeder;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Laravel\Sanctum\Sanctum;
 use Spatie\Permission\PermissionRegistrar;
@@ -172,6 +173,22 @@ class CouncilDecisionApiTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.notes', 'Note corrigée après le trajet.')
             ->assertJsonPath('data.decision_status', CouncilDecisionStatus::APPROUVE->value);
+
+        // Même date envoyée en ISO avec l'heure, mêmes notes : accepté, sans nouvel événement d'audit
+        $this->patchJson("/api/council-decisions/{$decision->id}", [
+            ...$unchanged,
+            'decision_date' => '2026-06-01T00:00:00Z',
+            'notes' => 'Note corrigée après le trajet.',
+        ])->assertOk();
+        $this->assertSame(1, DB::table('domain_events')
+            ->where('aggregate_type', 'council_decision')
+            ->where('aggregate_id', $decision->id)
+            ->where('event_type', 'council_decision.notes_updated')
+            ->count());
+
+        $this->patchJson("/api/council-decisions/{$decision->id}", [...$unchanged, 'decision_date' => '2026-06-02'])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('reservation');
 
         $this->patchJson("/api/council-decisions/{$decision->id}", [...$unchanged, 'decision_status' => CouncilDecisionStatus::REFUSE->value])
             ->assertUnprocessable()
