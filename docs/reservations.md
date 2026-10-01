@@ -74,6 +74,7 @@ statusStatut de la réservation
 approval_typeType d'approbation
 passengers_confirmed_atHorodatage de confirmation de la liste des passagers (nullable)
 recurrence_idLien vers la récurrence parente si la réservation fait partie d'une série (nullable)
+council_decision_status(API seulement) État de la décision du Collège : approuve, refuse, en_attente, ou null sans décision. Renvoyé par GET /reservations et GET /reservations/{id} uniquement (relation councilDecision chargée), absent des autres réponses
 4. Sens métier de return_time
 
 Point important :
