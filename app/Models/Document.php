@@ -27,6 +27,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
     'is_official',
     'version',
     'is_available',
+    'service_date',
+    'vehicle_id',
 ])]
 /**
  * Document généré (feuille de route, délibération, export planning).
@@ -64,6 +66,12 @@ class Document extends Model
         return $this->hasMany(DocumentAccessLog::class);
     }
 
+    /** Feuille de route journalière : véhicule couvert (avec service_date) */
+    public function vehicle(): BelongsTo
+    {
+        return $this->belongsTo(Vehicle::class);
+    }
+
     public function routeSheetReservations(): BelongsToMany
     {
         return $this->belongsToMany(Reservation::class, 'document_reservation')
@@ -82,6 +90,7 @@ class Document extends Model
             'is_official' => 'boolean',
             'version' => 'integer',
             'is_available' => 'boolean',
+            'service_date' => 'date',
         ];
     }
 }

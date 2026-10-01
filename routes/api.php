@@ -19,6 +19,7 @@ use App\Http\Controllers\Api\RecurrenceController;
 use App\Http\Controllers\Api\ReservationConflictController;
 use App\Http\Controllers\Api\TripReportController;
 use App\Http\Controllers\Api\ReservationController;
+use App\Http\Controllers\Api\RouteSheetController;
 use App\Http\Controllers\Api\RouteSheetDocumentController;
 use App\Http\Controllers\Api\UnavailabilityController;
 use App\Http\Controllers\Api\UnavailabilityHistoryController;
@@ -484,6 +485,10 @@ Route::name('api.')->group(function (): void {
          */
         Route::middleware('permission:documents.view')->group(function (): void {
             Route::get('/documents', [DocumentController::class, 'index'])->name('documents.index');
+
+            // Espace chauffeur : feuilles officielles (paginées) et feuille de la semaine en PDF (RouteSheetController)
+            Route::get('/route-sheets', [RouteSheetController::class, 'index'])->name('route-sheets.index');
+            Route::get('/route-sheets/driver', [RouteSheetController::class, 'driverWeek'])->name('route-sheets.driver');
         });
 
         Route::get('/documents/{document}/download', [DocumentController::class, 'download'])

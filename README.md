@@ -144,6 +144,7 @@ La référence complète pour le frontend (paramètres, réponses, règles méti
 | Planning | `GET /planning`, `GET /planning/export` (fichier), `POST /planning/exports` (asynchrone), `GET /planning/exports/{id}` |
 | Décisions du Collège | `GET /council-decisions` (filtres `reservation_id`, `decision_status`), `GET /{councilDecision}`, `POST /council-decisions`, `PATCH /{councilDecision}`, `POST /{councilDecision}/generate-document` |
 | Documents | `GET /documents`, `GET /documents/{document}`, `GET /documents/{document}/download`, `GET /documents/{document}/signed-download` (lien signé), `POST /documents/route-sheets/generate` |
+| Feuilles de route (espace chauffeur) | `GET /route-sheets` (officielles, dernière version, paginées), `GET /route-sheets/driver?week=` (PDF de la semaine d'un chauffeur, à la demande) |
 | Indisponibilités | `GET /unavailabilities`, `GET /{unavailability}`, `POST /unavailabilities`, `PATCH /{unavailability}`, `PATCH /{unavailability}/cancel`, `GET /{unavailability}/history`, `GET /{unavailability}/history/{history}` |
 | Notifications | `GET /notifications`, `/summary`, `/unread-count`, `/health`, `PATCH /notifications/{id}/read`, `PATCH /notifications/read`, `/read-by-filter`, `/read-all` |
 | Préférences de notification | `GET /notifications/preferences`, `PATCH /notifications/preferences` |
