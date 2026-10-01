@@ -102,7 +102,7 @@ class Recurrence extends Model
     {
         return [
             'reservations as next_trip_date' => fn ($q) => $q
-                ->whereDate('trip_date', '>=', now()->toDateString())
+                ->whereDate('trip_date', '>=', Reservation::localToday())
                 ->whereIn('status', array_map(fn (ReservationStatus $s) => $s->value, self::ACTIVE_STATUSES)),
         ];
     }

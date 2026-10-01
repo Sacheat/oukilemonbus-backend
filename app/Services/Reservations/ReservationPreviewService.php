@@ -389,7 +389,7 @@ class ReservationPreviewService
 
     private function ensureMinimumNotice(string $tripDate): void
     {
-        $minimumDate = now()->startOfDay()->addDays((int) config('reservations.min_notice_days', 15));
+        $minimumDate = CarbonImmutable::parse(Reservation::localToday())->addDays((int) config('reservations.min_notice_days', 15));
 
         if (CarbonImmutable::parse($tripDate)->startOfDay()->lessThan($minimumDate)) {
             throw ValidationException::withMessages([

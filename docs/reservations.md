@@ -162,6 +162,20 @@ Selon le type d'organisation et les règles métier, certaines réservations peu
   catégorie admin_workflow), avec la liste des réservations clôturées.
 - `--dry-run` : liste les réservations concernées sans rien clôturer.
 
+6.2 Dates des règles métier : toujours à Bruxelles
+
+L'application tourne en UTC, mais `trip_date` et `departure_time` sont des heures murales de Bruxelles. Toute règle
+qui dépend d'« aujourd'hui » ou de « maintenant » passe donc par :
+
+- `Reservation::localToday()` pour le jour : préavis de 15 jours (réservations et récurrences), plafonds de demandes
+  futures (quotas), annulation de la commune (au plus tard la veille), suite d'une récurrence à annuler, rappels
+  passagers, feuille de route du jour, tableau de bord ;
+- `$reservation->departureAt()` pour l'instant du départ (fuseau de Bruxelles), comparé à `now()` : annulation par le
+  demandeur (24h avant le départ) et détection d'une annulation de dernière minute.
+
+Ne jamais utiliser `now()->toDateString()`, `today()` ou `isToday()` pour ces règles : entre minuit et 1h/2h à
+Bruxelles, le jour UTC est encore la veille.
+
 7. Types d'approbation
 
 Le champ approval_type permet de distinguer le type de validation.
