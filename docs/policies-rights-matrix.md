@@ -203,6 +203,11 @@ Pour la V1, `confirme` est considere actif mais beaucoup d'actions metier seront
 - Autorise seulement `admin` et `agent_communal`.
 - Autorise seulement sur reservation active.
 
+`trip-report` (compte rendu de trajet, TripReportService, pas de Policy dédiée)
+
+- Voir : `trip-reports.manage`, ou `trip-reports.submit` et être le chauffeur affecté (403 sinon).
+- Déclarer ou corriger : réservation `confirme` (422 sinon) ; `trip-reports.manage` dès l'heure de départ, sans délai ; `trip-reports.submit` pour le chauffeur affecté, de l'heure de départ jusqu'au lendemain 12:00, heure de Bruxelles (422 avant ou après ; avant le départ, 422 aussi pour un agent).
+
 ### Filtre de liste obligatoire
 
 La route `GET /api/reservations` ne doit jamais retourner toutes les reservations puis compter sur les resources pour masquer les donnees.

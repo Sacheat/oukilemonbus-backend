@@ -162,6 +162,26 @@ Selon le type d'organisation et les règles métier, certaines réservations peu
   catégorie admin_workflow), avec la liste des réservations clôturées.
 - `--dry-run` : liste les réservations concernées sans rien clôturer.
 
+6.2 Compte rendu de trajet (chauffeur)
+
+Cahier des charges §3 : le chauffeur « réalise et confirme les trajets ». Table `trip_reports` (une ligne par
+réservation), à part du cycle de statuts : la réservation reste `confirme`.
+
+- PUT /api/reservations/{id}/trip-report : `outcome` = `realise` (heures réelles `actual_departure_time`,
+  `actual_return_time` en HH:MM, passagers réels `actual_nb_children`, `actual_nb_adults`, `remarks` facultatif) ou
+  `non_realise` (`remarks` obligatoire, champs réels mis à null). 201 à la création, 200 à la mise à jour.
+- GET /api/reservations/{id}/trip-report : `data` (compte rendu ou null) et `meta` (`driver_window_opens_at`,
+  `driver_window_closes_at` en heure locale sans fuseau, `can_submit` : l'utilisateur connecté peut-il déclarer
+  maintenant).
+- GET /api/trip-reports?reservation_ids[]=… (1 à 100) : comptes rendus visibles (chauffeur : les siens), pour les badges.
+- Qui et quand : chauffeur affecté (`trip-reports.submit`), compte rendu attendu le jour même, possible de l'heure de
+  départ jusqu'au lendemain 12:00 (Europe/Brussels) ; agent et admin (`trip-reports.manage`) dès l'heure de départ,
+  sans délai (rattrapage, correction). Avant l'heure de départ, ou trajet non `confirme` : 422.
+- Chaque compte rendu indique qui l'a rempli : `reported_by_name` et `reported_by_driver` (true si c'est le chauffeur
+  du trajet, false pour un agent ou un admin).
+- Un `non_realise` (nouveau, ou qui le devient) notifie les agents et admins (`trip_report.not_realised`,
+  admin_workflow, priorité haute). Événements `trip_report.created` / `trip_report.updated`.
+
 7. Types d'approbation
 
 Le champ approval_type permet de distinguer le type de validation.

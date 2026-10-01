@@ -105,6 +105,12 @@ class Reservation extends Model
         return $this->hasOne(CouncilDecision::class);
     }
 
+    /** Compte rendu du trajet par le chauffeur (réalisé / non réalisé), voir TripReportService. */
+    public function tripReport(): HasOne
+    {
+        return $this->hasOne(TripReport::class);
+    }
+
     public function documents(): HasMany
     {
         return $this->hasMany(Document::class);

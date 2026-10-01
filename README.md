@@ -139,6 +139,7 @@ La référence complète pour le frontend (paramètres, réponses, règles méti
 | Véhicules | `GET /vehicles`, `GET /vehicles/{vehicle}`, `POST /vehicles`, `PATCH /vehicles/{vehicle}`, `/activate`, `/deactivate` |
 | Réservations | `GET /reservations` (filtres `status` ou `statuses[]`, `q`, `organization_id`, `date_from`, `date_to`, `council=a_decider`, `sort`), `GET /reservations/{reservation}`, `POST /reservations/preview`, `POST /reservations`, `PATCH /reservations/{reservation}`, `/approve`, `/reject`, `/cancel`, `/assign`, `/confirm`, `/retry-assign`, `/confirm-passengers` |
 | Conflits | `GET /reservations/{reservation}/conflicts`, `PATCH /reservations/{reservation}/conflicts/{conflict}/resolve` |
+| Comptes rendus de trajet | `GET /trip-reports?reservation_ids[]=`, `GET /reservations/{reservation}/trip-report`, `PUT /reservations/{reservation}/trip-report` |
 | Récurrences | `GET /recurrences`, `POST /recurrences/preview`, `POST /recurrences`, `GET /recurrences/{recurrence}`, `PATCH /recurrences/{recurrence}/cancel` |
 | Planning | `GET /planning`, `GET /planning/export` (fichier), `POST /planning/exports` (asynchrone), `GET /planning/exports/{id}` |
 | Décisions du Collège | `GET /council-decisions` (filtres `reservation_id`, `decision_status`), `GET /{councilDecision}`, `POST /council-decisions`, `PATCH /{councilDecision}`, `POST /{councilDecision}/generate-document` |
