@@ -49,7 +49,8 @@ class TripReportService
         $tripDate = $reservation->trip_date->toDateString();
 
         return [
-            'opens_at' => CarbonImmutable::parse($tripDate.' '.$reservation->departure_time->format('H:i:s'), $timezone),
+            // Heure de départ à Bruxelles (même calcul que les autres délais : Reservation::departureAt)
+            'opens_at' => $reservation->departureAt(),
             'closes_at' => CarbonImmutable::parse($tripDate.' '.self::DRIVER_GRACE_UNTIL, $timezone)->addDay(),
         ];
     }

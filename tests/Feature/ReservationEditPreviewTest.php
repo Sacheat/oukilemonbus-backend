@@ -114,6 +114,62 @@ class ReservationEditPreviewTest extends TestCase
             ->assertJsonPath('data.trip_date', '2026-05-13');
     }
 
+    public function test_agent_can_modify_a_reservation_inside_the_minimum_notice(): void
+    {
+        // Lundi 20/04 : le jeudi 23/04 est à J+3, bien en deçà des 15 jours de préavis
+        $reservation = $this->reservation('2026-04-23');
+        Sanctum::actingAs(User::query()->where('email', 'agent.test@bus-communal.local')->firstOrFail());
+
+        $this->postJson('/api/reservations/check-trip', $this->tripPayload(['trip_date' => '2026-04-23', 'reservation_id' => $reservation->id]))
+            ->assertOk();
+        $this->postJson('/api/reservations/preview', $this->previewPayload(['trip_date' => '2026-04-22', 'reservation_id' => $reservation->id]))
+            ->assertOk();
+
+        $this->patchJson("/api/reservations/{$reservation->id}", ['departure_time' => '10:00', 'return_time' => '12:00'])
+            ->assertOk()
+            ->assertJsonPath('data.departure_time', '10:00:00');
+
+        // Les autres règles bloquantes restent : samedi 25/04 refusé
+        $this->patchJson("/api/reservations/{$reservation->id}", ['trip_date' => '2026-04-25'])
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.trip_date', ['Les réservations ne sont pas autorisées le week-end.']);
+    }
+
+    public function test_external_user_keeps_the_minimum_notice_only_when_the_trip_date_changes(): void
+    {
+        // Jeudi 30/04 = J+10
+        $reservation = $this->reservation('2026-04-30');
+        Sanctum::actingAs($this->manager);
+
+        // Date inchangée : accepté
+        $this->postJson('/api/reservations/check-trip', $this->tripPayload(['trip_date' => '2026-04-30', 'reservation_id' => $reservation->id]))
+            ->assertOk();
+        $this->patchJson("/api/reservations/{$reservation->id}", ['trip_date' => '2026-04-30', 'trip_purpose' => 'Sortie au musée'])
+            ->assertOk()
+            ->assertJsonPath('data.trip_purpose', 'Sortie au musée');
+
+        // Nouvelle date à J+9 : préavis appliqué
+        $this->postJson('/api/reservations/preview', $this->previewPayload(['trip_date' => '2026-04-29', 'reservation_id' => $reservation->id]))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('trip_date');
+        $this->patchJson("/api/reservations/{$reservation->id}", ['trip_date' => '2026-04-29'])
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.trip_date', ['La demande doit être introduite au moins 15 jours avant la date souhaitée.']);
+
+        $this->assertSame('2026-04-30', $reservation->refresh()->trip_date->toDateString());
+    }
+
+    public function test_creation_keeps_the_minimum_notice_for_everyone(): void
+    {
+        foreach (['responsable.test@bus-communal.local', 'agent.test@bus-communal.local'] as $email) {
+            Sanctum::actingAs(User::query()->where('email', $email)->firstOrFail());
+
+            $this->postJson('/api/reservations', $this->previewPayload(['trip_date' => '2026-04-30']))
+                ->assertUnprocessable()
+                ->assertJsonPath('errors.trip_date', ['La demande doit être introduite au moins 15 jours avant la date souhaitée.']);
+        }
+    }
+
     public function test_user_who_cannot_update_the_reservation_gets_403(): void
     {
         $reservation = $this->reservation('2026-05-11');

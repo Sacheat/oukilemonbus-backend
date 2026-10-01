@@ -105,24 +105,33 @@ class ReservationExpirationService
 
     private function notifyRequesterAndDriver(Reservation $reservation): void
     {
-        $recipients = collect([
-            $this->notificationRecipientResolver->reservationRequester($reservation),
-            $this->notificationRecipientResolver->reservationDriverUser($reservation),
-        ])->filter()->unique('id')->values();
+        $requester = $this->notificationRecipientResolver->reservationRequester($reservation);
+        $driver = $this->notificationRecipientResolver->reservationDriverUser($reservation);
+        $tripDate = $reservation->trip_date->format('d/m/Y');
 
-        if ($recipients->isEmpty()) {
-            return;
+        if ($requester !== null) {
+            $this->notificationDispatchService->dispatch(
+                users: collect([$requester]),
+                eventKey: 'reservation.expired',
+                category: 'reservation_updates',
+                title: 'Réservation clôturée',
+                message: "Votre réservation #{$reservation->id} du {$tripDate} a été clôturée. ".self::CLOSING_REASON,
+                reservation: $reservation
+            );
         }
 
-        $this->notificationDispatchService->dispatch(
-            users: $recipients,
-            eventKey: 'reservation.expired',
-            category: 'reservation_updates',
-            title: 'Réservation clôturée',
-            message: "Votre réservation #{$reservation->id} du {$reservation->trip_date->format('d/m/Y')} a été clôturée. "
-                .self::CLOSING_REASON,
-            reservation: $reservation
-        );
+        // Le chauffeur n'est pas le demandeur : message propre à sa mission (sauf s'il est aussi le demandeur)
+        if ($driver !== null && $driver->id !== $requester?->id) {
+            $this->notificationDispatchService->dispatch(
+                users: collect([$driver]),
+                eventKey: 'reservation.expired',
+                category: 'reservation_updates',
+                title: 'Mission annulée',
+                message: "La mission liée à la réservation #{$reservation->id} du {$tripDate} est annulée : "
+                    .'la réservation n’a pas été confirmée avant la date du trajet et a été clôturée automatiquement.',
+                reservation: $reservation
+            );
+        }
     }
 
     /** Un seul récapitulatif par clôture, pour tous les agents et admins actifs. */

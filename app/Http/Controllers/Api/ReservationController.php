@@ -18,6 +18,7 @@ use App\Http\Requests\Reservations\UpdateReservationRequest;
 use App\Http\Resources\ReservationResource;
 use App\Models\Organization;
 use App\Models\Reservation;
+use App\Models\User;
 use App\Services\Reservations\ReservationAssignmentService;
 use App\Services\Reservations\ReservationPreviewService;
 use App\Services\Reservations\ReservationService;
@@ -52,7 +53,7 @@ class ReservationController extends Controller
 
         return ReservationResource::collection(
             Reservation::query()
-                ->with(['organization', 'pickupLocation', 'destinationLocation', 'driver', 'vehicle', 'conflicts'])
+                ->with(['organization', 'pickupLocation', 'destinationLocation', 'driver', 'vehicle', 'conflicts', 'councilDecision'])
                 // Le scope visibleTo filtre selon le rôle : admin/agent voit tout ; les autres voient
                 // leurs réservations et celles de leurs organisations, le chauffeur celles où il est assigné.
                 ->visibleTo($user)
@@ -74,7 +75,7 @@ class ReservationController extends Controller
 
     public function preview(PreviewReservationRequest $request): JsonResponse
     {
-        $preview = $this->previewService->preview($this->previewPayload($request->validated()));
+        $preview = $this->previewService->preview($this->previewPayload($request->validated(), $request->user()));
 
         return response()->json(['data' => $preview]);
     }
@@ -85,7 +86,7 @@ class ReservationController extends Controller
      */
     public function checkTrip(CheckTripRequest $request): JsonResponse
     {
-        return response()->json(['data' => $this->previewService->checkTrip($this->previewPayload($request->validated()))]);
+        return response()->json(['data' => $this->previewService->checkTrip($this->previewPayload($request->validated(), $request->user()))]);
     }
 
     /**
@@ -94,9 +95,10 @@ class ReservationController extends Controller
      * Création : l'utilisateur doit pouvoir réserver pour l'organisation.
      * Modification (reservation_id fourni) : il doit pouvoir modifier cette réservation (403 sinon),
      * l'organisation doit être la sienne (422 sinon), et la réservation est exclue des calculs
-     * de chevauchement et de quota — exactement comme lors du PATCH.
+     * de chevauchement et de quota, et le préavis suit ReservationPreviewService::minimumNoticeAppliesToEdit
+     * — exactement comme lors du PATCH.
      */
-    private function previewPayload(array $validated): array
+    private function previewPayload(array $validated, User $user): array
     {
         $organization = Organization::findOrFail($validated['organization_id']);
         Gate::authorize('createForOrganization', [Reservation::class, $organization]);
@@ -117,6 +119,7 @@ class ReservationController extends Controller
         return [
             ...Arr::except($validated, ['reservation_id']),
             'ignore_reservation_id' => $reservation->getKey(),
+            'skip_minimum_notice' => ! $this->previewService->minimumNoticeAppliesToEdit($reservation, $validated['trip_date'], $user),
         ];
     }
 
@@ -157,7 +160,7 @@ class ReservationController extends Controller
         Gate::authorize('view', $reservation);
 
         return new ReservationResource(
-            $reservation->load(['organization', 'pickupLocation', 'destinationLocation', 'driver', 'vehicle', 'conflicts'])
+            $reservation->load(['organization', 'pickupLocation', 'destinationLocation', 'driver', 'vehicle', 'conflicts', 'councilDecision'])
         );
     }
 

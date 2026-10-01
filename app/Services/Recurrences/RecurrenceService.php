@@ -7,6 +7,7 @@ use App\Enums\RecurrenceFrequency;
 use App\Enums\ReservationStatus;
 use App\Models\Organization;
 use App\Models\Recurrence;
+use App\Models\Reservation;
 use App\Models\User;
 use App\Services\Audit\DomainEventLogger;
 use App\Services\Logging\DomainLogger;
@@ -56,7 +57,7 @@ class RecurrenceService
         $skippedDates = [];
         $conflictsByDate = [];
         $minNotice = (int) config('reservations.min_notice_days', 15);
-        $minimumDate = now()->startOfDay()->addDays($minNotice);
+        $minimumDate = CarbonImmutable::parse(Reservation::localToday())->addDays($minNotice);
 
         foreach ($allDates as $date) {
             $skipReason = $this->skipReason($date);
@@ -211,7 +212,7 @@ class RecurrenceService
     public function cancelRemaining(Recurrence $recurrence, User $actor, string $reason): array
     {
         $toCancel = $recurrence->reservations()
-            ->whereDate('trip_date', '>=', now()->toDateString())
+            ->whereDate('trip_date', '>=', Reservation::localToday())
             ->whereNotIn('status', [ReservationStatus::REFUSE->value, ReservationStatus::ANNULE->value])
             ->orderBy('trip_date')
             ->get();

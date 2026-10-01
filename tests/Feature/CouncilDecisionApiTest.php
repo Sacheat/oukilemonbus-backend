@@ -9,6 +9,7 @@ use App\Models\CouncilDecision;
 use App\Models\Document;
 use App\Models\Location;
 use App\Models\Organization;
+use App\Models\Reservation;
 use App\Models\User;
 use App\Services\Documents\DeliberationDocumentService;
 use Database\Seeders\RolesAndPermissionsSeeder;
@@ -18,6 +19,7 @@ use Database\Seeders\TestOrganizationsSeeder;
 use Database\Seeders\TestUsersSeeder;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Laravel\Sanctum\Sanctum;
 use Spatie\Permission\PermissionRegistrar;
@@ -126,6 +128,32 @@ class CouncilDecisionApiTest extends TestCase
             ->assertJsonValidationErrors('council');
     }
 
+    public function test_reservation_list_and_detail_expose_the_council_decision_status(): void
+    {
+        $approvedDecision = $this->createCouncilDecisionForNonSchoolReservation();
+        $withoutDecision = $this->createCouncilDecisionForNonSchoolReservation('ASBL Sans Decision');
+        $reservationWithoutDecisionId = $withoutDecision->reservation_id;
+        $withoutDecision->delete();
+
+        Sanctum::actingAs($this->seededUser('agent.test@bus-communal.local'));
+
+        $listed = function (int $reservationId): array {
+            $organizationId = Reservation::query()->findOrFail($reservationId)->organization_id;
+
+            return collect($this->getJson("/api/reservations?organization_id={$organizationId}")->assertOk()->json('data'))
+                ->firstWhere('id', $reservationId);
+        };
+
+        $this->assertSame(CouncilDecisionStatus::APPROUVE->value, $listed($approvedDecision->reservation_id)['council_decision_status']);
+        // Pas de décision : la clé est présente et vaut null
+        $this->assertArrayHasKey('council_decision_status', $listed($reservationWithoutDecisionId));
+        $this->assertNull($listed($reservationWithoutDecisionId)['council_decision_status']);
+
+        $this->getJson("/api/reservations/{$approvedDecision->reservation_id}")
+            ->assertOk()
+            ->assertJsonPath('data.council_decision_status', CouncilDecisionStatus::APPROUVE->value);
+    }
+
     public function test_past_trips_are_no_longer_awaiting_council_decision(): void
     {
         $agent = $this->seededUser('agent.test@bus-communal.local');
@@ -172,6 +200,22 @@ class CouncilDecisionApiTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.notes', 'Note corrigée après le trajet.')
             ->assertJsonPath('data.decision_status', CouncilDecisionStatus::APPROUVE->value);
+
+        // Même date envoyée en ISO avec l'heure, mêmes notes : accepté, sans nouvel événement d'audit
+        $this->patchJson("/api/council-decisions/{$decision->id}", [
+            ...$unchanged,
+            'decision_date' => '2026-06-01T00:00:00Z',
+            'notes' => 'Note corrigée après le trajet.',
+        ])->assertOk();
+        $this->assertSame(1, DB::table('domain_events')
+            ->where('aggregate_type', 'council_decision')
+            ->where('aggregate_id', $decision->id)
+            ->where('event_type', 'council_decision.notes_updated')
+            ->count());
+
+        $this->patchJson("/api/council-decisions/{$decision->id}", [...$unchanged, 'decision_date' => '2026-06-02'])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('reservation');
 
         $this->patchJson("/api/council-decisions/{$decision->id}", [...$unchanged, 'decision_status' => CouncilDecisionStatus::REFUSE->value])
             ->assertUnprocessable()

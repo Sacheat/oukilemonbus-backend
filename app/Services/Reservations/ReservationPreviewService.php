@@ -11,6 +11,7 @@ use App\Exceptions\GeocodingException;
 use App\Models\Location;
 use App\Models\Organization;
 use App\Models\Reservation;
+use App\Models\User;
 use App\Models\Vehicle;
 use App\Services\Locations\LocationService;
 use App\Services\Locations\MunicipalityService;
@@ -23,7 +24,8 @@ use Illuminate\Validation\ValidationException;
  *
  * Pipeline de vérifications dans l'ordre :
  *   1. Organisation non bannie
- *   2. Délai minimum de préavis (configurable, défaut 15 j)
+ *   2. Délai minimum de préavis (configurable, défaut 15 j) ; levé pour la modification d'une réservation
+ *      existante si skip_minimum_notice (voir minimumNoticeAppliesToEdit())
  *   3. Date réservable (pas de week-end, pas de date fermée)
  *   4. Trajet belge uniquement
  *   5. Capacité fleet suffisante pour les passagers demandés
@@ -65,6 +67,21 @@ class ReservationPreviewService
         $this->logger = $logger ?? app(DomainLogger::class);
     }
 
+    /**
+     * Préavis de 15 jours lors de la modification d'une réservation existante (PATCH, preview et check-trip
+     * avec reservation_id) : jamais pour un rôle interne, qui règle des conflits tardifs ; pour un externe,
+     * seulement si la date du trajet change. La création garde toujours le préavis.
+     */
+    public function minimumNoticeAppliesToEdit(Reservation $reservation, ?string $tripDate, User $actor): bool
+    {
+        if ($actor->hasAnyRole(['admin', 'agent_communal'])) {
+            return false;
+        }
+
+        return $tripDate !== null
+            && CarbonImmutable::parse($tripDate)->toDateString() !== $reservation->trip_date?->toDateString();
+    }
+
     public function preview(array $data): array
     {
         return $this->evaluate($data, checkPassengers: true);
@@ -89,7 +106,7 @@ class ReservationPreviewService
 
         $this->ensureNoBlockingRule([
             fn () => $this->ensureOrganizationNotBanned($organization),
-            fn () => $this->ensureMinimumNotice($data['trip_date']),
+            fn () => ($data['skip_minimum_notice'] ?? false) ? null : $this->ensureMinimumNotice($data['trip_date']),
             fn () => $this->ensureBookableDate($data['trip_date']),
             fn () => $this->ensureBelgianTrip($pickup, $destination),
             fn () => $checkPassengers ? $this->ensureVehicleCapacity($data) : null,
@@ -389,7 +406,7 @@ class ReservationPreviewService
 
     private function ensureMinimumNotice(string $tripDate): void
     {
-        $minimumDate = now()->startOfDay()->addDays((int) config('reservations.min_notice_days', 15));
+        $minimumDate = CarbonImmutable::parse(Reservation::localToday())->addDays((int) config('reservations.min_notice_days', 15));
 
         if (CarbonImmutable::parse($tripDate)->startOfDay()->lessThan($minimumDate)) {
             throw ValidationException::withMessages([

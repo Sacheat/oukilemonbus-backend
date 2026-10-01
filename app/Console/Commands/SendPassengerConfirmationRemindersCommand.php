@@ -28,7 +28,7 @@ class SendPassengerConfirmationRemindersCommand extends Command
     ): int {
         $days = (int) $this->option('days');
         $dryRun = (bool) $this->option('dry-run');
-        $targetDate = CarbonImmutable::today()->addDays($days)->toDateString();
+        $targetDate = CarbonImmutable::parse(Reservation::localToday())->addDays($days)->toDateString();
 
         // On ne rappelle que les réservations entièrement affectées (chauffeur + véhicule)
         // dont le demandeur n'a pas encore validé la liste de passagers.

@@ -11,6 +11,8 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * `estimated_occupation` est calculé à la volée par ReservationOccupationService :
  * il inclut les buffers avant/après le trajet (pickup, dropoff, sécurité, retour).
  * Retourne null si trip_date, departure_time ou return_time est absent.
+ * `council_decision_status` n'est présent que si la relation councilDecision est chargée (GET /reservations et
+ * GET /reservations/{id}).
  */
 class ReservationResource extends JsonResource
 {
@@ -55,6 +57,11 @@ class ReservationResource extends JsonResource
             'driver' => new DriverResource($this->whenLoaded('driver')),
             'vehicle' => new VehicleResource($this->whenLoaded('vehicle')),
             'conflicts' => ReservationConflictResource::collection($this->whenLoaded('conflicts')),
+            // Seulement si councilDecision est chargée (liste et détail) : approuve, refuse, en_attente, ou null sans décision
+            'council_decision_status' => $this->whenLoaded(
+                'councilDecision',
+                fn () => $this->councilDecision->decision_status?->value
+            ),
         ];
     }
 

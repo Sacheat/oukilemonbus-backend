@@ -30,7 +30,13 @@ services:
     container_name: bus-communal-queue
     restart: unless-stopped
     working_dir: /var/www/html
-    command: php artisan queue:work --queue=${QUEUE_WORKER_QUEUES} --sleep=1 --tries=3 --timeout=120
+    # Le worker tourne en www-data, comme php-fpm : les fichiers qu'il crée (exports du planning, feuilles de route…)
+    # restent lisibles par l'API. En root, Laravel crée les dossiers privés en 0700 et le téléchargement répond 404.
+    # L'entrypoint reste en root pour remettre storage/ à www-data au démarrage.
+    # setpriv (et non runuser) remplace le processus : le worker reçoit SIGTERM directement et finit son job en cours
+    # (runuser tue l'enfant 2 s après SIGTERM). stop_grace_period couvre le --timeout=120 d'un job.
+    command: setpriv --reuid=www-data --regid=www-data --init-groups -- php artisan queue:work --queue=${QUEUE_WORKER_QUEUES} --sleep=1 --tries=3 --timeout=120
+    stop_grace_period: 130s
     volumes:
       - .:/var/www/html
     depends_on:
@@ -64,6 +70,7 @@ services:
   # Tâches planifiées de routes/console.php (feuilles de route, rappels, clôture des réservations expirées…),
   # comme le cron d'un serveur de production. En www-data, comme php-fpm et le worker : les fichiers créés
   # restent lisibles par l'API ; l'entrypoint (root) remet storage/ à www-data au démarrage.
+  # setpriv plutôt que runuser : voir le service queue (arrêt propre sur SIGTERM).
   scheduler:
     build:
       context: .
@@ -71,7 +78,7 @@ services:
     container_name: bus-communal-scheduler
     restart: unless-stopped
     working_dir: /var/www/html
-    command: runuser -u www-data -- php artisan schedule:work
+    command: setpriv --reuid=www-data --regid=www-data --init-groups -- php artisan schedule:work
     volumes:
       - .:/var/www/html
     depends_on:
