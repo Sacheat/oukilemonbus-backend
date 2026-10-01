@@ -9,6 +9,7 @@ use App\Models\CouncilDecision;
 use App\Models\Document;
 use App\Models\Location;
 use App\Models\Organization;
+use App\Models\Reservation;
 use App\Models\User;
 use App\Services\Documents\DeliberationDocumentService;
 use Database\Seeders\RolesAndPermissionsSeeder;
@@ -125,6 +126,32 @@ class CouncilDecisionApiTest extends TestCase
         $this->getJson('/api/reservations?council=autre')
             ->assertUnprocessable()
             ->assertJsonValidationErrors('council');
+    }
+
+    public function test_reservation_list_and_detail_expose_the_council_decision_status(): void
+    {
+        $approvedDecision = $this->createCouncilDecisionForNonSchoolReservation();
+        $withoutDecision = $this->createCouncilDecisionForNonSchoolReservation('ASBL Sans Decision');
+        $reservationWithoutDecisionId = $withoutDecision->reservation_id;
+        $withoutDecision->delete();
+
+        Sanctum::actingAs($this->seededUser('agent.test@bus-communal.local'));
+
+        $listed = function (int $reservationId): array {
+            $organizationId = Reservation::query()->findOrFail($reservationId)->organization_id;
+
+            return collect($this->getJson("/api/reservations?organization_id={$organizationId}")->assertOk()->json('data'))
+                ->firstWhere('id', $reservationId);
+        };
+
+        $this->assertSame(CouncilDecisionStatus::APPROUVE->value, $listed($approvedDecision->reservation_id)['council_decision_status']);
+        // Pas de décision : la clé est présente et vaut null
+        $this->assertArrayHasKey('council_decision_status', $listed($reservationWithoutDecisionId));
+        $this->assertNull($listed($reservationWithoutDecisionId)['council_decision_status']);
+
+        $this->getJson("/api/reservations/{$approvedDecision->reservation_id}")
+            ->assertOk()
+            ->assertJsonPath('data.council_decision_status', CouncilDecisionStatus::APPROUVE->value);
     }
 
     public function test_past_trips_are_no_longer_awaiting_council_decision(): void

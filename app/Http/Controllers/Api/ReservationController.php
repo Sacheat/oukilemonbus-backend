@@ -52,7 +52,7 @@ class ReservationController extends Controller
 
         return ReservationResource::collection(
             Reservation::query()
-                ->with(['organization', 'pickupLocation', 'destinationLocation', 'driver', 'vehicle', 'conflicts'])
+                ->with(['organization', 'pickupLocation', 'destinationLocation', 'driver', 'vehicle', 'conflicts', 'councilDecision'])
                 // Le scope visibleTo filtre selon le rôle : admin/agent voit tout ; les autres voient
                 // leurs réservations et celles de leurs organisations, le chauffeur celles où il est assigné.
                 ->visibleTo($user)
@@ -157,7 +157,7 @@ class ReservationController extends Controller
         Gate::authorize('view', $reservation);
 
         return new ReservationResource(
-            $reservation->load(['organization', 'pickupLocation', 'destinationLocation', 'driver', 'vehicle', 'conflicts'])
+            $reservation->load(['organization', 'pickupLocation', 'destinationLocation', 'driver', 'vehicle', 'conflicts', 'councilDecision'])
         );
     }
 
