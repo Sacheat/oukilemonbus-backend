@@ -17,6 +17,7 @@ use App\Http\Controllers\Api\PlanningController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\RecurrenceController;
 use App\Http\Controllers\Api\ReservationConflictController;
+use App\Http\Controllers\Api\TripReportController;
 use App\Http\Controllers\Api\ReservationController;
 use App\Http\Controllers\Api\RouteSheetDocumentController;
 use App\Http\Controllers\Api\UnavailabilityController;
@@ -444,6 +445,15 @@ Route::name('api.')->group(function (): void {
         Route::patch('/reservations/{reservation}/conflicts/{conflict}/resolve', [ReservationConflictController::class, 'resolve'])
             ->middleware('permission:reservations.manage-conflicts')
             ->name('reservations.conflicts.resolve');
+
+        /**
+         * Trip reports routes (compte rendu du trajet par le chauffeur, corrigeable par un agent)
+         */
+        Route::middleware('permission:trip-reports.submit|trip-reports.manage')->group(function (): void {
+            Route::get('/trip-reports', [TripReportController::class, 'index'])->name('trip-reports.index');
+            Route::get('/reservations/{reservation}/trip-report', [TripReportController::class, 'show'])->name('reservations.trip-report.show');
+            Route::put('/reservations/{reservation}/trip-report', [TripReportController::class, 'update'])->name('reservations.trip-report.update');
+        });
 
         /**
          * Council decisions routes

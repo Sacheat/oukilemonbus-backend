@@ -149,6 +149,15 @@ L'admin seul peut :
 | `reservations.confirm` | ✓ | ✓ | — | — |
 | `reservations.manage-conflicts` | ✓ | ✓ | — | — |
 
+### trip-reports
+
+| Permission | admin | agent | user | chauffeur |
+|---|:---:|:---:|:---:|:---:|
+| `trip-reports.submit` | ✓ | — | — | ✓ |
+| `trip-reports.manage` | ✓ | ✓ | — | — |
+
+`submit` : le chauffeur affecté déclare le compte rendu de son trajet, de l'heure de départ jusqu'au lendemain 12:00 (attendu le jour même). `manage` : voir, saisir et corriger tout compte rendu, dès l'heure de départ et sans délai (voir `docs/reservations.md` §6.2).
+
 ### council-decisions
 
 | Permission | admin | agent | user | chauffeur |
