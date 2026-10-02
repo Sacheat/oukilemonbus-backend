@@ -192,7 +192,7 @@
                 <div class="label">Semaine prévue</div>
                 <div class="value">{{ data_get($context, 'totals.missions') }} trajet(s), {{ data_get($context, 'totals.planned_passengers') }} passager(s)</div>
                 @if((float) data_get($context, 'totals.planned_distance_km', 0) > 0)
-                    <div>{{ number_format((float) data_get($context, 'totals.planned_distance_km'), 2, ',', ' ') }} km estimés</div>
+                    <div>{{ number_format((float) data_get($context, 'totals.planned_distance_km'), 2, ',', ' ') }} km estimés (aller-retour)</div>
                 @else
                     <div>Kilométrage non estimé</div>
                 @endif
@@ -216,7 +216,7 @@
                             <th style="width: 20%;">Départ</th>
                             <th style="width: 20%;">Destination</th>
                             <th style="width: 9%;">Passagers prévus</th>
-                            <th style="width: 5%;">Km</th>
+                            <th style="width: 5%;">Km A/R</th>
                             <th style="width: 10%;">Objet</th>
                         </tr>
                     </thead>
@@ -251,8 +251,8 @@
                                     <span class="small">{{ data_get($row, 'passengers.planned_children') }} enf. + {{ data_get($row, 'passengers.planned_adults') }} ad.</span>
                                 </td>
                                 <td class="center">
-                                    @if(data_get($row, 'distance_km') !== null)
-                                        {{ number_format((float) data_get($row, 'distance_km'), 1, ',', ' ') }}
+                                    @if(data_get($row, 'round_trip_km') !== null)
+                                        {{ number_format((float) data_get($row, 'round_trip_km'), 1, ',', ' ') }}
                                     @endif
                                 </td>
                                 <td>

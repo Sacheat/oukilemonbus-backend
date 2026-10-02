@@ -255,7 +255,7 @@ class RouteSheetContextBuilderTest extends TestCase
         $this->assertSame('Commune de Dinant - Service mobilite', $context['service']['transporter']['name']);
         $this->assertSame('LIC-TEST', $context['service']['transporter']['license_number']);
         $this->assertSame(12, $context['service']['total_passengers']);
-        $this->assertSame(12.5, $context['service']['total_distance_km']);
+        $this->assertSame(25.0, $context['service']['total_distance_km']); // aller-retour : 12,5 km × 2
         $this->assertSame('2029-06-18', $context['service']['retention_until']);
         $this->assertSame('Bruno Chauffeur', $context['service']['drivers'][0]['name']);
         $this->assertSame('DRV-001', $context['service']['drivers'][0]['licence_number']);

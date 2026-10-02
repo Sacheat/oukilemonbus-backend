@@ -68,7 +68,7 @@ class RouteSheetContextBuilder
             ->values()
             ->all();
 
-        $totalDistance = $reservations->sum(fn (Reservation $reservation): float => (float) ($reservation->distance_km ?? 0));
+        $totalDistance = $reservations->sum(fn (Reservation $reservation): float => $this->roundTripKm($reservation) ?? 0);
 
         return [
             'document' => [
@@ -227,7 +227,7 @@ class RouteSheetContextBuilder
             'totals' => [
                 'missions' => $reservations->count(),
                 'planned_passengers' => $reservations->sum(fn (Reservation $reservation): int => ($reservation->nb_children ?? 0) + ($reservation->nb_adults ?? 0)),
-                'planned_distance_km' => round($reservations->sum(fn (Reservation $reservation): float => (float) ($reservation->distance_km ?? 0)), 2),
+                'planned_distance_km' => round($reservations->sum(fn (Reservation $reservation): float => $this->roundTripKm($reservation) ?? 0), 2),
             ],
             'days' => $days,
         ];
@@ -305,8 +305,18 @@ class RouteSheetContextBuilder
                 'planned_total' => ($reservation->nb_children ?? 0) + ($reservation->nb_adults ?? 0),
             ],
             'distance_km' => $reservation->distance_km !== null ? (float) $reservation->distance_km : null,
+            'round_trip_km' => $this->roundTripKm($reservation),
             'purpose' => $reservation->trip_purpose,
         ];
+    }
+
+    /**
+     * Kilomètres du trajet sur une feuille de route : aller-retour. distance_km (ORS) ne mesure que l'aller,
+     * départ → destination ; le bus revient ensuite au lieu de départ. Null si la distance est inconnue.
+     */
+    private function roundTripKm(Reservation $reservation): ?float
+    {
+        return $reservation->distance_km !== null ? round((float) $reservation->distance_km * 2, 2) : null;
     }
 
     private function formatDriver(Driver $driver): array

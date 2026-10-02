@@ -173,7 +173,7 @@
                 <th style="width: 15%;">Retour / second départ</th>
                 <th style="width: 20%;">Itinéraire principal</th>
                 <th style="width: 7%;">Voyageurs</th>
-                <th style="width: 7%;">Km</th>
+                <th style="width: 7%;">Km A/R</th>
                 <th style="width: 8%;">Objet</th>
             </tr>
         </thead>
@@ -202,8 +202,8 @@
                     <td>{{ data_get($row, 'main_route') }}</td>
                     <td class="center">{{ data_get($row, 'passengers.planned_total') }}</td>
                     <td class="center">
-                        @if(data_get($row, 'distance_km') !== null)
-                            {{ number_format((float) data_get($row, 'distance_km'), 2, ',', ' ') }}
+                        @if(data_get($row, 'round_trip_km') !== null)
+                            {{ number_format((float) data_get($row, 'round_trip_km'), 2, ',', ' ') }}
                         @endif
                     </td>
                     <td>{{ data_get($row, 'purpose') }}</td>
@@ -227,7 +227,7 @@
         </div>
         <div class="summary-cell">
             <div class="box">
-                <div class="label">Kilométrage du service</div>
+                <div class="label">Kilométrage du service (aller-retour)</div>
                 <div class="value">{{ number_format((float) data_get($context, 'service.total_distance_km', 0), 2, ',', ' ') }} km</div>
             </div>
         </div>
