@@ -24,6 +24,10 @@ use Illuminate\Validation\ValidationException;
  * `reject()` : supprime le justificatif (inutile après refus) et notifie le demandeur.
  *
  * Seules les demandes EN_ATTENTE peuvent être traitées.
+ *
+ * Note de confiance (`confidence_note`, qui sert aussi au tri de la liste) : enregistrée à la création, rafraîchie par
+ * `refreshConfidenceNote()` quand le justificatif est ajouté ou supprimé (la SPA l'envoie après la création), puis figée
+ * à la décision : la note donnée par l'agent, sinon le score du moment (celui qu'il avait sous les yeux).
  */
 class UserOrgRequestService
 {
@@ -60,6 +64,28 @@ class UserOrgRequestService
         return $request->refresh();
     }
 
+    /**
+     * Recalcule et enregistre la note d'une demande EN_ATTENTE ; une demande traitée garde la note de sa décision.
+     *
+     * @return bool true si la note enregistrée a changé
+     */
+    public function refreshConfidenceNote(UserOrgRequest $request): bool
+    {
+        if (! $request->status->isPending()) {
+            return false;
+        }
+
+        $score = $this->confidenceScoreService->calculate($request);
+
+        if ($request->confidence_note === $score) {
+            return false;
+        }
+
+        $request->update(['confidence_note' => $score]);
+
+        return true;
+    }
+
     public function approve(UserOrgRequest $request, User $reviewer, ?int $confidenceNote = null): UserOrgRequest
     {
         $this->ensurePending($request);
@@ -78,7 +104,7 @@ class UserOrgRequestService
 
             $request->update([
                 'status' => RequestStatus::APPROUVE,
-                'confidence_note' => $confidenceNote ?? $request->confidence_note,
+                'confidence_note' => $confidenceNote ?? $this->confidenceScoreService->calculate($request),
                 'reviewed_by_user_id' => $reviewer->id,
                 'reviewed_at' => now(),
                 'rejection_reason' => null,
@@ -105,7 +131,7 @@ class UserOrgRequestService
 
         $request->update([
             'status' => RequestStatus::REFUSE,
-            'confidence_note' => $confidenceNote ?? $request->confidence_note,
+            'confidence_note' => $confidenceNote ?? $this->confidenceScoreService->calculate($request),
             'reviewed_by_user_id' => $reviewer->id,
             'reviewed_at' => now(),
             'rejection_reason' => $reason,

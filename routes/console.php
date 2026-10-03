@@ -33,6 +33,12 @@ Schedule::command('notifications:health --json')
     ->timezone('Europe/Brussels')
     ->withoutOverlapping();
 
+// Note de confiance enregistrée des demandes en attente (tri des files de demandes) : voir la commande.
+Schedule::command('requests:refresh-confidence-notes')
+    ->hourly()
+    ->timezone('Europe/Brussels')
+    ->withoutOverlapping();
+
 Schedule::command('reservations:send-passenger-reminders')
     ->dailyAt('08:00')
     ->timezone('Europe/Brussels')

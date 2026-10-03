@@ -1092,6 +1092,7 @@ return [
                 'Le demandeur est rattaché à cette organisation.',
                 'La demande passe au statut approuvé.',
                 'L’inspector conserve l’action POST malgré la redirection.',
+                'La note de confiance est figée au score du moment (calculé avant la création de l’organisation).',
             ],
         ],
 
@@ -1147,6 +1148,7 @@ return [
                 'La demande ne crée pas d’organisation.',
                 'Le demandeur peut être notifié.',
                 'L’inspector conserve l’action POST malgré la redirection.',
+                'La note de confiance est figée au score du moment, avant la suppression du justificatif.',
             ],
         ],
 
@@ -1256,6 +1258,7 @@ return [
                 'Le rôle demandé peut être attribué.',
                 'La demande passe au statut approuvé.',
                 'L’inspector conserve l’action POST malgré la redirection.',
+                'La note de confiance est figée : celle de l’agent, sinon le score du moment.',
             ],
         ],
 
@@ -1312,6 +1315,7 @@ return [
                 'L’utilisateur n’est pas rattaché à l’organisation.',
                 'Le demandeur peut être notifié.',
                 'L’inspector conserve l’action POST malgré la redirection.',
+                'La note de confiance est figée : celle de l’agent, sinon le score du moment, avant la suppression du justificatif.',
             ],
         ],
 
@@ -1920,6 +1924,7 @@ return [
                 'Le fichier est stocké dans le dossier privé.',
                 'Un document est créé en base et lié à la demande.',
                 'Le champ proof_document_id de la demande est mis à jour.',
+                'La note de confiance de la demande est recalculée et enregistrée.',
             ],
         ],
 
@@ -1963,6 +1968,7 @@ return [
                 'Le fichier est supprimé du stockage.',
                 'L’enregistrement document est supprimé.',
                 'La demande n’a plus de justificatif attaché.',
+                'La note de confiance de la demande est recalculée et enregistrée.',
             ],
         ],
 
@@ -2008,6 +2014,7 @@ return [
             'effects' => [
                 'Le justificatif est stocké et lié à la demande d’adhésion.',
                 'L’agent peut le consulter lors du traitement.',
+                'La note de confiance de la demande est recalculée et enregistrée.',
             ],
         ],
 
@@ -2050,6 +2057,7 @@ return [
             'effects' => [
                 'Le fichier et l’enregistrement document sont supprimés.',
                 'La demande d’adhésion n’a plus de justificatif.',
+                'La note de confiance de la demande est recalculée et enregistrée.',
             ],
         ],
 

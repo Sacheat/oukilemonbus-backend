@@ -28,6 +28,10 @@ use Illuminate\Validation\ValidationException;
  *   pour libérer l'espace disque et notifie le demandeur.
  *
  * Seules les demandes EN_ATTENTE peuvent être approuvées ou refusées.
+ *
+ * Note de confiance (`confidence_note`, qui sert aussi au tri de la liste) : enregistrée à la création, rafraîchie par
+ * `refreshConfidenceNote()` quand le justificatif est ajouté ou supprimé (la SPA l'envoie après la création), puis figée
+ * à la décision : approve() et reject() enregistrent le score du moment, avant la suppression du justificatif d'un refus.
  */
 class OrgRegistrationRequestService
 {
@@ -62,11 +66,36 @@ class OrgRegistrationRequestService
         return $request->refresh();
     }
 
+    /**
+     * Recalcule et enregistre la note d'une demande EN_ATTENTE ; une demande traitée garde la note de sa décision.
+     *
+     * @return bool true si la note enregistrée a changé
+     */
+    public function refreshConfidenceNote(OrgRegistrationRequest $request): bool
+    {
+        if (! $request->status->isPending()) {
+            return false;
+        }
+
+        $score = $this->confidenceScoreService->calculate($request);
+
+        if ($request->confidence_note === $score) {
+            return false;
+        }
+
+        $request->update(['confidence_note' => $score]);
+
+        return true;
+    }
+
     public function approve(OrgRegistrationRequest $request, User $reviewer): Organization
     {
         $this->ensurePending($request);
 
-        return DB::transaction(function () use ($request, $reviewer): Organization {
+        // Avant la création de l'organisation : elle porte le même email officiel et ferait perdre des points.
+        $confidenceNote = $this->confidenceScoreService->calculate($request);
+
+        return DB::transaction(function () use ($request, $reviewer, $confidenceNote): Organization {
             $organizationType = $request->organization_type;
 
             $organization = Organization::create([
@@ -94,6 +123,7 @@ class OrgRegistrationRequestService
 
             $request->update([
                 'status' => RequestStatus::APPROUVE,
+                'confidence_note' => $confidenceNote,
                 'reviewed_by_user_id' => $reviewer->id,
                 'reviewed_at' => now(),
                 'rejection_reason' => null,
@@ -122,6 +152,7 @@ class OrgRegistrationRequestService
 
         $request->update([
             'status' => RequestStatus::REFUSE,
+            'confidence_note' => $this->confidenceScoreService->calculate($request),
             'reviewed_by_user_id' => $reviewer->id,
             'reviewed_at' => now(),
             'rejection_reason' => $reason,
