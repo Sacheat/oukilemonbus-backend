@@ -193,7 +193,7 @@ class MunicipalitySettingsApiTest extends TestCase
         $this->postJson('/api/org-registration-requests', [
             'organization_name' => 'ASBL Godinne Solidaire',
             'organization_type' => OrganizationType::ASBL->value,
-            'enterprise_number' => '0123.456.789',
+            'enterprise_number' => '0123.456.749',
             'official_email' => 'contact@godinne-solidaire.test',
             'phone' => '082000000',
             'location_id' => $location->id,
@@ -201,7 +201,7 @@ class MunicipalitySettingsApiTest extends TestCase
             'contact_person_role' => 'Responsable',
         ])
             ->assertCreated()
-            ->assertJsonPath('data.confidence_note', 81)
+            ->assertJsonPath('data.confidence_note', 75)
             ->assertJsonFragment([
                 'Adresse situee dans la commune de Yvoir.',
             ]);

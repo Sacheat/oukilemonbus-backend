@@ -83,14 +83,55 @@ Le champ `is_default` marque l'organisation affichée par défaut pour cet utili
 
 ## Scoring de confiance
 
-Le score (0-100) est calculé par `OrgRegistrationConfidenceScoreService` (demandes de création d'organisation) et `UserOrgRequestConfidenceScoreService` (demandes d'adhésion). Critères évalués (exemples) :
-- Adresse de l'organisation vérifiée et dans la commune active
-- Email officiel fourni
-- Numéro d'entreprise fourni (ASBL)
-- Justification cohérente avec le rôle demandé
+Le score (0-100) est calculé par `OrgRegistrationConfidenceScoreService` (demandes de création d'organisation) et `UserOrgRequestConfidenceScoreService` (demandes d'adhésion).
+
+**C'est un barème de points écrit à la main, qui sert à trier la file des agents** : les dossiers complets et cohérents remontent. Il ne prouve rien : il n'ouvre pas le justificatif, ne vérifie pas que l'entreprise existe, et ne remplace pas la décision de l'agent.
+
+### Demande de création d'organisation
+
+Un dossier complet et cohérent fait **100**, quel que soit le type d'organisation.
+
+| Critère | Points |
+|---|---|
+| Téléphone de contact, personne de contact, son rôle | +10, +10, +5 |
+| Adresse renseignée, adresse vérifiée, adresse dans la commune | +5, +5, +10 |
+| Justificatif fourni | +25 |
+| Numéro BCE valide : 10 chiffres, commence par 0 ou 1, clé de contrôle correcte (97 − les 8 premiers chiffres modulo 97) | +25 |
+| Domaine de l'email officiel qui reprend un mot significatif du nom (« info@amisduparc.be » pour « ASBL Les Amis du Parc ») | +5 |
+
+Pénalités et avertissements :
+
+| Situation | Effet |
+|---|---|
+| Numéro BCE saisi mais invalide (format ou clé) | −15 |
+| ASBL sans numéro BCE | −10 |
+| Ni téléphone ni personne de contact | −10 |
+| Adresse hors de la commune | −5 |
+| Nom de moins de 4 caractères | −5 |
+| Adresse email grand public (gmail, hotmail, outlook, skynet…) | Avertissement sans retrait de points : beaucoup de petites ASBL légitimes les utilisent |
+| Adresse absente | Avertissement sans point |
+
+Contrôles de **l'état du moment**, évalués seulement pour une demande **en attente** (sur une demande traitée, l'organisation créée par son approbation les ferait déclencher) :
+
+| Situation | Effet |
+|---|---|
+| Même numéro BCE (quelle que soit l'écriture : « 0123.456.749 », « BE 0123 456 749 ») qu'une autre demande en attente ou approuvée (une organisation n'a pas de colonne BCE : une demande approuvée correspond à une organisation créée) | −20 |
+| Nom presque identique à une organisation ou à une autre demande en attente ou approuvée (casse, accents, ponctuation et mots génériques « ASBL », « école », « les », « du »… ignorés ; une coquille d'une lettre tolérée à partir de 6 lettres) | −10 |
+| Email officiel déjà utilisé par une organisation | −15 |
+| Autre demande en attente du même demandeur | −5 |
+| Demandes de création refusées du même demandeur | −10 par refus, −20 au plus |
+| Le demandeur a déjà une demande de création approuvée | +5 |
+
+Le score est borné entre 0 et 100. L'email officiel (obligatoire) et l'état du compte du demandeur (actif, email vérifié : les routes l'exigent) ne rapportent aucun point : ils sont acquis à tout le monde et ne distinguent personne.
+
+### Demande d'adhésion
+
+Critères évalués (exemples) :
+- Organisation cible, rôle demandé
+- Justification fournie, suffisamment détaillée, cohérente avec le rôle demandé
 - Justificatif fourni
-- Téléphone fourni
-- Contact nommé
+- Téléphone, compte actif et email vérifié du demandeur
+- Pénalités : ni justification ni justificatif, justification trop courte, rôle sensible (directeur, responsable, référent) sans justificatif
 
 ### Ce que renvoie l'API
 
@@ -98,8 +139,9 @@ Le score (0-100) est calculé par `OrgRegistrationConfidenceScoreService` (deman
 |---|---|---|
 | `confidence_note` | Le score courant, toujours égal à `confidence_details.score` | La note **de la décision**, figée |
 | `confidence_details` (`score`, `reasons`, `warnings`) | Calculé à chaque lecture | Recalculé à chaque lecture **à titre indicatif**, d'après l'état actuel des données |
+| `confidence_level`, `confidence_level_label` *(demandes de création d'organisation)* | Niveau de la note affichée : `faible` (moins de 40), `moyen` (40 à 69), `eleve` (70 et plus) ; libellés « Faible », « Moyen », « Élevé » | Niveau de la note de la décision |
 
-Pour une demande traitée, `confidence_details.score` peut donc différer de `confidence_note` : le refus supprime le justificatif (le score recalculé perd ses points), un compte ou une adresse a pu changer depuis. L'écart n'est pas une anomalie : la note de la décision fait foi. Pour une demande de création d'organisation traitée, les avertissements « email déjà utilisé » et « autre demande en attente » ne sont plus évalués (l'organisation créée par l'approbation porte le même email).
+Pour une demande traitée, `confidence_details.score` peut donc différer de `confidence_note` : le refus supprime le justificatif (le score recalculé perd ses points), un compte ou une adresse a pu changer depuis. L'écart n'est pas une anomalie : la note de la décision fait foi. Pour une demande de création d'organisation traitée, les contrôles de l'état du moment (BCE ou nom déjà connus, email déjà utilisé, autre demande en attente, historique du demandeur) ne sont plus évalués : l'organisation créée par l'approbation porte les mêmes nom, email et numéro.
 
 ### Note enregistrée (`confidence_note`)
 

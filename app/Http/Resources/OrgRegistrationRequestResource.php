@@ -5,6 +5,7 @@ namespace App\Http\Resources;
 use App\Enums\OrganizationType;
 use App\Enums\RequestStatus;
 use App\Services\OrgRegistrationRequests\OrgRegistrationConfidenceScoreService;
+use App\Support\ConfidenceLevel;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -26,6 +27,8 @@ class OrgRegistrationRequestResource extends JsonResource
         // Demande en attente : note et détail sont le même calcul (le tri s'appuie sur la note enregistrée, tenue à jour
         // par les services). Demande traitée : la note de la décision est figée ; le détail est recalculé à titre indicatif.
         $confidence = app(OrgRegistrationConfidenceScoreService::class)->explain($this->resource);
+        $note = $status?->isPending() ? $confidence['score'] : $this->confidence_note;
+        $level = ConfidenceLevel::fromScore($note);
 
         return [
             'id' => $this->id,
@@ -44,7 +47,9 @@ class OrgRegistrationRequestResource extends JsonResource
             'comment' => $this->comment,
             'status' => $status?->value,
             'status_label' => $status?->label(),
-            'confidence_note' => $status?->isPending() ? $confidence['score'] : $this->confidence_note,
+            'confidence_note' => $note,
+            'confidence_level' => $level,
+            'confidence_level_label' => ConfidenceLevel::label($level),
             'confidence_details' => $confidence,
             'reviewed_by_user_id' => $this->reviewed_by_user_id,
             'reviewed_at' => $this->reviewed_at?->toISOString(),
