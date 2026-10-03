@@ -55,14 +55,14 @@ class RequestConfidenceNoteTest extends TestCase
             'organization_name' => 'ASBL Les Marcheurs',
             'organization_type' => 'asbl',
             'official_email' => 'marcheurs@example.test',
-            'enterprise_number' => '0123.456.789',
+            'enterprise_number' => '0123.456.749',
         ])->assertCreated()->json('data.id');
         $withoutProof = OrgRegistrationRequest::findOrFail($id)->confidence_note;
 
-        // La SPA envoie le justificatif après la création : la note le compte (+15).
+        // La SPA envoie le justificatif après la création : la note le compte (+25).
         $this->postJson("/api/org-registration-requests/{$id}/proof", ['proof_document' => $this->pdf()])->assertCreated();
-        $this->assertSame($withoutProof + 15, OrgRegistrationRequest::findOrFail($id)->confidence_note);
-        $this->assertNoteMatchesDetails("/api/org-registration-requests/{$id}", $withoutProof + 15);
+        $this->assertSame($withoutProof + 25, OrgRegistrationRequest::findOrFail($id)->confidence_note);
+        $this->assertNoteMatchesDetails("/api/org-registration-requests/{$id}", $withoutProof + 25);
 
         $this->deleteJson("/api/org-registration-requests/{$id}/proof")->assertNoContent();
         $this->assertSame($withoutProof, OrgRegistrationRequest::findOrFail($id)->confidence_note);
@@ -164,7 +164,7 @@ class RequestConfidenceNoteTest extends TestCase
             'organization_name' => 'ASBL Les Marcheurs',
             'organization_type' => 'asbl',
             'official_email' => 'marcheurs@example.test',
-            'enterprise_number' => '0123.456.789',
+            'enterprise_number' => '0123.456.749',
         ])->assertCreated()->json('data.id');
         $this->postJson("/api/org-registration-requests/{$id}/proof", ['proof_document' => $this->pdf()])->assertCreated();
         $beforeDecision = OrgRegistrationRequest::findOrFail($id)->confidence_note;
@@ -179,7 +179,7 @@ class RequestConfidenceNoteTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.status', 'refuse')
             ->assertJsonPath('data.confidence_note', $beforeDecision)
-            ->assertJsonPath('data.confidence_details.score', $beforeDecision - 15);
+            ->assertJsonPath('data.confidence_details.score', $beforeDecision - 25);
     }
 
     public function test_org_registration_approval_does_not_lose_points_for_the_organization_it_creates(): void
@@ -189,7 +189,7 @@ class RequestConfidenceNoteTest extends TestCase
             'organization_name' => 'ASBL Les Marcheurs',
             'organization_type' => OrganizationType::ASBL,
             'official_email' => 'marcheurs@example.test',
-            'enterprise_number' => '0123.456.789',
+            'enterprise_number' => '0123.456.749',
             'status' => RequestStatus::EN_ATTENTE,
             'confidence_note' => 1,
         ]);
