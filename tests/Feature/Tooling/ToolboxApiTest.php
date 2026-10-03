@@ -7,6 +7,7 @@ use App\Services\SystemHealthService;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Database\Seeders\TestUsersSeeder;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Support\Facades\File;
 use Laravel\Sanctum\Sanctum;
 use Mockery\MockInterface;
 use Spatie\Permission\PermissionRegistrar;
@@ -57,6 +58,22 @@ class ToolboxApiTest extends TestCase
             ->json('data.internal');
 
         $this->assertStringNotContainsString('admin/tooling', json_encode($catalog));
+    }
+
+    public function test_architecture_counts_php_files_in_subfolders(): void
+    {
+        Sanctum::actingAs($this->seededUser('admin.test@bus-communal.local'));
+
+        $services = collect($this->getJson('/api/admin/tooling/toolbox/overview')->assertOk()->json('data.architecture'))
+            ->firstWhere('path', 'app/Services');
+
+        // app/Services ne contient presque que des sous-dossiers (Reservations, Documents…).
+        $expected = collect(File::allFiles(base_path('app/Services')))
+            ->filter(fn ($file): bool => $file->getExtension() === 'php')
+            ->count();
+
+        $this->assertGreaterThan(count(glob(base_path('app/Services/*.php'))), $expected);
+        $this->assertSame($expected, $services['count']);
     }
 
     public function test_admin_can_read_system_health(): void

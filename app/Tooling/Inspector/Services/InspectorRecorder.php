@@ -6,8 +6,8 @@ namespace App\Tooling\Inspector\Services;
 
 use App\Models\User;
 use App\Tooling\Inspector\Models\InspectorEntry;
+use App\Tooling\Support\PayloadSanitizer;
 use Illuminate\Http\Request;
-use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -20,9 +20,9 @@ use Symfony\Component\HttpFoundation\Response;
  */
 final class InspectorRecorder
 {
-    private const REDACTED = '[masqué]';
-
-    private const MAX_STRING_LENGTH = 1000;
+    public function __construct(
+        private readonly PayloadSanitizer $sanitizer,
+    ) {}
 
     public function shouldRecord(Request $request): bool
     {
@@ -90,7 +90,7 @@ final class InspectorRecorder
 
     private function payload(Request $request): ?array
     {
-        $payload = $this->sanitize(array_replace_recursive($request->all(), $request->allFiles()));
+        $payload = $this->sanitizer->sanitize(array_replace_recursive($request->all(), $request->allFiles()));
 
         if ($payload === []) {
             return null;
@@ -104,35 +104,6 @@ final class InspectorRecorder
         }
 
         return $payload;
-    }
-
-    private function sanitize(array $data): array
-    {
-        $result = [];
-
-        foreach ($data as $key => $value) {
-            if (is_string($key) && $this->isSensitiveKey($key)) {
-                $result[$key] = self::REDACTED;
-            } elseif ($value instanceof UploadedFile) {
-                $result[$key] = sprintf('[fichier : %s, %d o]', $value->getClientOriginalName(), $value->getSize());
-            } elseif (is_array($value)) {
-                $result[$key] = $this->sanitize($value);
-            } elseif (is_string($value)) {
-                $result[$key] = Str::limit($value, self::MAX_STRING_LENGTH);
-            } else {
-                $result[$key] = $value;
-            }
-        }
-
-        return $result;
-    }
-
-    private function isSensitiveKey(string $key): bool
-    {
-        return Str::contains(
-            Str::lower($key),
-            array_map('strtolower', (array) config('tooling.inspector.redacted_keys', []))
-        );
     }
 
     // Résumé best-effort : id et statut de la ressource renvoyée, ou message et erreurs de validation.
@@ -150,7 +121,7 @@ final class InspectorRecorder
             'resource_id' => $data['id'] ?? null,
             'resource_status' => is_scalar($data['status'] ?? null) ? $data['status'] : null,
             'message' => is_string($decoded['message'] ?? null) ? Str::limit($decoded['message'], 500) : null,
-            'errors' => is_array($decoded['errors'] ?? null) ? $this->sanitize($decoded['errors']) : null,
+            'errors' => is_array($decoded['errors'] ?? null) ? $this->sanitizer->sanitize($decoded['errors']) : null,
         ], fn (mixed $value): bool => $value !== null);
 
         return $summary ?: null;

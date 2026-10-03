@@ -6,9 +6,11 @@ namespace App\Tooling\Toolbox\Services;
 
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
 use Spatie\Permission\Models\Role;
+use Symfony\Component\Finder\SplFileInfo;
 use Throwable;
 
 final class DefensePrepService
@@ -69,11 +71,11 @@ final class DefensePrepService
             $fullPath = base_path($relativePath);
             $count    = 0;
 
+            // Récursif : les services et les tests sont rangés en sous-dossiers (Services/Reservations…).
             if (is_dir($fullPath)) {
-                $count = count(array_filter(
-                    glob($fullPath . '/*.php') ?: [],
-                    fn (string $f): bool => is_file($f)
-                ));
+                $count = collect(File::allFiles($fullPath))
+                    ->filter(fn (SplFileInfo $file): bool => $file->getExtension() === 'php')
+                    ->count();
             }
 
             $result[] = [

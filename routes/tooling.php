@@ -1,6 +1,7 @@
 <?php
 
 use App\Tooling\Inspector\Http\Controllers\InspectorController;
+use App\Tooling\Toolbox\Http\Controllers\FailedJobsController;
 use App\Tooling\Toolbox\Http\Controllers\ToolboxController;
 use Illuminate\Support\Facades\Route;
 
@@ -33,4 +34,13 @@ Route::prefix('toolbox')->name('toolbox.')->group(function (): void {
     Route::get('/health', [ToolboxController::class, 'health'])
         ->middleware('throttle:10,1')
         ->name('health');
+});
+
+Route::prefix('queue/failed-jobs')->name('queue.failed-jobs.')->group(function (): void {
+    Route::get('/', [FailedJobsController::class, 'index'])->name('index');
+    Route::post('/retry', [FailedJobsController::class, 'retryAll'])->name('retry-all');
+    Route::delete('/', [FailedJobsController::class, 'destroyAll'])->name('destroy-all');
+    Route::get('/{uuid}', [FailedJobsController::class, 'show'])->whereUuid('uuid')->name('show');
+    Route::post('/{uuid}/retry', [FailedJobsController::class, 'retry'])->whereUuid('uuid')->name('retry');
+    Route::delete('/{uuid}', [FailedJobsController::class, 'destroy'])->whereUuid('uuid')->name('destroy');
 });

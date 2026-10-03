@@ -44,6 +44,9 @@ return [
     // Taille maximale (octets, JSON encodé) du payload stocké ; au-delà il est tronqué.
     'max_payload_bytes' => 16384,
 
+    // Fuseau des filtres de date des outils (from, to, before) : une date seule désigne un jour à Bruxelles.
+    'local_timezone' => 'Europe/Brussels',
+
     /*
     |--------------------------------------------------------------------------
     | Route map — nom de route API → clé de flow
@@ -137,6 +140,33 @@ return [
 
         // Email verification
         'api.verification.send' => 'auth.email_resend',
+
+        // Ajouts 2026-10 : chaque route mutante de l'API a son flow (test InspectorRouteMapTest)
+        'api.auth.forgot-password'                => 'auth.forgot_password',
+        'api.auth.reset-password'                 => 'auth.reset_password',
+        'api.notifications.mark-many-read'        => 'notifications.read_many',
+        'api.notifications.mark-by-filter-read'   => 'notifications.read_by_filter',
+        'api.users.store'                         => 'admin.users.store',
+        'api.users.update'                        => 'users.update',
+        'api.users.update-password'               => 'users.update_password',
+        'api.users.update-roles'                  => 'admin.users.update_roles',
+        'api.users.send-password-reset-link'      => 'admin.users.send_password_reset_link',
+        'api.locations.update'                    => 'locations.update',
+        'api.municipalities.store'                => 'admin.municipalities.store',
+        'api.municipalities.update'               => 'admin.municipalities.update',
+        'api.municipalities.sync-localities'      => 'admin.municipalities.sync_localities',
+        'api.municipality-localities.store'       => 'admin.municipality_localities.store',
+        'api.municipality-localities.update'      => 'admin.municipality_localities.update',
+        'api.municipality-localities.deactivate'  => 'admin.municipality_localities.deactivate',
+        'api.organizations.update'                => 'organizations.update',
+        'api.organizations.members.update'        => 'organizations.members.update',
+        'api.organizations.members.destroy'       => 'organizations.members.destroy',
+        'api.organizations.leave'                 => 'organizations.leave',
+        'api.organizations.make-default'          => 'organizations.make_default',
+        'api.planning.exports.request'            => 'planning.exports.request',
+        'api.recurrences.cancel'                  => 'recurrences.cancel',
+        'api.reservations.trip-report.update'     => 'reservations.trip_report',
+        'api.council-decisions.generate-document' => 'documents.deliberations.generate',
 
     ],
 
@@ -2621,10 +2651,11 @@ return [
             ],
 
             'service' => [
-                'class' => 'User',
-                'method' => 'update',
+                'class' => 'UserService',
+                'method' => 'updateStatus',
                 'internal_methods' => [
                     'Vérification de la permission users.update-status',
+                    'Refus de désactiver le dernier administrateur actif (422 sur active)',
                     'Mise à jour du champ active',
                 ],
             ],
@@ -2664,6 +2695,7 @@ return [
                 'method' => 'deactivate',
                 'internal_methods' => [
                     'Vérification de la permission users.deactivate',
+                    'Refus de désactiver le dernier administrateur actif (422)',
                     'Désactivation du compte (active = false)',
                     'Révocation de tous les tokens Sanctum',
                 ],
@@ -2982,6 +3014,1081 @@ return [
                 'L’URL signée dans l’email est valable le temps configuré dans Laravel.',
                 'Si l’email est déjà vérifié, la requête est ignorée.',
                 'Throttlé à 6 requêtes par minute par IP.',
+            ],
+        ],
+
+
+        // _________________________________________________________________________________________ROUTES MUTANTES AJOUTÉES (2026-10)
+        'auth.forgot_password' => [
+            'title' => 'Demande de lien « Mot de passe oublié »',
+            'category' => 'Authentification',
+            'goal' => 'Envoyer un lien de réinitialisation du mot de passe à l’adresse indiquée.',
+
+            'route' => [
+                'api' => 'POST /api/auth/forgot-password',
+            ],
+
+            'api_controller' => [
+                'class' => 'PasswordResetController',
+                'method' => 'forgot',
+            ],
+
+            'request' => [
+                'class' => 'ForgotPasswordRequest',
+                'methods' => [
+                    'authorize',
+                    'rules',
+                ],
+            ],
+
+            'service' => [
+                'class' => 'PasswordResetService',
+                'method' => 'sendResetLink',
+                'internal_methods' => [
+                    'Password::broker()->sendResetLink()',
+                    'Statut ignoré (adresse inconnue, envoi trop rapproché)',
+                    'Throttle : 6 requêtes par minute',
+                ],
+            ],
+
+            'related_services' => [
+                'QueuedResetPassword (notification en file)',
+            ],
+
+            'tables' => [
+                'password_reset_tokens',
+                'jobs',
+            ],
+
+            'effects' => [
+                'Un jeton de réinitialisation valable 60 minutes est enregistré.',
+                'Le lien {FRONTEND_URL}/reset-password?token=…&email=… part en file d’attente.',
+                'La réponse est identique que l’adresse existe ou non.',
+            ],
+        ],
+
+        'auth.reset_password' => [
+            'title' => 'Réinitialisation du mot de passe',
+            'category' => 'Authentification',
+            'goal' => 'Choisir un nouveau mot de passe avec le jeton reçu par email.',
+
+            'route' => [
+                'api' => 'POST /api/auth/reset-password',
+            ],
+
+            'api_controller' => [
+                'class' => 'PasswordResetController',
+                'method' => 'reset',
+            ],
+
+            'request' => [
+                'class' => 'ResetPasswordRequest',
+                'methods' => [
+                    'authorize',
+                    'rules',
+                ],
+            ],
+
+            'service' => [
+                'class' => 'PasswordResetService',
+                'method' => 'reset',
+                'internal_methods' => [
+                    'Password::broker()->reset()',
+                    'Nouveau mot de passe et remember_token régénéré',
+                    'Suppression des tokens API et des sessions',
+                    'Événement PasswordReset',
+                ],
+            ],
+
+            'related_services' => [],
+
+            'tables' => [
+                'users',
+                'password_reset_tokens',
+                'personal_access_tokens',
+                'sessions',
+            ],
+
+            'effects' => [
+                'Le mot de passe est remplacé.',
+                'Toutes les sessions et tous les tokens API de l’utilisateur sont fermés.',
+                'Jeton invalide ou expiré : 422 sur email.',
+            ],
+        ],
+
+        'notifications.read_many' => [
+            'title' => 'Lecture de plusieurs notifications',
+            'category' => 'Notifications',
+            'goal' => 'Marquer comme lues les notifications sélectionnées.',
+
+            'route' => [
+                'api' => 'PATCH /api/notifications/read',
+            ],
+
+            'api_controller' => [
+                'class' => 'NotificationController',
+                'method' => 'markManyAsRead',
+            ],
+
+            'request' => [
+                'ids (string[], requis)',
+            ],
+
+            'service' => [
+                'class' => 'DatabaseNotification',
+                'method' => 'update',
+                'internal_methods' => [
+                    'Restriction aux notifications non lues de l’utilisateur connecté',
+                ],
+            ],
+
+            'related_services' => [],
+
+            'tables' => [
+                'notifications',
+            ],
+
+            'effects' => [
+                'read_at est renseigné sur les notifications indiquées.',
+                'Les identifiants d’un autre utilisateur sont ignorés.',
+            ],
+        ],
+
+        'notifications.read_by_filter' => [
+            'title' => 'Lecture des notifications filtrées',
+            'category' => 'Notifications',
+            'goal' => 'Marquer comme lues toutes les notifications qui correspondent aux filtres de la liste.',
+
+            'route' => [
+                'api' => 'PATCH /api/notifications/read-by-filter',
+            ],
+
+            'api_controller' => [
+                'class' => 'NotificationController',
+                'method' => 'markByFilterAsRead',
+            ],
+
+            'request' => [
+                'Mêmes filtres que GET /api/notifications',
+            ],
+
+            'service' => [
+                'class' => 'DatabaseNotification',
+                'method' => 'update',
+                'internal_methods' => [
+                    'validateFilters()',
+                    'filteredQuery()',
+                ],
+            ],
+
+            'related_services' => [],
+
+            'tables' => [
+                'notifications',
+            ],
+
+            'effects' => [
+                'read_at est renseigné sur les notifications non lues filtrées.',
+                'La réponse renvoie le nombre marqué (marked_as_read).',
+            ],
+        ],
+
+        'admin.users.store' => [
+            'title' => 'Création d’un compte par un admin',
+            'category' => 'Administration',
+            'goal' => 'Créer un compte hors inscription et lui envoyer l’email de vérification.',
+
+            'route' => [
+                'api' => 'POST /api/users',
+            ],
+
+            'api_controller' => [
+                'class' => 'UserController',
+                'method' => 'store',
+            ],
+
+            'request' => [
+                'class' => 'StoreUserRequest',
+                'methods' => [
+                    'authorize',
+                    'rules',
+                ],
+            ],
+
+            'service' => [
+                'class' => 'UserService',
+                'method' => 'create',
+                'internal_methods' => [
+                    'Vérification de la permission users.create',
+                    'Création du compte et rôle user',
+                    'Email de vérification en file d’attente (une panne n’empêche pas la création)',
+                ],
+            ],
+
+            'related_services' => [
+                'QueuedVerifyEmail (notification en file)',
+            ],
+
+            'tables' => [
+                'users',
+                'model_has_roles',
+                'jobs',
+            ],
+
+            'effects' => [
+                'Le compte est créé avec le rôle user.',
+                'L’email de vérification part vers {FRONTEND_URL}/verify-email.',
+            ],
+        ],
+
+        'users.update' => [
+            'title' => 'Modification d’un profil',
+            'category' => 'Utilisateurs',
+            'goal' => 'Modifier le nom, l’email ou le téléphone d’un compte.',
+
+            'route' => [
+                'api' => 'PATCH /api/users/{user}',
+            ],
+
+            'api_controller' => [
+                'class' => 'UserController',
+                'method' => 'update',
+            ],
+
+            'request' => [
+                'class' => 'UpdateUserRequest',
+                'methods' => [
+                    'authorize',
+                    'rules',
+                ],
+            ],
+
+            'service' => [
+                'class' => 'UserService',
+                'method' => 'update',
+                'internal_methods' => [
+                    'Policy : son propre profil, ou rôle interne',
+                    'Email normalisé en minuscules et unique',
+                ],
+            ],
+
+            'related_services' => [],
+
+            'tables' => [
+                'users',
+            ],
+
+            'effects' => [
+                'Les champs envoyés sont mis à jour.',
+            ],
+        ],
+
+        'users.update_password' => [
+            'title' => 'Changement de mot de passe',
+            'category' => 'Utilisateurs',
+            'goal' => 'Changer son propre mot de passe en gardant la session courante.',
+
+            'route' => [
+                'api' => 'PATCH /api/users/{user}/password',
+            ],
+
+            'api_controller' => [
+                'class' => 'UserController',
+                'method' => 'updatePassword',
+            ],
+
+            'request' => [
+                'class' => 'UpdatePasswordRequest',
+                'methods' => [
+                    'authorize',
+                    'rules',
+                ],
+            ],
+
+            'service' => [
+                'class' => 'UserService',
+                'method' => 'updatePassword',
+                'internal_methods' => [
+                    'Policy : soi uniquement',
+                    'Vérification du mot de passe actuel',
+                    'closeOtherSessions()',
+                ],
+            ],
+
+            'related_services' => [],
+
+            'tables' => [
+                'users',
+                'personal_access_tokens',
+                'sessions',
+            ],
+
+            'effects' => [
+                'Le mot de passe est remplacé.',
+                'La session courante reste ouverte ; les autres sessions et les tokens API sont fermés.',
+            ],
+        ],
+
+        'admin.users.update_roles' => [
+            'title' => 'Attribution des rôles globaux',
+            'category' => 'Administration',
+            'goal' => 'Remplacer les rôles globaux d’un compte.',
+
+            'route' => [
+                'api' => 'PATCH /api/users/{user}/roles',
+            ],
+
+            'api_controller' => [
+                'class' => 'UserController',
+                'method' => 'updateRoles',
+            ],
+
+            'request' => [
+                'class' => 'UpdateUserRolesRequest',
+                'methods' => [
+                    'authorize',
+                    'rules',
+                ],
+            ],
+
+            'service' => [
+                'class' => 'UserService',
+                'method' => 'updateRoles',
+                'internal_methods' => [
+                    'Vérification de la permission users.manage-roles (admin)',
+                    'Refus de retirer son propre rôle admin',
+                    'Refus de retirer admin au dernier administrateur actif (verrou sur les admins actifs)',
+                    'syncRoles()',
+                ],
+            ],
+
+            'related_services' => [],
+
+            'tables' => [
+                'users',
+                'model_has_roles',
+            ],
+
+            'effects' => [
+                'Les rôles du compte sont remplacés par ceux envoyés.',
+                'La plateforme garde toujours au moins un administrateur actif.',
+            ],
+        ],
+
+        'admin.users.send_password_reset_link' => [
+            'title' => 'Envoi d’un lien de réinitialisation par un admin',
+            'category' => 'Administration',
+            'goal' => 'Envoyer à un compte le lien de « Mot de passe oublié », sans fixer de mot de passe.',
+
+            'route' => [
+                'api' => 'POST /api/users/{user}/password-reset-link',
+            ],
+
+            'api_controller' => [
+                'class' => 'UserController',
+                'method' => 'sendPasswordResetLink',
+            ],
+
+            'request' => null,
+
+            'service' => [
+                'class' => 'UserService',
+                'method' => 'sendPasswordResetLink',
+                'internal_methods' => [
+                    'Policy sendPasswordReset (permission users.send-password-reset, admin)',
+                    'Refus si le compte est désactivé (422)',
+                    'Password::broker()->sendResetLink()',
+                    'Refus si un lien a été envoyé il y a moins de 60 s (422)',
+                ],
+            ],
+
+            'related_services' => [
+                'QueuedResetPassword (notification en file)',
+            ],
+
+            'tables' => [
+                'password_reset_tokens',
+                'jobs',
+            ],
+
+            'effects' => [
+                'Un jeton valable 60 minutes est enregistré et le lien part en file d’attente.',
+                'Aucun jeton ni mot de passe n’apparaît dans la réponse (202).',
+            ],
+        ],
+
+        'locations.update' => [
+            'title' => 'Modification d’un lieu',
+            'category' => 'Lieux',
+            'goal' => 'Corriger l’adresse d’un lieu enregistré.',
+
+            'route' => [
+                'api' => 'PATCH /api/locations/{location}',
+            ],
+
+            'api_controller' => [
+                'class' => 'LocationController',
+                'method' => 'update',
+            ],
+
+            'request' => [
+                'class' => 'UpdateLocationRequest',
+                'methods' => [
+                    'authorize',
+                    'rules',
+                ],
+            ],
+
+            'service' => [
+                'class' => 'LocationService',
+                'method' => 'update',
+                'internal_methods' => [
+                    'Nouveau géocodage si formatted_address change',
+                ],
+            ],
+
+            'related_services' => [
+                'OpenRouteService (géocodage)',
+            ],
+
+            'tables' => [
+                'locations',
+            ],
+
+            'effects' => [
+                'Le lieu est mis à jour ; ses coordonnées sont recalculées si l’adresse change.',
+            ],
+        ],
+
+        'admin.municipalities.store' => [
+            'title' => 'Création d’une commune',
+            'category' => 'Administration',
+            'goal' => 'Créer une commune et, au besoin, ses localités.',
+
+            'route' => [
+                'api' => 'POST /api/municipalities',
+            ],
+
+            'api_controller' => [
+                'class' => 'MunicipalityController',
+                'method' => 'store',
+            ],
+
+            'request' => [
+                'class' => 'StoreMunicipalityRequest',
+                'methods' => [
+                    'authorize',
+                    'rules',
+                ],
+            ],
+
+            'service' => [
+                'class' => 'MunicipalitySettingsService',
+                'method' => 'create',
+                'internal_methods' => [
+                    'Transaction',
+                    'activate() si is_active : une seule commune active',
+                    'addLocality() pour chaque localité',
+                ],
+            ],
+
+            'related_services' => [],
+
+            'tables' => [
+                'municipalities',
+                'municipality_localities',
+            ],
+
+            'effects' => [
+                'La commune est créée.',
+                'Si elle est active, toutes les autres communes sont désactivées.',
+            ],
+        ],
+
+        'admin.municipalities.update' => [
+            'title' => 'Modification d’une commune',
+            'category' => 'Administration',
+            'goal' => 'Modifier une commune, son dépôt et ses distances maximales.',
+
+            'route' => [
+                'api' => 'PATCH /api/municipalities/{municipality}',
+            ],
+
+            'api_controller' => [
+                'class' => 'MunicipalityController',
+                'method' => 'update',
+            ],
+
+            'request' => [
+                'class' => 'UpdateMunicipalityRequest',
+                'methods' => [
+                    'authorize',
+                    'rules',
+                ],
+            ],
+
+            'service' => [
+                'class' => 'MunicipalitySettingsService',
+                'method' => 'update',
+                'internal_methods' => [
+                    'Transaction',
+                    'activate() si is_active passe à true',
+                ],
+            ],
+
+            'related_services' => [],
+
+            'tables' => [
+                'municipalities',
+            ],
+
+            'effects' => [
+                'Les champs envoyés sont mis à jour.',
+                'Le dépôt et les limites de distance s’appliquent aux réservations suivantes.',
+            ],
+        ],
+
+        'admin.municipalities.sync_localities' => [
+            'title' => 'Synchronisation des localités',
+            'category' => 'Administration',
+            'goal' => 'Récupérer la commune et ses localités depuis GeoNames.',
+
+            'route' => [
+                'api' => 'POST /api/municipalities/{municipality}/sync-localities',
+            ],
+
+            'api_controller' => [
+                'class' => 'MunicipalityController',
+                'method' => 'syncLocalities',
+            ],
+
+            'request' => [
+                'class' => 'SyncMunicipalityLocalitiesRequest',
+                'methods' => [
+                    'authorize',
+                    'rules',
+                ],
+            ],
+
+            'service' => [
+                'class' => 'MunicipalitySettingsService',
+                'method' => 'syncFromExternalProvider',
+                'internal_methods' => [
+                    'Recherche de la commune chez GeoNames',
+                    'Mise à jour du centre (latitude, longitude) et de synced_at',
+                    'addLocality() pour chaque localité reçue',
+                ],
+            ],
+
+            'related_services' => [
+                'GeoNamesMunicipalityProvider',
+                'GeoNamesClient',
+            ],
+
+            'tables' => [
+                'municipalities',
+                'municipality_localities',
+            ],
+
+            'effects' => [
+                'Les localités GeoNames sont créées ou mises à jour.',
+                'Le centre de la commune sert de repli quand aucun dépôt n’est défini.',
+            ],
+        ],
+
+        'admin.municipality_localities.store' => [
+            'title' => 'Ajout d’une localité',
+            'category' => 'Administration',
+            'goal' => 'Ajouter une localité à une commune.',
+
+            'route' => [
+                'api' => 'POST /api/municipalities/{municipality}/localities',
+            ],
+
+            'api_controller' => [
+                'class' => 'MunicipalityLocalityController',
+                'method' => 'store',
+            ],
+
+            'request' => [
+                'class' => 'StoreMunicipalityLocalityRequest',
+                'methods' => [
+                    'authorize',
+                    'rules',
+                ],
+            ],
+
+            'service' => [
+                'class' => 'MunicipalitySettingsService',
+                'method' => 'addLocality',
+                'internal_methods' => [
+                    'updateOrCreate sur le nom normalisé',
+                ],
+            ],
+
+            'related_services' => [],
+
+            'tables' => [
+                'municipality_localities',
+            ],
+
+            'effects' => [
+                'La localité est créée, ou mise à jour si le même nom existe déjà.',
+            ],
+        ],
+
+        'admin.municipality_localities.update' => [
+            'title' => 'Modification d’une localité',
+            'category' => 'Administration',
+            'goal' => 'Renommer ou modifier une localité.',
+
+            'route' => [
+                'api' => 'PATCH /api/municipality-localities/{municipalityLocality}',
+            ],
+
+            'api_controller' => [
+                'class' => 'MunicipalityLocalityController',
+                'method' => 'update',
+            ],
+
+            'request' => [
+                'class' => 'UpdateMunicipalityLocalityRequest',
+                'methods' => [
+                    'authorize',
+                    'rules',
+                ],
+            ],
+
+            'service' => [
+                'class' => 'MunicipalitySettingsService',
+                'method' => 'updateLocality',
+                'internal_methods' => [
+                    'Refus d’un nom déjà utilisé dans la commune (422)',
+                ],
+            ],
+
+            'related_services' => [],
+
+            'tables' => [
+                'municipality_localities',
+            ],
+
+            'effects' => [
+                'La localité est mise à jour.',
+            ],
+        ],
+
+        'admin.municipality_localities.deactivate' => [
+            'title' => 'Désactivation d’une localité',
+            'category' => 'Administration',
+            'goal' => 'Retirer une localité des choix proposés.',
+
+            'route' => [
+                'api' => 'PATCH /api/municipality-localities/{municipalityLocality}/deactivate',
+            ],
+
+            'api_controller' => [
+                'class' => 'MunicipalityLocalityController',
+                'method' => 'deactivate',
+            ],
+
+            'request' => null,
+
+            'service' => [
+                'class' => 'MunicipalitySettingsService',
+                'method' => 'deactivateLocality',
+                'internal_methods' => [],
+            ],
+
+            'related_services' => [],
+
+            'tables' => [
+                'municipality_localities',
+            ],
+
+            'effects' => [
+                'is_active passe à false.',
+            ],
+        ],
+
+        'organizations.update' => [
+            'title' => 'Modification d’une organisation',
+            'category' => 'Organisations',
+            'goal' => 'Modifier les informations d’une organisation.',
+
+            'route' => [
+                'api' => 'PATCH /api/organizations/{organization}',
+            ],
+
+            'api_controller' => [
+                'class' => 'OrganizationController',
+                'method' => 'update',
+            ],
+
+            'request' => [
+                'class' => 'UpdateOrganizationRequest',
+                'methods' => [
+                    'authorize',
+                    'rules',
+                ],
+            ],
+
+            'service' => [
+                'class' => 'OrganizationService',
+                'method' => 'update',
+                'internal_methods' => [
+                    'prepareData() : is_priority déduit du type s’il est omis',
+                ],
+            ],
+
+            'related_services' => [],
+
+            'tables' => [
+                'organizations',
+            ],
+
+            'effects' => [
+                'Les champs envoyés sont mis à jour.',
+            ],
+        ],
+
+        'organizations.members.update' => [
+            'title' => 'Changement de relation d’un membre',
+            'category' => 'Organisations',
+            'goal' => 'Changer la relation d’un membre avec l’organisation (ex. le nommer responsable).',
+
+            'route' => [
+                'api' => 'PATCH /api/organizations/{organization}/members/{user}',
+            ],
+
+            'api_controller' => [
+                'class' => 'OrganizationMemberController',
+                'method' => 'update',
+            ],
+
+            'request' => [
+                'class' => 'UpdateOrganizationMemberRequest',
+                'methods' => [
+                    'authorize',
+                    'rules',
+                ],
+            ],
+
+            'service' => [
+                'class' => 'OrganizationMembershipService',
+                'method' => 'updateMember',
+                'internal_methods' => [
+                    'Refus de rétrograder le dernier responsable (422)',
+                    'DomainEventLogger : organization.member_updated',
+                ],
+            ],
+
+            'related_services' => [],
+
+            'tables' => [
+                'user_organization',
+                'domain_events',
+            ],
+
+            'effects' => [
+                'relationship_type du membre est mis à jour.',
+            ],
+        ],
+
+        'organizations.members.destroy' => [
+            'title' => 'Retrait d’un membre',
+            'category' => 'Organisations',
+            'goal' => 'Retirer un membre d’une organisation.',
+
+            'route' => [
+                'api' => 'DELETE /api/organizations/{organization}/members/{user}',
+            ],
+
+            'api_controller' => [
+                'class' => 'OrganizationMemberController',
+                'method' => 'destroy',
+            ],
+
+            'request' => null,
+
+            'service' => [
+                'class' => 'OrganizationMembershipService',
+                'method' => 'removeMember',
+                'internal_methods' => [
+                    'Policy manageMembers (responsable ou agent)',
+                    'Refus de retirer le dernier responsable (422)',
+                    'Nouvelle organisation par défaut si besoin',
+                    'DomainEventLogger : organization.member_removed',
+                ],
+            ],
+
+            'related_services' => [],
+
+            'tables' => [
+                'user_organization',
+                'domain_events',
+            ],
+
+            'effects' => [
+                'Le membre est détaché de l’organisation.',
+            ],
+        ],
+
+        'organizations.leave' => [
+            'title' => 'Départ d’une organisation',
+            'category' => 'Organisations',
+            'goal' => 'Quitter une organisation dont on est membre.',
+
+            'route' => [
+                'api' => 'POST /api/organizations/{organization}/leave',
+            ],
+
+            'api_controller' => [
+                'class' => 'OrganizationMemberController',
+                'method' => 'leave',
+            ],
+
+            'request' => null,
+
+            'service' => [
+                'class' => 'OrganizationMembershipService',
+                'method' => 'leave',
+                'internal_methods' => [
+                    'Refus pour le dernier responsable (422)',
+                    'Nouvelle organisation par défaut si besoin',
+                    'DomainEventLogger : organization.member_left',
+                ],
+            ],
+
+            'related_services' => [],
+
+            'tables' => [
+                'user_organization',
+                'domain_events',
+            ],
+
+            'effects' => [
+                'L’utilisateur n’est plus membre ; la plus ancienne organisation restante devient celle par défaut.',
+            ],
+        ],
+
+        'organizations.make_default' => [
+            'title' => 'Choix de l’organisation par défaut',
+            'category' => 'Organisations',
+            'goal' => 'Faire d’une organisation son organisation par défaut.',
+
+            'route' => [
+                'api' => 'PATCH /api/organizations/{organization}/default',
+            ],
+
+            'api_controller' => [
+                'class' => 'OrganizationMemberController',
+                'method' => 'makeDefault',
+            ],
+
+            'request' => null,
+
+            'service' => [
+                'class' => 'OrganizationMembershipService',
+                'method' => 'setDefault',
+                'internal_methods' => [
+                    'Réservé aux membres',
+                    'Transaction : une seule organisation par défaut',
+                ],
+            ],
+
+            'related_services' => [],
+
+            'tables' => [
+                'user_organization',
+            ],
+
+            'effects' => [
+                'is_default passe à true pour cette organisation et à false pour les autres.',
+                'La réponse a la forme de /auth/me.',
+            ],
+        ],
+
+        'planning.exports.request' => [
+            'title' => 'Demande d’export du planning',
+            'category' => 'Planning',
+            'goal' => 'Générer l’export Excel du planning en tâche de fond.',
+
+            'route' => [
+                'api' => 'POST /api/planning/exports',
+            ],
+
+            'api_controller' => [
+                'class' => 'PlanningController',
+                'method' => 'requestExport',
+            ],
+
+            'request' => [
+                'class' => 'PlanningIndexRequest',
+                'methods' => [
+                    'authorize',
+                    'rules',
+                ],
+            ],
+
+            'service' => [
+                'class' => 'PlanningAsyncExportService',
+                'method' => 'requestExport',
+                'internal_methods' => [
+                    'Enregistrement de la demande (pending)',
+                    'GeneratePlanningExportJob::dispatch()',
+                ],
+            ],
+
+            'related_services' => [
+                'GeneratePlanningExportJob',
+            ],
+
+            'tables' => [
+                'planning_export_requests',
+                'jobs',
+                'documents',
+            ],
+
+            'effects' => [
+                'La demande est créée (202) ; le job produit ensuite un document planning.',
+                'Suivi avec GET /api/planning/exports/{id}.',
+            ],
+        ],
+
+        'recurrences.cancel' => [
+            'title' => 'Annulation d’une récurrence',
+            'category' => 'Réservations',
+            'goal' => 'Annuler toutes les occurrences encore actives d’une série.',
+
+            'route' => [
+                'api' => 'PATCH /api/recurrences/{recurrence}/cancel',
+            ],
+
+            'api_controller' => [
+                'class' => 'RecurrenceController',
+                'method' => 'cancel',
+            ],
+
+            'request' => [
+                'class' => 'CancelRecurrenceRequest',
+                'methods' => [
+                    'authorize',
+                    'rules',
+                ],
+            ],
+
+            'service' => [
+                'class' => 'RecurrenceService',
+                'method' => 'cancelRemaining',
+                'internal_methods' => [
+                    'Externe : membre de l’organisation de la série (403 sinon)',
+                    'ReservationService::cancel() pour chaque occurrence active',
+                    'DomainEventLogger : recurrence.cancelled',
+                ],
+            ],
+
+            'related_services' => [
+                'ReservationService',
+            ],
+
+            'tables' => [
+                'reservations',
+                'reservation_status_history',
+                'domain_events',
+            ],
+
+            'effects' => [
+                'Les occurrences en_attente, approuve et confirme passent en annule.',
+                'Une occurrence qui ne peut pas être annulée est journalisée et ignorée.',
+            ],
+        ],
+
+        'reservations.trip_report' => [
+            'title' => 'Compte rendu d’un trajet',
+            'category' => 'Réservations',
+            'goal' => 'Déclarer ou corriger le compte rendu d’un trajet (réalisé ou non).',
+
+            'route' => [
+                'api' => 'PUT /api/reservations/{reservation}/trip-report',
+            ],
+
+            'api_controller' => [
+                'class' => 'TripReportController',
+                'method' => 'update',
+            ],
+
+            'request' => [
+                'class' => 'SaveTripReportRequest',
+                'methods' => [
+                    'authorize',
+                    'rules',
+                ],
+            ],
+
+            'service' => [
+                'class' => 'TripReportService',
+                'method' => 'save',
+                'internal_methods' => [
+                    'Réservation confirme requise (422)',
+                    'Chauffeur affecté : de l’heure de départ au lendemain 12:00 ; agent ou admin : sans limite',
+                    'DomainEventLogger : trip_report.created / trip_report.updated',
+                    'Notification des agents si non réalisé',
+                ],
+            ],
+
+            'related_services' => [
+                'NotificationDispatchService',
+            ],
+
+            'tables' => [
+                'trip_reports',
+                'domain_events',
+                'notifications',
+            ],
+
+            'effects' => [
+                'Le compte rendu est créé (201) ou mis à jour (200).',
+                'La réservation est ensuite figée : plus de modification, réaffectation ni confirmation des passagers.',
+            ],
+        ],
+
+        'documents.deliberations.generate' => [
+            'title' => 'Génération de la délibération',
+            'category' => 'Documents',
+            'goal' => '(Re)générer le PDF de délibération d’une décision du Collège.',
+
+            'route' => [
+                'api' => 'POST /api/council-decisions/{councilDecision}/generate-document',
+            ],
+
+            'api_controller' => [
+                'class' => 'CouncilDecisionController',
+                'method' => 'generateDocument',
+            ],
+
+            'request' => null,
+
+            'service' => [
+                'class' => 'DeliberationDocumentService',
+                'method' => 'generateFor',
+                'internal_methods' => [
+                    'Policy generate (documents.generate)',
+                    'Décision approuve ou refuse requise (422)',
+                    'Génération du PDF et nouvelle version',
+                ],
+            ],
+
+            'related_services' => [
+                'DocumentService',
+            ],
+
+            'tables' => [
+                'documents',
+            ],
+
+            'effects' => [
+                'Un nouveau document deliberation (version suivante) est enregistré et stocké.',
             ],
         ],
 

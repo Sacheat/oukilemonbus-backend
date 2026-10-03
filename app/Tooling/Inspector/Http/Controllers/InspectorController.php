@@ -11,6 +11,7 @@ use App\Tooling\Inspector\Http\Resources\InspectorEntryResource;
 use App\Tooling\Inspector\Models\InspectorEntry;
 use App\Tooling\Inspector\Services\FlowRegistry;
 use App\Tooling\Inspector\Services\UserInspectorService;
+use App\Tooling\Support\LocalDateBounds;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -53,8 +54,8 @@ final class InspectorController extends Controller
             ->when(isset($filters['method']), fn ($q) => $q->where('method', $filters['method']))
             ->when(isset($filters['outcome']), fn ($q) => $q->where('outcome', $filters['outcome']))
             ->when(isset($filters['http_status']), fn ($q) => $q->where('http_status', $filters['http_status']))
-            ->when(isset($filters['from']), fn ($q) => $q->where('created_at', '>=', $filters['from']))
-            ->when(isset($filters['to']), fn ($q) => $q->where('created_at', '<=', $filters['to']))
+            ->when(isset($filters['from']), fn ($q) => LocalDateBounds::applyFrom($q, 'created_at', $filters['from']))
+            ->when(isset($filters['to']), fn ($q) => LocalDateBounds::applyTo($q, 'created_at', $filters['to']))
             ->latest('id')
             ->paginate($filters['per_page'] ?? 25);
 
@@ -73,7 +74,7 @@ final class InspectorController extends Controller
         ]);
 
         $deleted = InspectorEntry::query()
-            ->when(isset($validated['before']), fn ($q) => $q->where('created_at', '<', $validated['before']))
+            ->when(isset($validated['before']), fn ($q) => LocalDateBounds::applyBefore($q, 'created_at', $validated['before']))
             ->delete();
 
         return response()->json(['data' => ['deleted' => $deleted]]);
