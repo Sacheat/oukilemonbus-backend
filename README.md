@@ -130,7 +130,7 @@ La référence complète pour le frontend (paramètres, réponses, règles méti
 |---|---|
 | Auth | `POST /auth/register`, `POST /auth/login`, `POST /auth/forgot-password`, `POST /auth/reset-password` (invité) · `GET /auth/me`, `POST /auth/logout` |
 | Vérification email | `GET /email/verify/{id}/{hash}` (lien signé, public) · `POST /email/verify/resend` |
-| Utilisateurs | `GET /users`, `GET /users/{user}`, `POST /users`, `PATCH /users/{user}`, `PATCH /users/{user}/password`, `/status`, `/roles`, `/deactivate` |
+| Utilisateurs | `GET /users` (`search`, `role`, `active`), `GET /users/{user}`, `POST /users`, `PATCH /users/{user}`, `PATCH /users/{user}/password`, `/status`, `/roles`, `/deactivate` |
 | Lieux | `GET /locations/suggest`, `GET /locations`, `GET /locations/{location}`, `POST /locations`, `PATCH /locations/{location}` |
 | Communes | `GET /municipalities`, `GET /municipalities/{municipality}`, `POST /municipalities`, `PATCH /municipalities/{municipality}`, `POST /{municipality}/sync-localities`, `POST /{municipality}/localities`, `PATCH /municipality-localities/{id}`, `/deactivate` |
 | Organisations | `GET /organizations`, `GET /organizations/{organization}`, `POST /organizations`, `PATCH /organizations/{organization}`, `POST /{organization}/ban`, `POST /{organization}/unban` |
