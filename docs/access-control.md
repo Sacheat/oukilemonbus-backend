@@ -16,6 +16,8 @@ La vérification email est requise pour toutes les routes métier (`middleware('
 
 - `users.update-status` — suspend ou réactive un compte (`active` true/false)
 - `users.deactivate` — désactivation définitive : passe `active` à `false` **et révoque tous les tokens Sanctum** du compte
+- Création par un admin (`POST /api/users`) : le compte reçoit le même email de vérification qu'à l'inscription (file d'attente, lien vers `{FRONTEND_URL}/verify-email`) ; une panne d'envoi ne fait pas échouer la création
+- `users.send-password-reset` — `POST /api/users/{user}/password-reset-link` : envoie à l'email du compte le même lien que « Mot de passe oublié » (`{FRONTEND_URL}/reset-password?token=…&email=…`, 60 min). L'admin ne fixe aucun mot de passe et le jeton n'apparaît jamais dans la réponse (202 `{ message }`). 422 sur `user` si le compte est désactivé (« Ce compte est désactivé : réactivez-le avant d'envoyer un lien. ») ou si un lien a été envoyé il y a moins de 60 s (`auth.passwords.users.throttle`). Route limitée à 6 requêtes par minute
 - Un compte désactivé est bloqué par `EnsureUserIsActive` avant toute vérification de permission
 
 **Toujours un administrateur actif**
@@ -71,13 +73,14 @@ L'admin seul peut :
 - `users.update-status` — modération des comptes (bloquer/débloquer)
 - `users.deactivate` — désactivation définitive d'un compte
 - `users.manage-roles` — attribution des rôles globaux
+- `users.send-password-reset` — envoi d'un lien de réinitialisation du mot de passe à un compte
 - `organizations.ban` — bannissement d'une organisation
 - `notifications.monitor` — health check système (outil de support/debug)
 - `tooling.access` — module Tooling : journal Backend Inspector et Dev Toolbox en lecture (voir [`tooling.md`](tooling.md))
 
 ---
 
-## Permissions (52)
+## Permissions (56)
 
 ### users
 
@@ -89,6 +92,7 @@ L'admin seul peut :
 | `users.update-status` | ✓ | — | — | — |
 | `users.deactivate` | ✓ | — | — | — |
 | `users.manage-roles` | ✓ | — | — | — |
+| `users.send-password-reset` | ✓ | — | — | — |
 
 ### locations
 

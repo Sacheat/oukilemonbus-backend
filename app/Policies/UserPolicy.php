@@ -15,6 +15,7 @@ use App\Models\UserOrganization;
  *                    n'est modifiable que par l'utilisateur lui-même.
  * updateStatus() / deactivate() : réservés aux internes.
  * updateRoles() : attribution des rôles globaux, réservée à l'admin.
+ * sendPasswordReset() : envoi d'un lien de réinitialisation du mot de passe, réservé à l'admin.
  */
 class UserPolicy
 {
@@ -73,6 +74,12 @@ class UserPolicy
     public function updateRoles(User $user, User $targetUser): bool
     {
         return $user->can('users.manage-roles')
+            && $user->hasRole('admin');
+    }
+
+    public function sendPasswordReset(User $user, User $targetUser): bool
+    {
+        return $user->can('users.send-password-reset')
             && $user->hasRole('admin');
     }
 

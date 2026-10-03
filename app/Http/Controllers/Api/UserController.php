@@ -135,6 +135,21 @@ class UserController extends Controller
         return response()->json(null, 204);
     }
 
+    /**
+     * Envoie le lien de « Mot de passe oublié » à l'email du compte, pour aider une personne sans lui
+     * transmettre de mot de passe. Le jeton n'apparaît jamais dans la réponse.
+     */
+    public function sendPasswordResetLink(User $user): JsonResponse
+    {
+        Gate::authorize('sendPasswordReset', $user);
+
+        $this->userService->sendPasswordResetLink($user);
+
+        return response()->json([
+            'message' => "Un lien de réinitialisation a été envoyé à {$user->email}.",
+        ], 202);
+    }
+
     public function deactivate(User $user): JsonResponse
     {
         Gate::authorize('deactivate', $user);

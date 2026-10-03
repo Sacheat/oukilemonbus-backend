@@ -5,6 +5,7 @@ namespace App\Services\Users;
 use App\Models\User;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Password;
 use Illuminate\Validation\ValidationException;
 
 class UserService
@@ -25,7 +26,43 @@ class UserService
         // Même rôle de départ qu'à l'inscription ; l'admin l'ajuste ensuite via updateRoles().
         $user->assignRole('user');
 
+        // Même email qu'à l'inscription (en file d'attente) : une panne d'envoi ne fait pas échouer la création.
+        if (! $user->hasVerifiedEmail()) {
+            try {
+                $user->sendEmailVerificationNotification();
+            } catch (\Throwable $exception) {
+                report($exception);
+            }
+        }
+
         return $user->load('roles');
+    }
+
+    /**
+     * Envoie au compte le même lien que « Mot de passe oublié » (broker Laravel, jeton de 60 min).
+     * L'admin ne fixe aucun mot de passe et ne voit jamais le jeton.
+     *
+     * @throws ValidationException compte désactivé, ou lien déjà envoyé il y a moins de auth.passwords.users.throttle secondes
+     */
+    public function sendPasswordResetLink(User $user): void
+    {
+        if (! $user->active) {
+            throw ValidationException::withMessages([
+                'user' => "Ce compte est désactivé : réactivez-le avant d'envoyer un lien.",
+            ]);
+        }
+
+        $status = Password::broker()->sendResetLink(['email' => $user->email]);
+
+        if ($status === Password::RESET_THROTTLED) {
+            throw ValidationException::withMessages([
+                'user' => "Un lien de réinitialisation vient déjà d'être envoyé à ce compte. Réessayez dans une minute.",
+            ]);
+        }
+
+        if ($status !== Password::RESET_LINK_SENT) {
+            throw ValidationException::withMessages(['user' => __($status)]);
+        }
     }
 
     /**

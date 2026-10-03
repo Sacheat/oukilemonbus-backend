@@ -122,6 +122,10 @@ Route::name('api.')->group(function (): void {
             ->middleware('permission:users.manage-roles')
             ->name('users.update-roles');
 
+        Route::post('/users/{user}/password-reset-link', [UserController::class, 'sendPasswordResetLink'])
+            ->middleware(['permission:users.send-password-reset', 'throttle:6,1'])
+            ->name('users.send-password-reset-link');
+
         Route::patch('/users/{user}/deactivate', [UserController::class, 'deactivate'])
             ->middleware('permission:users.deactivate')
             ->name('users.deactivate');
