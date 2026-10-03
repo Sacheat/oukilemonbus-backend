@@ -163,6 +163,38 @@ class InspectorApiTest extends TestCase
         $this->assertModelExists($recent);
     }
 
+    public function test_date_filters_cover_whole_brussels_days_in_summer_time(): void
+    {
+        Sanctum::actingAs($this->seededUser('admin.test@bus-communal.local'));
+        // Le 3 octobre 2026 à Bruxelles (UTC+2) va du 2 octobre 22:00 au 3 octobre 21:59:59 UTC.
+        $dayBefore = $this->makeEntry(['created_at' => '2026-10-02 21:59:59']);
+        $morning = $this->makeEntry(['created_at' => '2026-10-02 22:00:00']);
+        $evening = $this->makeEntry(['created_at' => '2026-10-03 21:59:59']);
+        $dayAfter = $this->makeEntry(['created_at' => '2026-10-03 22:00:00']);
+
+        $this->assertSame([$evening->id, $morning->id], $this->entryIds('from=2026-10-03&to=2026-10-03'));
+        $this->assertSame([$evening->id, $morning->id, $dayBefore->id], $this->entryIds('to=2026-10-03'));
+        $this->assertSame([$dayAfter->id, $evening->id, $morning->id], $this->entryIds('from=2026-10-03'));
+        // Un horodatage complet est comparé tel quel.
+        $this->assertSame([$dayBefore->id], $this->entryIds('to='.urlencode('2026-10-02 21:59:59')));
+    }
+
+    public function test_date_filters_use_brussels_midnight_in_winter_time(): void
+    {
+        Sanctum::actingAs($this->seededUser('admin.test@bus-communal.local'));
+        // Le 15 janvier 2026 à Bruxelles (UTC+1) commence le 14 janvier à 23:00 UTC.
+        $before = $this->makeEntry(['created_at' => '2026-01-14 22:59:59']);
+        $inside = $this->makeEntry(['created_at' => '2026-01-14 23:00:00']);
+
+        $this->assertSame([$inside->id], $this->entryIds('from=2026-01-15&to=2026-01-15'));
+
+        $this->deleteJson('/api/admin/tooling/inspector/entries', ['before' => '2026-01-15'])
+            ->assertOk()
+            ->assertJsonPath('data.deleted', 1);
+        $this->assertModelMissing($before);
+        $this->assertModelExists($inside);
+    }
+
     public function test_prune_command_deletes_entries_older_than_retention(): void
     {
         config(['tooling.inspector.retention_days' => 14]);
@@ -190,6 +222,12 @@ class InspectorApiTest extends TestCase
         }
 
         return $entry;
+    }
+
+    /** @return list<int> */
+    private function entryIds(string $query): array
+    {
+        return array_column($this->getJson('/api/admin/tooling/inspector/entries?'.$query)->assertOk()->json('data'), 'id');
     }
 
     private function seededUser(string $email): User
