@@ -126,12 +126,33 @@ Le score est borné entre 0 et 100. L'email officiel (obligatoire) et l'état du
 
 ### Demande d'adhésion
 
-Critères évalués (exemples) :
-- Organisation cible, rôle demandé
-- Justification fournie, suffisamment détaillée, cohérente avec le rôle demandé
-- Justificatif fourni
-- Téléphone, compte actif et email vérifié du demandeur
-- Pénalités : ni justification ni justificatif, justification trop courte, rôle sensible (directeur, responsable, référent) sans justificatif
+Une demande complète et cohérente fait **100**, quel rôle est demandé.
+
+| Critère | Points |
+|---|---|
+| Justificatif fourni | +35 |
+| Justification fournie | +25 |
+| Justification détaillée (au moins 30 caractères et 5 mots) | +15 |
+| Cohérence rôle / justification : la justification contient au moins **un mot entier** du vocabulaire du rôle | +20 |
+| Téléphone du demandeur renseigné | +5 |
+
+Le vocabulaire (mots entiers, sans accent ni casse) exclut le **nom du rôle** : écrire « responsable » ne prouve rien pour le rôle « responsable », et « enfantine » ne contient pas le mot « enfant ». Exemples : `prof` → enseignant, classe, école, élèves, cours… ; `animateur` → animation, activité, atelier, enfants, stage… ; `directeur` → direction, établissement, école, équipe… ; `responsable` → coordination, gestion, équipe, comité, inscriptions… ; `referent` → contact, coordination, planning, suivi, liaison… (liste complète : `ROLE_VOCABULARY` dans `UserOrgRequestConfidenceScoreService`).
+
+| Pénalité ou avertissement | Effet |
+|---|---|
+| Ni justification ni justificatif | −15 |
+| Justification de moins de 15 caractères | −5 |
+| Rôle sensible (directeur, responsable, référent) sans justificatif | −10 |
+| Justification de moins de 4 mots (et d'au moins 15 caractères) | Avertissement sans point |
+
+Contrôles de **l'état du moment**, évalués seulement pour une demande **en attente**, avertissements sans point :
+
+| Situation | Avertissement |
+|---|---|
+| Responsable ou directeur demandé alors que l'organisation a déjà un responsable ou un directeur (autre que le demandeur) | « Rôle déjà tenu : l'organisation a déjà un responsable ou directeur : Prénom Nom (responsable). » : l'approbation ajouterait un second responsable |
+| Même justification (casse, accents et ponctuation ignorés) qu'une autre demande du même demandeur sur les 90 derniers jours | « Même justification que la demande n°X du même demandeur. » |
+
+Le score est borné entre 0 et 100. L'organisation cible et le rôle (champs obligatoires), le compte actif et l'email vérifié (les routes l'exigent) ne rapportent aucun point : ils sont acquis à tout le monde. L'agent garde la possibilité de fixer lui-même la note à l'approbation ou au refus (`confidence_note` du corps de la requête).
 
 ### Ce que renvoie l'API
 
@@ -139,7 +160,7 @@ Critères évalués (exemples) :
 |---|---|---|
 | `confidence_note` | Le score courant, toujours égal à `confidence_details.score` | La note **de la décision**, figée |
 | `confidence_details` (`score`, `reasons`, `warnings`) | Calculé à chaque lecture | Recalculé à chaque lecture **à titre indicatif**, d'après l'état actuel des données |
-| `confidence_level`, `confidence_level_label` *(demandes de création d'organisation)* | Niveau de la note affichée : `faible` (moins de 40), `moyen` (40 à 69), `eleve` (70 et plus) ; libellés « Faible », « Moyen », « Élevé » | Niveau de la note de la décision |
+| `confidence_level`, `confidence_level_label` | Niveau de la note affichée : `faible` (moins de 40), `moyen` (40 à 69), `eleve` (70 et plus) ; libellés « Faible », « Moyen », « Élevé » | Niveau de la note de la décision |
 
 Pour une demande traitée, `confidence_details.score` peut donc différer de `confidence_note` : le refus supprime le justificatif (le score recalculé perd ses points), un compte ou une adresse a pu changer depuis. L'écart n'est pas une anomalie : la note de la décision fait foi. Pour une demande de création d'organisation traitée, les contrôles de l'état du moment (BCE ou nom déjà connus, email déjà utilisé, autre demande en attente, historique du demandeur) ne sont plus évalués : l'organisation créée par l'approbation porte les mêmes nom, email et numéro.
 
