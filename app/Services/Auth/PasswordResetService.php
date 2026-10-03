@@ -25,14 +25,19 @@ class PasswordResetService
 
     /**
      * @param  array{token: string, email: string, password: string}  $data
+     * @return User le compte réinitialisé
      *
      * @throws ValidationException
      */
-    public function reset(array $data): void
+    public function reset(array $data): User
     {
+        $resetUser = null;
+
         $status = Password::broker()->reset(
             $data,
-            function (User $user, string $password): void {
+            function (User $user, string $password) use (&$resetUser): void {
+                $resetUser = $user;
+
                 $user->forceFill([
                     'password' => $password,
                     'remember_token' => Str::random(60),
@@ -50,5 +55,7 @@ class PasswordResetService
                 'email' => __($status),
             ]);
         }
+
+        return $resetUser;
     }
 }

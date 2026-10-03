@@ -25,6 +25,17 @@ return Application::configure(basePath: dirname(__DIR__))
         // Pas de page de login côté backend : un invité sur /api/* reçoit un 401 JSON (ApiErrorMessage), jamais une redirection.
         $middleware->redirectGuestsTo(fn (Request $request): ?string => $request->is('api/*') ? null : '/');
 
+        // Routes réservées aux invités (register, login, forgot-password) appelées avec une session ouverte :
+        // 409 JSON plutôt qu'une redirection, que la SPA suivrait vers GET / (503). RedirectIfAuthenticated
+        // n'accepte pas null comme cible : on lève directement l'erreur, rendue en JSON plus bas.
+        $middleware->redirectUsersTo(function (Request $request): string {
+            if ($request->is('api/*')) {
+                abort(409, 'Vous êtes déjà connecté. Déconnectez-vous pour continuer.');
+            }
+
+            return '/';
+        });
+
         $middleware->alias([
             'permission' => PermissionMiddleware::class,
             'role' => RoleMiddleware::class,
