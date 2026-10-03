@@ -81,8 +81,8 @@ class RequestConfidenceNoteTest extends TestCase
         $withoutProof = UserOrgRequest::findOrFail($id)->confidence_note;
 
         $this->postJson("/api/user-org-requests/{$id}/proof", ['proof_document' => $this->pdf()])->assertCreated();
-        $this->assertSame($withoutProof + 25, UserOrgRequest::findOrFail($id)->confidence_note);
-        $this->assertNoteMatchesDetails("/api/user-org-requests/{$id}", $withoutProof + 25);
+        $this->assertSame($withoutProof + 35, UserOrgRequest::findOrFail($id)->confidence_note);
+        $this->assertNoteMatchesDetails("/api/user-org-requests/{$id}", $withoutProof + 35);
 
         $this->deleteJson("/api/user-org-requests/{$id}/proof")->assertNoContent();
         $this->assertSame($withoutProof, UserOrgRequest::findOrFail($id)->confidence_note);

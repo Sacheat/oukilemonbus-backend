@@ -152,7 +152,7 @@ class OrgRegistrationRequestFiltersApiTest extends TestCase
 
     public function test_a_user_only_sees_their_own_requests_whatever_the_filters(): void
     {
-        $member = User::factory()->create();
+        $member = $this->anonymousUser();
         $member->assignRole('user');
         $own = $this->makeRequest(['request_by_user_id' => $member->id, 'organization_name' => 'Club à moi']);
         $this->makeRequest(['organization_name' => 'Club à un autre']);
@@ -178,7 +178,7 @@ class OrgRegistrationRequestFiltersApiTest extends TestCase
         $counter++;
 
         $request = OrgRegistrationRequest::create([
-            'request_by_user_id' => User::factory()->create()->id,
+            'request_by_user_id' => $this->anonymousUser()->id,
             'organization_name' => "Organisation {$counter}",
             'organization_type' => OrganizationType::EXTERNE,
             'official_email' => "demande{$counter}@example.test",
@@ -192,6 +192,15 @@ class OrgRegistrationRequestFiltersApiTest extends TestCase
         }
 
         return $request->id;
+    }
+
+    /** Demandeur au nom et à l'email neutres : Faker pourrait sinon produire un nom qui contient le mot cherché par q. */
+    private function anonymousUser(): User
+    {
+        static $counter = 0;
+        $counter++;
+
+        return User::factory()->create(['first_name' => 'Anonyme', 'last_name' => 'Demandeur', 'email' => "anonyme{$counter}@exemple.test"]);
     }
 
     /** @return list<int> id renvoyés (triés sauf $keepOrder) */

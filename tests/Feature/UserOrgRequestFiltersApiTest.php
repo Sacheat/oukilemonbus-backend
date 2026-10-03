@@ -158,9 +158,9 @@ class UserOrgRequestFiltersApiTest extends TestCase
 
     public function test_visibility_scope_is_unchanged_by_the_filters(): void
     {
-        $member = User::factory()->create();
+        $member = $this->anonymousUser();
         $member->assignRole('user');
-        $manager = User::factory()->create();
+        $manager = $this->anonymousUser();
         $manager->assignRole('user');
         $this->ecole->users()->attach($manager->id, ['relationship_type' => 'responsable', 'is_default' => true]);
 
@@ -192,7 +192,7 @@ class UserOrgRequestFiltersApiTest extends TestCase
     {
         $request = UserOrgRequest::create([
             'organization_id' => $this->parc->id,
-            'requested_by_user_id' => User::factory()->create()->id,
+            'requested_by_user_id' => $this->anonymousUser()->id,
             'requested_role' => 'prof',
             'status' => RequestStatus::EN_ATTENTE,
             'confidence_note' => 50,
@@ -204,6 +204,15 @@ class UserOrgRequestFiltersApiTest extends TestCase
         }
 
         return $request->request_id;
+    }
+
+    /** Demandeur au nom et à l'email neutres : Faker pourrait sinon produire un nom qui contient le mot cherché par q. */
+    private function anonymousUser(): User
+    {
+        static $counter = 0;
+        $counter++;
+
+        return User::factory()->create(['first_name' => 'Anonyme', 'last_name' => 'Demandeur', 'email' => "anonyme{$counter}@exemple.test"]);
     }
 
     /** @return list<int> request_id renvoyés (triés sauf $keepOrder) */

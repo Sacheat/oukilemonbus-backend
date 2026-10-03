@@ -13,6 +13,8 @@ use Database\Seeders\TestLocationsSeeder;
 use Database\Seeders\TestOrganizationsSeeder;
 use Database\Seeders\TestUsersSeeder;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\Sanctum;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
@@ -61,15 +63,15 @@ class UserOrgRequestApiTest extends TestCase
             ->assertJsonPath('data.requested_by_user_id', $user->id)
             ->assertJsonPath('data.requested_role', 'animateur')
             ->assertJsonPath('data.status', RequestStatus::EN_ATTENTE->value)
-            ->assertJsonPath('data.confidence_note', 62)
-            ->assertJsonPath('data.confidence_details.score', 62);
+            ->assertJsonPath('data.confidence_note', 45)
+            ->assertJsonPath('data.confidence_details.score', 45);
 
         $this->assertDatabaseHas('user_org_requests', [
             'organization_id' => $organization->id,
             'requested_by_user_id' => $user->id,
             'requested_role' => 'animateur',
             'status' => RequestStatus::EN_ATTENTE->value,
-            'confidence_note' => 62,
+            'confidence_note' => 45,
         ]);
     }
 
@@ -122,8 +124,8 @@ class UserOrgRequestApiTest extends TestCase
             'justification' => 'Je suis responsable des activites hebdomadaires.',
         ])
             ->assertCreated()
-            ->assertJsonPath('data.confidence_note', 75)
-            ->assertJsonPath('data.confidence_details.score', 75)
+            ->assertJsonPath('data.confidence_note', 65)
+            ->assertJsonPath('data.confidence_details.score', 65)
             ->assertJsonMissing([
                 'Organisation situee dans la commune de Dinant.',
             ])
@@ -140,17 +142,31 @@ class UserOrgRequestApiTest extends TestCase
 
         $organization = $this->seededOrganization();
 
-        $this->postJson('/api/user-org-requests', [
+        $response = $this->postJson('/api/user-org-requests', [
             'organization_id' => $organization->id,
             'requested_role' => 'responsable',
             'justification' => 'Je suis responsable de la coordination des activites de cette organisation.',
         ])
             ->assertCreated()
-            ->assertJsonPath('data.confidence_note', 70)
-            ->assertJsonPath('data.confidence_details.score', 70)
+            // 25 + 15 + 20 + 5 = 65, moins 10 : rôle sensible sans justificatif.
+            ->assertJsonPath('data.confidence_note', 55)
+            ->assertJsonPath('data.confidence_details.score', 55)
             ->assertJsonFragment([
                 'Justification cohérente avec le rôle demandé.',
             ]);
+
+        // Le justificatif arrive après la création : +35, et la pénalité du rôle sensible disparaît.
+        Storage::fake('local');
+        $id = $response->json('data.request_id');
+        $this->postJson("/api/user-org-requests/{$id}/proof", [
+            'proof_document' => UploadedFile::fake()->createWithContent('justificatif.pdf', "%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\ntrailer\n<< /Root 1 0 R >>\n%%EOF\n"),
+        ])->assertCreated();
+
+        $this->getJson("/api/user-org-requests/{$id}")
+            ->assertOk()
+            ->assertJsonPath('data.confidence_note', 100)
+            ->assertJsonPath('data.confidence_details.score', 100)
+            ->assertJsonPath('data.confidence_level', 'eleve');
     }
 
     public function test_user_cannot_request_to_join_same_organization_twice_while_pending(): void
