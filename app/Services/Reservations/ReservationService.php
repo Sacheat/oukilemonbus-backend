@@ -257,7 +257,7 @@ class ReservationService
             $reservation,
             'reservation.passengers_confirmed',
             'reservation_updates',
-            'Passagers confirmes',
+            'Passagers confirmés',
             "Les informations passagers de la réservation #{$reservation->id} ont été confirmées ({$reservation->nb_adults} adulte(s), {$reservation->nb_children} enfant(s))."
         );
 
@@ -333,7 +333,8 @@ class ReservationService
                 'reservation_updates',
                 'Réservation refusée',
                 "Votre réservation #{$reservation->id} a été refusée. Motif: {$reason}",
-                document: $this->latestDeliberationDocumentForReservation($reservation)
+                document: $this->latestDeliberationDocumentForReservation($reservation),
+                reason: $reason
             );
 
             $this->autoResolveRelatedConflicts($reservation, $actor);
@@ -378,7 +379,8 @@ class ReservationService
                 'Réservation annulée',
                 "Votre réservation #{$reservation->id} a été annulée. Motif: {$reason}",
                 $priority,
-                $isLastMinute
+                $isLastMinute,
+                reason: $reason
             );
 
             $this->notifyDriver(
@@ -388,7 +390,8 @@ class ReservationService
                 'Annulation de réservation',
                 "La réservation #{$reservation->id} a été annulée. Motif: {$reason}",
                 $priority,
-                $isLastMinute
+                $isLastMinute,
+                reason: $reason
             );
 
             $this->autoResolveRelatedConflicts($reservation, $actor);
@@ -903,7 +906,8 @@ class ReservationService
         string $message,
         string $priority = 'normal',
         bool $urgent = false,
-        ?Document $document = null
+        ?Document $document = null,
+        ?string $reason = null
     ): void {
         $requester = $this->notificationRecipientResolver->reservationRequester($reservation);
         if ($requester === null) {
@@ -919,7 +923,8 @@ class ReservationService
             reservation: $reservation,
             document: $document,
             priority: $priority,
-            urgent: $urgent
+            urgent: $urgent,
+            reason: $reason
         );
     }
 
@@ -930,7 +935,8 @@ class ReservationService
         string $title,
         string $message,
         string $priority = 'normal',
-        bool $urgent = false
+        bool $urgent = false,
+        ?string $reason = null
     ): void {
         $driverUser = $this->notificationRecipientResolver->reservationDriverUser($reservation);
         if ($driverUser === null) {
@@ -948,7 +954,8 @@ class ReservationService
             reservation: $reservation,
             document: $document,
             priority: $priority,
-            urgent: $urgent
+            urgent: $urgent,
+            reason: $reason
         );
     }
 

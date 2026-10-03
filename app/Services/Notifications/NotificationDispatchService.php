@@ -31,6 +31,12 @@ use Throwable;
  *
  * `documentActionUrl()` émet un DocumentAccessToken à usage unique (signedRoute + token).
  * La priorité high utilise la queue 'critical' ; les emails normaux la queue 'default'.
+ *
+ * Deux paramètres facultatifs servent à l'email seulement (le canal `database` ne change pas) :
+ *   - `$reason` : motif d'un refus, d'une annulation ou d'un trajet non réalisé, affiché en citation ; `$message` garde
+ *     le motif (« Motif : … ») pour la cloche du front, l'email le retire du texte et l'affiche à part ;
+ *   - `$link` : ['path' => '/gestion/demandes?…', 'label' => 'Ouvrir la demande'], lien vers la SPA quand il n'y a pas
+ *     de réservation (demandes d'adhésion et de création). Avec une réservation, le lien dépend du destinataire.
  */
 class NotificationDispatchService
 {
@@ -48,7 +54,9 @@ class NotificationDispatchService
         ?Reservation $reservation = null,
         ?Document $document = null,
         string $priority = 'normal',
-        bool $urgent = false
+        bool $urgent = false,
+        ?string $reason = null,
+        ?array $link = null
     ): void {
         $eventId = (string) Str::uuid();
         $reservationId = $reservation?->id;
@@ -67,7 +75,7 @@ class NotificationDispatchService
                 }
 
                 if ($channel === 'mail' && ! $urgent && $this->shouldQueueDigest($user)) {
-                    $this->queueDigestItem($user, $eventKey, $category, $title, $message, $priority, $reservation, $document);
+                    $this->queueDigestItem($user, $eventKey, $category, $title, $message, $priority, $reservation, $document, $link);
                     continue;
                 }
 
@@ -152,7 +160,9 @@ class NotificationDispatchService
                         actionUrl: $actionUrl,
                         document: $document,
                         attachDocumentIfSmall: $channel === 'mail',
-                        channels: [$channel]
+                        channels: [$channel],
+                        reason: $reason,
+                        link: $link
                     );
                     $notification->onQueue($this->queueNameFor($priority, $channel));
 
@@ -238,7 +248,8 @@ class NotificationDispatchService
         string $message,
         string $priority,
         ?Reservation $reservation = null,
-        ?Document $document = null
+        ?Document $document = null,
+        ?array $link = null
     ): void {
         $frequency = $this->preferenceService->digestFrequency($user);
         $availableAt = match ($frequency) {
@@ -261,6 +272,7 @@ class NotificationDispatchService
             'payload' => [
                 'reservation_id' => $reservation?->id,
                 'document_id' => $document?->id,
+                'link' => $link,
             ],
             'available_at' => $availableAt,
             'sent_at' => null,

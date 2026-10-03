@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Auth\Notifications\VerifyEmail;
+use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
 
@@ -22,6 +23,9 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        // Composants Blade des emails : <x-emails::button>, <x-emails::trip-ticket>… (resources/views/emails/components).
+        Blade::anonymousComponentPath(resource_path('views/emails/components'), 'emails');
+
         VerifyEmail::createUrlUsing(function (object $notifiable): string {
             $id = $notifiable->getKey();
             $hash = sha1($notifiable->getEmailForVerification());

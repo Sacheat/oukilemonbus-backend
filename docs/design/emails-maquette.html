@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Maquette des emails</title>
+<style>
+  /* Habillage de la page de maquette seulement : les emails eux-mêmes n'utilisent que des styles en ligne */
+  body { margin: 0; background: #dfe5ee; font-family: Inter, "Segoe UI", Arial, sans-serif; color: #172b4d; }
+  .page { max-width: 1320px; margin: 0 auto; padding: 32px 16px 64px; }
+  .page h1 { font-size: 24px; margin: 0 0 4px; }
+  .page > p { margin: 0 0 28px; color: #56657a; max-width: 760px; line-height: 1.5; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 620px), 1fr)); gap: 32px; }
+  .mail { background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 8px 30px rgba(23,43,77,.12); }
+  .mail-head { padding: 14px 18px; border-bottom: 1px solid #e3e9f1; font-size: 13px; line-height: 1.6; background: #fbfcfe; }
+  .mail-head b { display: inline-block; min-width: 58px; color: #69778c; font-weight: 600; }
+  .tag { display: inline-block; margin-bottom: 8px; padding: 2px 8px; border-radius: 6px; background: #172b4d; color: #fff; font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+  .mail-body { overflow-x: auto; }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Emails OuKiLéMonBus : maquette</h1>
+  <p>Quatre emails types, rendus comme dans un client mail (largeur 600 px, styles en ligne, mise en page en tableaux). Le mot de passe oublié reprend le gabarit de la vérification. Les données sont celles de la base de dev.</p>
+
+  <div class="grid">
+
+  <!-- ============ 1. Notification usager liée à une réservation ============ -->
+  <section class="mail">
+    <div class="mail-head">
+      <span class="tag">1 · Notification usager</span><br>
+      <b>De</b> OuKiLéMonBus &lt;no-reply@bus-communal.local&gt;<br>
+      <b>Objet</b> Votre déplacement du 15 octobre est confirmé
+    </div>
+    <div class="mail-body">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f7fb;font-family:Inter,'Segoe UI',Arial,sans-serif;color:#172b4d;">
+  <tr><td align="center" style="padding:28px 12px;">
+    <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:100%;max-width:600px;">
+      <!-- En-tête -->
+      <tr><td style="background:#172b4d;border-radius:16px 16px 0 0;padding:18px 28px;">
+        <table role="presentation" cellpadding="0" cellspacing="0"><tr>
+          <td style="width:32px;height:32px;background:#f4c95d;border-radius:9px;text-align:center;vertical-align:middle;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#172b4d" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle"><path d="M8 6v6M15 6v6M2 12h19.6M18 18h3s.5-1.7.8-2.8c.1-.4.2-.8.2-1.2 0-.4-.1-.8-.2-1.2l-1.4-5C20.1 6.8 19.1 6 18 6H4a2 2 0 0 0-2 2v10h3"/><circle cx="7" cy="18" r="2"/><path d="M9 18h5"/><circle cx="16" cy="18" r="2"/></svg>
+          </td>
+          <td style="padding-left:10px;color:#ffffff;font-size:18px;font-weight:800;letter-spacing:-.01em;">OUKILEMONBUS</td>
+        </tr></table>
+      </td></tr>
+      <!-- Corps -->
+      <tr><td style="background:#ffffff;padding:32px 28px 8px;border-left:1px solid #e3e9f1;border-right:1px solid #e3e9f1;">
+        <span style="display:inline-block;background:#eaf6ef;color:#237452;font-size:12px;font-weight:700;padding:4px 10px;border-radius:999px;">Réservation confirmée</span>
+        <h1 style="margin:14px 0 0;font-size:24px;line-height:1.25;font-weight:800;color:#172b4d;">Votre déplacement est confirmé</h1>
+        <p style="margin:16px 0 0;font-size:15px;line-height:1.6;color:#172b4d;">Bonjour Sophie,</p>
+        <p style="margin:8px 0 0;font-size:15px;line-height:1.6;color:#172b4d;">Le bus communal vous attendra le jour prévu. Un chauffeur et un véhicule sont affectés à votre déplacement.</p>
+      </td></tr>
+      <!-- Mini-billet -->
+      <tr><td style="background:#ffffff;padding:20px 28px 4px;border-left:1px solid #e3e9f1;border-right:1px solid #e3e9f1;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e3e9f1;border-radius:13px;background:#f9fbff;">
+          <tr><td style="padding:16px 18px 12px;border-bottom:1px dashed #c8d4e3;">
+            <div style="font-size:12px;font-weight:700;color:#69778c;text-transform:uppercase;letter-spacing:.05em;">Réservation n° 104 · École communale de Dinant</div>
+            <div style="margin-top:4px;font-size:18px;font-weight:800;color:#172b4d;">Jeudi 15 octobre 2026</div>
+          </td></tr>
+          <tr><td style="padding:14px 18px;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:14px;line-height:1.45;">
+              <tr>
+                <td style="width:56px;vertical-align:top;font-weight:800;color:#172b4d;">08:30</td>
+                <td style="vertical-align:top;"><span style="color:#69778c;">Départ</span><br><strong>Place Patenier, 5500 Dinant</strong></td>
+              </tr>
+              <tr><td colspan="2" style="height:10px;"></td></tr>
+              <tr>
+                <td style="vertical-align:top;font-weight:800;color:#172b4d;">09:15</td>
+                <td style="vertical-align:top;"><span style="color:#69778c;">Arrivée estimée</span><br><strong>Domaine de Chevetogne</strong></td>
+              </tr>
+              <tr><td colspan="2" style="height:10px;"></td></tr>
+              <tr>
+                <td style="vertical-align:top;font-weight:800;color:#172b4d;">16:00</td>
+                <td style="vertical-align:top;"><span style="color:#69778c;">Retour, arrivée vers 16:45</span><br><strong>Place Patenier, 5500 Dinant</strong></td>
+              </tr>
+            </table>
+          </td></tr>
+          <tr><td style="padding:0 18px 16px;">
+            <table role="presentation" cellpadding="0" cellspacing="0" style="font-size:13px;"><tr>
+              <td style="background:#eef1f5;color:#56657a;padding:5px 10px;border-radius:8px;font-weight:600;">24 passagers</td>
+              <td style="width:6px;"></td>
+              <td style="background:#eef1f5;color:#56657a;padding:5px 10px;border-radius:8px;font-weight:600;">Bus 1-ABC-123</td>
+              <td style="width:6px;"></td>
+              <td style="background:#eef1f5;color:#56657a;padding:5px 10px;border-radius:8px;font-weight:600;">Chloe C.</td>
+            </tr></table>
+          </td></tr>
+        </table>
+      </td></tr>
+      <!-- Actions -->
+      <tr><td style="background:#ffffff;padding:24px 28px 8px;border-left:1px solid #e3e9f1;border-right:1px solid #e3e9f1;">
+        <a href="#" style="display:inline-block;background:#2563eb;color:#ffffff;text-decoration:none;font-size:15px;font-weight:700;padding:13px 22px;border-radius:9px;">Voir le déplacement</a>
+        <p style="margin:14px 0 0;font-size:14px;"><a href="#" style="color:#2563eb;font-weight:600;text-decoration:none;">Ouvrir la décision du Collège (PDF)</a> <span style="color:#69778c;">· aussi jointe à cet email</span></p>
+      </td></tr>
+      <tr><td style="background:#ffffff;padding:20px 28px 28px;border-left:1px solid #e3e9f1;border-right:1px solid #e3e9f1;border-radius:0 0 16px 16px;border-bottom:1px solid #e3e9f1;">
+        <p style="margin:0;padding-top:16px;border-top:1px solid #e3e9f1;font-size:12px;line-height:1.5;color:#69778c;">Si le bouton ne fonctionne pas, copiez ce lien dans votre navigateur :<br><span style="color:#2563eb;word-break:break-all;">http://localhost:3000/espace/deplacements/104</span></p>
+      </td></tr>
+      <!-- Pied -->
+      <tr><td style="padding:18px 28px 0;text-align:center;font-size:12px;line-height:1.6;color:#69778c;">
+        Service du bus communal · Commune de Dinant<br>Cet email est envoyé automatiquement, merci de ne pas y répondre.
+      </td></tr>
+    </table>
+  </td></tr>
+</table>
+    </div>
+  </section>
+
+  <!-- ============ 2. Notification agent, priorité haute ============ -->
+  <section class="mail">
+    <div class="mail-head">
+      <span class="tag">2 · Notification agent (priorité haute)</span><br>
+      <b>De</b> OuKiLéMonBus &lt;no-reply@bus-communal.local&gt;<br>
+      <b>Objet</b> Trajet non réalisé : réservation n° 106
+    </div>
+    <div class="mail-body">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f7fb;font-family:Inter,'Segoe UI',Arial,sans-serif;color:#172b4d;">
+  <tr><td align="center" style="padding:28px 12px;">
+    <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:100%;max-width:600px;">
+      <tr><td style="background:#172b4d;border-radius:16px 16px 0 0;padding:18px 28px;">
+        <table role="presentation" cellpadding="0" cellspacing="0"><tr>
+          <td style="width:32px;height:32px;background:#f4c95d;border-radius:9px;text-align:center;vertical-align:middle;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#172b4d" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle"><path d="M8 6v6M15 6v6M2 12h19.6M18 18h3s.5-1.7.8-2.8c.1-.4.2-.8.2-1.2 0-.4-.1-.8-.2-1.2l-1.4-5C20.1 6.8 19.1 6 18 6H4a2 2 0 0 0-2 2v10h3"/><circle cx="7" cy="18" r="2"/><path d="M9 18h5"/><circle cx="16" cy="18" r="2"/></svg>
+          </td>
+          <td style="padding-left:10px;color:#ffffff;font-size:18px;font-weight:800;letter-spacing:-.01em;">OUKILEMONBUS</td>
+          <td style="padding-left:12px;color:#9fb3d0;font-size:13px;font-weight:600;">Gestion</td>
+        </tr></table>
+      </td></tr>
+      <!-- Bandeau de priorité -->
+      <tr><td style="background:#fdecea;padding:10px 28px;border-left:1px solid #e3e9f1;border-right:1px solid #e3e9f1;font-size:13px;font-weight:700;color:#b42318;">
+        À traiter rapidement
+      </td></tr>
+      <tr><td style="background:#ffffff;padding:28px 28px 8px;border-left:1px solid #e3e9f1;border-right:1px solid #e3e9f1;">
+        <span style="display:inline-block;background:#fdecea;color:#b42318;font-size:12px;font-weight:700;padding:4px 10px;border-radius:999px;">Compte rendu du chauffeur</span>
+        <h1 style="margin:14px 0 0;font-size:24px;line-height:1.25;font-weight:800;color:#172b4d;">Trajet non réalisé</h1>
+        <p style="margin:16px 0 0;font-size:15px;line-height:1.6;">Bonjour Alex,</p>
+        <p style="margin:8px 0 0;font-size:15px;line-height:1.6;">Le trajet n° 106 du 02/10/2026 (École communale de Dinant) n’a pas été réalisé, selon Chloe Chauffeur.</p>
+        <!-- Citation du motif -->
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:14px;"><tr>
+          <td style="width:4px;background:#c8d4e3;border-radius:4px;"></td>
+          <td style="padding:8px 14px;font-size:14px;line-height:1.5;color:#56657a;"><strong style="color:#172b4d;">Motif :</strong> école fermée ce jour-là.</td>
+        </tr></table>
+      </td></tr>
+      <tr><td style="background:#ffffff;padding:20px 28px 4px;border-left:1px solid #e3e9f1;border-right:1px solid #e3e9f1;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e3e9f1;border-radius:13px;background:#f9fbff;">
+          <tr><td style="padding:14px 18px;">
+            <div style="font-size:12px;font-weight:700;color:#69778c;text-transform:uppercase;letter-spacing:.05em;">Réservation n° 106</div>
+            <div style="margin-top:4px;font-size:16px;font-weight:800;">Vendredi 2 octobre 2026 · 08:00 → 12:30</div>
+            <div style="margin-top:4px;font-size:14px;color:#56657a;">Place Patenier → Piscine de Dinant · Bus 1-ABC-123</div>
+          </td></tr>
+        </table>
+      </td></tr>
+      <tr><td style="background:#ffffff;padding:24px 28px 28px;border-left:1px solid #e3e9f1;border-right:1px solid #e3e9f1;border-bottom:1px solid #e3e9f1;border-radius:0 0 16px 16px;">
+        <a href="#" style="display:inline-block;background:#2563eb;color:#ffffff;text-decoration:none;font-size:15px;font-weight:700;padding:13px 22px;border-radius:9px;">Ouvrir la réservation</a>
+        <p style="margin:20px 0 0;padding-top:16px;border-top:1px solid #e3e9f1;font-size:12px;line-height:1.5;color:#69778c;">Si le bouton ne fonctionne pas, copiez ce lien dans votre navigateur :<br><span style="color:#2563eb;word-break:break-all;">http://localhost:3000/gestion/reservations?reservation=106</span></p>
+      </td></tr>
+      <tr><td style="padding:18px 28px 0;text-align:center;font-size:12px;line-height:1.6;color:#69778c;">
+        Service du bus communal · Commune de Dinant<br>Cet email est envoyé automatiquement, merci de ne pas y répondre.
+      </td></tr>
+    </table>
+  </td></tr>
+</table>
+    </div>
+  </section>
+
+  <!-- ============ 3. Récapitulatif ============ -->
+  <section class="mail">
+    <div class="mail-head">
+      <span class="tag">3 · Récapitulatif</span><br>
+      <b>De</b> OuKiLéMonBus &lt;no-reply@bus-communal.local&gt;<br>
+      <b>Objet</b> Votre résumé du 3 octobre : 3 notifications
+    </div>
+    <div class="mail-body">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f7fb;font-family:Inter,'Segoe UI',Arial,sans-serif;color:#172b4d;">
+  <tr><td align="center" style="padding:28px 12px;">
+    <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:100%;max-width:600px;">
+      <tr><td style="background:#172b4d;border-radius:16px 16px 0 0;padding:18px 28px;">
+        <table role="presentation" cellpadding="0" cellspacing="0"><tr>
+          <td style="width:32px;height:32px;background:#f4c95d;border-radius:9px;text-align:center;vertical-align:middle;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#172b4d" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle"><path d="M8 6v6M15 6v6M2 12h19.6M18 18h3s.5-1.7.8-2.8c.1-.4.2-.8.2-1.2 0-.4-.1-.8-.2-1.2l-1.4-5C20.1 6.8 19.1 6 18 6H4a2 2 0 0 0-2 2v10h3"/><circle cx="7" cy="18" r="2"/><path d="M9 18h5"/><circle cx="16" cy="18" r="2"/></svg>
+          </td>
+          <td style="padding-left:10px;color:#ffffff;font-size:18px;font-weight:800;letter-spacing:-.01em;">OUKILEMONBUS</td>
+        </tr></table>
+      </td></tr>
+      <tr><td style="background:#ffffff;padding:32px 28px 8px;border-left:1px solid #e3e9f1;border-right:1px solid #e3e9f1;">
+        <div style="font-size:13px;font-weight:700;color:#69778c;text-transform:uppercase;letter-spacing:.05em;">Résumé du samedi 3 octobre</div>
+        <h1 style="margin:6px 0 0;font-size:24px;line-height:1.25;font-weight:800;">3 nouvelles notifications</h1>
+        <p style="margin:12px 0 0;font-size:15px;line-height:1.6;">Bonjour Alex, voici ce qui s’est passé depuis votre dernier résumé (hier, 08:00).</p>
+      </td></tr>
+      <tr><td style="background:#ffffff;padding:16px 28px 0;border-left:1px solid #e3e9f1;border-right:1px solid #e3e9f1;">
+        <!-- Une carte par notification -->
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e3e9f1;border-radius:13px;">
+          <tr><td style="padding:14px 16px;border-bottom:1px solid #e3e9f1;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
+              <td style="width:10px;vertical-align:top;padding-top:6px;"><div style="width:8px;height:8px;border-radius:8px;background:#6454a0;"></div></td>
+              <td style="padding-left:10px;font-size:14px;line-height:1.5;">
+                <strong>Conflit de réservation détecté</strong> <span style="color:#69778c;font-size:12px;">· 14:12</span><br>
+                <span style="color:#56657a;">La réservation n° 104 a été créée avec un conflit.</span><br>
+                <a href="#" style="color:#2563eb;font-weight:600;font-size:13px;text-decoration:none;">Ouvrir la réservation</a>
+              </td>
+            </tr></table>
+          </td></tr>
+          <tr><td style="padding:14px 16px;border-bottom:1px solid #e3e9f1;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
+              <td style="width:10px;vertical-align:top;padding-top:6px;"><div style="width:8px;height:8px;border-radius:8px;background:#1d4ed8;"></div></td>
+              <td style="padding-left:10px;font-size:14px;line-height:1.5;">
+                <strong>Nouvelle demande de création d’organisation</strong> <span style="color:#69778c;font-size:12px;">· 11:40</span><br>
+                <span style="color:#56657a;">La demande n° 6 doit être revue par un agent communal.</span><br>
+                <a href="#" style="color:#2563eb;font-weight:600;font-size:13px;text-decoration:none;">Ouvrir la demande</a>
+              </td>
+            </tr></table>
+          </td></tr>
+          <tr><td style="padding:14px 16px;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
+              <td style="width:10px;vertical-align:top;padding-top:6px;"><div style="width:8px;height:8px;border-radius:8px;background:#b42318;"></div></td>
+              <td style="padding-left:10px;font-size:14px;line-height:1.5;">
+                <strong>Trajet non réalisé</strong> <span style="color:#69778c;font-size:12px;">· 09:05</span><br>
+                <span style="color:#56657a;">Le trajet n° 106 du 02/10/2026 n’a pas été réalisé, selon Chloe Chauffeur.</span><br>
+                <a href="#" style="color:#2563eb;font-weight:600;font-size:13px;text-decoration:none;">Ouvrir la réservation</a>
+              </td>
+            </tr></table>
+          </td></tr>
+        </table>
+      </td></tr>
+      <tr><td style="background:#ffffff;padding:24px 28px 28px;border-left:1px solid #e3e9f1;border-right:1px solid #e3e9f1;border-bottom:1px solid #e3e9f1;border-radius:0 0 16px 16px;">
+        <a href="#" style="display:inline-block;background:#2563eb;color:#ffffff;text-decoration:none;font-size:15px;font-weight:700;padding:13px 22px;border-radius:9px;">Voir toutes mes notifications</a>
+      </td></tr>
+      <tr><td style="padding:18px 28px 0;text-align:center;font-size:12px;line-height:1.6;color:#69778c;">
+        Service du bus communal · Commune de Dinant<br>Cet email est envoyé automatiquement, merci de ne pas y répondre.
+      </td></tr>
+    </table>
+  </td></tr>
+</table>
+    </div>
+  </section>
+
+  <!-- ============ 4. Vérification de l'email ============ -->
+  <section class="mail">
+    <div class="mail-head">
+      <span class="tag">4 · Vérification de l’email (même gabarit : mot de passe oublié)</span><br>
+      <b>De</b> OuKiLéMonBus &lt;no-reply@bus-communal.local&gt;<br>
+      <b>Objet</b> Confirmez votre adresse email
+    </div>
+    <div class="mail-body">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f7fb;font-family:Inter,'Segoe UI',Arial,sans-serif;color:#172b4d;">
+  <tr><td align="center" style="padding:28px 12px;">
+    <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:100%;max-width:600px;">
+      <tr><td style="background:#172b4d;border-radius:16px 16px 0 0;padding:18px 28px;">
+        <table role="presentation" cellpadding="0" cellspacing="0"><tr>
+          <td style="width:32px;height:32px;background:#f4c95d;border-radius:9px;text-align:center;vertical-align:middle;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#172b4d" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle"><path d="M8 6v6M15 6v6M2 12h19.6M18 18h3s.5-1.7.8-2.8c.1-.4.2-.8.2-1.2 0-.4-.1-.8-.2-1.2l-1.4-5C20.1 6.8 19.1 6 18 6H4a2 2 0 0 0-2 2v10h3"/><circle cx="7" cy="18" r="2"/><path d="M9 18h5"/><circle cx="16" cy="18" r="2"/></svg>
+          </td>
+          <td style="padding-left:10px;color:#ffffff;font-size:18px;font-weight:800;letter-spacing:-.01em;">OUKILEMONBUS</td>
+        </tr></table>
+      </td></tr>
+      <tr><td style="background:#ffffff;padding:36px 28px 28px;border-left:1px solid #e3e9f1;border-right:1px solid #e3e9f1;border-bottom:1px solid #e3e9f1;border-radius:0 0 16px 16px;">
+        <h1 style="margin:0;font-size:24px;line-height:1.25;font-weight:800;">Confirmez votre adresse email</h1>
+        <p style="margin:16px 0 0;font-size:15px;line-height:1.6;">Bonjour Sophie,</p>
+        <p style="margin:8px 0 0;font-size:15px;line-height:1.6;">Bienvenue sur OuKiLéMonBus, le service de réservation du bus communal de Dinant. Confirmez votre adresse pour réserver vos premiers déplacements.</p>
+        <p style="margin:24px 0 0;"><a href="#" style="display:inline-block;background:#2563eb;color:#ffffff;text-decoration:none;font-size:15px;font-weight:700;padding:13px 22px;border-radius:9px;">Confirmer mon adresse</a></p>
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:24px;"><tr>
+          <td style="background:#eaf0ff;border-radius:9px;padding:12px 14px;font-size:13px;line-height:1.5;color:#172b4d;">Ce lien est valable <strong>60 minutes</strong>. Passé ce délai, connectez-vous et demandez un nouveau lien.</td>
+        </tr></table>
+        <p style="margin:16px 0 0;font-size:13px;line-height:1.5;color:#69778c;">Vous n’avez pas créé de compte ? Ignorez cet email, aucun compte ne sera activé.</p>
+        <p style="margin:20px 0 0;padding-top:16px;border-top:1px solid #e3e9f1;font-size:12px;line-height:1.5;color:#69778c;">Si le bouton ne fonctionne pas, copiez ce lien dans votre navigateur :<br><span style="color:#2563eb;word-break:break-all;">http://localhost:3000/verify-email?id=12&amp;hash=…&amp;expires=…&amp;signature=…</span></p>
+      </td></tr>
+      <tr><td style="padding:18px 28px 0;text-align:center;font-size:12px;line-height:1.6;color:#69778c;">
+        Service du bus communal · Commune de Dinant<br>Cet email est envoyé automatiquement, merci de ne pas y répondre.
+      </td></tr>
+    </table>
+  </td></tr>
+</table>
+    </div>
+  </section>
+
+  </div>
+</div>
+</body>
+</html>

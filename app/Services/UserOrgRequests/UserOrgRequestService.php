@@ -58,7 +58,8 @@ class UserOrgRequestService
             eventKey: 'user_org_request.created',
             category: 'admin_workflow',
             title: 'Nouvelle demande de rattachement organisation',
-            message: "La demande #{$request->request_id} doit être revue par un agent communal."
+            message: "La demande #{$request->request_id} doit être revue par un agent communal.",
+            link: ['path' => "/gestion/demandes?file=adhesions&statut=toutes&demande={$request->request_id}", 'label' => 'Ouvrir la demande']
         );
 
         return $request->refresh();
@@ -116,7 +117,8 @@ class UserOrgRequestService
                 eventKey: 'user_org_request.approved',
                 category: 'admin_workflow',
                 title: 'Adhésion approuvée',
-                message: "Votre demande d’adhésion à l’organisation \"{$orgName}\" a été approuvée."
+                message: "Votre demande d’adhésion à l’organisation \"{$orgName}\" a été approuvée.",
+                link: ['path' => '/espace/organisations', 'label' => 'Voir mes organisations']
             );
 
             return $request->refresh();
@@ -150,7 +152,9 @@ class UserOrgRequestService
                 eventKey: 'user_org_request.rejected',
                 category: 'admin_workflow',
                 title: 'Adhésion refusée',
-                message: "Votre demande d’adhésion à l’organisation \"{$orgName}\" a été refusée. Motif : {$reason}"
+                message: "Votre demande d’adhésion à l’organisation \"{$orgName}\" a été refusée. Motif : {$reason}",
+                reason: $reason,
+                link: ['path' => '/espace/organisations', 'label' => 'Voir mes organisations']
             );
         }
 

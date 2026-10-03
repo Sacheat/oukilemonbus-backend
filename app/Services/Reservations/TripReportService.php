@@ -235,7 +235,8 @@ class TripReportService
             message: "Le trajet #{$reservation->id} du {$reservation->trip_date->format('d/m/Y')} "
                 ."({$reservation->organization?->name}) n'a pas été réalisé, selon {$actorName}. Motif : {$report->remarks}",
             reservation: $reservation,
-            priority: 'high'
+            priority: 'high',
+            reason: $report->remarks
         );
     }
 }

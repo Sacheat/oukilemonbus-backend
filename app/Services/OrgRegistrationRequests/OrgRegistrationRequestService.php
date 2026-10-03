@@ -60,7 +60,8 @@ class OrgRegistrationRequestService
             eventKey: 'org_registration_request.created',
             category: 'admin_workflow',
             title: 'Nouvelle demande de création d’organisation',
-            message: "La demande #{$request->id} doit être revue par un agent communal."
+            message: "La demande #{$request->id} doit être revue par un agent communal.",
+            link: ['path' => "/gestion/demandes?file=organisations&statut=toutes&demande={$request->id}", 'label' => 'Ouvrir la demande']
         );
 
         return $request->refresh();
@@ -136,7 +137,8 @@ class OrgRegistrationRequestService
                     eventKey: 'org_registration_request.approved',
                     category: 'admin_workflow',
                     title: 'Demande d’organisation approuvée',
-                    message: "Votre demande #{$request->id} a été approuvée. L’organisation \"{$organization->name}\" a été créée."
+                    message: "Votre demande #{$request->id} a été approuvée. L’organisation \"{$organization->name}\" a été créée.",
+                    link: ['path' => '/espace/organisations', 'label' => 'Voir mes organisations']
                 );
             }
 
@@ -170,7 +172,9 @@ class OrgRegistrationRequestService
                 eventKey: 'org_registration_request.rejected',
                 category: 'admin_workflow',
                 title: 'Demande d’organisation refusée',
-                message: "Votre demande #{$request->id} a été refusée. Motif : {$reason}"
+                message: "Votre demande #{$request->id} a été refusée. Motif : {$reason}",
+                reason: $reason,
+                link: ['path' => '/espace/organisations', 'label' => 'Voir mes organisations']
             );
         }
 
