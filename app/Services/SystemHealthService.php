@@ -6,7 +6,10 @@ use App\Services\Notifications\NotificationHealthService;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
+use Symfony\Component\Mailer\Transport\Smtp\EsmtpTransport;
+use Symfony\Component\Mailer\Transport\Smtp\Stream\SocketStream;
 
 /**
  * Vérifie l'état de tous les composants critiques de l'application.
@@ -23,6 +26,8 @@ use Illuminate\Support\Facades\Storage;
  *   - ors_routing   : appel /v2/directions ORS Dinant → Namur
  *   - geonames      : appel searchJSON GeoNames avec "Dinant"
  *   - notifications : métriques NotificationHealthService (pending, failed, late)
+ *   - mail          : connexion au serveur SMTP du mailer par défaut (EHLO + authentification, sans envoi) ;
+ *                     'warn' si elle échoue (ex. quota Mailtrap épuisé : 535), 'ok' sans SMTP (log, array)
  *   - config        : présence des variables requises (APP_KEY, ORS_API_KEY, DB_*)
  *
  * `isHealthy()` retourne false si au moins un composant a le statut 'error'.
@@ -44,6 +49,7 @@ class SystemHealthService
             'ors_routing'   => $this->checkOrsRouting(),
             'geonames'      => $this->checkGeonames(),
             'notifications' => $this->checkNotifications(),
+            'mail'          => $this->checkMail(),
             'config'        => $this->checkConfig(),
         ];
     }
@@ -292,6 +298,46 @@ class SystemHealthService
             ];
         } catch (\Throwable $e) {
             return ['status' => 'error', 'details' => $e->getMessage(), 'duration_ms' => null];
+        }
+    }
+
+    private function checkMail(): array
+    {
+        $start = microtime(true);
+        $mailer = (string) config('mail.default');
+
+        if (config("mail.mailers.{$mailer}.transport") !== 'smtp') {
+            return ['status' => 'ok', 'details' => "mailer={$mailer} : aucun envoi SMTP", 'duration_ms' => null];
+        }
+
+        $server = config("mail.mailers.{$mailer}.host").':'.config("mail.mailers.{$mailer}.port");
+
+        try {
+            $transport = Mail::mailer($mailer)->getSymfonyTransport();
+
+            // Délai court : un serveur injoignable ne doit pas bloquer la page de santé (défaut PHP : 60 s).
+            if ($transport instanceof EsmtpTransport && $transport->getStream() instanceof SocketStream) {
+                $transport->getStream()->setTimeout(5);
+            }
+
+            $transport->start();
+            $transport->stop();
+
+            return [
+                'status'      => 'ok',
+                'details'     => "SMTP {$server} joignable (EHLO".(config("mail.mailers.{$mailer}.username") ? ' + authentification' : '').')',
+                'duration_ms' => $this->ms($start),
+            ];
+        } catch (\Throwable $e) {
+            // Le message de Symfony cite l'identifiant SMTP : ne pas l'afficher dans la page de santé.
+            $username = (string) config("mail.mailers.{$mailer}.username");
+            $message = $username !== '' ? str_replace($username, '[masqué]', $e->getMessage()) : $e->getMessage();
+
+            return [
+                'status'      => 'warn',
+                'details'     => "SMTP {$server} : ".$message,
+                'duration_ms' => $this->ms($start),
+            ];
         }
     }
 
