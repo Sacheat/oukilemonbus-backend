@@ -128,6 +128,85 @@ Les liens signés sont :
 
 ---
 
+## Emails (gabarits Blade)
+
+Tous les emails de l'application suivent la charte d'OuKiLéMonBus : un **gabarit Blade par type d'email**, avec sa version texte. Maquette validée (à ouvrir dans un navigateur) : [`docs/design/emails-maquette.html`](design/emails-maquette.html).
+
+| Email | Classe | Gabarit (HTML / texte) |
+|---|---|---|
+| Notification opérationnelle | `OperationalNotification` | `emails/notification` / `emails/notification-text` |
+| Récapitulatif | `OperationalDigestNotification` | `emails/digest` / `emails/digest-text` |
+| Vérification de l'email | `QueuedVerifyEmail` | `emails/auth/verify-email` / `-text` |
+| Mot de passe oublié | `QueuedResetPassword` | `emails/auth/reset-password` / `-text` |
+
+```text
+resources/views/emails/
+  layouts/base.blade.php       squelette commun (doctype, <head>, en-tête, pied)
+  components/                  <x-emails::header>, chip, button, fallback-link, quote, notice, trip-ticket, trip-summary, footer
+resources/images/email/logo.png  logo 64 × 64, joint en ligne (cid) à chaque email
+app/Support/Mail/EmailPresenter.php   logique de présentation (testable sans rendu)
+app/Support/Mail/TripTicket.php       billet du trajet
+```
+
+Les composants sont des composants Blade anonymes enregistrés dans `AppServiceProvider` avec le préfixe `emails` : on les appelle `<x-emails::button …>` (avec `::`).
+
+### Contraintes de rendu
+
+- **Styles en ligne écrits à la main et mise en page en tableaux** (`role="presentation"`) : les clients mail ignorent les feuilles de style et le CSS moderne. Le seul `<style>` contient les media queries.
+- **Pas de SVG** (Gmail et Outlook ne l'affichent pas) : le logo est un PNG intégré en pièce jointe en ligne (`$message->embed()`), donc visible aussi en local dans Mailpit sans URL publique.
+- **Fluide d'abord** : conteneur `width="600"` + `max-width:600px`, centré, jamais de défilement horizontal ; l'email reste correct si les media queries sont ignorées. Sous 480 px : marges réduites, titre 21 px, bouton pleine largeur (au moins 44 px de haut), étiquettes du billet qui passent à la ligne.
+- Textes longs (adresses, liens) : `word-break` et `overflow-wrap`. Pas de mode sombre (`color-scheme: light`).
+- Une **version texte** accompagne chaque email, avec le lien en clair.
+- Police : `Inter, 'Segoe UI', Arial, sans-serif` (aucune police web). Couleurs : voir la maquette et `EmailPresenter` (tons des pastilles).
+
+### Notification opérationnelle
+
+Contenu, dans l'ordre : en-tête (avec « Gestion » pour un agent ou un admin), bandeau « À traiter rapidement » si `priority = high`, pastille (ton et libellé), titre, « Bonjour {prénom}, », message, motif en citation, billet du trajet, bouton, lien secondaire vers le document, lien de secours, pied (commune active).
+
+- **Pastille** : ton d'après `event_key` puis la catégorie, comme `notificationKind` du front (refus et annulation : danger ; approuvé ou confirmé : succès ; passagers, document, demande à traiter : info ; conflit : conflit ; sinon neutre). Libellés précis par événement dans `EmailPresenter::LABELS`, avec un repli par ton.
+- **Lien vers la SPA** (email seulement, selon le destinataire, comme `getHomePath` du front) :
+
+| Cible | Agent / admin | Chauffeur affecté | Usager |
+|---|---|---|---|
+| Réservation `{id}` | `/gestion/reservations?reservation={id}` | `/chauffeur/missions/{id}` | `/espace/deplacements/{id}` |
+| Demande d'adhésion `{id}` | `/gestion/demandes?file=adhesions&statut=toutes&demande={id}` | — | `/espace/organisations` |
+| Demande de création `{id}` | `/gestion/demandes?file=organisations&statut=toutes&demande={id}` | — | `/espace/organisations` |
+| Récapitulatif | `/notifications` | `/notifications` | `/notifications` |
+
+  Un chauffeur qui n'est pas celui du trajet n'a pas de bouton, sauf s'il en est le demandeur (lien usager). Sans réservation, sans lien et avec un document, le bouton devient « Ouvrir le document » (lien signé).
+- **Billet du trajet**, chargé au moment du rendu : complet pour l'usager et le chauffeur (date longue en français, départ, arrivée estimée, retour, passagers, bus et chauffeur seulement s'ils sont affectés), **résumé** pour un agent ou un admin. Les arrivées estimées viennent de `ReservationOccupationService` (comme `estimated_occupation` de l'API) et sont **arrondies à 5 minutes au plus proche**, comme dans le front. Si la réservation n'existe plus : ni billet ni bouton.
+- **Document** : pièce jointe sous `NOTIFICATIONS_MAIL_MAX_ATTACHMENT_BYTES` (inchangé). Avec un bouton SPA, le lien signé devient un lien secondaire « Ouvrir la décision du Collège (PDF) · aussi jointe à cet email ».
+- **Objet** : plus précis que le titre pour quatre événements — confirmation (« Votre déplacement du 15 octobre est confirmé »), refus (« Votre réservation n° 98 est refusée »), annulation (« … est annulée » ; chauffeur : « Réservation n° 105 annulée »), trajet non réalisé (« Trajet non réalisé : réservation n° 106 »). Partout ailleurs : le titre.
+- **Textes dédiés** (email seulement) : titre et phrase propres pour ces événements (« Votre déplacement est confirmé… »). Les titres particuliers comme « Réservation de nouveau confirmée » gardent leur texte. Les autres événements affichent le titre et le message de la notification, avec « #104 » écrit « n° 104 ».
+
+### Paramètres facultatifs de `NotificationDispatchService::dispatch()`
+
+Ils ne servent qu'à l'email ; le pipeline (préférences, récapitulatif, anti-spam, déduplication, files) ne change pas.
+
+| Paramètre | Rôle |
+|---|---|
+| `reason` | Motif d'un refus, d'une annulation ou d'un trajet non réalisé, ou d'un refus de demande. L'email le retire du message et l'affiche en citation « Motif : … ». `message` garde le motif (« Motif : … ») : c'est ce que stocke la cloche. Renseigné pour : réservation refusée, annulée (demandeur et chauffeur), trajet non réalisé, demandes d'adhésion et de création refusées. |
+| `link` | `['path' => '/gestion/demandes?…', 'label' => 'Ouvrir la demande']` : lien vers la SPA quand il n'y a pas de réservation. Renseigné par `UserOrgRequestService` et `OrgRegistrationRequestService`. Il est aussi conservé dans le récapitulatif (`notification_digest_queues.payload`). |
+
+**Le canal `database` ne change pas** : `OperationalNotification::toArray()` garde les mêmes clés, le même `message` (motif compris) et le même `action_url` (lien signé du document). Le front s'en sert pour la cloche et `/notifications`. Un test le verrouille.
+
+### Récapitulatif
+
+Objet « Votre résumé du 3 octobre : 3 notifications » (fréquence quotidienne ou en plage de silence) ou « Votre résumé de 14:00 : … » (horaire). Une ligne par notification : pastille du ton, titre, heure de Bruxelles, message, lien SPA. Les notifications de **priorité haute sont en tête**. L'introduction rappelle l'heure du dernier récapitulatif envoyé. Pas de pièce jointe. Bouton « Voir toutes mes notifications » vers `/notifications`.
+
+### Vérification de l'email et mot de passe oublié
+
+Liens inchangés (`createUrlUsing` dans `AppServiceProvider`). Durée de validité lue dans la configuration (`auth.verification.expire`, `auth.passwords.users.expire`). Deux variantes d'accueil :
+
+- compte créé par un admin (`POST /users`, `new QueuedVerifyEmail(createdByAdmin: true)`) : « Un compte a été créé pour vous sur OuKiLéMonBus… » ;
+- lien envoyé par un admin (`POST /users/{id}/password-reset-link`, via le callback du broker, `new QueuedResetPassword($token, sentByAdmin: true)`) : « Un administrateur vous a envoyé ce lien… ».
+
+### Vérifier le rendu
+
+Mailpit (http://localhost:8025) : onglet HTML aux largeurs bureau, tablette et téléphone, onglet « HTML Check » et version texte. Après une modification des vues ou des notifications : `docker compose restart queue scheduler` (le worker garde le code en mémoire).
+
+---
+
 ## Observabilité
 
 ### Endpoint de santé

@@ -6,6 +6,8 @@ use App\Models\NotificationDigestQueue;
 use App\Models\NotificationDelivery;
 use App\Models\User;
 use App\Notifications\OperationalDigestNotification;
+use App\Services\Notifications\NotificationPreferenceService;
+use Illuminate\Support\Carbon;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -75,6 +77,10 @@ class SendUserDigestJob implements ShouldQueue
             'message' => $item->message,
             'category' => $item->category,
             'priority' => $item->priority,
+            'event_key' => $item->event_key,
+            'reservation_id' => $item->reservation_id,
+            'link' => $item->payload['link'] ?? null,
+            'created_at' => $item->created_at?->toISOString(),
         ])->values()->all();
 
         // Delivery créé avant l'envoi pour traçabilité même en cas d'échec.
@@ -107,9 +113,18 @@ class SendUserDigestJob implements ShouldQueue
         ]);
 
         try {
+            // Repère de l'introduction : le dernier récapitulatif envoyé à cet utilisateur.
+            $previousDigestAt = NotificationDelivery::query()
+                ->where('notifiable_id', $user->id)
+                ->where('event_key', 'notifications.digest')
+                ->where('status', 'sent')
+                ->latest('sent_at')
+                ->value('sent_at');
+
             $notification = new OperationalDigestNotification(
-                subject: 'Resume de vos notifications',
-                items: $itemsPayload
+                items: $itemsPayload,
+                frequency: app(NotificationPreferenceService::class)->digestFrequency($user),
+                since: $previousDigestAt !== null ? Carbon::parse($previousDigestAt)->toISOString() : null
             );
             $notification->onQueue((string) config('queue.names.low', 'low'));
 

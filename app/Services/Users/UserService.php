@@ -3,6 +3,9 @@
 namespace App\Services\Users;
 
 use App\Models\User;
+use App\Notifications\Auth\QueuedResetPassword;
+use App\Notifications\Auth\QueuedVerifyEmail;
+use Illuminate\Auth\Events\PasswordResetLinkSent;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Password;
@@ -29,7 +32,8 @@ class UserService
         // Même email qu'à l'inscription (en file d'attente) : une panne d'envoi ne fait pas échouer la création.
         if (! $user->hasVerifiedEmail()) {
             try {
-                $user->sendEmailVerificationNotification();
+                // Même email que l'inscription, avec un accueil adapté : le compte a été créé par un admin.
+                $user->notify(new QueuedVerifyEmail(createdByAdmin: true));
             } catch (\Throwable $exception) {
                 report($exception);
             }
@@ -52,7 +56,11 @@ class UserService
             ]);
         }
 
-        $status = Password::broker()->sendResetLink(['email' => $user->email]);
+        // Callback du broker : même lien que « Mot de passe oublié », avec l'introduction « Un administrateur vous a envoyé… ».
+        $status = Password::broker()->sendResetLink(['email' => $user->email], function (User $target, string $token): void {
+            $target->notify(new QueuedResetPassword($token, sentByAdmin: true));
+            event(new PasswordResetLinkSent($target));
+        });
 
         if ($status === Password::RESET_THROTTLED) {
             throw ValidationException::withMessages([
