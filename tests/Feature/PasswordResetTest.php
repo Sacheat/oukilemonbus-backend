@@ -7,6 +7,7 @@ use App\Notifications\Auth\QueuedResetPassword;
 use Illuminate\Notifications\SendQueuedNotifications;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Password;
@@ -89,5 +90,82 @@ class PasswordResetTest extends TestCase
         ])->assertUnprocessable()->assertJsonValidationErrors('email');
 
         $this->assertFalse(Hash::check('NouveauMotDePasse1!', $user->fresh()->password));
+    }
+
+    public function test_reset_works_while_another_account_is_logged_in_and_keeps_that_session(): void
+    {
+        $admin = User::factory()->create(['email' => 'admin.session@example.test']);
+        $user = User::factory()->create(['email' => 'lien@example.test']);
+        $this->storeSession('session-admin', $admin);
+        $this->storeSession('session-lien', $user);
+
+        $this->actingAs($admin, 'web')
+            ->postJson('/api/auth/reset-password', $this->resetPayload($user))
+            ->assertOk()
+            ->assertJsonPath('message', 'Votre mot de passe a été réinitialisé. Vous pouvez vous connecter.');
+
+        $this->assertTrue(Hash::check('NouveauMotDePasse1!', $user->fresh()->password));
+        $this->assertAuthenticatedAs($admin, 'web');
+        $this->assertDatabaseHas('sessions', ['id' => 'session-admin']);
+        $this->assertDatabaseMissing('sessions', ['id' => 'session-lien']);
+    }
+
+    public function test_reset_of_the_logged_in_account_closes_its_sessions(): void
+    {
+        $user = User::factory()->create(['email' => 'moi@example.test']);
+        $this->storeSession('session-moi', $user);
+
+        $this->actingAs($user, 'web')
+            ->postJson('/api/auth/reset-password', $this->resetPayload($user))
+            ->assertOk();
+
+        $this->assertTrue(Hash::check('NouveauMotDePasse1!', $user->fresh()->password));
+        $this->assertGuest('web');
+        $this->assertDatabaseMissing('sessions', ['id' => 'session-moi']);
+    }
+
+    public function test_guest_only_routes_answer_409_json_when_a_session_is_open(): void
+    {
+        $user = User::factory()->create(['email' => 'connecte@example.test']);
+        $this->actingAs($user, 'web');
+
+        $requests = [
+            '/api/auth/login' => ['email' => 'connecte@example.test', 'password' => 'password'],
+            '/api/auth/register' => ['first_name' => 'A', 'last_name' => 'B', 'email' => 'autre@example.test', 'password' => 'Password123!', 'password_confirmation' => 'Password123!'],
+            '/api/auth/forgot-password' => ['email' => 'connecte@example.test'],
+        ];
+
+        foreach ($requests as $uri => $body) {
+            // Sans header Accept, comme un fetch qui l'oublierait : jamais de redirection.
+            $this->post($uri, $body)
+                ->assertStatus(409)
+                ->assertExactJson(['message' => 'Vous êtes déjà connecté. Déconnectez-vous pour continuer.']);
+        }
+
+        $this->assertDatabaseMissing('users', ['email' => 'autre@example.test']);
+    }
+
+    /** @return array<string, string> */
+    private function resetPayload(User $user): array
+    {
+        return [
+            'token' => Password::broker()->createToken($user),
+            'email' => $user->email,
+            'password' => 'NouveauMotDePasse1!',
+            'password_confirmation' => 'NouveauMotDePasse1!',
+        ];
+    }
+
+    // Ligne de la table sessions (driver database en dev) : le service supprime celles du compte réinitialisé.
+    private function storeSession(string $id, User $user): void
+    {
+        DB::table('sessions')->insert([
+            'id' => $id,
+            'user_id' => $user->id,
+            'ip_address' => '127.0.0.1',
+            'user_agent' => 'phpunit',
+            'payload' => '',
+            'last_activity' => now()->getTimestamp(),
+        ]);
     }
 }

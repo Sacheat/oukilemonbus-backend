@@ -48,10 +48,13 @@ Route::name('api.')->group(function (): void {
         Route::post('/auth/forgot-password', [PasswordResetController::class, 'forgot'])
             ->middleware('throttle:6,1')
             ->name('auth.forgot-password');
-        Route::post('/auth/reset-password', [PasswordResetController::class, 'reset'])
-            ->middleware('throttle:6,1')
-            ->name('auth.reset-password');
     });
+
+    // Hors du groupe guest : le jeton reçu par email prouve l'identité, même si le navigateur a déjà une session
+    // (son propre compte, ou un admin qui teste le lien qu'il vient d'envoyer).
+    Route::post('/auth/reset-password', [PasswordResetController::class, 'reset'])
+        ->middleware('throttle:6,1')
+        ->name('auth.reset-password');
 
     // =========================================================================
     // Vérification email — lien signé (signature relative), sans authentification requise.

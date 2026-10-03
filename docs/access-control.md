@@ -10,6 +10,9 @@ Le backend utilise **Laravel Sanctum** en mode SPA cookie. Le frontend appelle `
 
 Les routes API sensibles sont protégées par `middleware(['auth:sanctum', 'active'])`. Un utilisateur non authentifié reçoit `401 Unauthorized` ; un compte désactivé reçoit `403 Forbidden`.
 
+**Routes invités** : `POST /api/auth/register`, `/auth/login` et `/auth/forgot-password` sont réservées aux invités. Avec une session ouverte, elles répondent `409` JSON « Vous êtes déjà connecté. Déconnectez-vous pour continuer. » (`redirectUsersTo` dans `bootstrap/app.php`), jamais une redirection.
+`POST /api/auth/reset-password` est accessible connecté ou non : le jeton reçu par email prouve l'identité. Le mot de passe du compte du lien est changé et toutes ses sessions sont fermées, y compris la session courante si c'est la sienne ; la session d'un autre compte (ex. un admin qui teste le lien envoyé) reste ouverte.
+
 La vérification email est requise pour toutes les routes métier (`middleware('verified')`). Seules `/auth/me`, `/auth/logout` et `/email/verify/resend` sont accessibles sans email vérifié.
 
 **Cycle de vie d'un compte**
