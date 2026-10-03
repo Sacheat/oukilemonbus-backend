@@ -11,7 +11,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
 /**
  * Resource demande d'inscription organisation.
  * `confidence_details` est calculé à chaque appel par OrgRegistrationConfidenceScoreService::explain()
- * et n'est pas stocké en base — il détaille les critères ayant contribué au score `confidence_note`.
+ * et n'est pas stocké en base — il détaille les critères du score. Voir docs/organizations.md (scoring de confiance).
  */
 class OrgRegistrationRequestResource extends JsonResource
 {
@@ -22,6 +22,10 @@ class OrgRegistrationRequestResource extends JsonResource
 
         /** @var RequestStatus|null $status */
         $status = $this->status;
+
+        // Demande en attente : note et détail sont le même calcul (le tri s'appuie sur la note enregistrée, tenue à jour
+        // par les services). Demande traitée : la note de la décision est figée ; le détail est recalculé à titre indicatif.
+        $confidence = app(OrgRegistrationConfidenceScoreService::class)->explain($this->resource);
 
         return [
             'id' => $this->id,
@@ -40,8 +44,8 @@ class OrgRegistrationRequestResource extends JsonResource
             'comment' => $this->comment,
             'status' => $status?->value,
             'status_label' => $status?->label(),
-            'confidence_note' => $this->confidence_note,
-            'confidence_details' => app(OrgRegistrationConfidenceScoreService::class)->explain($this->resource),
+            'confidence_note' => $status?->isPending() ? $confidence['score'] : $this->confidence_note,
+            'confidence_details' => $confidence,
             'reviewed_by_user_id' => $this->reviewed_by_user_id,
             'reviewed_at' => $this->reviewed_at?->toISOString(),
             'rejection_reason' => $this->rejection_reason,

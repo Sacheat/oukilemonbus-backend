@@ -20,6 +20,10 @@ use App\Services\Locations\MunicipalityService;
  * Pénalités appliquées par applyWarnings() : nom trop court, email déjà utilisé,
  * autre demande en attente du même utilisateur.
  *
+ * Les pénalités d'email déjà utilisé et d'autre demande en attente décrivent l'état du moment : elles ne s'appliquent
+ * qu'à une demande EN_ATTENTE. Sur une demande traitée, l'organisation créée par son approbation porte le même email et
+ * ferait apparaître un avertissement qui n'a plus de sens.
+ *
  * `calculate()` retourne uniquement le score ; `explain()` retourne le détail complet
  * (score, raisons positives, avertissements) — utilisé par les Resources pour l'affichage.
  */
@@ -144,6 +148,10 @@ class OrgRegistrationConfidenceScoreService
         if (mb_strlen(trim($request->organization_name)) < 4) {
             $score -= 5;
             $warnings[] = "Nom d'organisation trop court.";
+        }
+
+        if (! $request->status?->isPending()) {
+            return;
         }
 
         $emailAlreadyUsed = Organization::query()

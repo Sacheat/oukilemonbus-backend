@@ -171,8 +171,8 @@ La référence complète pour le frontend (paramètres, réponses, règles méti
 | Communes | `GET /municipalities`, `GET /municipalities/{municipality}`, `POST /municipalities`, `PATCH /municipalities/{municipality}`, `POST /{municipality}/sync-localities`, `POST /{municipality}/localities`, `PATCH /municipality-localities/{id}`, `/deactivate` |
 | Organisations | `GET /organizations`, `GET /organizations/{organization}`, `POST /organizations`, `PATCH /organizations/{organization}`, `POST /{organization}/ban`, `POST /{organization}/unban` |
 | Membres d'une organisation | `GET /organizations/{organization}/members`, `PATCH /members/{user}`, `DELETE /members/{user}`, `POST /{organization}/leave`, `PATCH /{organization}/default` |
-| Demandes de création d'organisation | `GET /org-registration-requests`, `GET /{id}`, `POST /org-registration-requests`, `PATCH /{id}/approve`, `PATCH /{id}/reject`, `POST /{id}/proof`, `DELETE /{id}/proof` |
-| Demandes d'adhésion | `GET /user-org-requests/available-organizations`, `GET /user-org-requests`, `GET /{id}`, `POST /user-org-requests`, `PATCH /{id}/approve`, `PATCH /{id}/reject`, `POST /{id}/proof`, `DELETE /{id}/proof` |
+| Demandes de création d'organisation | `GET /org-registration-requests` (`statuses[]`, `q`, `organization_type`, `sort`, `per_page`), `GET /{id}`, `POST /org-registration-requests`, `PATCH /{id}/approve`, `PATCH /{id}/reject`, `POST /{id}/proof`, `DELETE /{id}/proof` |
+| Demandes d'adhésion | `GET /user-org-requests/available-organizations`, `GET /user-org-requests` (`statuses[]`, `q`, `organization_id`, `sort`, `per_page`), `GET /{id}`, `POST /user-org-requests`, `PATCH /{id}/approve`, `PATCH /{id}/reject`, `POST /{id}/proof`, `DELETE /{id}/proof` |
 | Chauffeurs | `GET /drivers`, `GET /drivers/{driver}`, `POST /drivers`, `PATCH /drivers/{driver}`, `/activate`, `/deactivate` |
 | Véhicules | `GET /vehicles`, `GET /vehicles/{vehicle}`, `POST /vehicles`, `PATCH /vehicles/{vehicle}`, `/activate`, `/deactivate` |
 | Réservations | `GET /reservations` (filtres `status` ou `statuses[]`, `q`, `organization_id`, `date_from`, `date_to`, `council=a_decider`, `sort` ; chaque ligne porte `council_decision_status`), `GET /reservations/{reservation}` (avec `council_decision_status`), `POST /reservations/preview`, `POST /reservations`, `PATCH /reservations/{reservation}` (préavis de 15 jours levé pour un agent, et pour un externe si la date ne change pas ; voir docs/reservations.md §6.3), `/approve`, `/reject`, `/cancel`, `/assign`, `/confirm`, `/retry-assign`, `/confirm-passengers` |
@@ -315,6 +315,7 @@ docker compose exec app php artisan notifications:prune
 docker compose exec app php artisan documents:prune-orphan-proofs --dry-run
 docker compose exec app php artisan reservations:send-passenger-reminders --dry-run
 docker compose exec -u www-data app php artisan reservations:close-expired --dry-run   # chaque nuit à 00:15
+docker compose exec -u www-data app php artisan requests:refresh-confidence-notes   # chaque heure : note de confiance enregistrée des demandes en attente (tri)
 
 # Outils (module Tooling)
 docker compose exec app php artisan dev:toolbox            # menu interactif (local/testing)
