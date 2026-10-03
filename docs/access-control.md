@@ -18,6 +18,28 @@ La vérification email est requise pour toutes les routes métier (`middleware('
 - `users.deactivate` — désactivation définitive : passe `active` à `false` **et révoque tous les tokens Sanctum** du compte
 - Un compte désactivé est bloqué par `EnsureUserIsActive` avant toute vérification de permission
 
+**Toujours un administrateur actif**
+
+La plateforme garde au moins un administrateur actif (rôle `admin` **et** `active = true`). `UserService` refuse, en 422 :
+
+| Route | Cas refusé | Champ | Message |
+|---|---|---|---|
+| `PATCH /api/users/{user}/roles` | `roles` ne contient plus `admin` pour le dernier admin actif | `roles` | « Impossible de retirer le rôle administrateur du dernier administrateur actif. » |
+| `PATCH /api/users/{user}/status` | `active=false` sur le dernier admin actif | `active` | « Impossible de désactiver le dernier administrateur actif. » |
+| `PATCH /api/users/{user}/deactivate` | dernier admin actif | `user` (repris dans `message`) | « Impossible de désactiver le dernier administrateur actif. » |
+
+Un admin déjà désactivé ne compte pas. Les lignes des admins actifs sont verrouillées pendant la vérification, pour que deux retraits simultanés ne passent pas tous les deux. Un admin ne peut par ailleurs pas retirer son propre rôle `admin` (« Vous ne pouvez pas retirer votre propre rôle administrateur. », vérifié avant).
+
+**Liste des comptes (`GET /api/users`)**
+
+Paramètres combinables, conservés dans les liens de pagination (15 par page, plus récents d'abord) :
+
+- `search` : chaque mot doit apparaître dans le prénom, le nom ou l'email ;
+- `role` : un rôle global (`admin`, `agent_communal`, `chauffeur`, `user`) ;
+- `active` : `1`/`true` (comptes actifs) ou `0`/`false` (désactivés).
+
+Une valeur invalide renvoie un 422. `GET /api/users/{user}` renvoie le compte avec `roles`, `organizations` (avec `membership`) et `driver`.
+
 ---
 
 ## Rôles
