@@ -1545,7 +1545,7 @@ return [
 
             'related_services' => [
                 'VerifyEmail (notification Laravel)',
-                'Mailtrap SMTP',
+                'Serveur SMTP (Mailpit en dev)',
             ],
 
             'tables' => [
@@ -1556,7 +1556,7 @@ return [
 
             'effects' => [
                 'Un compte utilisateur est créé avec email non vérifié.',
-                'Un email de vérification est envoyé via Mailtrap.',
+                'Un email de vérification est envoyé (en dev, visible dans Mailpit).',
                 'L’utilisateur ne peut pas accéder aux routes métier avant vérification.',
                 'Le rôle user est attribué par défaut.',
             ],
@@ -2994,14 +2994,14 @@ return [
                 'internal_methods' => [
                     'Vérification que l’email n’est pas déjà vérifié',
                     'Génération d’une URL signée temporaire',
-                    'Envoi de l’email de vérification via Mailtrap',
+                    'Envoi de l’email de vérification (file d’attente)',
                     'Throttle : 6 tentatives par minute',
                 ],
             ],
 
             'related_services' => [
                 'VerifyEmail (notification Laravel)',
-                'Mailtrap SMTP',
+                'Serveur SMTP (Mailpit en dev)',
             ],
 
             'tables' => [

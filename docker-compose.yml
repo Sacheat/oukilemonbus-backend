@@ -10,6 +10,7 @@ services:
       - .:/var/www/html
     depends_on:
       - mariadb
+      - mailpit
 
   nginx:
     image: nginx:1.27-alpine
@@ -42,6 +43,7 @@ services:
     depends_on:
       - app
       - mariadb
+      - mailpit
 
   mariadb:
     image: mariadb:11.4
@@ -84,6 +86,23 @@ services:
     depends_on:
       - app
       - mariadb
+      - mailpit
+
+  # Serveur d'emails de dev : reçoit tout ce que l'application envoie (vérification d'email, mot de passe oublié,
+  # notifications), sans quota ni envoi réel. Interface web : http://localhost:8025 ; SMTP : mailpit:1025 depuis
+  # les conteneurs (MAIL_HOST=mailpit, MAIL_PORT=1025). Accepte n'importe quel identifiant SMTP ; garde les
+  # MP_MAX_MESSAGES derniers emails (les plus anciens sont supprimés).
+  mailpit:
+    image: axllent/mailpit:v1.31.4
+    container_name: bus-communal-mailpit
+    restart: unless-stopped
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: 1
+      MP_SMTP_AUTH_ALLOW_INSECURE: 1
+      MP_MAX_MESSAGES: 2000
+    ports:
+      - "8025:8025"
+      - "1025:1025"
 
 volumes:
   bus_communal_mariadb_data:

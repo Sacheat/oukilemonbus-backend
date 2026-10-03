@@ -32,6 +32,7 @@ class SystemHealthCommand extends Command
         ],
         'Application' => [
             'notifications' => 'Notifications',
+            'mail'          => 'Emails (SMTP)',
             'config'        => 'Configuration',
         ],
     ];
@@ -46,6 +47,7 @@ class SystemHealthCommand extends Command
         'ors_routing'   => 'Vérifier ORS_API_KEY dans le .env et la connectivité réseau vers api.openrouteservice.org',
         'geonames'      => 'Vérifier GEONAMES_USERNAME dans le .env — compte gratuit sur geonames.org',
         'notifications' => 'Consulter les logs du worker : docker logs bus-communal-queue',
+        'mail'          => 'Vérifier MAIL_HOST et MAIL_PORT dans le .env (dev : mailpit et 1025, docker compose up -d mailpit)',
         'config'        => 'Compléter les variables manquantes dans le .env',
     ];
 
