@@ -32,9 +32,20 @@ use Illuminate\Validation\ValidationException;
  *
  * `overlappingReservationsQuery()` réplique le calcul de fenêtre en SQL (TIMESTAMPADD)
  * pour éviter de charger toutes les réservations du jour en mémoire.
+ *
+ * Affectations simultanées : `autoAssign()` et `assign()` passent par `withDayLock()`, un verrou nommé MariaDB par jour
+ * de trajet (GET_LOCK, attente de config('reservations.assignment_lock_wait_seconds') secondes, puis 409). Deux
+ * agents qui approuvent au même moment sur le dernier véhicule libre passent l'un après l'autre : le second voit le
+ * véhicule pris (conflit « aucun véhicule disponible ») au lieu d'une double affectation. Le verrou nommé reste
+ * visible des autres requêtes même à l'intérieur d'une transaction (contrairement à un verrou de cache en base), et les
+ * lectures des ressources occupées sont verrouillantes (`sharedLock`) : elles voient la dernière version enregistrée et
+ * attendent une affectation encore en cours sur les mêmes réservations. Deux jours différents ne se gênent pas.
  */
 class ReservationAssignmentService
 {
+    /** Préfixe du verrou nommé des affectations d'un jour (withDayLock) */
+    public const DAY_LOCK_PREFIX = 'bus-communal:affectations:';
+
     public function __construct(
         private readonly ReservationOccupationService $occupationService,
         private readonly DomainEventLogger $eventLogger
@@ -42,7 +53,7 @@ class ReservationAssignmentService
 
     public function autoAssign(Reservation $reservation, User $actor): Reservation
     {
-        return DB::transaction(function () use ($reservation, $actor): Reservation {
+        return $this->withDayLock($reservation->trip_date->toDateString(), fn (): Reservation => DB::transaction(function () use ($reservation, $actor): Reservation {
             $window = $this->occupationService->windowForReservation($reservation);
             $driver = $this->availableDriver($reservation, $window);
             $vehicle = $this->availableVehicle($reservation, $window);
@@ -64,12 +75,12 @@ class ReservationAssignmentService
             }
 
             return $reservation->refresh();
-        });
+        }));
     }
 
     public function assign(Reservation $reservation, array $data, User $actor): Reservation
     {
-        return DB::transaction(function () use ($reservation, $data, $actor): Reservation {
+        return $this->withDayLock($reservation->trip_date->toDateString(), fn (): Reservation => DB::transaction(function () use ($reservation, $data, $actor): Reservation {
             if (array_key_exists('driver_id', $data)) {
                 $driver = Driver::findOrFail($data['driver_id']);
                 $this->ensureDriverAvailable($reservation, $driver);
@@ -83,7 +94,28 @@ class ReservationAssignmentService
             }
 
             return $reservation->refresh();
-        });
+        }));
+    }
+
+    /**
+     * Exécute `$callback` en tenant le verrou des affectations du jour de trajet (verrou nommé MariaDB, réentrant).
+     * Verrou toujours pris par une autre requête après l'attente → 409, l'agent réessaie.
+     */
+    public function withDayLock(string $tripDate, callable $callback): mixed
+    {
+        $name = self::DAY_LOCK_PREFIX.$tripDate;
+        $wait = max(0, (int) config('reservations.assignment_lock_wait_seconds', 5));
+        $acquired = (int) (DB::selectOne('SELECT GET_LOCK(?, ?) AS acquired', [$name, $wait])->acquired ?? 0);
+
+        if ($acquired !== 1) {
+            abort(409, 'Une autre affectation est en cours pour ce jour : réessayez dans un instant.');
+        }
+
+        try {
+            return $callback();
+        } finally {
+            DB::select('SELECT RELEASE_LOCK(?)', [$name]);
+        }
     }
 
     public function availableDriver(Reservation $reservation, ?array $window = null): ?Driver
@@ -262,6 +294,7 @@ class ReservationAssignmentService
             ->whereNotNull('driver_id')
             ->where('start_datetime', '<', $window['end'])
             ->where('end_datetime', '>', $window['start'])
+            ->sharedLock()
             ->pluck('driver_id')
             ->all();
 
@@ -280,6 +313,7 @@ class ReservationAssignmentService
             ->whereNotNull('vehicle_id')
             ->where('start_datetime', '<', $window['end'])
             ->where('end_datetime', '>', $window['start'])
+            ->sharedLock()
             ->pluck('vehicle_id')
             ->all();
 
@@ -304,6 +338,8 @@ class ReservationAssignmentService
             ->when($ignoreReservationId !== null, fn ($q) => $q->whereKeyNot($ignoreReservationId))
             ->whereDate('trip_date', $tripDate)
             ->whereIn('status', [ReservationStatus::APPROUVE->value, ReservationStatus::CONFIRME->value])
+            // Lecture verrouillante : voit les affectations déjà enregistrées par une autre requête (voir withDayLock)
+            ->sharedLock()
             // other.window_start < candidate.window_end
             ->whereRaw(
                 'TIMESTAMPADD(MINUTE, ?, TIMESTAMP(trip_date, departure_time)) < ?',
