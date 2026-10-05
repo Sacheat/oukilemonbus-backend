@@ -442,7 +442,6 @@ Points relevés, non traités dans cette PR :
 - la génération automatique de 20:00 ignore un véhicule dont la feuille du lendemain existe déjà : une mission
   modifiée ou ajoutée après 20:00 n'est pas reportée sur la feuille officielle (régénération à prévoir, avec --force
   ou à chaque changement de mission) ;
-- GET /documents n'est pas paginé (Collection complète) : à paginer quand le volume grandira.
 
 30. Résumé final
 

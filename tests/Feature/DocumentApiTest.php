@@ -435,6 +435,222 @@ class DocumentApiTest extends TestCase
         );
     }
 
+    public function test_documents_list_is_paginated_with_15_per_page_by_default(): void
+    {
+        $admin = $this->userWithRole('admin');
+        $owner = $this->userWithRole('user');
+
+        foreach (range(1, 17) as $index) {
+            $this->documentFor($owner, ['generated_at' => now()->subMinutes($index)]);
+        }
+
+        Sanctum::actingAs($admin);
+
+        $this->getJson('/api/documents')
+            ->assertOk()
+            ->assertJsonCount(15, 'data')
+            ->assertJsonPath('meta.current_page', 1)
+            ->assertJsonPath('meta.last_page', 2)
+            ->assertJsonPath('meta.per_page', 15)
+            ->assertJsonPath('meta.total', 17);
+
+        $this->getJson('/api/documents?page=2')->assertOk()->assertJsonCount(2, 'data');
+        $this->getJson('/api/documents?per_page=5')->assertOk()->assertJsonCount(5, 'data')->assertJsonPath('meta.last_page', 4);
+        $this->getJson('/api/documents?per_page=101')->assertUnprocessable()->assertJsonValidationErrors('per_page');
+    }
+
+    public function test_documents_list_is_paginated_for_a_regular_user_and_stays_scoped(): void
+    {
+        $user = $this->userWithRole('user');
+        $other = $this->userWithRole('user');
+
+        foreach (range(1, 16) as $index) {
+            $this->documentFor($user, ['generated_at' => now()->subMinutes($index)]);
+        }
+        $this->documentFor($other);
+
+        Sanctum::actingAs($user);
+
+        $this->getJson('/api/documents')
+            ->assertOk()
+            ->assertJsonCount(15, 'data')
+            ->assertJsonPath('meta.total', 16);
+    }
+
+    public function test_documents_are_ordered_by_generated_at_then_created_at_desc_with_relations_loaded(): void
+    {
+        $admin = $this->userWithRole('admin');
+        $owner = $this->userWithRole('user');
+        $reservation = $this->createReservationForUser($owner);
+
+        $old = $this->documentFor($owner, ['generated_at' => now()->subDays(2)]);
+        $recent = $this->documentFor($owner, ['generated_at' => now()->subHour(), 'reservation_id' => $reservation->id]);
+
+        Sanctum::actingAs($admin);
+
+        $this->getJson('/api/documents')
+            ->assertOk()
+            ->assertJsonPath('data.0.id', $recent->id)
+            ->assertJsonPath('data.0.reservation.id', $reservation->id)
+            ->assertJsonPath('data.0.user.id', $owner->id)
+            ->assertJsonPath('data.1.id', $old->id);
+    }
+
+    public function test_documents_can_be_filtered_and_excluded_by_type(): void
+    {
+        $admin = $this->userWithRole('admin');
+        $owner = $this->userWithRole('user');
+
+        $proof = $this->documentFor($owner);
+        $attestation = $this->documentFor($owner, ['document_type' => DocumentType::ATTESTATION]);
+        $planning = $this->documentFor($owner, ['document_type' => DocumentType::PLANNING]);
+
+        Sanctum::actingAs($admin);
+
+        $this->getJson('/api/documents?document_type[]=attestation&document_type[]=planning')
+            ->assertOk()
+            ->assertJsonPath('meta.total', 2)
+            ->assertJsonMissing(['id' => $proof->id]);
+
+        $this->getJson('/api/documents?exclude_type[]=justificatif')
+            ->assertOk()
+            ->assertJsonPath('meta.total', 2)
+            ->assertJsonMissing(['id' => $proof->id]);
+
+        $this->getJson('/api/documents?document_type[]=nope')->assertUnprocessable()->assertJsonValidationErrors('document_type.0');
+        $this->getJson('/api/documents?exclude_type[]=nope')->assertUnprocessable()->assertJsonValidationErrors('exclude_type.0');
+    }
+
+    public function test_documents_date_filters_use_brussels_days_on_generated_at_then_created_at(): void
+    {
+        $admin = $this->userWithRole('admin');
+        $owner = $this->userWithRole('user');
+
+        // 2026-03-10 23:30 UTC = 11/03 00:30 à Bruxelles (heure d'hiver) ; 2026-03-11 22:30 UTC = 11/03 23:30.
+        $lateEvening = $this->documentFor($owner, ['generated_at' => '2026-03-10 23:30:00']);
+        $endOfDay = $this->documentFor($owner, ['generated_at' => '2026-03-11 22:30:00']);
+        $nextDay = $this->documentFor($owner, ['generated_at' => '2026-03-11 23:30:00']);
+        $dayBefore = $this->documentFor($owner, ['generated_at' => '2026-03-10 22:30:00']);
+        // Sans generated_at, la date de création fait foi.
+        $createdOnly = $this->documentFor($owner, ['generated_at' => null]);
+        $createdOnly->forceFill(['created_at' => '2026-03-11 10:00:00'])->saveQuietly();
+
+        Sanctum::actingAs($admin);
+
+        $ids = collect($this->getJson('/api/documents?date_from=2026-03-11&date_to=2026-03-11')->assertOk()->json('data'))
+            ->pluck('id')->sort()->values()->all();
+
+        $this->assertSame(collect([$lateEvening->id, $endOfDay->id, $createdOnly->id])->sort()->values()->all(), $ids);
+        $this->assertNotContains($nextDay->id, $ids);
+        $this->assertNotContains($dayBefore->id, $ids);
+
+        $this->getJson('/api/documents?date_from=2026-03-12&date_to=2026-03-11')->assertUnprocessable()->assertJsonValidationErrors('date_to');
+        $this->getJson('/api/documents?date_from=11/03/2026')->assertUnprocessable()->assertJsonValidationErrors('date_from');
+    }
+
+    public function test_documents_can_be_searched_by_file_name_reservation_number_and_purpose(): void
+    {
+        $admin = $this->userWithRole('admin');
+        $owner = $this->userWithRole('user');
+        $reservation = $this->createReservationForUser($owner);
+
+        $byName = $this->documentFor($owner, ['file_name' => 'statuts-asbl.pdf']);
+        $byReservation = $this->documentFor($owner, ['reservation_id' => $reservation->id, 'file_name' => 'a.pdf']);
+        $other = $this->documentFor($owner, ['file_name' => 'autre.pdf']);
+
+        Sanctum::actingAs($admin);
+
+        $this->getJson('/api/documents?q=statuts')->assertOk()->assertJsonPath('meta.total', 1)->assertJsonPath('data.0.id', $byName->id);
+        $this->getJson('/api/documents?q='.$reservation->id)->assertOk()->assertJsonPath('meta.total', 1)->assertJsonPath('data.0.id', $byReservation->id);
+        $this->getJson('/api/documents?q=educative')->assertOk()->assertJsonPath('meta.total', 1)->assertJsonPath('data.0.id', $byReservation->id);
+        // Le numéro doit être exact : un préfixe ne correspond pas.
+        $this->getJson('/api/documents?q='.substr((string) ($reservation->id + 1000), 0, 2).'x')->assertOk()->assertJsonPath('meta.total', 0);
+        // Les jokers LIKE sont littéraux.
+        $this->getJson('/api/documents?q=%25')->assertOk()->assertJsonPath('meta.total', 0);
+        $this->assertNotNull($other);
+    }
+
+    public function test_documents_can_be_filtered_by_reservation_id(): void
+    {
+        $admin = $this->userWithRole('admin');
+        $owner = $this->userWithRole('user');
+        $reservation = $this->createReservationForUser($owner);
+
+        $linked = $this->documentFor($owner, ['reservation_id' => $reservation->id]);
+        $this->documentFor($owner);
+        $routeSheet = $this->createRouteSheetDocument();
+        $routeSheet->routeSheetReservations()->attach($reservation->id, ['position' => 1]);
+
+        Sanctum::actingAs($admin);
+
+        $ids = collect($this->getJson('/api/documents?reservation_id='.$reservation->id)->assertOk()->json('data'))->pluck('id')->sort()->values()->all();
+
+        $this->assertSame(collect([$linked->id, $routeSheet->id])->sort()->values()->all(), $ids);
+    }
+
+    public function test_filters_never_widen_what_a_regular_user_can_see(): void
+    {
+        $user = $this->userWithRole('user');
+        $other = $this->userWithRole('user');
+        $otherReservation = $this->createReservationForUser($other);
+
+        $mine = $this->documentFor($user, ['file_name' => 'commun.pdf']);
+        $this->documentFor($other, ['file_name' => 'commun.pdf', 'reservation_id' => $otherReservation->id]);
+
+        Sanctum::actingAs($user);
+
+        $this->getJson('/api/documents?q=commun&reservation_id='.$otherReservation->id)->assertOk()->assertJsonPath('meta.total', 0);
+        $this->getJson('/api/documents?q=commun')->assertOk()->assertJsonPath('meta.total', 1)->assertJsonPath('data.0.id', $mine->id);
+    }
+
+    public function test_route_sheet_exposes_service_date_and_vehicle_and_other_documents_expose_null(): void
+    {
+        $admin = $this->userWithRole('admin');
+        $owner = $this->userWithRole('user');
+        $vehicle = \App\Models\Vehicle::create(['licence_plate' => '1-ABC-234', 'capacity' => 20, 'is_active' => true]);
+
+        $routeSheet = $this->createRouteSheetDocument();
+        $routeSheet->forceFill(['service_date' => '2026-04-21', 'vehicle_id' => $vehicle->id])->save();
+        $proof = $this->documentFor($owner, ['generated_at' => now()->subDay()]);
+
+        Sanctum::actingAs($admin);
+
+        $this->getJson('/api/documents')
+            ->assertOk()
+            ->assertJsonPath('data.0.id', $routeSheet->id)
+            ->assertJsonPath('data.0.service_date', '2026-04-21')
+            ->assertJsonPath('data.0.vehicle.id', $vehicle->id)
+            ->assertJsonPath('data.0.vehicle.licence_plate', '1-ABC-234')
+            ->assertJsonPath('data.1.id', $proof->id)
+            ->assertJsonPath('data.1.service_date', null)
+            ->assertJsonPath('data.1.vehicle', null);
+
+        $this->getJson("/api/documents/{$routeSheet->id}")
+            ->assertOk()
+            ->assertJsonPath('data.vehicle.licence_plate', '1-ABC-234');
+    }
+
+    private function documentFor(User $user, array $attributes = []): Document
+    {
+        static $sequence = 0;
+        $sequence++;
+
+        return Document::create(array_merge([
+            'user_id' => $user->id,
+            'document_type' => DocumentType::JUSTIFICATIF,
+            'file_name' => "document-{$sequence}.pdf",
+            'file_path' => "documents/tests/document-{$sequence}.pdf",
+            'mime_type' => 'application/pdf',
+            'file_size' => 10,
+            'checksum' => hash('sha256', (string) $sequence),
+            'generation_mode' => 'auto',
+            'generated_at' => now(),
+            'is_official' => false,
+            'version' => 1,
+            'is_available' => true,
+        ], $attributes));
+    }
+
     private function userWithRole(string $role): User
     {
         $user = User::factory()->create();
