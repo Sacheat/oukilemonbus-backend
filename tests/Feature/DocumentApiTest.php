@@ -603,6 +603,33 @@ class DocumentApiTest extends TestCase
         $this->getJson('/api/documents?q=commun')->assertOk()->assertJsonPath('meta.total', 1)->assertJsonPath('data.0.id', $mine->id);
     }
 
+    public function test_route_sheet_exposes_service_date_and_vehicle_and_other_documents_expose_null(): void
+    {
+        $admin = $this->userWithRole('admin');
+        $owner = $this->userWithRole('user');
+        $vehicle = \App\Models\Vehicle::create(['licence_plate' => '1-ABC-234', 'capacity' => 20, 'is_active' => true]);
+
+        $routeSheet = $this->createRouteSheetDocument();
+        $routeSheet->forceFill(['service_date' => '2026-04-21', 'vehicle_id' => $vehicle->id])->save();
+        $proof = $this->documentFor($owner, ['generated_at' => now()->subDay()]);
+
+        Sanctum::actingAs($admin);
+
+        $this->getJson('/api/documents')
+            ->assertOk()
+            ->assertJsonPath('data.0.id', $routeSheet->id)
+            ->assertJsonPath('data.0.service_date', '2026-04-21')
+            ->assertJsonPath('data.0.vehicle.id', $vehicle->id)
+            ->assertJsonPath('data.0.vehicle.licence_plate', '1-ABC-234')
+            ->assertJsonPath('data.1.id', $proof->id)
+            ->assertJsonPath('data.1.service_date', null)
+            ->assertJsonPath('data.1.vehicle', null);
+
+        $this->getJson("/api/documents/{$routeSheet->id}")
+            ->assertOk()
+            ->assertJsonPath('data.vehicle.licence_plate', '1-ABC-234');
+    }
+
     private function documentFor(User $user, array $attributes = []): Document
     {
         static $sequence = 0;

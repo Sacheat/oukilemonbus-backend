@@ -41,7 +41,7 @@ class DocumentController extends Controller
     {
         Gate::authorize('view', $document);
 
-        $document->load(['reservation', 'user']);
+        $document->load(['reservation', 'user', 'vehicle']);
 
         return new DocumentResource($document);
     }

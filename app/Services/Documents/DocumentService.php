@@ -71,7 +71,7 @@ class DocumentService
                         ->orWhereHas('routeSheetReservations', fn (Builder $reservation) => $this->matchReservation($reservation, $term, $like));
                 });
             })
-            ->with(['reservation', 'user'])
+            ->with(['reservation', 'user', 'vehicle'])
             ->latest('generated_at')
             ->latest('created_at')
             ->latest('id')

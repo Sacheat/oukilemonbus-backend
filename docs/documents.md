@@ -151,6 +151,10 @@ Réponse paginée Laravel : `data` (DocumentResource, avec `reservation` et `use
 | `q` | 100 caractères max : nom de fichier (contient), numéro exact de réservation (entier), objet du trajet (`trip_purpose`, contient). Les `%` et `_` sont littéraux |
 | `reservation_id` | documents de cette réservation, y compris les feuilles de route qui la couvrent (table pivot) |
 
+Champs ajoutés à chaque document : `service_date` (`AAAA-MM-JJ`) et `vehicle` (`{ id, licence_plate }`), renseignés
+pour les feuilles de route journalières et `null` pour les autres types ; `vehicle` est chargé par la liste et le
+détail (`GET /documents/{id}`), absent des réponses de création (justificatifs, délibérations, génération de feuille).
+
 Les filtres se cumulent (ET). Les valeurs inconnues renvoient 422.
 
 Changements de contrat pour le front (GET /documents renvoyait auparavant la liste complète, sans `meta`) :
