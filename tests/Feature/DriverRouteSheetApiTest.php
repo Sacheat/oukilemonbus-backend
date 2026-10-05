@@ -144,6 +144,26 @@ class DriverRouteSheetApiTest extends TestCase
             ->assertJsonPath('data.0.id', $firstVersion->id);
     }
 
+    public function test_route_sheets_count_round_trip_kilometres(): void
+    {
+        // distance_km = aller seul (départ → destination) ; le bus fait l'aller-retour
+        $this->reservation(['trip_date' => '2026-06-16', 'distance_km' => 12.5]);
+        $this->reservation(['trip_date' => '2026-06-16', 'distance_km' => 10, 'departure_time' => '13:00:00', 'return_time' => '15:00:00']);
+        $this->reservation(['trip_date' => '2026-06-17', 'distance_km' => null]);
+
+        $builder = app(RouteSheetContextBuilder::class);
+
+        $week = $builder->buildForDriverWeek($this->driver(), '2026-06-16');
+        $this->assertSame(25.0, $week['days'][1]['rows'][0]['round_trip_km']);
+        $this->assertSame(12.5, $week['days'][1]['rows'][0]['distance_km']);
+        $this->assertNull($week['days'][2]['rows'][0]['round_trip_km']);
+        $this->assertSame(45.0, $week['totals']['planned_distance_km']);
+
+        $daily = $builder->buildForServiceDateVehicle('2026-06-16', $this->vehicle()->id);
+        $this->assertSame(45.0, $daily['service']['total_distance_km']);
+        $this->assertSame(20.0, $daily['rows'][1]['round_trip_km']);
+    }
+
     private function reservation(array $attributes = []): Reservation
     {
         return Reservation::create([

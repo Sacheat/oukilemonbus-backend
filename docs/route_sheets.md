@@ -426,6 +426,11 @@ Espace chauffeur : feuille de la semaine et feuilles officielles paginées
 - Colonnes `documents.service_date` et `documents.vehicle_id` (migration 2026_10_02_000001, reprise des feuilles
   existantes depuis leur chemin) : remplies par generateForServiceDateVehicle, pour filtrer et paginer en base.
 
+Kilomètres : `distance_km` d'une réservation (ORS) ne mesure que l'aller, départ → destination. Les feuilles de route
+(journalière par véhicule et semaine du chauffeur) affichent l'aller-retour : `round_trip_km` = `distance_km` × 2 par
+trajet (colonne « Km A/R »), et les totaux (`service.total_distance_km`, `totals.planned_distance_km`) additionnent
+ces allers-retours. `distance_km` reste l'aller seul partout ailleurs (preview, distance maximale, délibération).
+
 Points relevés, non traités dans cette PR :
 - la génération automatique de 20:00 ignore un véhicule dont la feuille du lendemain existe déjà : une mission
   modifiée ou ajoutée après 20:00 n'est pas reportée sur la feuille officielle (régénération à prévoir, avec --force
