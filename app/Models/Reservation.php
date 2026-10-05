@@ -111,6 +111,12 @@ class Reservation extends Model
         return $this->hasOne(TripReport::class);
     }
 
+    /** Étapes du trajet (départ, arrivée, retour), voir TripProgressService. */
+    public function tripEvents(): HasMany
+    {
+        return $this->hasMany(TripEvent::class);
+    }
+
     public function documents(): HasMany
     {
         return $this->hasMany(Document::class);

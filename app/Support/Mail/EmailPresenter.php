@@ -43,6 +43,8 @@ final class EmailPresenter
         'reservation.expired' => 'Réservation clôturée',
         'reservation.expired.summary' => 'Réservations clôturées',
         'trip_report.not_realised' => 'Compte rendu du chauffeur',
+        'driver_alert.created' => 'Demande d’aide',
+        'driver_alert.taken' => 'Aide en cours',
         'document.deliberation.generated' => 'Nouveau document',
         'planning.export.ready' => 'Export du planning',
         'org_registration_request.created' => 'Demande à traiter',
@@ -117,6 +119,8 @@ final class EmailPresenter
             str_starts_with($eventKey, 'document.') => 'info',
             str_contains($eventKey, 'conflict') => 'conflict',
             $eventKey === 'trip_report.not_realised' => 'danger',
+            $eventKey === 'driver_alert.created' => 'danger',
+            $eventKey === 'driver_alert.taken' => 'info',
             $category === 'admin_workflow', $category === 'driver_planning' => 'info',
             default => 'neutral',
         };
@@ -139,13 +143,19 @@ final class EmailPresenter
     /**
      * Bouton principal de l'email : lien vers la SPA, selon le destinataire (comme `getHomePath` du front : agents et
      * admins `/gestion`, chauffeur `/chauffeur`, sinon `/espace`). `$explicit` (['path', 'label']) est le lien fourni par
-     * l'appelant quand il n'y a pas de réservation (demandes d'adhésion et de création). Sans réservation ni lien : null.
+     * l'appelant quand il n'y a pas de réservation (demandes d'adhésion et de création). Avec une réservation, c'est
+     * son lien qui prime, sauf si `$explicit['overrides_reservation']` est vrai (demande d'aide d'un chauffeur, qui
+     * mène à sa propre page). Sans réservation ni lien : null.
      *
      * @param  array{path: string, label: string}|null  $explicit
      * @return array{url: string, label: string}|null
      */
     public function link(User $recipient, ?Reservation $reservation, ?array $explicit = null): ?array
     {
+        if ($explicit !== null && ($explicit['overrides_reservation'] ?? false)) {
+            return ['url' => $this->spaUrl($explicit['path']), 'label' => $explicit['label']];
+        }
+
         if ($reservation !== null) {
             $target = $this->reservationTarget($recipient, $reservation);
 

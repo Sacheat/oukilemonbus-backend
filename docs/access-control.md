@@ -187,6 +187,20 @@ L'admin seul peut :
 
 `submit` : le chauffeur affecté déclare le compte rendu de son trajet, de l'heure de départ jusqu'au lendemain 12:00 (attendu le jour même). `manage` : voir, saisir et corriger tout compte rendu, dès l'heure de départ et sans délai (voir `docs/reservations.md` §6.2).
 
+### trip-progress et driver-alerts
+
+| Permission | admin | agent | user | chauffeur |
+|---|:---:|:---:|:---:|:---:|
+| `trip-progress.record` | ✓ | — | — | ✓ |
+| `trip-progress.manage` | ✓ | ✓ | — | — |
+| `driver-alerts.create` | ✓ | — | — | ✓ |
+| `driver-alerts.manage` | ✓ | ✓ | — | — |
+
+`trip-progress.record` : le chauffeur affecté enregistre les étapes de son trajet (départ, arrivée, retour) ;
+`trip-progress.manage` : voir l'avancement de tous les trajets et enregistrer une étape sans contrainte d'heure.
+`driver-alerts.create` : envoyer une demande d'aide et renvoyer sa position ; `driver-alerts.manage` : voir toutes les
+demandes, les prendre en charge et les clôturer. Voir `docs/driver_journey.md`.
+
 ### council-decisions
 
 | Permission | admin | agent | user | chauffeur |

@@ -28,6 +28,10 @@ class MunicipalityResource extends JsonResource
             'max_pickup_distance_km' => $this->max_pickup_distance_km,
             'effective_max_trip_distance_km' => $this->max_trip_distance_km ?? (int) config('reservations.max_distance_km', 50),
             'effective_max_pickup_distance_km' => $this->max_pickup_distance_km ?? (int) config('reservations.max_pickup_distance_km', 50),
+            // Contact de garde (facultatif) : reçoit par email les demandes d'aide des chauffeurs
+            'on_call_name' => $this->on_call_name,
+            'on_call_email' => $this->on_call_email,
+            'on_call_phone' => $this->on_call_phone,
             'localities' => $this->whenLoaded('localities', fn () => MunicipalityLocalityResource::collection($this->localities)),
             'active_localities' => $this->whenLoaded('activeLocalities', fn () => MunicipalityLocalityResource::collection($this->activeLocalities)),
             'created_at' => $this->created_at?->toISOString(),

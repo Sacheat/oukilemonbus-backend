@@ -166,6 +166,11 @@ return [
         'api.planning.exports.request'            => 'planning.exports.request',
         'api.recurrences.cancel'                  => 'recurrences.cancel',
         'api.reservations.trip-report.update'     => 'reservations.trip_report',
+        'api.reservations.trip-events.store'      => 'reservations.trip_events.record',
+        'api.driver-alerts.store'                 => 'driver_alerts.create',
+        'api.driver-alerts.position'              => 'driver_alerts.position',
+        'api.driver-alerts.take'                  => 'driver_alerts.take',
+        'api.driver-alerts.close'                 => 'driver_alerts.close',
         'api.council-decisions.generate-document' => 'documents.deliberations.generate',
 
     ],
@@ -4058,6 +4063,253 @@ return [
             'effects' => [
                 'Le compte rendu est créé (201) ou mis à jour (200).',
                 'La réservation est ensuite figée : plus de modification, réaffectation ni confirmation des passagers.',
+            ],
+        ],
+
+        'reservations.trip_events.record' => [
+            'title' => 'Étape d’un trajet (Ma journée)',
+            'category' => 'Réservations',
+            'goal' => 'Enregistrer le départ, l’arrivée, le départ du retour ou l’arrivée au lieu de départ d’un trajet.',
+
+            'route' => [
+                'api' => 'POST /api/reservations/{reservation}/trip-events',
+            ],
+
+            'api_controller' => [
+                'class' => 'TripProgressController',
+                'method' => 'store',
+            ],
+
+            'request' => [
+                'class' => 'RecordTripEventRequest',
+                'methods' => [
+                    'authorize',
+                    'rules',
+                ],
+            ],
+
+            'service' => [
+                'class' => 'TripProgressService',
+                'method' => 'record',
+                'internal_methods' => [
+                    'Réservation confirme et pas déclarée non réalisée (422)',
+                    'Chauffeur affecté ou trip-progress.manage (403)',
+                    'Étapes dans l’ordre (422) ; étape déjà enregistrée : 200 sans changement',
+                    'Chauffeur : premier départ dès N minutes avant l’heure prévue (config driver_journey) jusqu’à la fin du jour ; autres étapes jusqu’au lendemain 12:00',
+                    'DomainEventLogger : trip_event.recorded',
+                    'Dernière arrivée : compte rendu réalisé via TripReportService::save',
+                ],
+            ],
+
+            'related_services' => [
+                'TripReportService',
+                'DomainEventLogger',
+            ],
+
+            'tables' => [
+                'trip_events',
+                'trip_reports',
+                'domain_events',
+            ],
+
+            'effects' => [
+                'L’étape est enregistrée avec sa source (chauffeur ou agent) et la position du téléphone.',
+                'La dernière arrivée crée le compte rendu « réalisé » s’il n’existe pas encore.',
+            ],
+        ],
+
+        'driver_alerts.create' => [
+            'title' => 'Demande d’aide d’un chauffeur',
+            'category' => 'Chauffeurs',
+            'goal' => 'Prévenir les agents d’une panne ou d’un problème, avec la position du téléphone.',
+
+            'route' => [
+                'api' => 'POST /api/driver-alerts',
+            ],
+
+            'api_controller' => [
+                'class' => 'DriverAlertController',
+                'method' => 'store',
+            ],
+
+            'request' => [
+                'class' => 'StoreDriverAlertRequest',
+                'methods' => [
+                    'authorize',
+                    'rules',
+                ],
+            ],
+
+            'service' => [
+                'class' => 'DriverAlertService',
+                'method' => 'create',
+                'internal_methods' => [
+                    'Profil chauffeur et driver-alerts.create (403)',
+                    'Trajet facultatif, mais une mission du chauffeur (422)',
+                    'Sans position : dernier lieu connu d’après l’avancement du trajet',
+                    'Idempotency-Key : un double appui ne crée pas deux alertes',
+                    'DomainEventLogger : driver_alert.created',
+                ],
+            ],
+
+            'related_services' => [
+                'NotificationDispatchService',
+                'NotificationRecipientResolver',
+                'DomainEventLogger',
+            ],
+
+            'tables' => [
+                'driver_alerts',
+                'notification_deliveries',
+                'notifications',
+                'domain_events',
+            ],
+
+            'effects' => [
+                'Agents et admins prévenus (cloche et email urgents, lien vers la carte).',
+                'Le contact de garde de la commune active reçoit un email s’il est renseigné.',
+            ],
+        ],
+
+        'driver_alerts.position' => [
+            'title' => 'Position d’une demande d’aide',
+            'category' => 'Chauffeurs',
+            'goal' => 'Renvoyer sa position sur une demande d’aide encore ouverte.',
+
+            'route' => [
+                'api' => 'PATCH /api/driver-alerts/{driverAlert}/position',
+            ],
+
+            'api_controller' => [
+                'class' => 'DriverAlertController',
+                'method' => 'updatePosition',
+            ],
+
+            'request' => [
+                'class' => 'UpdateDriverAlertPositionRequest',
+                'methods' => [
+                    'authorize',
+                    'rules',
+                ],
+            ],
+
+            'service' => [
+                'class' => 'DriverAlertService',
+                'method' => 'updatePosition',
+                'internal_methods' => [
+                    'Seul le chauffeur de l’alerte (403)',
+                    'Alerte non clôturée (422)',
+                    'DomainEventLogger : driver_alert.position_updated',
+                ],
+            ],
+
+            'related_services' => [
+                'DomainEventLogger',
+            ],
+
+            'tables' => [
+                'driver_alerts',
+                'domain_events',
+            ],
+
+            'effects' => [
+                'La position remplace la précédente ; le compteur de renvois augmente.',
+            ],
+        ],
+
+        'driver_alerts.take' => [
+            'title' => 'Prise en charge d’une demande d’aide',
+            'category' => 'Chauffeurs',
+            'goal' => 'Un agent indique qu’il s’occupe d’une demande d’aide.',
+
+            'route' => [
+                'api' => 'POST /api/driver-alerts/{driverAlert}/take',
+            ],
+
+            'api_controller' => [
+                'class' => 'DriverAlertController',
+                'method' => 'take',
+            ],
+
+            'request' => [
+                'class' => 'Request',
+                'methods' => [
+                    'authorize',
+                    'rules',
+                ],
+            ],
+
+            'service' => [
+                'class' => 'DriverAlertService',
+                'method' => 'take',
+                'internal_methods' => [
+                    'driver-alerts.manage',
+                    'Alerte ouverte seulement (422)',
+                    'DomainEventLogger : driver_alert.taken',
+                ],
+            ],
+
+            'related_services' => [
+                'NotificationDispatchService',
+                'DomainEventLogger',
+            ],
+
+            'tables' => [
+                'driver_alerts',
+                'notification_deliveries',
+                'notifications',
+                'domain_events',
+            ],
+
+            'effects' => [
+                'L’alerte passe en prise_en_charge ; le chauffeur est prévenu.',
+            ],
+        ],
+
+        'driver_alerts.close' => [
+            'title' => 'Clôture d’une demande d’aide',
+            'category' => 'Chauffeurs',
+            'goal' => 'Clôturer une demande d’aide avec ce qui a été fait.',
+
+            'route' => [
+                'api' => 'POST /api/driver-alerts/{driverAlert}/close',
+            ],
+
+            'api_controller' => [
+                'class' => 'DriverAlertController',
+                'method' => 'close',
+            ],
+
+            'request' => [
+                'class' => 'CloseDriverAlertRequest',
+                'methods' => [
+                    'authorize',
+                    'rules',
+                ],
+            ],
+
+            'service' => [
+                'class' => 'DriverAlertService',
+                'method' => 'close',
+                'internal_methods' => [
+                    'driver-alerts.manage',
+                    'Note obligatoire',
+                    'Alerte non clôturée (422)',
+                    'DomainEventLogger : driver_alert.closed',
+                ],
+            ],
+
+            'related_services' => [
+                'DomainEventLogger',
+            ],
+
+            'tables' => [
+                'driver_alerts',
+                'domain_events',
+            ],
+
+            'effects' => [
+                'L’alerte passe en cloturee avec la note et l’auteur.',
             ],
         ],
 

@@ -29,6 +29,9 @@ class MunicipalitySettingsService
     /** Point de référence et limites de distance appliqués aux réservations. */
     private const REFERENCE_FIELDS = ['latitude', 'longitude', 'depot_location_id', 'max_trip_distance_km', 'max_pickup_distance_km'];
 
+    /** Contact de garde, prévenu par email des demandes d'aide des chauffeurs (DriverAlertService). */
+    private const ON_CALL_FIELDS = ['on_call_name', 'on_call_email', 'on_call_phone'];
+
     public function __construct(
         private readonly GeoNamesMunicipalityProvider $municipalityProvider
     ) {}
@@ -78,6 +81,7 @@ class MunicipalitySettingsService
                 'source',
                 'is_active',
                 ...self::REFERENCE_FIELDS,
+                ...self::ON_CALL_FIELDS,
             ]));
 
             if (($data['is_active'] ?? false) === true) {

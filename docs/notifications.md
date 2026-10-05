@@ -72,6 +72,13 @@ Pendant cette plage, les notifications non critiques sont mises en queue et envo
 
 ---
 
+## Demandes d'aide des chauffeurs
+
+Catégorie `driver_alert` (`driver_alert.created` pour les agents et admins, `driver_alert.taken` pour le chauffeur),
+envoyée avec `urgent: true` : pas de récapitulatif ni de délai anti-spam, et aucune préférence ne la coupe (la
+catégorie n'a pas de colonne dans `user_notification_preferences`). Le contact de garde de la commune, qui n'a pas
+forcément de compte, reçoit `DriverAlertOnCallMail` (même gabarit). Voir `docs/driver_journey.md`.
+
 ## Préférences utilisateur
 
 ```
@@ -186,7 +193,7 @@ Ils ne servent qu'à l'email ; le pipeline (préférences, récapitulatif, anti-
 | Paramètre | Rôle |
 |---|---|
 | `reason` | Motif d'un refus, d'une annulation ou d'un trajet non réalisé, ou d'un refus de demande. L'email le retire du message et l'affiche en citation « Motif : … ». `message` garde le motif (« Motif : … ») : c'est ce que stocke la cloche. Renseigné pour : réservation refusée, annulée (demandeur et chauffeur), trajet non réalisé, demandes d'adhésion et de création refusées. |
-| `link` | `['path' => '/gestion/demandes?…', 'label' => 'Ouvrir la demande']` : lien vers la SPA quand il n'y a pas de réservation. Renseigné par `UserOrgRequestService` et `OrgRegistrationRequestService`. Il est aussi conservé dans le récapitulatif (`notification_digest_queues.payload`). |
+| `link` | `['path' => '/gestion/demandes?…', 'label' => 'Ouvrir la demande']` : lien vers la SPA quand il n'y a pas de réservation ; avec une réservation, son lien prime, sauf si la clé `overrides_reservation` est vraie (une demande d'aide mène à sa page `/gestion/alertes/{id}`, même avec un trajet). Clé facultative `secondary` (`['url' => …, 'label' => …]`) : second lien sous le bouton, par exemple « Ouvrir la carte » d'une demande d'aide. Renseigné par `UserOrgRequestService`, `OrgRegistrationRequestService` et `DriverAlertService`. Il est aussi conservé dans le récapitulatif (`notification_digest_queues.payload`). |
 
 **Le canal `database` ne change pas** : `OperationalNotification::toArray()` garde les mêmes clés, le même `message` (motif compris) et le même `action_url` (lien signé du document). Le front s'en sert pour la cloche et `/notifications`. Un test le verrouille.
 

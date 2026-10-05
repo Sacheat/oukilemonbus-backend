@@ -103,6 +103,29 @@ class MunicipalitySettingsApiTest extends TestCase
         $this->assertTrue(Municipality::where('name', 'Namur')->firstOrFail()->is_active);
     }
 
+    public function test_admin_sets_and_clears_the_on_call_contact(): void
+    {
+        Sanctum::actingAs($this->seededUser('admin.test@bus-communal.local'));
+        $dinant = $this->activeMunicipality();
+
+        $this->patchJson("/api/municipalities/{$dinant->id}", ['on_call_email' => 'pas-un-email'])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('on_call_email');
+
+        $this->patchJson("/api/municipalities/{$dinant->id}", [
+            'on_call_name' => 'Garde technique',
+            'on_call_email' => 'garde@dinant.test',
+            'on_call_phone' => '082 40 40 40',
+        ])->assertOk()
+            ->assertJsonPath('data.on_call_email', 'garde@dinant.test')
+            ->assertJsonPath('data.on_call_phone', '082 40 40 40');
+
+        $this->patchJson("/api/municipalities/{$dinant->id}", ['on_call_email' => null])
+            ->assertOk()
+            ->assertJsonPath('data.on_call_email', null)
+            ->assertJsonPath('data.on_call_name', 'Garde technique');
+    }
+
     public function test_admin_can_add_update_and_deactivate_locality(): void
     {
         $admin = $this->seededUser('admin.test@bus-communal.local');

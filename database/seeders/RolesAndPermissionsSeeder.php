@@ -70,6 +70,10 @@ class RolesAndPermissionsSeeder extends Seeder
             'dashboard.view',
             'trip-reports.submit',
             'trip-reports.manage',
+            'trip-progress.record',
+            'trip-progress.manage',
+            'driver-alerts.create',
+            'driver-alerts.manage',
         ];
 
         foreach ($permissions as $permission) {
@@ -135,6 +139,9 @@ class RolesAndPermissionsSeeder extends Seeder
             'documents.download',
             // Compte rendu de ses trajets (réalisé / non réalisé), dans la fenêtre prévue (TripReportService)
             'trip-reports.submit',
+            // « Ma journée » : étapes de ses trajets (TripProgressService) et demande d'aide (DriverAlertService)
+            'trip-progress.record',
+            'driver-alerts.create',
         ]);
 
         // agent_communal = rôle opérationnel complet pour les agents de la commune.
@@ -191,6 +198,9 @@ class RolesAndPermissionsSeeder extends Seeder
             'dashboard.view',
             // Voir et corriger les comptes rendus de trajet, sans limite de délai
             'trip-reports.manage',
+            // Suivre l'avancement des trajets et traiter les demandes d'aide des chauffeurs
+            'trip-progress.manage',
+            'driver-alerts.manage',
         ]);
 
         app(PermissionRegistrar::class)->forgetCachedPermissions();

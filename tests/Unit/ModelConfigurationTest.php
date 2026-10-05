@@ -111,7 +111,7 @@ class ModelConfigurationTest extends TestCase
             [Driver::class, ['user_id', 'licence_number', 'licence_expiry_date', 'is_active']],
             [Vehicle::class, ['licence_plate', 'capacity', 'is_active']],
             [Location::class, ['formatted_address', 'street', 'street_number', 'postal_code', 'city', 'country', 'latitude', 'longitude', 'place_id', 'provider', 'is_verified']],
-            [Municipality::class, ['name', 'external_id', 'nis_code', 'country', 'postal_code', 'source', 'is_active', 'synced_at', 'latitude', 'longitude', 'depot_location_id', 'max_trip_distance_km', 'max_pickup_distance_km']],
+            [Municipality::class, ['name', 'external_id', 'nis_code', 'country', 'postal_code', 'source', 'is_active', 'synced_at', 'latitude', 'longitude', 'depot_location_id', 'max_trip_distance_km', 'max_pickup_distance_km', 'on_call_name', 'on_call_email', 'on_call_phone']],
             [MunicipalityLocality::class, ['municipality_id', 'name', 'normalized_name', 'external_id', 'source', 'is_active']],
             [Organization::class, ['name', 'type', 'official_email', 'phone_contact', 'name_contact', 'location_id', 'is_priority', 'is_banned', 'banned_reason', 'annual_quota', 'reservations_used_this_year', 'quota_reset_year', 'proof_document_id']],
             [UserOrganization::class, ['user_id', 'organization_id', 'relationship_type', 'is_default']],

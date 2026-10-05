@@ -95,7 +95,9 @@ class OperationalNotification extends Notification implements ShouldQueue
         $copy = $presenter->copy($this->eventKey, $this->title, $this->message, $this->reason, $reservation, $notifiable);
         $subject = $presenter->subject($this->eventKey, $this->title, $reservation, $notifiable);
         $button = $presenter->link($notifiable, $reservation, $this->link);
-        $documentLink = null;
+        // Lien secondaire fourni par l'appelant (ex. « Ouvrir la carte » d'une demande d'aide), sous le bouton principal
+        $secondary = $this->link['secondary'] ?? null;
+        $documentLink = $secondary !== null ? ['url' => $secondary['url'], 'label' => $secondary['label'], 'attached' => false] : null;
 
         if ($this->actionUrl !== null && $this->document !== null) {
             if ($button === null) {
