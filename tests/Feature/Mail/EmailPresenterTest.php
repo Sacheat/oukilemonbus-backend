@@ -127,13 +127,14 @@ class EmailPresenterTest extends TestCase
 
     public function test_document_link_label_and_attachment_flag(): void
     {
-        $deliberation = new Document(['document_type' => 'deliberation']);
+        $deliberation = new Document(['document_type' => 'deliberation', 'mime_type' => 'application/pdf']);
 
         $this->assertSame(
             ['url' => 'https://signed.test/doc', 'label' => 'Ouvrir la décision du Collège (PDF)', 'attached' => true],
             $this->presenter->documentLink($deliberation, 'https://signed.test/doc', true)
         );
-        $this->assertSame('Ouvrir la feuille de route (PDF)', $this->presenter->documentLink(new Document(['document_type' => 'feuille_route']), 'https://x.test', false)['label']);
+        $this->assertSame('Ouvrir la feuille de route (PDF)', $this->presenter->documentLink(new Document(['document_type' => 'feuille_route', 'mime_type' => 'application/pdf']), 'https://x.test', false)['label']);
+        $this->assertSame('Télécharger le fichier', $this->presenter->documentLink(new Document(['document_type' => 'planning', 'mime_type' => 'application/vnd.ms-excel']), 'https://x.test', false)['label']);
         $this->assertNull($this->presenter->documentLink($deliberation, null, false));
         $this->assertNull($this->presenter->documentLink(null, 'https://x.test', false));
     }

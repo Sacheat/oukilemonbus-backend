@@ -450,6 +450,8 @@ une demande est refusée.
 
 Les documents peuvent être envoyés en pièce jointe directe (si < seuil de taille) ou via un lien signé temporaire (`document_access_tokens`). Voir `docs/notifications.md`.
 
+Liens signés (`GET /api/documents/{id}/signed-download`) : un PDF est servi `inline` (affiché dans l'onglet), tout autre type (export Excel…) en `attachment`. Le `Content-Type` est le `mime_type` enregistré (jamais deviné depuis le contenu) avec `X-Content-Type-Options: nosniff`. L'API authentifiée `GET /documents/{id}/download` reste en `attachment`.
+
 24. Tests du module Documents
 
 Les tests doivent vérifier :

@@ -154,6 +154,14 @@ class EmailRenderTest extends TestCase
         $this->assertStringContainsString('Ouvrir le document', $this->html($export));
         $this->assertSame('https://signed.example.test/doc', $export->actionUrl);
 
+        // Document non PDF (export Excel) : il est téléchargé, le bouton le dit.
+        $xls = $this->document();
+        $xls->update(['file_name' => 'planning.xls', 'mime_type' => 'application/vnd.ms-excel']);
+        $download = $this->notification('planning.export.ready', 'driver_planning', 'Export planning disponible', 'Votre export est prêt.', actionUrl: 'https://signed.example.test/xls', document: $xls)
+            ->toMail($this->user('user.test@bus-communal.local'));
+        $this->assertStringContainsString('Télécharger le fichier', $this->html($download));
+        $this->assertStringNotContainsString('Ouvrir le document', $this->html($download));
+
         // Rien à ouvrir : pas de bouton ni de lien de secours.
         $plain = $this->html($this->notification('reservation.expired.summary', 'admin_workflow', 'Récapitulatif', '3 réservations clôturées.')->toMail($agent));
         $this->assertStringNotContainsString('class="btn"', $plain);
