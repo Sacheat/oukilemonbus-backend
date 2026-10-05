@@ -7,7 +7,9 @@ namespace App\Enums;
  *
  * Deux natures de conflits coexistent :
  * - Hard-block : la réservation est rejetée (422) car le créneau est physiquement occupé.
- *   → Seul SCHEDULE_OVERLAP avec une réservation APPROUVE ou CONFIRME est un hard-block.
+ *   → Seul SCHEDULE_OVERLAP est un hard-block, et seulement quand une réservation APPROUVE ou CONFIRME
+ *   détient le dernier chauffeur ou véhicule libre : tant que la flotte peut absorber le créneau,
+ *   un chevauchement horaire n'est pas un conflit.
  * - Soft conflict : la réservation est créée en statut EN_CONFLIT et nécessite une action
  *   d'un agent pour être résolue (manuellement ou automatiquement à l'annulation du bloquant).
  *
@@ -18,8 +20,8 @@ enum ReservationConflictType: string
     // Soft conflict — ORS et le fallback Haversine ont tous les deux échoué.
     case DISTANCE_NOT_CALCULATED = 'distance_not_calculated';
 
-    // Hard-block si la réservation chevauchante est APPROUVE ou CONFIRME,
-    // soft conflict si elle est seulement EN_ATTENTE.
+    // Flotte épuisée sur le créneau : hard-block à la création (réservation bloquante APPROUVE/CONFIRME) ;
+    // conflit doux quand il apparaît à la modification d'une réservation existante.
     case SCHEDULE_OVERLAP = 'schedule_overlap';
 
     // Soft conflicts — violations des règles horaires du règlement communal.

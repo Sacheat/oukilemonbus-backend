@@ -287,6 +287,16 @@ class ReservationService
         $this->ensureCouncilDecisionAllowsApproval($reservation);
 
         return DB::transaction(function () use ($reservation, $actor, $reason): Reservation {
+            // Un chevauchement signalé à la création peut avoir disparu depuis (flotte libérée) : on le
+            // réévalue ; s'il est réel, l'approbation est refusée plutôt que de laisser un conflit orphelin.
+            $this->refreshScheduleOverlapConflicts($reservation, $actor);
+
+            if ($reservation->conflicts()->where('type', ReservationConflictType::SCHEDULE_OVERLAP->value)->where('is_resolved', false)->exists()) {
+                throw ValidationException::withMessages([
+                    'reservation' => 'Le créneau chevauche une réservation qui occupe tous les chauffeurs ou véhicules disponibles. Modifiez l\'horaire ou libérez le créneau avant d\'approuver.',
+                ]);
+            }
+
             $reservation = $this->transition($reservation, ReservationStatus::APPROUVE, $actor, $reason ?? 'Approbation');
             $reservation = $this->assignmentService->autoAssign($reservation, $actor);
 
@@ -438,6 +448,7 @@ class ReservationService
     public function retryAutoAssign(Reservation $reservation, User $actor): Reservation
     {
         $reservation = $this->assignmentService->autoAssign($reservation, $actor);
+        $this->refreshScheduleOverlapConflicts($reservation, $actor);
         $this->checkAndAutoTransition($reservation, $actor);
 
         return $reservation->refresh()->load(['organization', 'pickupLocation', 'destinationLocation', 'driver', 'vehicle', 'conflicts']);
@@ -448,6 +459,7 @@ class ReservationService
         $this->ensureNoTripReport($reservation, 'réaffectée');
 
         $reservation = $this->assignmentService->assign($reservation, $data, $actor);
+        $this->refreshScheduleOverlapConflicts($reservation, $actor);
         $this->checkAndAutoTransition($reservation, $actor);
 
         return $reservation->refresh()->load(['organization', 'pickupLocation', 'destinationLocation', 'driver', 'vehicle', 'conflicts']);
@@ -471,52 +483,78 @@ class ReservationService
     }
 
     /**
-     * Déclenche autoTransitionFromConflict si la réservation est EN_CONFLIT
-     * et n'a plus aucun conflit non-résolu.
+     * Fait avancer une réservation dont les conflits sont tous résolus :
+     * EN_CONFLIT retourne vers son statut logique (autoTransitionFromConflict) ;
+     * APPROUVE avec chauffeur et véhicule affectés est confirmée.
      */
     public function checkAndAutoTransition(Reservation $reservation, User $actor): void
     {
         $reservation->refresh();
-        if ($reservation->status === ReservationStatus::EN_CONFLIT
-            && ! $reservation->conflicts()->where('is_resolved', false)->exists()
-        ) {
+
+        if ($reservation->conflicts()->where('is_resolved', false)->exists()) {
+            return;
+        }
+
+        if ($reservation->status === ReservationStatus::EN_CONFLIT) {
             $this->autoTransitionFromConflict($reservation, $actor);
+
+            return;
+        }
+
+        if ($reservation->status === ReservationStatus::APPROUVE
+            && $this->assignmentService->hasRequiredAssignments($reservation)
+        ) {
+            $this->confirm($reservation, $actor);
         }
     }
 
     /**
-     * Vérifie que le chevauchement calendaire a réellement disparu avant de permettre
-     * la résolution manuelle du conflit. Bloque si la réservation liée est encore active
-     * et que les créneaux se chevauchent toujours.
+     * Résout les SCHEDULE_OVERLAP encore ouverts d'une réservation dont le chevauchement a disparu :
+     * la flotte (chauffeur + véhicule) peut maintenant absorber le créneau, par exemple parce qu'une
+     * autre ressource a été affectée ou que la réservation bloquante a changé de ressources.
      */
-    private function ensureScheduleOverlapGone(ReservationConflict $conflict): void
+    private function refreshScheduleOverlapConflicts(Reservation $reservation, User $actor): void
     {
-        if ($conflict->related_reservation_id === null) {
-            return; // La réservation source n'existe plus, aucun chevauchement possible.
+        $open = $reservation->conflicts()
+            ->where('type', ReservationConflictType::SCHEDULE_OVERLAP->value)
+            ->where('is_resolved', false);
+
+        if (! $open->exists() || $this->scheduleOverlapStillActive($reservation)) {
+            return;
         }
 
-        $related = Reservation::find($conflict->related_reservation_id);
+        $open->update([
+            'is_resolved' => true,
+            'resolved_by_user_id' => $actor->id,
+            'resolved_at' => now(),
+        ]);
+    }
 
-        if ($related === null || $related->status->isTerminal()) {
-            return; // La réservation liée est terminale, plus aucun conflit réel.
-        }
-
-        $reservation = Reservation::findOrFail($conflict->reservation_id);
-
+    private function scheduleOverlapStillActive(Reservation $reservation): bool
+    {
         $remaining = $this->previewService->detectConflicts([
             'organization_id'       => $reservation->organization_id,
             'trip_date'             => $reservation->trip_date->toDateString(),
             'departure_time'        => $reservation->departure_time->format('H:i:s'),
             'return_time'           => $reservation->return_time->format('H:i:s'),
+            'nb_children'           => $reservation->nb_children,
+            'nb_adults'             => $reservation->nb_adults,
             'ignore_reservation_id' => $reservation->id,
         ], $reservation->estimated_duration_min);
 
-        $stillOverlaps = collect($remaining)
-            ->contains('type', ReservationConflictType::SCHEDULE_OVERLAP->value);
+        return collect($remaining)->contains('type', ReservationConflictType::SCHEDULE_OVERLAP->value);
+    }
 
-        if ($stillOverlaps) {
+    /**
+     * Vérifie que le chevauchement a réellement disparu avant de permettre la résolution manuelle
+     * du conflit : tant que la flotte n'a pas de chauffeur et de véhicule libres sur le créneau,
+     * la réservation liée doit être annulée ou les horaires modifiés.
+     */
+    private function ensureScheduleOverlapGone(ReservationConflict $conflict): void
+    {
+        if ($this->scheduleOverlapStillActive(Reservation::findOrFail($conflict->reservation_id))) {
             throw ValidationException::withMessages([
-                'conflict' => 'Le chevauchement calendaire est toujours actif. La réservation liée doit être annulée ou ses horaires modifiés avant de résoudre ce conflit.',
+                'conflict' => 'Le chevauchement calendaire est toujours actif : aucun chauffeur ou véhicule libre sur ce créneau. La réservation liée doit être annulée ou ses horaires modifiés avant de résoudre ce conflit.',
             ]);
         }
     }
@@ -574,9 +612,11 @@ class ReservationService
         if ($preConflictStatus === ReservationStatus::CONFIRME
             && $this->assignmentService->hasRequiredAssignments($reservation)
         ) {
-            if (! $reservation->status->canTransitionTo(ReservationStatus::CONFIRME)) {
+            // EN_CONFLIT ne mène pas directement à CONFIRME : on repasse par APPROUVE en gardant les affectations.
+            if (! $reservation->status->canTransitionTo(ReservationStatus::APPROUVE)) {
                 return;
             }
+            $reservation = $this->transition($reservation, ReservationStatus::APPROUVE, $actor, 'Retour automatique après résolution de tous les conflits.');
             $reservation = $this->transition($reservation, ReservationStatus::CONFIRME, $actor, 'Retour automatique à CONFIRME après résolution de tous les conflits.');
             $this->notifyRequester(
                 $reservation,

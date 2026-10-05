@@ -23,11 +23,13 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
 use Laravel\Sanctum\Sanctum;
 use Spatie\Permission\PermissionRegistrar;
+use Tests\Concerns\SaturatesFleet;
 use Tests\TestCase;
 
 class ReservationApiTest extends TestCase
 {
     use DatabaseTransactions;
+    use SaturatesFleet;
 
     protected function setUp(): void
     {
@@ -162,7 +164,41 @@ class ReservationApiTest extends TestCase
         $this->assertDatabaseCount('reservations', 0);
     }
 
-    public function test_schedule_overlap_creates_reservation_in_conflict(): void
+    public function test_overlap_with_free_fleet_is_accepted_and_confirmed_on_other_resources(): void
+    {
+        $this->fakeOrsDistance();
+
+        $user = $this->seededUser('user.test@bus-communal.local');
+        $school = $this->seededOrganization('Ecole communale de Dinant');
+        $asbl = $this->seededOrganization('ASBL Les Amis du Parc');
+        [$pickup, $destination] = $this->seededLocations();
+
+        Reservation::create([
+            'requested_by_user_id' => $user->id,
+            'organization_id' => $asbl->id,
+            'pickup_location_id' => $pickup->id,
+            'destination_location_id' => $destination->id,
+            'trip_date' => '2026-06-16',
+            'departure_time' => '09:00:00',
+            'return_time' => '11:00:00',
+            'nb_children' => 10,
+            'nb_adults' => 1,
+            'trip_purpose' => 'ASBL en attente',
+            'activity_type' => ReservationActivityType::STANDARD,
+            'estimated_duration_min' => 30,
+            'status' => ReservationStatus::EN_ATTENTE,
+            'approval_type' => 'manuel',
+        ]);
+
+        Sanctum::actingAs($user);
+
+        $this->postJson('/api/reservations', $this->payload($school, $pickup, $destination))
+            ->assertCreated()
+            ->assertJsonPath('data.status', ReservationStatus::CONFIRME->value)
+            ->assertJsonPath('data.conflicts', []);
+    }
+
+    public function test_schedule_overlap_with_exhausted_fleet_is_rejected_as_hard_block(): void
     {
         Http::fake([
             'https://ors.test/*' => Http::response([
@@ -179,7 +215,7 @@ class ReservationApiTest extends TestCase
         $organization = $this->seededOrganization('Ecole communale de Dinant');
         [$pickup, $destination] = $this->seededLocations();
 
-        Reservation::create([
+        $this->saturateFleet(Reservation::create([
             'requested_by_user_id' => $user->id,
             'organization_id' => $organization->id,
             'pickup_location_id' => $pickup->id,
@@ -194,7 +230,7 @@ class ReservationApiTest extends TestCase
             'estimated_duration_min' => 30,
             'status' => ReservationStatus::EN_ATTENTE,
             'approval_type' => 'auto',
-        ]);
+        ]));
 
         Sanctum::actingAs($user);
 
@@ -203,12 +239,11 @@ class ReservationApiTest extends TestCase
             'departure_time' => '10:00',
             'return_time' => '12:00',
         ])
-            ->assertCreated()
-            ->assertJsonPath('data.status', ReservationStatus::EN_CONFLIT->value);
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('schedule');
 
-        $this->assertDatabaseHas('reservation_conflicts', [
+        $this->assertDatabaseMissing('reservation_conflicts', [
             'type' => ReservationConflictType::SCHEDULE_OVERLAP->value,
-            'is_resolved' => false,
         ]);
     }
 
@@ -235,7 +270,7 @@ class ReservationApiTest extends TestCase
         $organization = $this->seededOrganization('Ecole communale de Dinant');
         [$pickup, $destination] = $this->seededLocations();
 
-        Reservation::create([
+        $this->saturateFleet(Reservation::create([
             'requested_by_user_id' => $user->id,
             'organization_id' => $organization->id,
             'pickup_location_id' => $pickup->id,
@@ -250,26 +285,22 @@ class ReservationApiTest extends TestCase
             'estimated_duration_min' => 25,
             'status' => ReservationStatus::EN_ATTENTE,
             'approval_type' => 'auto',
-        ]);
+        ]));
 
         Sanctum::actingAs($user);
 
-        $this->postJson('/api/reservations', [
+        $this->postJson('/api/reservations/preview', [
             ...$this->payload($organization, $pickup, $destination),
             'departure_time' => '09:00',
             'return_time' => '10:00',
         ])
-            ->assertCreated()
+            ->assertOk()
             ->assertJsonPath('data.status', ReservationStatus::EN_CONFLIT->value)
             ->assertJsonPath('data.estimated_occupation.duration_min', 100)
             ->assertJsonPath('data.estimated_occupation.return_trip_duration_min', 25)
             ->assertJsonPath('data.estimated_occupation.pickup_buffer_min', 0)
-            ->assertJsonPath('data.estimated_occupation.post_return_buffer_min', 15);
-
-        $this->assertDatabaseHas('reservation_conflicts', [
-            'type' => ReservationConflictType::SCHEDULE_OVERLAP->value,
-            'is_resolved' => false,
-        ]);
+            ->assertJsonPath('data.estimated_occupation.post_return_buffer_min', 15)
+            ->assertJsonPath('data.conflicts.0.type', ReservationConflictType::SCHEDULE_OVERLAP->value);
     }
 
     public function test_schedule_overlap_message_explains_the_estimated_occupation_windows(): void
@@ -295,7 +326,7 @@ class ReservationApiTest extends TestCase
         $organization = $this->seededOrganization('Ecole communale de Dinant');
         [$pickup, $destination] = $this->seededLocations();
 
-        $existingReservation = Reservation::create([
+        $existingReservation = $this->saturateFleet(Reservation::create([
             'requested_by_user_id' => $user->id,
             'organization_id' => $organization->id,
             'pickup_location_id' => $pickup->id,
@@ -310,16 +341,16 @@ class ReservationApiTest extends TestCase
             'estimated_duration_min' => 25,
             'status' => ReservationStatus::EN_ATTENTE,
             'approval_type' => 'auto',
-        ]);
+        ]));
 
         Sanctum::actingAs($user);
 
-        $message = $this->postJson('/api/reservations', [
+        $message = $this->postJson('/api/reservations/preview', [
             ...$this->payload($organization, $pickup, $destination),
             'departure_time' => '09:00',
             'return_time' => '10:00',
         ])
-            ->assertCreated()
+            ->assertOk()
             ->assertJsonPath('data.status', ReservationStatus::EN_CONFLIT->value)
             ->json('data.conflicts.0.message');
 
@@ -351,7 +382,7 @@ class ReservationApiTest extends TestCase
         $organization = $this->seededOrganization('Ecole communale de Dinant');
         [$pickup, $destination] = $this->seededLocations();
 
-        Reservation::create([
+        $this->saturateFleet(Reservation::create([
             'requested_by_user_id' => $user->id,
             'organization_id' => $organization->id,
             'pickup_location_id' => $pickup->id,
@@ -366,7 +397,7 @@ class ReservationApiTest extends TestCase
             'estimated_duration_min' => 25,
             'status' => ReservationStatus::CONFIRME,
             'approval_type' => 'auto',
-        ]);
+        ]));
 
         Sanctum::actingAs($user);
 
@@ -411,7 +442,7 @@ class ReservationApiTest extends TestCase
             ['departure_time' => '08:00:00', 'return_time' => '08:40:00'],
             ['departure_time' => '09:20:00', 'return_time' => '09:50:00'],
         ] as $index => $times) {
-            Reservation::create([
+            $this->saturateFleet(Reservation::create([
                 'requested_by_user_id' => $user->id,
                 'organization_id' => $organization->id,
                 'pickup_location_id' => $pickup->id,
@@ -426,7 +457,7 @@ class ReservationApiTest extends TestCase
                 'estimated_duration_min' => 25,
                 'status' => ReservationStatus::CONFIRME,
                 'approval_type' => 'auto',
-            ]);
+            ]));
         }
 
         Sanctum::actingAs($user);
@@ -459,7 +490,7 @@ class ReservationApiTest extends TestCase
         $organization = $this->seededOrganization('Ecole communale de Dinant');
         [$pickup, $destination] = $this->seededLocations();
 
-        Reservation::create([
+        $this->saturateFleet(Reservation::create([
             'requested_by_user_id' => $user->id,
             'organization_id' => $organization->id,
             'pickup_location_id' => $pickup->id,
@@ -476,19 +507,18 @@ class ReservationApiTest extends TestCase
             'approval_type' => 'auto',
             'created_at' => now()->subDay(),
             'updated_at' => now()->subDay(),
-        ]);
+        ]));
 
         Sanctum::actingAs($user);
 
-        $message = $this->postJson('/api/reservations', [
+        $message = $this->postJson('/api/reservations/preview', [
             ...$this->payload($organization, $pickup, $destination),
             'departure_time' => '10:00',
             'return_time' => '12:00',
             'activity_type' => ReservationActivityType::GYMNASTIQUE->value,
         ])
-            ->assertCreated()
+            ->assertOk()
             ->assertJsonPath('data.status', ReservationStatus::EN_CONFLIT->value)
-            ->assertJsonPath('data.activity_type', ReservationActivityType::GYMNASTIQUE->value)
             ->json('data.conflicts.0.message');
 
         $this->assertStringStartsWith(
@@ -515,7 +545,7 @@ class ReservationApiTest extends TestCase
         $organization = $this->seededOrganization('Ecole communale de Dinant');
         [$pickup, $destination] = $this->seededLocations();
 
-        Reservation::create([
+        $this->saturateFleet(Reservation::create([
             'requested_by_user_id' => $user->id,
             'organization_id' => $organization->id,
             'pickup_location_id' => $pickup->id,
@@ -532,17 +562,17 @@ class ReservationApiTest extends TestCase
             'approval_type' => 'auto',
             'created_at' => now()->subDay(),
             'updated_at' => now()->subDay(),
-        ]);
+        ]));
 
         Sanctum::actingAs($user);
 
-        $message = $this->postJson('/api/reservations', [
+        $message = $this->postJson('/api/reservations/preview', [
             ...$this->payload($organization, $pickup, $destination),
             'departure_time' => '10:00',
             'return_time' => '12:00',
             'activity_type' => ReservationActivityType::STANDARD->value,
         ])
-            ->assertCreated()
+            ->assertOk()
             ->assertJsonPath('data.status', ReservationStatus::EN_CONFLIT->value)
             ->json('data.conflicts.0.message');
 
