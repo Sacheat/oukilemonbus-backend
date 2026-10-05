@@ -54,16 +54,16 @@ class DocumentController extends Controller
 
     /**
      * Téléchargement via token signé (liens partagés hors session, ex: pièce jointe email).
-     * Le token est à usage unique et expiré après consommation par validateAndConsume().
+     * Le lien reste valide jusqu'à expiration ou révocation du token ; les PDF s'ouvrent dans l'onglet.
      */
     public function signedDownload(Request $request, Document $document): StreamedResponse
     {
         $token = (string) $request->query('token', '');
 
-        if ($token === '' || ! $this->tokenService->validateAndConsume($document, $token, $request)) {
+        if ($token === '' || ! $this->tokenService->validate($document, $token, $request)) {
             abort(403, 'Lien de téléchargement invalide ou expiré.');
         }
 
-        return $this->documentService->download($document);
+        return $this->documentService->download($document, inline: true);
     }
 }

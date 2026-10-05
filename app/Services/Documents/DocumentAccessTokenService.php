@@ -10,17 +10,17 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
 /**
- * Émet et consomme les tokens d'accès à usage unique pour le téléchargement de documents.
+ * Émet et valide les tokens d'accès temporaires pour le téléchargement de documents.
  *
  * `issue()` : crée un DocumentAccessToken avec une durée de vie configurable
  *   (notifications.mail.signed_link_expiration_minutes, défaut 24h).
  *
- * `validateAndConsume()` : vérifie le token en quatre étapes :
- *   1. Existence (invalid_token si absent)
+ * `validate()` : vérifie le token en trois étapes :
+ *   1. Existence et rattachement au document (invalid_token sinon)
  *   2. Non révoqué (revoked_at = null)
- *   3. Non encore utilisé (used_at = null — usage unique)
- *   4. Non expiré (expires_at dans le futur)
- *   Si valide, marque `used_at = now()` (le token ne peut plus être réutilisé).
+ *   3. Non expiré (expires_at dans le futur)
+ *   Le token est réutilisable jusqu'à son expiration (rechargement, second clic, scanners
+ *   d'email) : la signature d'URL et `expires_at` sont la protection, `used_at` n'est plus écrit.
  *
  * Chaque tentative (succès ou échec) est tracée dans DocumentAccessLog
  * avec IP, user-agent et motif d'échec pour l'audit forensique.
@@ -39,7 +39,7 @@ class DocumentAccessTokenService
         ]);
     }
 
-    public function validateAndConsume(Document $document, string $token, Request $request): bool
+    public function validate(Document $document, string $token, Request $request): bool
     {
         $accessToken = DocumentAccessToken::query()
             ->where('document_id', $document->id)
@@ -56,19 +56,10 @@ class DocumentAccessTokenService
             return false;
         }
 
-        if ($accessToken->used_at !== null) {
-            $this->log($document, $accessToken, false, 'already_used', $request);
-            return false;
-        }
-
         if ($accessToken->expires_at->isPast()) {
             $this->log($document, $accessToken, false, 'expired_token', $request);
             return false;
         }
-
-        $accessToken->update([
-            'used_at' => now(),
-        ]);
 
         $this->log($document, $accessToken, true, null, $request);
 
