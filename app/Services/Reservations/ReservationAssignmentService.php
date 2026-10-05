@@ -89,7 +89,40 @@ class ReservationAssignmentService
     public function availableDriver(Reservation $reservation, ?array $window = null): ?Driver
     {
         $window ??= $this->occupationService->windowForReservation($reservation);
-        $busyIds = $this->busyDriverIds($reservation, $window);
+
+        return $this->freeDriver($window, $reservation->trip_date->toDateString(), $reservation->id);
+    }
+
+    public function availableVehicle(Reservation $reservation, ?array $window = null): ?Vehicle
+    {
+        $window ??= $this->occupationService->windowForReservation($reservation);
+
+        return $this->freeVehicle(
+            $window,
+            $reservation->trip_date->toDateString(),
+            $reservation->nb_children + $reservation->nb_adults + 1,
+            $reservation->id
+        );
+    }
+
+    /**
+     * Chauffeur et véhicule encore libres sur une fenêtre, pour une demande pas forcément
+     * enregistrée (aperçu de création) : sert à savoir si un chevauchement horaire est réellement
+     * bloquant ou si la flotte peut absorber la demande.
+     *
+     * @return array{driver: ?Driver, vehicle: ?Vehicle}
+     */
+    public function freeResources(array $window, string $tripDate, int $requiredCapacity, ?int $ignoreReservationId = null): array
+    {
+        return [
+            'driver' => $this->freeDriver($window, $tripDate, $ignoreReservationId),
+            'vehicle' => $this->freeVehicle($window, $tripDate, $requiredCapacity, $ignoreReservationId),
+        ];
+    }
+
+    private function freeDriver(array $window, string $tripDate, ?int $ignoreReservationId): ?Driver
+    {
+        $busyIds = $this->busyDriverIds($ignoreReservationId, $tripDate, $window);
 
         return Driver::query()
             ->where('is_active', true)
@@ -98,11 +131,9 @@ class ReservationAssignmentService
             ->first();
     }
 
-    public function availableVehicle(Reservation $reservation, ?array $window = null): ?Vehicle
+    private function freeVehicle(array $window, string $tripDate, int $requiredCapacity, ?int $ignoreReservationId): ?Vehicle
     {
-        $window ??= $this->occupationService->windowForReservation($reservation);
-        $requiredCapacity = $reservation->nb_children + $reservation->nb_adults + 1;
-        $busyIds = $this->busyVehicleIds($reservation, $window);
+        $busyIds = $this->busyVehicleIds($ignoreReservationId, $tripDate, $window);
 
         return Vehicle::query()
             ->where('is_active', true)
@@ -206,7 +237,7 @@ class ReservationAssignmentService
     {
         $window = $this->occupationService->windowForReservation($reservation);
 
-        if (in_array($driver->id, $this->busyDriverIds($reservation, $window), true)) {
+        if (in_array($driver->id, $this->busyDriverIds($reservation->id, $reservation->trip_date->toDateString(), $window), true)) {
             return false;
         }
 
@@ -217,14 +248,14 @@ class ReservationAssignmentService
     {
         $window = $this->occupationService->windowForReservation($reservation);
 
-        if (in_array($vehicle->id, $this->busyVehicleIds($reservation, $window), true)) {
+        if (in_array($vehicle->id, $this->busyVehicleIds($reservation->id, $reservation->trip_date->toDateString(), $window), true)) {
             return false;
         }
 
         return true;
     }
 
-    private function busyDriverIds(Reservation $reservation, array $window): array
+    private function busyDriverIds(?int $ignoreReservationId, string $tripDate, array $window): array
     {
         $fromUnavailabilities = Unavailability::query()
             ->where('is_active', true)
@@ -234,7 +265,7 @@ class ReservationAssignmentService
             ->pluck('driver_id')
             ->all();
 
-        $fromReservations = $this->overlappingReservationsQuery($reservation, $window)
+        $fromReservations = $this->overlappingReservationsQuery($ignoreReservationId, $tripDate, $window)
             ->whereNotNull('driver_id')
             ->pluck('driver_id')
             ->all();
@@ -242,7 +273,7 @@ class ReservationAssignmentService
         return array_values(array_unique(array_merge($fromUnavailabilities, $fromReservations)));
     }
 
-    private function busyVehicleIds(Reservation $reservation, array $window): array
+    private function busyVehicleIds(?int $ignoreReservationId, string $tripDate, array $window): array
     {
         $fromUnavailabilities = Unavailability::query()
             ->where('is_active', true)
@@ -252,7 +283,7 @@ class ReservationAssignmentService
             ->pluck('vehicle_id')
             ->all();
 
-        $fromReservations = $this->overlappingReservationsQuery($reservation, $window)
+        $fromReservations = $this->overlappingReservationsQuery($ignoreReservationId, $tripDate, $window)
             ->whereNotNull('vehicle_id')
             ->pluck('vehicle_id')
             ->all();
@@ -264,14 +295,14 @@ class ReservationAssignmentService
      * Reservations on the same day whose occupation window overlaps the given window.
      * Replicates OccupationService::overlaps() in SQL to avoid loading all reservations in memory.
      */
-    private function overlappingReservationsQuery(Reservation $reservation, array $window): \Illuminate\Database\Eloquent\Builder
+    private function overlappingReservationsQuery(?int $ignoreReservationId, string $tripDate, array $window): \Illuminate\Database\Eloquent\Builder
     {
         $pickupBuffer = $window['pickup_buffer_min'];
         $postReturnBuffer = $window['post_return_buffer_min'];
 
         return Reservation::query()
-            ->whereKeyNot($reservation->id)
-            ->whereDate('trip_date', $reservation->trip_date)
+            ->when($ignoreReservationId !== null, fn ($q) => $q->whereKeyNot($ignoreReservationId))
+            ->whereDate('trip_date', $tripDate)
             ->whereIn('status', [ReservationStatus::APPROUVE->value, ReservationStatus::CONFIRME->value])
             // other.window_start < candidate.window_end
             ->whereRaw(

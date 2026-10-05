@@ -25,6 +25,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
 use Laravel\Sanctum\Sanctum;
 use Spatie\Permission\PermissionRegistrar;
+use Tests\Concerns\SaturatesFleet;
 use Tests\TestCase;
 
 /**
@@ -34,6 +35,7 @@ use Tests\TestCase;
 class ReservationEditPreviewTest extends TestCase
 {
     use DatabaseTransactions;
+    use SaturatesFleet;
 
     private Organization $asbl;
 
@@ -75,8 +77,9 @@ class ReservationEditPreviewTest extends TestCase
 
     public function test_edited_reservation_does_not_conflict_with_itself(): void
     {
-        $reservation = $this->reservation('2026-05-11');
-        Sanctum::actingAs($this->manager);
+        // Réservation approuvée qui occupe le seul chauffeur : seul un agent peut encore la modifier.
+        $reservation = $this->saturateFleet($this->reservation('2026-05-11'), ReservationStatus::APPROUVE);
+        Sanctum::actingAs(User::query()->where('email', 'agent.test@bus-communal.local')->firstOrFail());
 
         $without = $this->postJson('/api/reservations/preview', $this->previewPayload())->assertOk();
         $this->assertSame($reservation->id, $without->json('data.availability.blocking_reservation_id'));
@@ -237,8 +240,8 @@ class ReservationEditPreviewTest extends TestCase
     public function test_conflicting_asbl_reservation_fixed_by_update_goes_back_to_pending(): void
     {
         $school = Organization::query()->where('name', 'Ecole communale de Dinant')->firstOrFail();
-        $blocking = $this->reservation('2026-05-11', organization: $school,
-            requester: User::query()->where('email', 'user.test@bus-communal.local')->firstOrFail());
+        $blocking = $this->saturateFleet($this->reservation('2026-05-11', organization: $school,
+            requester: User::query()->where('email', 'user.test@bus-communal.local')->firstOrFail()));
         $conflicting = $this->conflictingReservation($this->asbl, $blocking);
         Sanctum::actingAs($this->manager);
 

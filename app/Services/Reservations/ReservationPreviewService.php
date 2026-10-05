@@ -34,7 +34,8 @@ use Illuminate\Validation\ValidationException;
  *      (défaut config max_distance_km ; via ORS, fallback haversine × 1.25 si ORS indisponible)
  *   7b. Lieu de départ à ≤ max_pickup_distance_km, à vol d'oiseau, du dépôt de la commune
  *      (ou de son centre à défaut). Règle ignorée si aucun point de référence n'est connu.
- *   8. Conflits bloquants (IMPOSSIBLE_TIME_WINDOW, SCHEDULE_OVERLAP)
+ *   8. Conflits bloquants (IMPOSSIBLE_TIME_WINDOW ; SCHEDULE_OVERLAP seulement si la flotte n'a plus
+ *      de chauffeur ou de véhicule libre sur le créneau)
  *   9. Avertissements de dérogation (horaire / durée — non bloquants, soumis au collège)
  *
  * Toutes les règles bloquantes (1 à 7) sont évaluées : le 422 regroupe chaque erreur sous son champ
@@ -61,6 +62,7 @@ class ReservationPreviewService
         private readonly LocationService $locationService,
         private readonly ReservationQuotaService $quotaService,
         private readonly ReservationOccupationService $occupationService,
+        private readonly ReservationAssignmentService $assignmentService,
         private readonly MunicipalityService $municipalityService,
         ?DomainLogger $logger = null
     ) {
@@ -244,7 +246,7 @@ class ReservationPreviewService
 
         while ($iterations < 50) {
             $iterations++;
-            $overlap = $this->findOverlappingReservation($candidateWindow, $data);
+            $overlap = $this->findBlockingReservation($candidateWindow, $data);
 
             if ($overlap === null) {
                 return [
@@ -314,7 +316,7 @@ class ReservationPreviewService
             ];
         }
 
-        $overlappingReservation = $this->findOverlappingReservation($candidateWindow, $data);
+        $overlappingReservation = $this->findBlockingReservation($candidateWindow, $data);
 
         if ($overlappingReservation) {
             $priorityMessage = $this->overlapPriorityMessage(
@@ -555,19 +557,38 @@ class ReservationPreviewService
         return CarbonImmutable::parse($date.' '.$time);
     }
 
-    private function findOverlappingReservation(array $candidateWindow, array $data): ?Reservation
+    /**
+     * Réservation qui rend le créneau impossible, ou null si la flotte peut l'absorber.
+     *
+     * Un chevauchement horaire n'est un conflit que si, sur la fenêtre, il ne reste plus de chauffeur
+     * ou plus de véhicule de capacité suffisante. Seules les réservations approuvées/confirmées qui
+     * détiennent un chauffeur ou un véhicule bloquent : une demande en attente ou en conflit n'occupe rien.
+     * Si le manque vient uniquement d'indisponibilités, aucune réservation n'est fautive : null,
+     * et l'affectation signalera NO_DRIVER_AVAILABLE / NO_VEHICLE_AVAILABLE.
+     */
+    private function findBlockingReservation(array $candidateWindow, array $data): ?Reservation
     {
+        $ignoreId = $data['ignore_reservation_id'] ?? null;
+        $requiredCapacity = (int) ($data['nb_children'] ?? 0) + (int) ($data['nb_adults'] ?? 0) + self::DRIVER_SEATS;
+
+        $free = $this->assignmentService->freeResources($candidateWindow, $data['trip_date'], $requiredCapacity, $ignoreId);
+
+        if ($free['driver'] !== null && $free['vehicle'] !== null) {
+            return null;
+        }
+
         return $this->occupationService->overlappingQuery(
             candidateWindow: $candidateWindow,
             tripDate: $data['trip_date'],
             statuses: [
-                ReservationStatus::EN_ATTENTE->value,
-                ReservationStatus::EN_CONFLIT->value,
                 ReservationStatus::APPROUVE->value,
                 ReservationStatus::CONFIRME->value,
             ],
-            ignoreId: $data['ignore_reservation_id'] ?? null,
-        )->orderBy('departure_time')->first();
+            ignoreId: $ignoreId,
+        )
+            ->where(fn ($q) => $q->whereNotNull('driver_id')->orWhereNotNull('vehicle_id'))
+            ->orderBy('departure_time')
+            ->first();
     }
 
     private function formatOccupationWindow(array $window): array
