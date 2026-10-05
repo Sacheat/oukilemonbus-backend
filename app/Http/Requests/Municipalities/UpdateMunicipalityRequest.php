@@ -4,6 +4,7 @@ namespace App\Http\Requests\Municipalities;
 
 use App\Models\Location;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class UpdateMunicipalityRequest extends FormRequest
 {
@@ -31,6 +32,10 @@ class UpdateMunicipalityRequest extends FormRequest
             'on_call_name' => ['sometimes', 'nullable', 'string', 'max:150'],
             'on_call_email' => ['sometimes', 'nullable', 'email', 'max:255'],
             'on_call_phone' => ['sometimes', 'nullable', 'string', 'max:30'],
+            // « Ma journée » du chauffeur (null = valeur par défaut de config/driver_journey.php)
+            // Réservé aux admins (un agent garde le reste de la page Communes)
+            'navigation_engine' => ['sometimes', Rule::prohibitedIf(! $this->isAdmin()), 'nullable', 'string', Rule::in(array_keys(config('driver_journey.navigation_engines', [])))],
+            'driver_departure_window_min' => ['sometimes', Rule::prohibitedIf(! $this->isAdmin()), 'nullable', 'integer', 'min:0', 'max:240'],
         ];
     }
 
@@ -40,7 +45,18 @@ class UpdateMunicipalityRequest extends FormRequest
             'on_call_email.email' => 'L’adresse email du contact de garde n’est pas valide.',
             'on_call_name.max' => 'Le nom du contact de garde ne peut pas dépasser 150 caractères.',
             'on_call_phone.max' => 'Le téléphone du contact de garde ne peut pas dépasser 30 caractères.',
+            'navigation_engine.prohibited' => 'Seul un administrateur peut choisir l’application de navigation des chauffeurs.',
+            'driver_departure_window_min.prohibited' => 'Seul un administrateur peut régler le délai du premier départ.',
+            'navigation_engine.in' => 'Cette application de navigation n’est pas proposée.',
+            'driver_departure_window_min.integer' => 'Le délai du premier départ doit être un nombre de minutes.',
+            'driver_departure_window_min.min' => 'Le délai du premier départ ne peut pas être négatif.',
+            'driver_departure_window_min.max' => 'Le délai du premier départ ne peut pas dépasser 240 minutes (4 heures).',
         ];
+    }
+
+    private function isAdmin(): bool
+    {
+        return $this->user()?->hasRole('admin') ?? false;
     }
 
     /**

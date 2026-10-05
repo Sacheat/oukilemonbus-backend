@@ -117,6 +117,12 @@ class Reservation extends Model
         return $this->hasMany(TripEvent::class);
     }
 
+    /** Tracé réel du trajet (OpenRouteService), calculé à la première ouverture, voir TripRouteService. */
+    public function tripRoute(): HasOne
+    {
+        return $this->hasOne(TripRoute::class);
+    }
+
     public function documents(): HasMany
     {
         return $this->hasMany(Document::class);

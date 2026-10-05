@@ -207,6 +207,57 @@ class LocationService
     }
 
     /** @throws GeocodingException */
+    /**
+     * Tracé routier entre deux points (ORS, profil voiture, GeoJSON, instructions en français) :
+     * géométrie [[lat, lng], …], distance (m), durée (s), étapes [{instruction, name, distance_m, duration_s}].
+     *
+     * @return array{geometry: list<array{0: float, 1: float}>, distance_m: int, duration_s: int, steps: list<array>}
+     */
+    public function route(float $fromLat, float $fromLng, float $toLat, float $toLng): array
+    {
+        $this->ensureConfigured();
+
+        try {
+            $response = Http::timeout(15)->withHeaders([
+                'Authorization' => $this->apiKey,
+                'Content-Type' => 'application/json',
+            ])->post("{$this->baseUrl}/v2/directions/driving-car/geojson", [
+                'coordinates' => [[$fromLng, $fromLat], [$toLng, $toLat]],
+                'instructions' => true,
+                'language' => 'fr',
+                'units' => 'm',
+            ]);
+        } catch (ConnectionException $exception) {
+            throw new GeocodingException('Le service de calcul d’itinéraire est injoignable.', previous: $exception);
+        }
+
+        $feature = $response->successful() ? $response->json('features.0') : null;
+
+        if (empty($feature['geometry']['coordinates'])) {
+            throw new GeocodingException('Aucun itinéraire trouvé entre les deux points.');
+        }
+
+        $summary = $feature['properties']['summary'] ?? [];
+        $steps = collect($feature['properties']['segments'] ?? [])
+            ->flatMap(fn (array $segment): array => $segment['steps'] ?? [])
+            ->map(fn (array $step): array => [
+                'instruction' => (string) ($step['instruction'] ?? ''),
+                'name' => ($step['name'] ?? '') !== '-' ? (string) ($step['name'] ?? '') : '',
+                'distance_m' => (int) round($step['distance'] ?? 0),
+                'duration_s' => (int) round($step['duration'] ?? 0),
+            ])
+            ->values()
+            ->all();
+
+        return [
+            // GeoJSON : [lng, lat] → [lat, lng] (ordre de Leaflet)
+            'geometry' => array_map(fn (array $point): array => [round((float) $point[1], 6), round((float) $point[0], 6)], $feature['geometry']['coordinates']),
+            'distance_m' => (int) round($summary['distance'] ?? 0),
+            'duration_s' => (int) round($summary['duration'] ?? 0),
+            'steps' => $steps,
+        ];
+    }
+
     private function ensureConfigured(): void
     {
         if (blank($this->apiKey) || blank($this->baseUrl)) {

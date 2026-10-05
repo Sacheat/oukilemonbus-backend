@@ -179,6 +179,7 @@ La référence complète pour le frontend (paramètres, réponses, règles méti
 | Conflits | `GET /reservations/{reservation}/conflicts`, `PATCH /reservations/{reservation}/conflicts/{conflict}/resolve` |
 | Comptes rendus de trajet | `GET /trip-reports?reservation_ids[]=`, `GET /reservations/{reservation}/trip-report`, `PUT /reservations/{reservation}/trip-report` |
 | Ma journée (étapes du trajet) | `POST /reservations/{reservation}/trip-events`, `GET /reservations/{reservation}/trip-progress`, `GET /trip-progress?reservation_ids[]=` |
+| Ma journée (navigation, tracé) | `GET /driver-journey/settings`, `GET /reservations/{reservation}/route` |
 | Demandes d'aide des chauffeurs | `GET /driver-alerts`, `GET /driver-alerts/{driverAlert}`, `POST /driver-alerts`, `PATCH /driver-alerts/{driverAlert}/position`, `POST /driver-alerts/{driverAlert}/take`, `POST /driver-alerts/{driverAlert}/close` |
 | Récurrences | `GET /recurrences`, `POST /recurrences/preview`, `POST /recurrences`, `GET /recurrences/{recurrence}`, `PATCH /recurrences/{recurrence}/cancel` |
 | Planning | `GET /planning`, `GET /planning/export` (fichier), `POST /planning/exports` (asynchrone), `GET /planning/exports/{id}` |

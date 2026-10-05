@@ -9,6 +9,7 @@ use App\Http\Resources\TripEventResource;
 use App\Http\Resources\TripProgressResource;
 use App\Http\Resources\TripReportResource;
 use App\Models\Reservation;
+use App\Services\DriverJourney\DriverJourneySettingsService;
 use App\Services\Reservations\TripProgressService;
 use App\Support\DevicePosition;
 use Illuminate\Http\JsonResponse;
@@ -22,7 +23,8 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 class TripProgressController extends Controller
 {
     public function __construct(
-        private readonly TripProgressService $tripProgressService
+        private readonly TripProgressService $tripProgressService,
+        private readonly DriverJourneySettingsService $settings
     ) {}
 
     /** GET /trip-progress?reservation_ids[]=… (100 au plus) : avancement des trajets visibles */
@@ -62,6 +64,11 @@ class TripProgressController extends Controller
                 'first_departure_closes_at' => $local($window['first_departure_closes_at']),
                 'steps_close_at' => $local($window['steps_close_at']),
                 'can_record' => $this->tripProgressService->canRecordNow($reservation, $request->user(), $events),
+                // Agents et admins : lieu prévu et distance de chaque étape (carte du Planning)
+                ...($this->tripProgressService->canManage($request->user()) ? [
+                    'step_checks' => $this->tripProgressService->stepChecks($reservation, $events),
+                    'step_distance_warning_meters' => $this->settings->stepDistanceWarningMeters(),
+                ] : []),
             ],
         ]);
     }

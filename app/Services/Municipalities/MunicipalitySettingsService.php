@@ -32,6 +32,9 @@ class MunicipalitySettingsService
     /** Contact de garde, prévenu par email des demandes d'aide des chauffeurs (DriverAlertService). */
     private const ON_CALL_FIELDS = ['on_call_name', 'on_call_email', 'on_call_phone'];
 
+    /** « Ma journée » du chauffeur : application de navigation et délai du premier départ (DriverJourneySettingsService). */
+    private const DRIVER_JOURNEY_FIELDS = ['navigation_engine', 'driver_departure_window_min'];
+
     public function __construct(
         private readonly GeoNamesMunicipalityProvider $municipalityProvider
     ) {}
@@ -82,6 +85,7 @@ class MunicipalitySettingsService
                 'is_active',
                 ...self::REFERENCE_FIELDS,
                 ...self::ON_CALL_FIELDS,
+                ...self::DRIVER_JOURNEY_FIELDS,
             ]));
 
             if (($data['is_active'] ?? false) === true) {
