@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Documents\ListDocumentsRequest;
 use App\Http\Resources\DocumentResource;
 use App\Models\Document;
 use App\Services\Documents\DocumentAccessTokenService;
@@ -26,12 +27,12 @@ class DocumentController extends Controller
     ) {
     }
 
-    public function index(Request $request): AnonymousResourceCollection
+    public function index(ListDocumentsRequest $request): AnonymousResourceCollection
     {
         Gate::authorize('viewAny', Document::class);
 
         // DocumentService filtre selon le rôle : agent voit tout, chauffeur voit ses feuilles de route, etc.
-        $documents = $this->documentService->listVisibleForUser($request->user());
+        $documents = $this->documentService->listVisibleForUser($request->user(), $request->validated());
 
         return DocumentResource::collection($documents);
     }
@@ -40,7 +41,7 @@ class DocumentController extends Controller
     {
         Gate::authorize('view', $document);
 
-        $document->load(['reservation', 'user']);
+        $document->load(['reservation', 'user', 'vehicle']);
 
         return new DocumentResource($document);
     }
@@ -54,16 +55,16 @@ class DocumentController extends Controller
 
     /**
      * Téléchargement via token signé (liens partagés hors session, ex: pièce jointe email).
-     * Le token est à usage unique et expiré après consommation par validateAndConsume().
+     * Le lien reste valide jusqu'à expiration ou révocation du token ; les PDF s'ouvrent dans l'onglet.
      */
     public function signedDownload(Request $request, Document $document): StreamedResponse
     {
         $token = (string) $request->query('token', '');
 
-        if ($token === '' || ! $this->tokenService->validateAndConsume($document, $token, $request)) {
+        if ($token === '' || ! $this->tokenService->validate($document, $token, $request)) {
             abort(403, 'Lien de téléchargement invalide ou expiré.');
         }
 
-        return $this->documentService->download($document);
+        return $this->documentService->download($document, inline: true);
     }
 }

@@ -71,8 +71,17 @@ class DocumentStorageService
         return hash('sha256', $content);
     }
 
-    public function download(Document $document): StreamedResponse
+    public function download(Document $document, bool $inline = false): StreamedResponse
     {
+        if ($inline && $document->mime_type === 'application/pdf') {
+            return Storage::disk(self::DISK)->response(
+                $document->file_path,
+                $document->file_name,
+                ['Content-Type' => 'application/pdf'],
+                'inline'
+            );
+        }
+
         return Storage::disk(self::DISK)->download(
             $document->file_path,
             $document->file_name

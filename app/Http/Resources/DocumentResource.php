@@ -37,6 +37,13 @@ class DocumentResource extends JsonResource
             'template_key' => $this->template_key,
             'template_version' => $this->template_version,
 
+            // Feuille de route journalière : jour couvert et véhicule (null pour les autres types), pour les titres côté front.
+            'service_date' => $this->service_date?->toDateString(),
+            'vehicle' => $this->whenLoaded('vehicle', fn () => $this->vehicle ? [
+                'id' => $this->vehicle->id,
+                'licence_plate' => $this->vehicle->licence_plate,
+            ] : null),
+
             'generated_at' => $this->generated_at?->toISOString(),
 
             'is_official' => $this->is_official,

@@ -3,6 +3,7 @@
 namespace App\Mail;
 
 use App\Models\DriverAlert;
+use App\Services\DriverAlerts\DriverAlertService;
 use App\Support\Mail\EmailPresenter;
 use App\Support\Mail\TripTicket;
 use Illuminate\Bus\Queueable;
@@ -11,16 +12,23 @@ use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
+use Throwable;
 
 /**
  * Demande d'aide d'un chauffeur, envoyée au contact de garde de la commune (qui n'a pas forcément de compte) :
  * même gabarit que les notifications, avec le lien direct vers la carte en bouton principal et la page de l'alerte
  * (connexion requise) en second.
+ *
+ * 3 tentatives (30 s, 2 min, 10 min). Si l'envoi échoue définitivement, failed() prévient les agents et admins dans
+ * l'application (« le contact de garde n'a pas pu être prévenu : appelez-le ») et le note dans l'historique de l'alerte :
+ * l'échec ne reste pas caché dans la file des jobs en échec.
  */
 class DriverAlertOnCallMail extends Mailable implements ShouldQueue
 {
     use Queueable;
     use SerializesModels;
+
+    public int $tries = 3;
 
     /** @param  array{openstreetmap: string, google: string}|null  $mapLinks */
     public function __construct(
@@ -29,6 +37,18 @@ class DriverAlertOnCallMail extends Mailable implements ShouldQueue
         public string $body,
         public ?array $mapLinks
     ) {}
+
+    /** @return list<int> secondes entre les tentatives */
+    public function backoff(): array
+    {
+        return [30, 120, 600];
+    }
+
+    /** Envoi définitivement échoué (appelé par le worker après la dernière tentative) */
+    public function failed(Throwable $exception): void
+    {
+        app(DriverAlertService::class)->onCallMailFailed($this->alert, $exception);
+    }
 
     public function envelope(): Envelope
     {

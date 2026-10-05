@@ -5,7 +5,9 @@ namespace App\Services\Documents;
 use App\Enums\DocumentType;
 use App\Models\Document;
 use App\Models\User;
-use Illuminate\Database\Eloquent\Collection;
+use Carbon\CarbonImmutable;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Throwable;
@@ -26,19 +28,66 @@ class DocumentService
     }
 
     /**
-     * Retourne la liste des documents visibles par un utilisateur donné, en appliquant les règles d'accès définies dans DocumentAccessService
+     * Retourne une page de documents visibles par un utilisateur donné (règles d'accès de DocumentAccessService),
+     * triés par date de génération puis de création décroissantes.
+     *
+     * Filtres : document_type[], exclude_type[], date_from / date_to (jour à Bruxelles, sur generated_at sinon
+     * created_at), q (nom de fichier, numéro exact de réservation, objet du trajet), reservation_id, per_page (15 par défaut).
+     * Les feuilles de route n'ont pas de reservation_id : elles sont retrouvées par la table pivot document_reservation.
      *
      * @param User $user L'utilisateur pour lequel on souhaite récupérer les documents visibles
-     * @return Collection La collection de documents visibles par l'utilisateur, triée par date de génération décroissante
+     * @param array<string, mixed> $filters Filtres validés (ListDocumentsRequest)
      */
-    public function listVisibleForUser(User $user): Collection
+    public function listVisibleForUser(User $user, array $filters = []): LengthAwarePaginator
     {
+        $timezone = config('reservations.local_timezone', 'Europe/Brussels');
+        $day = fn (string $date): CarbonImmutable => CarbonImmutable::parse($date, $timezone);
+        $reservationMatches = fn (Builder $query, callable $constraint) => $query
+            ->whereHas('reservation', $constraint)
+            ->orWhereHas('routeSheetReservations', $constraint);
+
         return $this->documentAccessService
             ->visibleQueryFor($user)
-            ->with(['reservation', 'user'])
+            ->when($filters['document_type'] ?? null, fn (Builder $query, array $types) => $query->whereIn('document_type', $types))
+            ->when($filters['exclude_type'] ?? null, fn (Builder $query, array $types) => $query->whereNotIn('document_type', $types))
+            ->when($filters['date_from'] ?? null, fn (Builder $query, string $date) => $query->whereRaw(
+                'COALESCE(documents.generated_at, documents.created_at) >= ?',
+                [$day($date)->startOfDay()->utc()->format('Y-m-d H:i:s')]
+            ))
+            ->when($filters['date_to'] ?? null, fn (Builder $query, string $date) => $query->whereRaw(
+                'COALESCE(documents.generated_at, documents.created_at) <= ?',
+                [$day($date)->endOfDay()->utc()->format('Y-m-d H:i:s')]
+            ))
+            ->when($filters['reservation_id'] ?? null, fn (Builder $query, int $reservationId) => $query->where(
+                fn (Builder $query) => $reservationMatches($query, fn (Builder $reservation) => $reservation->whereKey($reservationId))
+            ))
+            ->when($filters['q'] ?? null, function (Builder $query, string $term): void {
+                $term = trim($term);
+                $like = '%'.addcslashes($term, '\\%_').'%';
+
+                $query->where(function (Builder $query) use ($term, $like): void {
+                    $query->where('documents.file_name', 'like', $like)
+                        ->orWhereHas('reservation', fn (Builder $reservation) => $this->matchReservation($reservation, $term, $like))
+                        ->orWhereHas('routeSheetReservations', fn (Builder $reservation) => $this->matchReservation($reservation, $term, $like));
+                });
+            })
+            ->with(['reservation', 'user', 'vehicle'])
             ->latest('generated_at')
             ->latest('created_at')
-            ->get();
+            ->latest('id')
+            ->paginate((int) ($filters['per_page'] ?? 15));
+    }
+
+    /** Numéro exact de réservation (si le terme est un entier) ou objet du trajet contenant le terme. */
+    private function matchReservation(Builder $reservation, string $term, string $like): void
+    {
+        $reservation->where(function (Builder $reservation) use ($term, $like): void {
+            if (ctype_digit($term)) {
+                $reservation->orWhere('reservations.id', (int) $term);
+            }
+
+            $reservation->orWhere('reservations.trip_purpose', 'like', $like);
+        });
     }
 
     public function registerGeneratedDocument(DocumentType $documentType, string $directory, string $fileName, string $content, array $data = []): Document {
@@ -101,7 +150,10 @@ class DocumentService
         }
     }
 
-    public function download(Document $document): StreamedResponse
+    /**
+     * @param bool $inline Ouvre les PDF dans le navigateur (Content-Disposition: inline) au lieu de les télécharger.
+     */
+    public function download(Document $document, bool $inline = false): StreamedResponse
     {
         if (! $document->is_available) {
             abort(404, 'Document indisponible.');
@@ -111,7 +163,7 @@ class DocumentService
             abort(404, 'Fichier introuvable.');
         }
 
-        return $this->storageService->download($document);
+        return $this->storageService->download($document, $inline);
     }
 
     public function markUnavailable(Document $document): Document
