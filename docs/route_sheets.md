@@ -430,6 +430,13 @@ Kilomètres : `distance_km` d'une réservation (ORS) ne mesure que l'aller, dép
 (journalière par véhicule et semaine du chauffeur) affichent l'aller-retour : `round_trip_km` = `distance_km` × 2 par
 trajet (colonne « Km A/R »), et les totaux (`service.total_distance_km`, `totals.planned_distance_km`) additionnent
 ces allers-retours. `distance_km` reste l'aller seul partout ailleurs (preview, distance maximale, délibération).
+Changement du 02/10/2026 : les feuilles générées avant gardent l'ancienne valeur (aller seul) dans leur PDF et leur
+`generation_context` ; une feuille régénérée passe à l'aller-retour. Le front ne lit pas `total_distance_km`.
+Choix métier (Steph, 05/10/2026) : ce sont les **km des missions**, `distance_km` × 2 par réservation, en supposant
+que le retour fait la même distance que l'aller. Les km **de liaison** ne sont pas comptés : du dépôt au premier lieu de
+départ, d'un retour au départ de la mission suivante, du dernier retour au dépôt. Les km **réels** du bus viendront
+d'un relevé du compteur (deux relevés facultatifs par jour dans « Ma journée », à venir) ; la différence donnera les km
+de liaison par jour et par semaine.
 
 Points relevés, non traités dans cette PR :
 - la génération automatique de 20:00 ignore un véhicule dont la feuille du lendemain existe déjà : une mission
