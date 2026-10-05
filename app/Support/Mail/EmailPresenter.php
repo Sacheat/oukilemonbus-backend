@@ -207,9 +207,21 @@ final class EmailPresenter
 
         return [
             'url' => $actionUrl,
-            'label' => 'Ouvrir '.(self::DOCUMENT_LABELS[$type] ?? 'le document'),
+            // Seuls les PDF s'ouvrent dans l'onglet ; les autres types (Excel…) sont téléchargés.
+            'label' => $this->isPdf($document) ? 'Ouvrir '.(self::DOCUMENT_LABELS[$type] ?? 'le document') : 'Télécharger le fichier',
             'attached' => $attached,
         ];
+    }
+
+    /** Libellé du bouton principal quand le document est l'action unique : « Ouvrir » un PDF, « Télécharger » le reste. */
+    public function documentButtonLabel(Document $document): string
+    {
+        return $this->isPdf($document) ? 'Ouvrir le document' : 'Télécharger le fichier';
+    }
+
+    private function isPdf(Document $document): bool
+    {
+        return $document->mime_type === 'application/pdf';
     }
 
     /**

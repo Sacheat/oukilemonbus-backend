@@ -71,20 +71,22 @@ class DocumentStorageService
         return hash('sha256', $content);
     }
 
+    /**
+     * Le Content-Type est celui enregistré sur le document (jamais deviné depuis le contenu : un export .xls est un
+     * tableau HTML), avec `nosniff` pour que le navigateur ne le réinterprète pas. Seuls les PDF sont servis `inline`.
+     */
     public function download(Document $document, bool $inline = false): StreamedResponse
     {
-        if ($inline && $document->mime_type === 'application/pdf') {
-            return Storage::disk(self::DISK)->response(
-                $document->file_path,
-                $document->file_name,
-                ['Content-Type' => 'application/pdf'],
-                'inline'
-            );
-        }
+        $isPdf = $document->mime_type === 'application/pdf';
 
-        return Storage::disk(self::DISK)->download(
+        return Storage::disk(self::DISK)->response(
             $document->file_path,
-            $document->file_name
+            $document->file_name,
+            [
+                'Content-Type' => $document->mime_type ?: 'application/octet-stream',
+                'X-Content-Type-Options' => 'nosniff',
+            ],
+            $inline && $isPdf ? 'inline' : 'attachment'
         );
     }
 

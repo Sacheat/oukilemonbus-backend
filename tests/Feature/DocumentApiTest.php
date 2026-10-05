@@ -330,6 +330,29 @@ class DocumentApiTest extends TestCase
 
         $this->assertStringStartsWith('attachment;', $response->headers->get('Content-Disposition'));
         $this->assertStringContainsString('planning-test.xlsx', $response->headers->get('Content-Disposition'));
+        $this->assertStringContainsString('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', $response->headers->get('Content-Type'));
+        $this->assertSame('nosniff', $response->headers->get('X-Content-Type-Options'));
+    }
+
+    public function test_signed_download_of_xls_containing_html_is_not_served_as_html(): void
+    {
+        $user = $this->userWithRole('user');
+        $document = $this->createStoredDocument($user);
+        Storage::disk('local')->put('documents/tests/planning-export.xls', '<html><body><table><tr><td>Lundi</td></tr></table></body></html>');
+        $document->update([
+            'file_name' => 'planning-export.xls',
+            'file_path' => 'documents/tests/planning-export.xls',
+            'mime_type' => 'application/vnd.ms-excel',
+        ]);
+        $url = $this->signedUrl($document, $this->createToken($document, $user, 'tok_xls_123')->token);
+
+        $response = $this->get($url)->assertOk();
+
+        $this->assertStringContainsString('application/vnd.ms-excel', $response->headers->get('Content-Type'));
+        $this->assertStringNotContainsString('text/html', $response->headers->get('Content-Type'));
+        $this->assertStringStartsWith('attachment;', $response->headers->get('Content-Disposition'));
+        $this->assertStringContainsString('planning-export.xls', $response->headers->get('Content-Disposition'));
+        $this->assertSame('nosniff', $response->headers->get('X-Content-Type-Options'));
     }
 
     public function test_authenticated_download_stays_an_attachment_for_pdf(): void

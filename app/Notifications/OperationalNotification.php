@@ -102,7 +102,7 @@ class OperationalNotification extends Notification implements ShouldQueue
         if ($this->actionUrl !== null && $this->document !== null) {
             if ($button === null) {
                 // Ni réservation ni lien vers la SPA : le document devient l'action principale.
-                $button = ['url' => $this->actionUrl, 'label' => 'Ouvrir le document'];
+                $button = ['url' => $this->actionUrl, 'label' => $presenter->documentButtonLabel($this->document)];
             } else {
                 $documentLink = $presenter->documentLink($this->document, $this->actionUrl, $attached);
             }
