@@ -208,6 +208,21 @@ Pour la V1, `confirme` est considere actif mais beaucoup d'actions metier seront
 - Voir : `trip-reports.manage`, ou `trip-reports.submit` et être le chauffeur affecté (403 sinon).
 - Déclarer ou corriger : réservation `confirme` (422 sinon) ; `trip-reports.manage` dès l'heure de départ, sans délai ; `trip-reports.submit` pour le chauffeur affecté, de l'heure de départ jusqu'au lendemain 12:00, heure de Bruxelles (422 avant ou après ; avant le départ, 422 aussi pour un agent).
 
+`trip-events` (étapes du trajet, TripProgressService, pas de Policy dédiée)
+
+- Voir : `trip-progress.manage`, ou `trip-progress.record` et être le chauffeur affecté (403 sinon) ; la liste
+  `GET /trip-progress` est limitée aux trajets du chauffeur.
+- Enregistrer : réservation `confirme` et pas déclarée non réalisée (422 sinon), étapes dans l'ordre (422 sinon) ;
+  chauffeur affecté : premier départ à partir de N minutes avant l'heure prévue (config) jusqu'à la fin du jour, autres
+  étapes jusqu'au lendemain 12:00 (422 sinon) ; `trip-progress.manage` sans contrainte d'heure.
+
+`driver-alerts` (demandes d'aide, DriverAlertService, pas de Policy dédiée)
+
+- Créer, renvoyer sa position : `driver-alerts.create`, profil chauffeur ; le trajet donné doit être une de ses missions
+  (422 sinon) ; position seulement sur une alerte non clôturée de ce chauffeur (403 / 422).
+- Voir : `driver-alerts.manage` (toutes), sinon ses propres alertes (403).
+- Prendre en charge (alerte ouverte), clôturer (note obligatoire) : `driver-alerts.manage`.
+
 ### Filtre de liste obligatoire
 
 La route `GET /api/reservations` ne doit jamais retourner toutes les reservations puis compter sur les resources pour masquer les donnees.

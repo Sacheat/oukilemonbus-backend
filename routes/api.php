@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CouncilDecisionController;
 use App\Http\Controllers\Api\DocumentController;
+use App\Http\Controllers\Api\DriverAlertController;
 use App\Http\Controllers\Api\DriverController;
 use App\Http\Controllers\Api\LocationController;
 use App\Http\Controllers\Api\MunicipalityController;
@@ -17,6 +18,7 @@ use App\Http\Controllers\Api\PlanningController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\RecurrenceController;
 use App\Http\Controllers\Api\ReservationConflictController;
+use App\Http\Controllers\Api\TripProgressController;
 use App\Http\Controllers\Api\TripReportController;
 use App\Http\Controllers\Api\ReservationController;
 use App\Http\Controllers\Api\RouteSheetController;
@@ -461,6 +463,31 @@ Route::name('api.')->group(function (): void {
             Route::get('/trip-reports', [TripReportController::class, 'index'])->name('trip-reports.index');
             Route::get('/reservations/{reservation}/trip-report', [TripReportController::class, 'show'])->name('reservations.trip-report.show');
             Route::put('/reservations/{reservation}/trip-report', [TripReportController::class, 'update'])->name('reservations.trip-report.update');
+        });
+
+        /**
+         * Trip progress routes (« Ma journée » : étapes du trajet enregistrées par le chauffeur, suivies par les agents)
+         */
+        Route::middleware('permission:trip-progress.record|trip-progress.manage')->group(function (): void {
+            Route::get('/trip-progress', [TripProgressController::class, 'index'])->name('trip-progress.index');
+            Route::get('/reservations/{reservation}/trip-progress', [TripProgressController::class, 'show'])->name('reservations.trip-progress.show');
+            Route::post('/reservations/{reservation}/trip-events', [TripProgressController::class, 'store'])->name('reservations.trip-events.store');
+        });
+
+        /**
+         * Driver alerts routes (bouton « Aide » du chauffeur, suivi par les agents)
+         */
+        Route::middleware('permission:driver-alerts.create|driver-alerts.manage')->group(function (): void {
+            Route::get('/driver-alerts', [DriverAlertController::class, 'index'])->name('driver-alerts.index');
+            Route::get('/driver-alerts/{driverAlert}', [DriverAlertController::class, 'show'])->name('driver-alerts.show');
+        });
+        Route::middleware('permission:driver-alerts.create')->group(function (): void {
+            Route::post('/driver-alerts', [DriverAlertController::class, 'store'])->name('driver-alerts.store');
+            Route::patch('/driver-alerts/{driverAlert}/position', [DriverAlertController::class, 'updatePosition'])->name('driver-alerts.position');
+        });
+        Route::middleware('permission:driver-alerts.manage')->group(function (): void {
+            Route::post('/driver-alerts/{driverAlert}/take', [DriverAlertController::class, 'take'])->name('driver-alerts.take');
+            Route::post('/driver-alerts/{driverAlert}/close', [DriverAlertController::class, 'close'])->name('driver-alerts.close');
         });
 
         /**

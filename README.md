@@ -178,6 +178,8 @@ La référence complète pour le frontend (paramètres, réponses, règles méti
 | Réservations | `GET /reservations` (filtres `status` ou `statuses[]`, `q`, `organization_id`, `date_from`, `date_to`, `council=a_decider`, `sort` ; chaque ligne porte `council_decision_status`), `GET /reservations/{reservation}` (avec `council_decision_status`), `POST /reservations/preview`, `POST /reservations`, `PATCH /reservations/{reservation}` (préavis de 15 jours levé pour un agent, et pour un externe si la date ne change pas ; voir docs/reservations.md §6.3), `/approve`, `/reject`, `/cancel`, `/assign`, `/confirm`, `/retry-assign`, `/confirm-passengers` |
 | Conflits | `GET /reservations/{reservation}/conflicts`, `PATCH /reservations/{reservation}/conflicts/{conflict}/resolve` |
 | Comptes rendus de trajet | `GET /trip-reports?reservation_ids[]=`, `GET /reservations/{reservation}/trip-report`, `PUT /reservations/{reservation}/trip-report` |
+| Ma journée (étapes du trajet) | `POST /reservations/{reservation}/trip-events`, `GET /reservations/{reservation}/trip-progress`, `GET /trip-progress?reservation_ids[]=` |
+| Demandes d'aide des chauffeurs | `GET /driver-alerts`, `GET /driver-alerts/{driverAlert}`, `POST /driver-alerts`, `PATCH /driver-alerts/{driverAlert}/position`, `POST /driver-alerts/{driverAlert}/take`, `POST /driver-alerts/{driverAlert}/close` |
 | Récurrences | `GET /recurrences`, `POST /recurrences/preview`, `POST /recurrences`, `GET /recurrences/{recurrence}`, `PATCH /recurrences/{recurrence}/cancel` |
 | Planning | `GET /planning`, `GET /planning/export` (fichier), `POST /planning/exports` (asynchrone), `GET /planning/exports/{id}` |
 | Décisions du Collège | `GET /council-decisions` (filtres `reservation_id`, `decision_status`), `GET /{councilDecision}`, `POST /council-decisions`, `PATCH /{councilDecision}`, `POST /{councilDecision}/generate-document` |
@@ -378,6 +380,7 @@ docker compose exec app php artisan config:clear && php artisan route:clear && p
 | [`docs/planning.md`](docs/planning.md) | Filtres, disponibilités, export |
 | [`docs/documents.md`](docs/documents.md) | Stockage, accès, téléchargement sécurisé, tokens signés |
 | [`docs/route_sheets.md`](docs/route_sheets.md) | Feuilles de route, génération, versioning |
+| [`docs/driver_journey.md`](docs/driver_journey.md) | Ma journée du chauffeur : étapes des trajets (source, position, avancement), compte rendu automatique, demandes d'aide et contact de garde |
 | [`docs/deliberations.md`](docs/deliberations.md) | Délibérations du Collège communal |
 | [`docs/operational-resources.md`](docs/operational-resources.md) | Chauffeurs, véhicules, indisponibilités |
 | [`docs/logging.md`](docs/logging.md) | Stratégie de logs et audit par domaine |

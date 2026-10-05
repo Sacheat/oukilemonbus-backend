@@ -27,6 +27,19 @@ class UpdateMunicipalityRequest extends FormRequest
             'depot_location_id' => ['sometimes', 'nullable', 'integer', 'exists:locations,id', $this->geolocatedDepot(...)],
             'max_trip_distance_km' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:500'],
             'max_pickup_distance_km' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:500'],
+            // Contact de garde (facultatif) : prévenu par email des demandes d'aide des chauffeurs
+            'on_call_name' => ['sometimes', 'nullable', 'string', 'max:150'],
+            'on_call_email' => ['sometimes', 'nullable', 'email', 'max:255'],
+            'on_call_phone' => ['sometimes', 'nullable', 'string', 'max:30'],
+        ];
+    }
+
+    public function messages(): array
+    {
+        return [
+            'on_call_email.email' => 'L’adresse email du contact de garde n’est pas valide.',
+            'on_call_name.max' => 'Le nom du contact de garde ne peut pas dépasser 150 caractères.',
+            'on_call_phone.max' => 'Le téléphone du contact de garde ne peut pas dépasser 30 caractères.',
         ];
     }
 
