@@ -83,17 +83,98 @@ Le champ `is_default` marque l'organisation affichée par défaut pour cet utili
 
 ## Scoring de confiance
 
-Le scoring de confiance est calculé **à la volée** par l'API lors du traitement des demandes d'inscription (`OrgRegistrationConfidenceScoreService`) et des demandes d'adhésion (`UserOrgRequestConfidenceScoreService`).
+Le score (0-100) est calculé par `OrgRegistrationConfidenceScoreService` (demandes de création d'organisation) et `UserOrgRequestConfidenceScoreService` (demandes d'adhésion).
 
-**Il n'est pas stocké en JSON dans une colonne dédiée.** Seul le score final (`confidence_note`, 0-100) est persisté. Le détail des critères est retourné dans `confidence_details` dans la réponse API mais n'est jamais sauvegardé.
+**C'est un barème de points écrit à la main, qui sert à trier la file des agents** : les dossiers complets et cohérents remontent. Il ne prouve rien : il n'ouvre pas le justificatif, ne vérifie pas que l'entreprise existe, et ne remplace pas la décision de l'agent.
 
-Critères évalués (exemples) :
-- Adresse de l'organisation vérifiée et dans la commune active
-- Email officiel fourni
-- Numéro d'entreprise fourni (ASBL)
-- Justification cohérente avec le rôle demandé
-- Téléphone fourni
-- Contact nommé
+### Demande de création d'organisation
+
+Un dossier complet et cohérent fait **100**, quel que soit le type d'organisation.
+
+| Critère | Points |
+|---|---|
+| Téléphone de contact, personne de contact, son rôle | +10, +10, +5 |
+| Adresse renseignée, adresse vérifiée, adresse dans la commune | +5, +5, +10 |
+| Justificatif fourni | +25 |
+| Numéro BCE valide : 10 chiffres, commence par 0 ou 1, clé de contrôle correcte (97 − les 8 premiers chiffres modulo 97) | +25 |
+| Domaine de l'email officiel qui reprend un mot significatif du nom (« info@amisduparc.be » pour « ASBL Les Amis du Parc ») | +5 |
+
+Pénalités et avertissements :
+
+| Situation | Effet |
+|---|---|
+| Numéro BCE saisi mais invalide (format ou clé) | −15 |
+| ASBL sans numéro BCE | −10 |
+| Ni téléphone ni personne de contact | −10 |
+| Adresse hors de la commune | −5 |
+| Nom de moins de 4 caractères | −5 |
+| Adresse email grand public (gmail, hotmail, outlook, skynet…) | Avertissement sans retrait de points : beaucoup de petites ASBL légitimes les utilisent |
+| Adresse absente | Avertissement sans point |
+
+Contrôles de **l'état du moment**, évalués seulement pour une demande **en attente** (sur une demande traitée, l'organisation créée par son approbation les ferait déclencher) :
+
+| Situation | Effet |
+|---|---|
+| Même numéro BCE (quelle que soit l'écriture : « 0123.456.749 », « BE 0123 456 749 ») qu'une autre demande en attente ou approuvée (une organisation n'a pas de colonne BCE : une demande approuvée correspond à une organisation créée) | −20 |
+| Nom presque identique à une organisation ou à une autre demande en attente ou approuvée (casse, accents, ponctuation et mots génériques « ASBL », « école », « les », « du »… ignorés ; une coquille d'une lettre tolérée à partir de 6 lettres) | −10 |
+| Email officiel déjà utilisé par une organisation | −15 |
+| Autre demande en attente du même demandeur | −5 |
+| Demandes de création refusées du même demandeur | −10 par refus, −20 au plus |
+| Le demandeur a déjà une demande de création approuvée | +5 |
+
+Le score est borné entre 0 et 100. L'email officiel (obligatoire) et l'état du compte du demandeur (actif, email vérifié : les routes l'exigent) ne rapportent aucun point : ils sont acquis à tout le monde et ne distinguent personne.
+
+### Demande d'adhésion
+
+Une demande complète et cohérente fait **100**, quel rôle est demandé.
+
+| Critère | Points |
+|---|---|
+| Justificatif fourni | +35 |
+| Justification fournie | +25 |
+| Justification détaillée (au moins 30 caractères et 5 mots) | +15 |
+| Cohérence rôle / justification : la justification contient au moins **un mot entier** du vocabulaire du rôle | +20 |
+| Téléphone du demandeur renseigné | +5 |
+
+Le vocabulaire (mots entiers, sans accent ni casse) exclut le **nom du rôle** : écrire « responsable » ne prouve rien pour le rôle « responsable », et « enfantine » ne contient pas le mot « enfant ». Exemples : `prof` → enseignant, classe, école, élèves, cours… ; `animateur` → animation, activité, atelier, enfants, stage… ; `directeur` → direction, établissement, école, équipe… ; `responsable` → coordination, gestion, équipe, comité, inscriptions… ; `referent` → contact, coordination, planning, suivi, liaison… (liste complète : `ROLE_VOCABULARY` dans `UserOrgRequestConfidenceScoreService`).
+
+| Pénalité ou avertissement | Effet |
+|---|---|
+| Ni justification ni justificatif | −15 |
+| Justification de moins de 15 caractères | −5 |
+| Rôle sensible (directeur, responsable, référent) sans justificatif | −10 |
+| Justification de moins de 4 mots (et d'au moins 15 caractères) | Avertissement sans point |
+
+Contrôles de **l'état du moment**, évalués seulement pour une demande **en attente**, avertissements sans point :
+
+| Situation | Avertissement |
+|---|---|
+| Responsable ou directeur demandé alors que l'organisation a déjà un responsable ou un directeur (autre que le demandeur) | « Rôle déjà tenu : l'organisation a déjà un responsable ou directeur : Prénom Nom (responsable). » : l'approbation ajouterait un second responsable |
+| Même justification (casse, accents et ponctuation ignorés) qu'une autre demande du même demandeur sur les 90 derniers jours | « Même justification que la demande n°X du même demandeur. » |
+
+Le score est borné entre 0 et 100. L'organisation cible et le rôle (champs obligatoires), le compte actif et l'email vérifié (les routes l'exigent) ne rapportent aucun point : ils sont acquis à tout le monde. L'agent garde la possibilité de fixer lui-même la note à l'approbation ou au refus (`confidence_note` du corps de la requête).
+
+### Ce que renvoie l'API
+
+| Champ | Demande en attente | Demande traitée (approuvée ou refusée) |
+|---|---|---|
+| `confidence_note` | Le score courant, toujours égal à `confidence_details.score` | La note **de la décision**, figée |
+| `confidence_details` (`score`, `reasons`, `warnings`) | Calculé à chaque lecture | Recalculé à chaque lecture **à titre indicatif**, d'après l'état actuel des données |
+| `confidence_level`, `confidence_level_label` | Niveau de la note affichée : `faible` (moins de 40), `moyen` (40 à 69), `eleve` (70 et plus) ; libellés « Faible », « Moyen », « Élevé » | Niveau de la note de la décision |
+
+Pour une demande traitée, `confidence_details.score` peut donc différer de `confidence_note` : le refus supprime le justificatif (le score recalculé perd ses points), un compte ou une adresse a pu changer depuis. L'écart n'est pas une anomalie : la note de la décision fait foi. Pour une demande de création d'organisation traitée, les contrôles de l'état du moment (BCE ou nom déjà connus, email déjà utilisé, autre demande en attente, historique du demandeur) ne sont plus évalués : l'organisation créée par l'approbation porte les mêmes nom, email et numéro.
+
+### Note enregistrée (`confidence_note`)
+
+La colonne `confidence_note` est la seule valeur persistée (le détail ne l'est jamais). Elle trie les listes (`sort=confiance`), elle est donc tenue à jour pour une demande en attente :
+
+| Moment | Effet |
+|---|---|
+| Création | Score calculé et enregistré |
+| Justificatif ajouté ou supprimé (`POST` / `DELETE .../proof`) | Score recalculé et enregistré. La SPA envoie le justificatif **après** la création : sans cela, la note ignorerait ses points (+15 pour une organisation, +25 pour une adhésion) |
+| Approbation ou refus | La note est figée. Adhésions : la note donnée par l'agent (`confidence_note` du corps), sinon le score du moment. Organisations : le score du moment, calculé avant la création de l'organisation et avant la suppression du justificatif d'un refus |
+
+Les changements indirects (téléphone ou compte du demandeur, autre demande en attente du même demandeur, organisation créée entre-temps avec le même email) apparaissent immédiatement dans la note et le détail affichés. La note enregistrée — donc le tri — les rattrape par la commande `php artisan requests:refresh-confidence-notes`, planifiée chaque heure : elle ne recalcule que les demandes en attente (les demandes traitées gardent la note de leur décision). À lancer une fois après le déploiement de cette évolution : les demandes déjà en attente ont une note enregistrée calculée avant l'ajout de leur justificatif.
 
 ---
 
@@ -107,6 +188,23 @@ PATCH  /api/organizations/{id}               Mettre à jour
 PATCH  /api/organizations/{id}/ban           Bannir (admin)
 PATCH  /api/organizations/{id}/unban         Débannir (admin)
 ```
+
+---
+
+## Files de demandes (page agent « Demandes »)
+
+`GET /api/user-org-requests` (adhésions) et `GET /api/org-registration-requests` (nouvelles organisations) acceptent des filtres facultatifs, combinables et conservés dans les liens de pagination. Le périmètre visible ne change pas (un utilisateur voit ses demandes ; pour les adhésions, aussi celles des organisations qu'il gère). Valeur invalide : 422 en français.
+
+| Paramètre | Valeurs | Adhésions | Nouvelles organisations |
+|---|---|---|---|
+| `statuses[]` | `en_attente`, `approuve`, `refuse` (plusieurs possibles) | ✓ | ✓ |
+| `q` | Chaque mot doit apparaître (casse et accents ignorés). Adhésions : nom de l'organisation, prénom / nom / email du demandeur. Nouvelles organisations : `organization_name`, `official_email`, `enterprise_number`, prénom / nom / email du demandeur | ✓ | ✓ |
+| `organization_id` | id d'une organisation | ✓ | — |
+| `organization_type` | `ecole_communale`, `personnel_communal`, `cpas`, `asbl`, `externe` | — | ✓ |
+| `sort` | `confiance` (défaut : note décroissante, puis plus récentes), `anciennete` (plus anciennes d'abord : ordre d'arrivée de la file « à traiter »), `recentes` | ✓ | ✓ |
+| `per_page` | 1 à 100 (défaut 15) | ✓ | ✓ |
+
+Compteur de la pastille « à traiter » : `meta.total` de `GET /api/user-org-requests?statuses[]=en_attente&per_page=1` (idem pour les nouvelles organisations). Aucune permission `dashboard.view` n'est requise, contrairement à `GET /api/dashboard`.
 
 ---
 

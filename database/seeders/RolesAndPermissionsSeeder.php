@@ -66,6 +66,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'recurrences.cancel',
             'tooling.access',
             'users.manage-roles',
+            'users.send-password-reset',
             'dashboard.view',
             'trip-reports.submit',
             'trip-reports.manage',
@@ -91,6 +92,7 @@ class RolesAndPermissionsSeeder extends Seeder
         //   - notifications.monitor : health check système, outil de support/debug
         //   - tooling.access        : module Tooling (Backend Inspector, Dev Toolbox en lecture)
         //   - users.manage-roles    : attribution des rôles globaux
+        //   - users.send-password-reset : envoi d'un lien de réinitialisation du mot de passe à un compte
         // syncPermissions : chaque rôle a EXACTEMENT la liste ci-dessous, y compris après un re-seed
         // (givePermissionTo ne faisait qu'ajouter et laissait subsister d'anciennes permissions).
         $admin->syncPermissions($permissions);

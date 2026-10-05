@@ -52,7 +52,7 @@ class OrgRegistrationRequestApiTest extends TestCase
         $this->postJson('/api/org-registration-requests', [
             'organization_name' => 'ASBL Les Amis du Parc',
             'organization_type' => OrganizationType::ASBL->value,
-            'enterprise_number' => '0123.456.789',
+            'enterprise_number' => '0123.456.749',
             'official_email' => 'contact@amisduparc.test',
             'phone' => '082000000',
             'location_id' => $location->id,
@@ -64,14 +64,14 @@ class OrgRegistrationRequestApiTest extends TestCase
             ->assertJsonPath('data.request_by_user_id', $user->id)
             ->assertJsonPath('data.organization_name', 'ASBL Les Amis du Parc')
             ->assertJsonPath('data.status', RequestStatus::EN_ATTENTE->value)
-            ->assertJsonPath('data.confidence_note', 81)
-            ->assertJsonPath('data.confidence_details.score', 81);
+            ->assertJsonPath('data.confidence_note', 75)
+            ->assertJsonPath('data.confidence_details.score', 75);
 
         $this->assertDatabaseHas('org_registration_requests', [
             'request_by_user_id' => $user->id,
             'organization_name' => 'ASBL Les Amis du Parc',
             'status' => RequestStatus::EN_ATTENTE->value,
-            'confidence_note' => 81,
+            'confidence_note' => 75,
         ]);
     }
 
@@ -91,7 +91,7 @@ class OrgRegistrationRequestApiTest extends TestCase
         $this->postJson('/api/org-registration-requests', [
             'organization_name' => 'ASBL Dinant Solidaire',
             'organization_type' => OrganizationType::ASBL->value,
-            'enterprise_number' => '0123.456.789',
+            'enterprise_number' => '0123.456.749',
             'official_email' => 'contact@dinant-solidaire.test',
             'phone' => '082000000',
             'location_id' => $location->id,
@@ -99,8 +99,8 @@ class OrgRegistrationRequestApiTest extends TestCase
             'contact_person_role' => 'Responsable',
         ])
             ->assertCreated()
-            ->assertJsonPath('data.confidence_note', 81)
-            ->assertJsonPath('data.confidence_details.score', 81)
+            ->assertJsonPath('data.confidence_note', 75)
+            ->assertJsonPath('data.confidence_details.score', 75)
             ->assertJsonFragment([
                 'Adresse situee dans la commune de Dinant.',
             ]);

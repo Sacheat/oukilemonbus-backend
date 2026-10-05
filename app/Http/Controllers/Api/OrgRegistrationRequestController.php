@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\OrgRegistrationRequests\ApproveOrgRegistrationRequest;
+use App\Http\Requests\OrgRegistrationRequests\ListOrgRegistrationRequestsRequest;
 use App\Http\Requests\OrgRegistrationRequests\RejectOrgRegistrationRequest;
 use App\Http\Requests\Documents\StoreProofDocumentRequest;
 use App\Http\Requests\OrgRegistrationRequests\StoreOrgRegistrationRequest;
@@ -29,25 +30,27 @@ class OrgRegistrationRequestController extends Controller
         private readonly ProofDocumentService $proofDocumentService,
     ) {}
 
-    public function index(): AnonymousResourceCollection
+    /**
+     * Filtres (ListOrgRegistrationRequestsRequest) : statuses[], q, organization_type, sort (confiance par défaut :
+     * les demandes les plus fiables remontent), per_page. Ils s'ajoutent au périmètre visible, qui ne change pas.
+     */
+    public function index(ListOrgRegistrationRequestsRequest $request): AnonymousResourceCollection
     {
-        Gate::authorize('viewAny', OrgRegistrationRequest::class);
+        $user = $request->user();
 
-        $user = request()->user();
+        $query = OrgRegistrationRequest::query()
+            ->with(['requestedByUser', 'reviewedByUser', 'location'])
+            ->when(
+                // Les non-internes ne voient que leurs propres demandes.
+                ! $user->hasAnyRole(['admin', 'agent_communal']),
+                fn ($query) => $query->where('request_by_user_id', $user->getKey())
+            )
+            ->when($request->validated('organization_type'), fn ($query, $type) => $query->where('organization_type', $type));
 
-        return OrgRegistrationRequestResource::collection(
-            OrgRegistrationRequest::query()
-                ->with(['requestedByUser', 'reviewedByUser', 'location'])
-                ->when(
-                    // Les non-internes ne voient que leurs propres demandes.
-                    ! $user->hasAnyRole(['admin', 'agent_communal']),
-                    fn ($query) => $query->where('request_by_user_id', $user->getKey())
-                )
-                // Triées par score de confiance décroissant pour que les demandes les plus fiables remontent.
-                ->orderByDesc('confidence_note')
-                ->latest()
-                ->paginate()
-        );
+        $request->applySearch($query, ['organization_name', 'official_email', 'enterprise_number'], 'requestedByUser');
+        $request->applyStatusAndSort($query, 'id');
+
+        return OrgRegistrationRequestResource::collection($query->paginate($request->perPage())->withQueryString());
     }
 
     public function store(StoreOrgRegistrationRequest $request): JsonResponse
@@ -115,6 +118,7 @@ class OrgRegistrationRequestController extends Controller
         );
 
         $orgRegistrationRequest->update(['proof_document_id' => $document->id]);
+        $this->orgRegistrationRequestService->refreshConfidenceNote($orgRegistrationRequest);
 
         return (new DocumentResource($document))->response()->setStatusCode(201);
     }
@@ -126,6 +130,7 @@ class OrgRegistrationRequestController extends Controller
         if ($orgRegistrationRequest->proofDocument) {
             $this->proofDocumentService->delete($orgRegistrationRequest->proofDocument);
             $orgRegistrationRequest->update(['proof_document_id' => null]);
+            $this->orgRegistrationRequestService->refreshConfidenceNote($orgRegistrationRequest);
         }
 
         return response()->json(null, 204);

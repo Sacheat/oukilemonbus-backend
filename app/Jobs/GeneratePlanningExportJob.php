@@ -128,7 +128,7 @@ class GeneratePlanningExportJob implements ShouldQueue
                 category: 'driver_planning',
                 title: 'Export planning disponible',
                 message: sprintf(
-                    'Votre export planning du %s au %s est pret.',
+                    'Votre export planning du %s au %s est prêt.',
                     $exportRequest->start_date->format('d/m/Y'),
                     $exportRequest->end_date->format('d/m/Y')
                 ),

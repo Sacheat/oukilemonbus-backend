@@ -18,6 +18,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\Rule;
 
 /**
  * CRUD utilisateurs.
@@ -32,13 +33,21 @@ class UserController extends Controller
 
     /**
      * `search` : chaque mot doit apparaître dans le prénom, le nom ou l'email (ex. « paul sec »).
+     * `role` : comptes qui ont ce rôle global. `active` : 1/true (actifs) ou 0/false (désactivés).
      */
     public function index(Request $request): AnonymousResourceCollection
     {
         Gate::authorize('viewAny', User::class);
 
+        // La règle `boolean` refuse les chaînes « true »/« false » d'une query string.
+        if (is_string($active = $request->query('active')) && in_array(strtolower($active), ['true', 'false'], true)) {
+            $request->merge(['active' => strtolower($active) === 'true' ? '1' : '0']);
+        }
+
         $validated = $request->validate([
             'search' => ['nullable', 'string', 'max:100'],
+            'role' => ['nullable', 'string', Rule::in(User::GLOBAL_ROLES)],
+            'active' => ['nullable', 'boolean'],
         ]);
 
         $patterns = LikeSearch::patterns($validated['search'] ?? null);
@@ -54,6 +63,8 @@ class UserController extends Controller
                             ->orWhere('email', 'like', $like));
                     }
                 })
+                ->when($validated['role'] ?? null, fn (Builder $query, string $role) => $query->role($role))
+                ->when(isset($validated['active']), fn (Builder $query) => $query->where('active', (bool) $validated['active']))
                 ->latest()
                 ->paginate()
                 ->withQueryString()
@@ -73,7 +84,7 @@ class UserController extends Controller
     {
         Gate::authorize('view', $user);
 
-        return new UserResource($user);
+        return new UserResource($user->load(['roles', 'organizations', 'driver']));
     }
 
     public function update(UpdateUserRequest $request, User $user): UserResource
@@ -122,6 +133,21 @@ class UserController extends Controller
         $this->userService->closeOtherSessions($user, $currentSessionId);
 
         return response()->json(null, 204);
+    }
+
+    /**
+     * Envoie le lien de « Mot de passe oublié » à l'email du compte, pour aider une personne sans lui
+     * transmettre de mot de passe. Le jeton n'apparaît jamais dans la réponse.
+     */
+    public function sendPasswordResetLink(User $user): JsonResponse
+    {
+        Gate::authorize('sendPasswordReset', $user);
+
+        $this->userService->sendPasswordResetLink($user);
+
+        return response()->json([
+            'message' => "Un lien de réinitialisation a été envoyé à {$user->email}.",
+        ], 202);
     }
 
     public function deactivate(User $user): JsonResponse

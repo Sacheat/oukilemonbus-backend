@@ -28,6 +28,10 @@ use Illuminate\Validation\ValidationException;
  *   pour libérer l'espace disque et notifie le demandeur.
  *
  * Seules les demandes EN_ATTENTE peuvent être approuvées ou refusées.
+ *
+ * Note de confiance (`confidence_note`, qui sert aussi au tri de la liste) : enregistrée à la création, rafraîchie par
+ * `refreshConfidenceNote()` quand le justificatif est ajouté ou supprimé (la SPA l'envoie après la création), puis figée
+ * à la décision : approve() et reject() enregistrent le score du moment, avant la suppression du justificatif d'un refus.
  */
 class OrgRegistrationRequestService
 {
@@ -56,17 +60,43 @@ class OrgRegistrationRequestService
             eventKey: 'org_registration_request.created',
             category: 'admin_workflow',
             title: 'Nouvelle demande de création d’organisation',
-            message: "La demande #{$request->id} doit être revue par un agent communal."
+            message: "La demande #{$request->id} doit être revue par un agent communal.",
+            link: ['path' => "/gestion/demandes?file=organisations&statut=toutes&demande={$request->id}", 'label' => 'Ouvrir la demande']
         );
 
         return $request->refresh();
+    }
+
+    /**
+     * Recalcule et enregistre la note d'une demande EN_ATTENTE ; une demande traitée garde la note de sa décision.
+     *
+     * @return bool true si la note enregistrée a changé
+     */
+    public function refreshConfidenceNote(OrgRegistrationRequest $request): bool
+    {
+        if (! $request->status->isPending()) {
+            return false;
+        }
+
+        $score = $this->confidenceScoreService->calculate($request);
+
+        if ($request->confidence_note === $score) {
+            return false;
+        }
+
+        $request->update(['confidence_note' => $score]);
+
+        return true;
     }
 
     public function approve(OrgRegistrationRequest $request, User $reviewer): Organization
     {
         $this->ensurePending($request);
 
-        return DB::transaction(function () use ($request, $reviewer): Organization {
+        // Avant la création de l'organisation : elle porte le même email officiel et ferait perdre des points.
+        $confidenceNote = $this->confidenceScoreService->calculate($request);
+
+        return DB::transaction(function () use ($request, $reviewer, $confidenceNote): Organization {
             $organizationType = $request->organization_type;
 
             $organization = Organization::create([
@@ -94,6 +124,7 @@ class OrgRegistrationRequestService
 
             $request->update([
                 'status' => RequestStatus::APPROUVE,
+                'confidence_note' => $confidenceNote,
                 'reviewed_by_user_id' => $reviewer->id,
                 'reviewed_at' => now(),
                 'rejection_reason' => null,
@@ -106,7 +137,8 @@ class OrgRegistrationRequestService
                     eventKey: 'org_registration_request.approved',
                     category: 'admin_workflow',
                     title: 'Demande d’organisation approuvée',
-                    message: "Votre demande #{$request->id} a été approuvée. L’organisation \"{$organization->name}\" a été créée."
+                    message: "Votre demande #{$request->id} a été approuvée. L’organisation \"{$organization->name}\" a été créée.",
+                    link: ['path' => '/espace/organisations', 'label' => 'Voir mes organisations']
                 );
             }
 
@@ -122,6 +154,7 @@ class OrgRegistrationRequestService
 
         $request->update([
             'status' => RequestStatus::REFUSE,
+            'confidence_note' => $this->confidenceScoreService->calculate($request),
             'reviewed_by_user_id' => $reviewer->id,
             'reviewed_at' => now(),
             'rejection_reason' => $reason,
@@ -139,7 +172,9 @@ class OrgRegistrationRequestService
                 eventKey: 'org_registration_request.rejected',
                 category: 'admin_workflow',
                 title: 'Demande d’organisation refusée',
-                message: "Votre demande #{$request->id} a été refusée. Motif : {$reason}"
+                message: "Votre demande #{$request->id} a été refusée. Motif : {$reason}",
+                reason: $reason,
+                link: ['path' => '/espace/organisations', 'label' => 'Voir mes organisations']
             );
         }
 

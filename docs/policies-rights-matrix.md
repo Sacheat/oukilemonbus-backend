@@ -259,6 +259,7 @@ Permissions Spatie existantes :
 - `users.update`
 - `users.update-status`
 - `users.deactivate`
+- `users.send-password-reset`
 
 | Action | Admin | Agent communal | Responsable organisation | User | Chauffeur |
 | --- | --- | --- | --- | --- | --- |

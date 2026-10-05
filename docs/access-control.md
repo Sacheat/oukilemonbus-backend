@@ -10,13 +10,40 @@ Le backend utilise **Laravel Sanctum** en mode SPA cookie. Le frontend appelle `
 
 Les routes API sensibles sont protégées par `middleware(['auth:sanctum', 'active'])`. Un utilisateur non authentifié reçoit `401 Unauthorized` ; un compte désactivé reçoit `403 Forbidden`.
 
+**Routes invités** : `POST /api/auth/register`, `/auth/login` et `/auth/forgot-password` sont réservées aux invités. Avec une session ouverte, elles répondent `409` JSON « Vous êtes déjà connecté. Déconnectez-vous pour continuer. » (`redirectUsersTo` dans `bootstrap/app.php`), jamais une redirection.
+`POST /api/auth/reset-password` est accessible connecté ou non : le jeton reçu par email prouve l'identité. Le mot de passe du compte du lien est changé et toutes ses sessions sont fermées, y compris la session courante si c'est la sienne ; la session d'un autre compte (ex. un admin qui teste le lien envoyé) reste ouverte.
+
 La vérification email est requise pour toutes les routes métier (`middleware('verified')`). Seules `/auth/me`, `/auth/logout` et `/email/verify/resend` sont accessibles sans email vérifié.
 
 **Cycle de vie d'un compte**
 
 - `users.update-status` — suspend ou réactive un compte (`active` true/false)
 - `users.deactivate` — désactivation définitive : passe `active` à `false` **et révoque tous les tokens Sanctum** du compte
+- Création par un admin (`POST /api/users`) : le compte reçoit le même email de vérification qu'à l'inscription (file d'attente, lien vers `{FRONTEND_URL}/verify-email`) ; une panne d'envoi ne fait pas échouer la création
+- `users.send-password-reset` — `POST /api/users/{user}/password-reset-link` : envoie à l'email du compte le même lien que « Mot de passe oublié » (`{FRONTEND_URL}/reset-password?token=…&email=…`, 60 min). L'admin ne fixe aucun mot de passe et le jeton n'apparaît jamais dans la réponse (202 `{ message }`). 422 sur `user` si le compte est désactivé (« Ce compte est désactivé : réactivez-le avant d'envoyer un lien. ») ou si un lien a été envoyé il y a moins de 60 s (`auth.passwords.users.throttle`). Route limitée à 6 requêtes par minute
 - Un compte désactivé est bloqué par `EnsureUserIsActive` avant toute vérification de permission
+
+**Toujours un administrateur actif**
+
+La plateforme garde au moins un administrateur actif (rôle `admin` **et** `active = true`). `UserService` refuse, en 422 :
+
+| Route | Cas refusé | Champ | Message |
+|---|---|---|---|
+| `PATCH /api/users/{user}/roles` | `roles` ne contient plus `admin` pour le dernier admin actif | `roles` | « Impossible de retirer le rôle administrateur du dernier administrateur actif. » |
+| `PATCH /api/users/{user}/status` | `active=false` sur le dernier admin actif | `active` | « Impossible de désactiver le dernier administrateur actif. » |
+| `PATCH /api/users/{user}/deactivate` | dernier admin actif | `user` (repris dans `message`) | « Impossible de désactiver le dernier administrateur actif. » |
+
+Un admin déjà désactivé ne compte pas. Les lignes des admins actifs sont verrouillées pendant la vérification, pour que deux retraits simultanés ne passent pas tous les deux. Un admin ne peut par ailleurs pas retirer son propre rôle `admin` (« Vous ne pouvez pas retirer votre propre rôle administrateur. », vérifié avant).
+
+**Liste des comptes (`GET /api/users`)**
+
+Paramètres combinables, conservés dans les liens de pagination (15 par page, plus récents d'abord) :
+
+- `search` : chaque mot doit apparaître dans le prénom, le nom ou l'email ;
+- `role` : un rôle global (`admin`, `agent_communal`, `chauffeur`, `user`) ;
+- `active` : `1`/`true` (comptes actifs) ou `0`/`false` (désactivés).
+
+Une valeur invalide renvoie un 422. `GET /api/users/{user}` renvoie le compte avec `roles`, `organizations` (avec `membership`) et `driver`.
 
 ---
 
@@ -49,13 +76,14 @@ L'admin seul peut :
 - `users.update-status` — modération des comptes (bloquer/débloquer)
 - `users.deactivate` — désactivation définitive d'un compte
 - `users.manage-roles` — attribution des rôles globaux
+- `users.send-password-reset` — envoi d'un lien de réinitialisation du mot de passe à un compte
 - `organizations.ban` — bannissement d'une organisation
 - `notifications.monitor` — health check système (outil de support/debug)
 - `tooling.access` — module Tooling : journal Backend Inspector et Dev Toolbox en lecture (voir [`tooling.md`](tooling.md))
 
 ---
 
-## Permissions (52)
+## Permissions (56)
 
 ### users
 
@@ -67,6 +95,7 @@ L'admin seul peut :
 | `users.update-status` | ✓ | — | — | — |
 | `users.deactivate` | ✓ | — | — | — |
 | `users.manage-roles` | ✓ | — | — | — |
+| `users.send-password-reset` | ✓ | — | — | — |
 
 ### locations
 

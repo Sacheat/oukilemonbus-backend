@@ -25,7 +25,7 @@ class TestRequestsSeeder extends Seeder
             [
                 'request_by_user_id' => $requester->id,
                 'organization_type' => OrganizationType::ASBL,
-                'enterprise_number' => '0123.456.789',
+                'enterprise_number' => '0123.456.749', // numéro BCE valide (clé de contrôle correcte)
                 'official_email' => 'contact@dinant-solidaire.test',
                 'phone' => '082000000',
                 'location_id' => $location->id,

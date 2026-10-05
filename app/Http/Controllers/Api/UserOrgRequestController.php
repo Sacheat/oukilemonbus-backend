@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Enums\RequestStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\UserOrgRequests\ApproveUserOrgRequest;
+use App\Http\Requests\UserOrgRequests\ListUserOrgRequestsRequest;
 use App\Http\Requests\UserOrgRequests\RejectUserOrgRequest;
 use App\Http\Requests\Documents\StoreProofDocumentRequest;
 use App\Http\Requests\UserOrgRequests\StoreUserOrgRequest;
@@ -57,27 +58,30 @@ class UserOrgRequestController extends Controller
         );
     }
 
-    public function index(): AnonymousResourceCollection
+    /**
+     * Filtres (ListUserOrgRequestsRequest) : statuses[], q, organization_id, sort (confiance par défaut), per_page.
+     * Ils s'ajoutent au périmètre visible, qui ne change pas.
+     */
+    public function index(ListUserOrgRequestsRequest $request): AnonymousResourceCollection
     {
-        Gate::authorize('viewAny', UserOrgRequest::class);
+        $user = $request->user();
 
-        $user = request()->user();
+        $query = UserOrgRequest::query()
+            ->with(['organization', 'requestedByUser', 'reviewedByUser'])
+            ->when(
+                ! $user->hasAnyRole(['admin', 'agent_communal']),
+                fn ($query) => $query->where(function ($query) use ($user): void {
+                    // Ses propres demandes + celles adressées aux organisations qu'il gère.
+                    $query->where('requested_by_user_id', $user->getKey())
+                        ->orWhereIn('organization_id', $user->managedOrganizationIds());
+                })
+            )
+            ->when($request->validated('organization_id'), fn ($query, $organizationId) => $query->where('organization_id', $organizationId));
 
-        return UserOrgRequestResource::collection(
-            UserOrgRequest::query()
-                ->with(['organization', 'requestedByUser', 'reviewedByUser'])
-                ->when(
-                    ! $user->hasAnyRole(['admin', 'agent_communal']),
-                    fn ($query) => $query->where(function ($query) use ($user): void {
-                        // Ses propres demandes + celles adressées aux organisations qu'il gère.
-                        $query->where('requested_by_user_id', $user->getKey())
-                            ->orWhereIn('organization_id', $user->managedOrganizationIds());
-                    })
-                )
-                ->orderByDesc('confidence_note')
-                ->latest()
-                ->paginate()
-        );
+        $request->applySearch($query, [], 'requestedByUser', ['organization' => 'name']);
+        $request->applyStatusAndSort($query, 'request_id');
+
+        return UserOrgRequestResource::collection($query->paginate($request->perPage())->withQueryString());
     }
 
     public function store(StoreUserOrgRequest $request): JsonResponse
@@ -143,6 +147,7 @@ class UserOrgRequestController extends Controller
         );
 
         $userOrgRequest->update(['proof_document_id' => $document->id]);
+        $this->userOrgRequestService->refreshConfidenceNote($userOrgRequest);
 
         return (new DocumentResource($document))->response()->setStatusCode(201);
     }
@@ -154,6 +159,7 @@ class UserOrgRequestController extends Controller
         if ($userOrgRequest->proofDocument) {
             $this->proofDocumentService->delete($userOrgRequest->proofDocument);
             $userOrgRequest->update(['proof_document_id' => null]);
+            $this->userOrgRequestService->refreshConfidenceNote($userOrgRequest);
         }
 
         return response()->json(null, 204);

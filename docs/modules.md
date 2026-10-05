@@ -135,11 +135,11 @@ Ce document liste l'ensemble des modules du backend, leur périmètre fonctionne
 
 ---
 
-## Permissions (52 au total)
+## Permissions (56 au total)
 
 | Module | Permissions |
 |---|---|
-| users | view, create, update, update-status, deactivate, manage-roles |
+| users | view, create, update, update-status, deactivate, manage-roles, send-password-reset |
 | locations | view, create, update |
 | municipalities | view, manage |
 | vehicles | view, create, update, deactivate |
@@ -169,6 +169,7 @@ Ce document liste l'ensemble des modules du backend, leur périmètre fonctionne
 | users.update-status | ✓ | — | — | — |
 | users.deactivate | ✓ | — | — | — |
 | users.manage-roles | ✓ | — | — | — |
+| users.send-password-reset | ✓ | — | — | — |
 | locations.create/update | ✓ | ✓ | ✓ | — |
 | municipalities.manage | ✓ | ✓ | — | — |
 | vehicles/drivers CRUD | ✓ | ✓ | — | — |

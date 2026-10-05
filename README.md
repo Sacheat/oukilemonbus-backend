@@ -16,7 +16,7 @@ Le backend couvre l'ensemble du cycle de vie d'une réservation : de la demande 
 | Authentification | Laravel Sanctum (SPA cookie) |
 | Autorisations | Spatie Laravel Permission |
 | Géocodage / distances | OpenRouteService API |
-| Emails | Mailtrap (dev) / SMTP configurable |
+| Emails | Mailpit en dev (service Docker, interface http://localhost:8025) / SMTP configurable (Mailtrap, serveur réel) |
 | Queue | Laravel Queue — 3 niveaux : `critical`, `default`, `low` |
 | Tests | PHPUnit 12 — 470 tests, 2024 assertions |
 | Frontend | SPA séparée (dépôt distinct) — consomme uniquement `/api` |
@@ -37,6 +37,7 @@ docker compose up -d
 | `scheduler` | Tâches planifiées de `routes/console.php` (`schedule:work`, en `www-data`) : feuilles de route 20:00, rappels 08:00, clôture des réservations expirées 00:15… | — |
 | `mariadb` | Base de données | `3307` |
 | `adminer` | Interface base de données | `8081` |
+| `mailpit` | Serveur d'emails de dev : reçoit tous les emails envoyés (vérification, mot de passe oublié, notifications), sans quota ni envoi réel. Interface web pour les lire et cliquer leurs liens | `8025` (web), `1025` (SMTP) |
 
 ---
 
@@ -56,7 +57,8 @@ cp .env.example .env
 
 # 2. Configurer les variables essentielles dans .env :
 #    - ORS_API_KEY (OpenRouteService)
-#    - MAIL_* (provider email)
+#    - MAIL_* : les valeurs de .env.example pointent vers Mailpit (MAIL_HOST=mailpit, MAIL_PORT=1025),
+#      rien à changer en dev ; emails lisibles sur http://localhost:8025
 #    - APP_KEY (généré à l'étape suivante)
 
 # 3. Démarrer les conteneurs
@@ -102,6 +104,40 @@ docker compose exec app php artisan cache:clear
 docker compose exec app php artisan view:clear
 ```
 
+Les workers `queue` et `scheduler` gardent la configuration en mémoire : après un changement du `.env`,
+lancer `docker compose restart queue scheduler`.
+
+### Passer de Mailtrap à Mailpit (dev)
+
+La sandbox Mailtrap gratuite est limitée à 50 emails par mois ; au-delà, chaque envoi échoue (SMTP 535) et les jobs
+s'accumulent dans `failed_jobs`. Mailpit reçoit tout, sans limite :
+
+```bash
+# 1. Démarrer Mailpit
+docker compose up -d mailpit
+
+# 2. Dans .env, remplacer les lignes MAIL_* par :
+#    MAIL_MAILER=smtp
+#    MAIL_SCHEME=null
+#    MAIL_HOST=mailpit
+#    MAIL_PORT=1025
+#    MAIL_USERNAME=null
+#    MAIL_PASSWORD=null
+#    MAIL_FROM_ADDRESS="no-reply@bus-communal.local"
+#    MAIL_FROM_NAME="${APP_NAME}"
+
+# 3. Recharger la configuration (php-fpm, puis les workers qui la gardent en mémoire)
+docker compose exec -u www-data app php artisan optimize:clear
+docker compose restart queue scheduler
+
+# 4. Renvoyer les emails restés en échec (ou « Tout relancer » dans la page front Outils › File d'attente)
+docker compose exec -u www-data app php artisan queue:retry all
+```
+
+Les emails arrivent sur http://localhost:8025. `php artisan app:health` (et `GET /admin/tooling/toolbox/health`)
+contrôle la connexion SMTP (`mail`) : `warn` si le serveur est injoignable ou refuse l'authentification.
+Les tests n'envoient jamais d'email (`MAIL_MAILER=array` dans `phpunit.xml`).
+
 ---
 
 ## Tests
@@ -128,15 +164,15 @@ La référence complète pour le frontend (paramètres, réponses, règles méti
 
 | Module | Endpoints |
 |---|---|
-| Auth | `POST /auth/register`, `POST /auth/login`, `POST /auth/forgot-password`, `POST /auth/reset-password` (invité) · `GET /auth/me`, `POST /auth/logout` |
+| Auth | `POST /auth/register`, `POST /auth/login`, `POST /auth/forgot-password` (invité ; session ouverte : 409) · `POST /auth/reset-password` (connecté ou non : le jeton suffit) · `GET /auth/me`, `POST /auth/logout` |
 | Vérification email | `GET /email/verify/{id}/{hash}` (lien signé, public) · `POST /email/verify/resend` |
-| Utilisateurs | `GET /users`, `GET /users/{user}`, `POST /users`, `PATCH /users/{user}`, `PATCH /users/{user}/password`, `/status`, `/roles`, `/deactivate` |
+| Utilisateurs | `GET /users` (`search`, `role`, `active`), `GET /users/{user}`, `POST /users`, `PATCH /users/{user}`, `PATCH /users/{user}/password`, `/status`, `/roles`, `/deactivate`, `POST /users/{user}/password-reset-link` |
 | Lieux | `GET /locations/suggest`, `GET /locations`, `GET /locations/{location}`, `POST /locations`, `PATCH /locations/{location}` |
 | Communes | `GET /municipalities`, `GET /municipalities/{municipality}`, `POST /municipalities`, `PATCH /municipalities/{municipality}`, `POST /{municipality}/sync-localities`, `POST /{municipality}/localities`, `PATCH /municipality-localities/{id}`, `/deactivate` |
 | Organisations | `GET /organizations`, `GET /organizations/{organization}`, `POST /organizations`, `PATCH /organizations/{organization}`, `POST /{organization}/ban`, `POST /{organization}/unban` |
 | Membres d'une organisation | `GET /organizations/{organization}/members`, `PATCH /members/{user}`, `DELETE /members/{user}`, `POST /{organization}/leave`, `PATCH /{organization}/default` |
-| Demandes de création d'organisation | `GET /org-registration-requests`, `GET /{id}`, `POST /org-registration-requests`, `PATCH /{id}/approve`, `PATCH /{id}/reject`, `POST /{id}/proof`, `DELETE /{id}/proof` |
-| Demandes d'adhésion | `GET /user-org-requests/available-organizations`, `GET /user-org-requests`, `GET /{id}`, `POST /user-org-requests`, `PATCH /{id}/approve`, `PATCH /{id}/reject`, `POST /{id}/proof`, `DELETE /{id}/proof` |
+| Demandes de création d'organisation | `GET /org-registration-requests` (`statuses[]`, `q`, `organization_type`, `sort`, `per_page`), `GET /{id}`, `POST /org-registration-requests`, `PATCH /{id}/approve`, `PATCH /{id}/reject`, `POST /{id}/proof`, `DELETE /{id}/proof` |
+| Demandes d'adhésion | `GET /user-org-requests/available-organizations`, `GET /user-org-requests` (`statuses[]`, `q`, `organization_id`, `sort`, `per_page`), `GET /{id}`, `POST /user-org-requests`, `PATCH /{id}/approve`, `PATCH /{id}/reject`, `POST /{id}/proof`, `DELETE /{id}/proof` |
 | Chauffeurs | `GET /drivers`, `GET /drivers/{driver}`, `POST /drivers`, `PATCH /drivers/{driver}`, `/activate`, `/deactivate` |
 | Véhicules | `GET /vehicles`, `GET /vehicles/{vehicle}`, `POST /vehicles`, `PATCH /vehicles/{vehicle}`, `/activate`, `/deactivate` |
 | Réservations | `GET /reservations` (filtres `status` ou `statuses[]`, `q`, `organization_id`, `date_from`, `date_to`, `council=a_decider`, `sort` ; chaque ligne porte `council_decision_status`), `GET /reservations/{reservation}` (avec `council_decision_status`), `POST /reservations/preview`, `POST /reservations`, `PATCH /reservations/{reservation}` (préavis de 15 jours levé pour un agent, et pour un externe si la date ne change pas ; voir docs/reservations.md §6.3), `/approve`, `/reject`, `/cancel`, `/assign`, `/confirm`, `/retry-assign`, `/confirm-passengers` |
@@ -270,7 +306,7 @@ docker compose exec app php artisan backup:run --only=full   # full | db | files
 docker compose exec app php artisan backup:list
 
 # Santé
-docker compose exec app php artisan app:health               # base, cache, queue, stockage, ORS, GeoNames
+docker compose exec app php artisan app:health               # base, cache, queue, stockage, ORS, GeoNames, emails (SMTP)
 docker compose exec app php artisan notifications:health
 
 # Maintenance planifiée (lancées aussi par le scheduler)
@@ -279,6 +315,7 @@ docker compose exec app php artisan notifications:prune
 docker compose exec app php artisan documents:prune-orphan-proofs --dry-run
 docker compose exec app php artisan reservations:send-passenger-reminders --dry-run
 docker compose exec -u www-data app php artisan reservations:close-expired --dry-run   # chaque nuit à 00:15
+docker compose exec -u www-data app php artisan requests:refresh-confidence-notes   # chaque heure : note de confiance enregistrée des demandes en attente (tri)
 
 # Outils (module Tooling)
 docker compose exec app php artisan dev:toolbox            # menu interactif (local/testing)
@@ -299,7 +336,7 @@ docker compose exec app php artisan config:clear && php artisan route:clear && p
 | `QUEUE_WORKER_QUEUES` | Queues du worker : `critical,default,low` |
 | `SANCTUM_STATEFUL_DOMAINS` | Domaines frontend autorisés (SPA cookie) |
 | `CORS_ALLOWED_ORIGINS` | Origines CORS autorisées |
-| `MAIL_MAILER` | Provider email (`log`, `smtp`, `mailtrap`) |
+| `MAIL_MAILER`, `MAIL_HOST`, `MAIL_PORT` | Envoi des emails. Dev : `smtp`, `mailpit`, `1025` (Mailpit) ; Mailtrap ou un vrai serveur en remplaçant hôte, port et identifiants |
 | `BACKUP_PATH` | Chemin de stockage des backups |
 | `BACKUP_RETENTION_DAYS` | Durée de rétention des backups (défaut : 14) |
 | `NOTIFICATIONS_OBS_MAX_FAILED_DELIVERIES_24H` | Seuil alerte santé notifications |

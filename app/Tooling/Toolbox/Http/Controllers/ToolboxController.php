@@ -13,7 +13,8 @@ use Illuminate\Http\JsonResponse;
 /**
  * API lecture seule de la Dev Toolbox (/api/admin/tooling/toolbox/*).
  * Aucune route n'exécute d'action : les opérations (reset, backups, commandes) restent
- * réservées à la commande `php artisan dev:toolbox`.
+ * réservées à la commande `php artisan dev:toolbox`. Seule exception du module : la relance et la
+ * suppression des jobs en échec (FailedJobsController).
  */
 final class ToolboxController extends Controller
 {

@@ -48,10 +48,13 @@ Route::name('api.')->group(function (): void {
         Route::post('/auth/forgot-password', [PasswordResetController::class, 'forgot'])
             ->middleware('throttle:6,1')
             ->name('auth.forgot-password');
-        Route::post('/auth/reset-password', [PasswordResetController::class, 'reset'])
-            ->middleware('throttle:6,1')
-            ->name('auth.reset-password');
     });
+
+    // Hors du groupe guest : le jeton reçu par email prouve l'identité, même si le navigateur a déjà une session
+    // (son propre compte, ou un admin qui teste le lien qu'il vient d'envoyer).
+    Route::post('/auth/reset-password', [PasswordResetController::class, 'reset'])
+        ->middleware('throttle:6,1')
+        ->name('auth.reset-password');
 
     // =========================================================================
     // Vérification email — lien signé (signature relative), sans authentification requise.
@@ -121,6 +124,10 @@ Route::name('api.')->group(function (): void {
         Route::patch('/users/{user}/roles', [UserController::class, 'updateRoles'])
             ->middleware('permission:users.manage-roles')
             ->name('users.update-roles');
+
+        Route::post('/users/{user}/password-reset-link', [UserController::class, 'sendPasswordResetLink'])
+            ->middleware(['permission:users.send-password-reset', 'throttle:6,1'])
+            ->name('users.send-password-reset-link');
 
         Route::patch('/users/{user}/deactivate', [UserController::class, 'deactivate'])
             ->middleware('permission:users.deactivate')
