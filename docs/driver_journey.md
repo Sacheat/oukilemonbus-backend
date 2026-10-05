@@ -120,7 +120,61 @@ ou le dernier lieu connu, et le téléphone du chauffeur.
 Après un pull : `php artisan migrate` (dev et `--env=testing`), `db:seed --class=RolesAndPermissionsSeeder`,
 `optimize:clear`.
 
-## 6. Étape suivante prévue
+## 6. Réglages de la commune et navigation
 
-Catalogue des applications de navigation (OpenStreetMap par défaut, Google Maps…) dans `config/driver_journey.php`,
-choix et délai du premier départ par commune (page Communes), tracé de l'itinéraire calculé par ORS et gardé en cache.
+`GET /driver-journey/settings` (chauffeur, agent, admin) :
+
+```json
+{ "data": {
+  "navigation_engine": { "key": "openstreetmap", "label": "OpenStreetMap",
+    "android": "geo:{lat},{lng}?q={lat},{lng}({label})",
+    "web": "https://www.openstreetmap.org/?mlat={lat}&mlon={lng}#map=17/{lat}/{lng}",
+    "web_from": "https://www.openstreetmap.org/directions?engine=fossgis_osrm_car&route={from_lat}%2C{from_lng}%3B{lat}%2C{lng}" },
+  "departure_window_minutes": 60,
+  "step_distance_warning_meters": 500,
+  "navigation_engines": [{ "key": "openstreetmap", "label": "OpenStreetMap" }, { "key": "google", "label": "Google Maps" }],
+  "default_navigation_engine": "openstreetmap",
+  "default_departure_window_minutes": 60 } }
+```
+
+- Catalogue des applications dans `config/driver_journey.php` (`navigation_engines`) : ajouter une application = ajouter
+  une entrée. Le front remplit les gabarits : `android` sur un téléphone Android (`geo:` ouvre l'application de
+  navigation installée, utilisable hors ligne si la région est téléchargée ; `null` = lien web), sinon `web`
+  (depuis la position du téléphone) ou `web_from` (d'un point connu).
+- Choix de la commune : `PATCH /municipalities/{id}` avec `navigation_engine` (clé du catalogue) et
+  `driver_departure_window_min` (0 à 240), **réservés aux admins** (422 `prohibited` pour un agent, qui garde le reste de
+  la page Communes). `null` = valeur par défaut de la config ; `effective_*` dans la réponse.
+- Le délai du premier départ de la commune remplace `departure_window_minutes` de la config (TripProgressService).
+
+## 7. Tracé réel d'un trajet
+
+`GET /reservations/{id}/route` (chauffeur affecté, agents et admins ; sinon 403) : tracé de l'aller (lieu de départ →
+destination) calculé par ORS (`/v2/directions/driving-car/geojson`, instructions en français) **à la première ouverture**,
+puis gardé dans `trip_routes` (une ligne par réservation).
+
+```
+tracé gardé et lieux inchangés (même signature) → renvoyé tel quel, sans appel ORS
+pas de tracé ou lieu changé                     → recalculé, même ligne
+coordonnées manquantes ou ORS en panne           → data: null (le front garde la ligne à vol d'oiseau), rien d'enregistré
+```
+
+`data` : `geometry` `[[lat, lng], …]` (ordre de Leaflet), `distance_m`, `duration_s`, `steps`
+`[{ instruction, name, distance_m, duration_s }]`, `computed_at`.
+
+## 8. Étapes loin du lieu prévu
+
+`GET /reservations/{id}/trip-progress` renvoie aux agents et admins (`trip-progress.manage`) `meta.step_checks` et
+`meta.step_distance_warning_meters` (config `step_distance_warning_meters`, 500 par défaut) :
+
+```
+départ (aller), arrivée au lieu de départ  → lieu prévu = lieu de départ (pickup)
+arrivée à destination, départ du retour   → lieu prévu = destination
+distance (vol d'oiseau) > seuil            → far_from_expected = true (signalé dans le Planning, rien n'est bloqué)
+position ou coordonnées du lieu absentes   → distance_m null, pas de signal
+```
+
+Chaque entrée : `type`, `expected_place`, `expected_latitude`, `expected_longitude`, `distance_m`, `far_from_expected`.
+
+## 9. Étape suivante prévue
+
+Relevé du compteur kilométrique, facultatif, activé par commune (désactivé par défaut).

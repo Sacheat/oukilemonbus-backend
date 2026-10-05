@@ -32,6 +32,13 @@ class MunicipalityResource extends JsonResource
             'on_call_name' => $this->on_call_name,
             'on_call_email' => $this->on_call_email,
             'on_call_phone' => $this->on_call_phone,
+            // « Ma journée » du chauffeur : valeur choisie (null = défaut) et valeur appliquée
+            'navigation_engine' => $this->navigation_engine,
+            'driver_departure_window_min' => $this->driver_departure_window_min,
+            'effective_navigation_engine' => isset(config('driver_journey.navigation_engines', [])[$this->navigation_engine ?? ''])
+                ? $this->navigation_engine
+                : config('driver_journey.default_navigation_engine', 'openstreetmap'),
+            'effective_driver_departure_window_min' => $this->driver_departure_window_min ?? (int) config('driver_journey.departure_window_minutes', 60),
             'localities' => $this->whenLoaded('localities', fn () => MunicipalityLocalityResource::collection($this->localities)),
             'active_localities' => $this->whenLoaded('activeLocalities', fn () => MunicipalityLocalityResource::collection($this->activeLocalities)),
             'created_at' => $this->created_at?->toISOString(),

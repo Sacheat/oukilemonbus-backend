@@ -12,6 +12,7 @@ use App\Models\TripEvent;
 use App\Models\TripReport;
 use App\Models\User;
 use App\Services\Audit\DomainEventLogger;
+use App\Services\DriverJourney\DriverJourneySettingsService;
 use App\Support\DevicePosition;
 use Carbon\CarbonImmutable;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -33,7 +34,7 @@ use Illuminate\Validation\ValidationException;
  *   si l'étape est déjà enregistrée                                   → rien ne change (double appui, réseau rejoué)
  *   si ce n'est pas l'étape suivante                                  → 422
  *   chauffeur, premier départ : à partir de N minutes avant l'heure prévue
- *     (config driver_journey.departure_window_minutes) et jusqu'à la fin du jour du trajet ; autres étapes : jusqu'au
+ *     (délai de la commune, sinon config driver_journey.departure_window_minutes) et jusqu'à la fin du jour du trajet ; autres étapes : jusqu'au
  *     délai du compte rendu (lendemain 12:00) ; agent : sans contrainte d'heure                → 422 sinon
  *   la dernière arrivée crée le compte rendu « réalisé » (heures réelles de départ et de départ du retour, passagers
  *   confirmés par le chauffeur), sauf s'il en existe déjà un.
@@ -42,7 +43,8 @@ class TripProgressService
 {
     public function __construct(
         private readonly TripReportService $tripReportService,
-        private readonly DomainEventLogger $eventLogger
+        private readonly DomainEventLogger $eventLogger,
+        private readonly DriverJourneySettingsService $settings
     ) {}
 
     public function canManage(User $user): bool
@@ -92,7 +94,7 @@ class TripProgressService
     public function driverWindow(Reservation $reservation): array
     {
         $timezone = $this->timezone();
-        $minutes = max(0, (int) config('driver_journey.departure_window_minutes', 60));
+        $minutes = $this->settings->departureWindowMinutes();
 
         return [
             'first_departure_opens_at' => $reservation->departureAt()->subMinutes($minutes),
@@ -151,6 +153,62 @@ class TripProgressService
             'next_step' => $this->nextStep($events),
             'events' => $events->sortBy(fn (TripEvent $event): int => $event->type->position())->values(),
         ];
+    }
+
+    /**
+     * Contrôle des étapes pour les agents (carte du Planning) : lieu prévu de chaque étape enregistrée et distance entre
+     * la position du téléphone et ce lieu. Rien n'est bloqué : une étape loin du lieu prévu est seulement signalée.
+     *
+     *   départ (aller) et arrivée au lieu de départ → lieu de départ ; arrivée à destination et départ du retour → destination
+     *   position ou coordonnées du lieu absentes → distance null, pas de signal
+     *   distance > seuil (step_distance_warning_meters) → far_from_expected = true
+     *
+     * @param  Collection<int, TripEvent>  $events
+     * @return list<array{type: string, expected_place: string, expected_latitude: ?float, expected_longitude: ?float, distance_m: ?int, far_from_expected: bool}>
+     */
+    public function stepChecks(Reservation $reservation, Collection $events): array
+    {
+        $reservation->loadMissing(['pickupLocation', 'destinationLocation']);
+        $threshold = $this->settings->stepDistanceWarningMeters();
+
+        return $events
+            ->sortBy(fn (TripEvent $event): int => $event->type->position())
+            ->map(function (TripEvent $event) use ($reservation, $threshold): array {
+                $atDestination = in_array($event->type, [TripEventType::ARRIVEE_ALLER, TripEventType::DEPART_RETOUR], true);
+                $place = $atDestination ? $reservation->destinationLocation : $reservation->pickupLocation;
+                $distance = null;
+
+                if ($event->latitude !== null && $event->longitude !== null && $place?->latitude !== null && $place?->longitude !== null) {
+                    $distance = (int) round($this->distanceMeters(
+                        (float) $event->latitude,
+                        (float) $event->longitude,
+                        (float) $place->latitude,
+                        (float) $place->longitude
+                    ));
+                }
+
+                return [
+                    'type' => $event->type->value,
+                    'expected_place' => $atDestination ? 'destination' : 'pickup',
+                    'expected_latitude' => $place?->latitude !== null ? (float) $place->latitude : null,
+                    'expected_longitude' => $place?->longitude !== null ? (float) $place->longitude : null,
+                    'distance_m' => $distance,
+                    'far_from_expected' => $distance !== null && $distance > $threshold,
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    /** Distance à vol d'oiseau (haversine), en mètres */
+    private function distanceMeters(float $fromLat, float $fromLng, float $toLat, float $toLng): float
+    {
+        $earthRadius = 6371000.0;
+        $dLat = deg2rad($toLat - $fromLat);
+        $dLng = deg2rad($toLng - $fromLng);
+        $a = sin($dLat / 2) ** 2 + cos(deg2rad($fromLat)) * cos(deg2rad($toLat)) * sin($dLng / 2) ** 2;
+
+        return $earthRadius * 2 * atan2(sqrt($a), sqrt(1 - $a));
     }
 
     /**

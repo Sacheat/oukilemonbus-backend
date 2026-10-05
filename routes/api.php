@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CouncilDecisionController;
 use App\Http\Controllers\Api\DocumentController;
 use App\Http\Controllers\Api\DriverAlertController;
+use App\Http\Controllers\Api\DriverJourneyController;
 use App\Http\Controllers\Api\DriverController;
 use App\Http\Controllers\Api\LocationController;
 use App\Http\Controllers\Api\MunicipalityController;
@@ -473,6 +474,9 @@ Route::name('api.')->group(function (): void {
             Route::get('/trip-progress', [TripProgressController::class, 'index'])->name('trip-progress.index');
             Route::get('/reservations/{reservation}/trip-progress', [TripProgressController::class, 'show'])->name('reservations.trip-progress.show');
             Route::post('/reservations/{reservation}/trip-events', [TripProgressController::class, 'store'])->name('reservations.trip-events.store');
+            // Partie 2 : réglages de la commune (navigation, délai) et tracé réel, calculé à la première ouverture
+            Route::get('/driver-journey/settings', [DriverJourneyController::class, 'settings'])->name('driver-journey.settings');
+            Route::get('/reservations/{reservation}/route', [DriverJourneyController::class, 'route'])->name('reservations.route.show');
         });
 
         /**
