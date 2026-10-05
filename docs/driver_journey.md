@@ -85,6 +85,10 @@ Table `driver_alerts`, routes `DriverAlertController` :
 | POST | `/driver-alerts/{id}/take` | agent / admin (`driver-alerts.manage`) | `ouverte` → `prise_en_charge` ; le chauffeur est prévenu |
 | POST | `/driver-alerts/{id}/close` | agent / admin | `closing_note` obligatoire → `cloturee` |
 
+Prise en charge et clôture sont des mises à jour conditionnelles en une requête (`WHERE status = 'ouverte'`, ou
+`!= 'cloturee'`) : si deux agents cliquent en même temps, un seul gagne ; l'autre reçoit 422 « déjà prise en charge
+par … » et le chauffeur n'est prévenu qu'une fois.
+
 Sans position, `fallback_location` donne le **dernier lieu connu**, d'après l'avancement du trajet : en route vers la
 destination ou sur place → la destination ; sinon → le lieu de départ (libellé explicite : « En route vers la
 destination : … »). `map_point` (`exact` : true pour la position, false pour le dernier lieu connu) et `map_links`
@@ -95,8 +99,10 @@ Notifications (catégorie `driver_alert`, `urgent` : ni récapitulatif, ni déla
 - création : agents et admins actifs, cloche + email, priorité haute (`driver_alert.created`). Email : bouton « Voir
   l'alerte » (`/gestion/alertes/{id}`) et lien « Ouvrir la carte » (carte publique, sans connexion) ;
 - **contact de garde** de la commune active (`municipalities.on_call_name`, `on_call_email`, `on_call_phone`,
-  facultatif, réglé par un admin dans Communes) : email seul (`DriverAlertOnCallMail`, file `critical`), avec la carte
-  en bouton principal ; une panne d'envoi n'empêche pas l'alerte ;
+  facultatif, réglé par un admin dans Communes) : email seul (`DriverAlertOnCallMail`, file `critical`, 3 tentatives),
+  avec la carte en bouton principal ; une panne d'envoi n'empêche pas l'alerte. Si l'email échoue définitivement,
+  `failed()` prévient les agents et admins dans l'application (`driver_alert.on_call_failed` : « prévenez-le autrement »,
+  avec son téléphone) et le note dans l'historique de l'alerte ;
 - prise en charge : le chauffeur (`driver_alert.taken`).
 
 Le texte (`summary`) reprend le numéro, l'heure, le trajet et les passagers prévus, le message, la position (précision)

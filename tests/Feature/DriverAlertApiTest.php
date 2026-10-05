@@ -9,6 +9,8 @@ use App\Enums\TripEventSource;
 use App\Enums\TripEventType;
 use App\Mail\DriverAlertOnCallMail;
 use App\Models\Driver;
+use App\Models\DriverAlert;
+use App\Models\NotificationDelivery;
 use App\Models\Location;
 use App\Models\Municipality;
 use App\Models\Organization;
@@ -16,6 +18,7 @@ use App\Models\Reservation;
 use App\Models\TripEvent;
 use App\Models\User;
 use App\Models\Vehicle;
+use App\Services\DriverAlerts\DriverAlertService;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Database\Seeders\TestFleetSeeder;
 use Database\Seeders\TestLocationsSeeder;
@@ -23,7 +26,9 @@ use Database\Seeders\TestOrganizationsSeeder;
 use Database\Seeders\TestUsersSeeder;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Validation\ValidationException;
 use Laravel\Sanctum\Sanctum;
+use RuntimeException;
 use Spatie\Permission\PermissionRegistrar;
 use Tests\TestCase;
 
@@ -213,6 +218,62 @@ class DriverAlertApiTest extends TestCase
         Sanctum::actingAs($this->driverUser());
         $this->getJson('/api/driver-alerts')->assertOk()->assertJsonPath('meta.total', 1)->assertJsonPath('data.0.id', $own);
         $this->getJson("/api/driver-alerts/{$other}")->assertForbidden();
+    }
+
+    public function test_two_agents_taking_the_same_alert_at_once_only_one_wins(): void
+    {
+        Sanctum::actingAs($this->driverUser());
+        $alertId = $this->postJson('/api/driver-alerts', ['position' => self::POSITION])->json('data.id');
+
+        // Les deux agents ont chargé l'alerte « ouverte » avant que l'un d'eux ne clique
+        $seenByFirst = DriverAlert::query()->findOrFail($alertId);
+        $seenBySecond = DriverAlert::query()->findOrFail($alertId);
+        $service = app(DriverAlertService::class);
+
+        $service->take($seenByFirst, $this->user('agent.test@bus-communal.local'));
+
+        try {
+            $service->take($seenBySecond, $this->user('admin.test@bus-communal.local'));
+            $this->fail('La seconde prise en charge aurait dû être refusée.');
+        } catch (ValidationException $exception) {
+            $this->assertStringContainsString('déjà prise en charge par Bruno Agent', $exception->errors()['status'][0]);
+        }
+
+        $this->assertSame($this->user('agent.test@bus-communal.local')->id, DriverAlert::query()->findOrFail($alertId)->handled_by_user_id);
+        $this->assertSame(1, NotificationDelivery::query()
+            ->where('notifiable_id', $this->driverUser()->id)
+            ->where('event_key', 'driver_alert.taken')
+            ->where('channel', 'database')
+            ->count());
+
+        // Double clôture : la seconde est refusée et ne remplace pas la note
+        $service->close(DriverAlert::query()->findOrFail($alertId), $this->user('agent.test@bus-communal.local'), 'Dépanneuse envoyée.');
+        $this->expectException(ValidationException::class);
+        $service->close($seenBySecond, $this->user('admin.test@bus-communal.local'), 'Autre note.');
+    }
+
+    public function test_agents_are_warned_when_the_on_call_email_finally_fails(): void
+    {
+        $this->activeMunicipality(['on_call_name' => 'Garde technique', 'on_call_email' => 'garde@dinant.test', 'on_call_phone' => '082 40 40 40']);
+        Sanctum::actingAs($this->driverUser());
+        $alert = DriverAlert::query()->findOrFail($this->postJson('/api/driver-alerts', ['position' => self::POSITION])->json('data.id'));
+
+        // Ce que fait le worker après la dernière tentative ratée
+        (new DriverAlertOnCallMail($alert, 'Demande d’aide', 'Texte', null))->failed(new RuntimeException('SMTP 535'));
+
+        foreach (['agent.test@bus-communal.local', 'admin.test@bus-communal.local'] as $email) {
+            $this->assertDatabaseHas('notification_deliveries', [
+                'notifiable_id' => $this->user($email)->id,
+                'event_key' => 'driver_alert.on_call_failed',
+                'channel' => 'database',
+            ]);
+        }
+        $this->assertDatabaseHas('domain_events', [
+            'aggregate_type' => 'driver_alert',
+            'aggregate_id' => $alert->id,
+            'event_type' => 'driver_alert.on_call_failed',
+        ]);
+        $this->assertSame(3, (new DriverAlertOnCallMail($alert, 'x', 'y', null))->tries);
     }
 
     private function activeMunicipality(array $attributes = []): Municipality

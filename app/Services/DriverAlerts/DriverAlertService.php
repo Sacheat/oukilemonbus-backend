@@ -160,18 +160,26 @@ class DriverAlertService
         return $alert->refresh()->load($this->relations());
     }
 
-    /** Un agent prend en charge une alerte ouverte ; le chauffeur est prévenu. */
+    /**
+     * Un agent prend en charge une alerte ouverte ; le chauffeur est prévenu.
+     * Mise à jour conditionnelle en une requête (WHERE status = ouverte) : si deux agents cliquent en même temps, un
+     * seul la modifie ; l'autre reçoit 422 « déjà prise en charge par … » et le chauffeur n'est prévenu qu'une fois.
+     */
     public function take(DriverAlert $alert, User $actor): DriverAlert
     {
-        if ($alert->status !== DriverAlertStatus::OUVERTE) {
-            throw ValidationException::withMessages(['status' => 'Cette demande d’aide est déjà prise en charge ou clôturée.']);
-        }
+        $updated = DriverAlert::query()
+            ->whereKey($alert->getKey())
+            ->where('status', DriverAlertStatus::OUVERTE->value)
+            ->update([
+                'status' => DriverAlertStatus::PRISE_EN_CHARGE->value,
+                'handled_by_user_id' => $actor->id,
+                'handled_at' => now(),
+                'updated_at' => now(),
+            ]);
 
-        $alert->update([
-            'status' => DriverAlertStatus::PRISE_EN_CHARGE,
-            'handled_by_user_id' => $actor->id,
-            'handled_at' => now(),
-        ]);
+        if ($updated === 0) {
+            throw ValidationException::withMessages(['status' => $this->alreadyHandledMessage($alert->refresh())]);
+        }
 
         $this->eventLogger->log(aggregateType: 'driver_alert', aggregateId: $alert->id, eventType: 'driver_alert.taken', actor: $actor);
 
@@ -181,18 +189,25 @@ class DriverAlertService
         return $alert;
     }
 
+    /** Clôture (note obligatoire), en une requête conditionnelle comme take() : une seule clôture gagne. */
     public function close(DriverAlert $alert, User $actor, string $note): DriverAlert
     {
-        $this->ensureOpen($alert);
+        $updated = DriverAlert::query()
+            ->whereKey($alert->getKey())
+            ->where('status', '!=', DriverAlertStatus::CLOTUREE->value)
+            ->update([
+                'status' => DriverAlertStatus::CLOTUREE->value,
+                'handled_by_user_id' => DB::raw('COALESCE(handled_by_user_id, '.(int) $actor->id.')'),
+                'handled_at' => DB::raw('COALESCE(handled_at, CURRENT_TIMESTAMP)'),
+                'closed_by_user_id' => $actor->id,
+                'closed_at' => now(),
+                'closing_note' => trim($note),
+                'updated_at' => now(),
+            ]);
 
-        $alert->update([
-            'status' => DriverAlertStatus::CLOTUREE,
-            'handled_by_user_id' => $alert->handled_by_user_id ?? $actor->id,
-            'handled_at' => $alert->handled_at ?? now(),
-            'closed_by_user_id' => $actor->id,
-            'closed_at' => now(),
-            'closing_note' => trim($note),
-        ]);
+        if ($updated === 0) {
+            throw ValidationException::withMessages(['status' => 'Cette demande d’aide est déjà clôturée.']);
+        }
 
         $this->eventLogger->log(
             aggregateType: 'driver_alert',
@@ -302,6 +317,35 @@ class DriverAlertService
         }
     }
 
+    /**
+     * L'email au contact de garde n'est pas parti (DriverAlertOnCallMail::failed) : les agents et admins sont prévenus
+     * dans l'application avec le téléphone du contact, et l'échec est noté dans l'historique de l'alerte.
+     */
+    public function onCallMailFailed(DriverAlert $alert, Throwable $exception): void
+    {
+        $municipality = Municipality::query()->where('is_active', true)->first();
+        $contact = trim(($municipality?->on_call_name ?? 'Le contact de garde').($municipality?->on_call_phone ? " ({$municipality->on_call_phone})" : ''));
+
+        $this->eventLogger->log(
+            aggregateType: 'driver_alert',
+            aggregateId: $alert->id,
+            eventType: 'driver_alert.on_call_failed',
+            newValues: ['on_call_email' => $municipality?->on_call_email, 'error' => mb_substr($exception->getMessage(), 0, 255)]
+        );
+
+        $this->notificationDispatchService->dispatch(
+            users: $this->notificationRecipientResolver->internalUsers(),
+            eventKey: 'driver_alert.on_call_failed',
+            category: 'driver_alert',
+            title: 'Contact de garde non prévenu',
+            message: "L’email de la demande d’aide n° {$alert->id} n’a pas pu être envoyé au contact de garde. Prévenez-le autrement : {$contact}.",
+            reservation: $alert->reservation,
+            priority: 'high',
+            urgent: true,
+            link: ['path' => "/gestion/alertes/{$alert->id}", 'label' => 'Voir l’alerte', 'overrides_reservation' => true]
+        );
+    }
+
     private function notifyDriverTaken(DriverAlert $alert, User $actor): void
     {
         $driverUser = $alert->driver?->user;
@@ -354,6 +398,18 @@ class DriverAlertService
         }
 
         return implode(' ', $parts);
+    }
+
+    private function alreadyHandledMessage(DriverAlert $alert): string
+    {
+        if ($alert->status === DriverAlertStatus::CLOTUREE) {
+            return 'Cette demande d’aide est déjà clôturée.';
+        }
+
+        $alert->loadMissing('handledByUser');
+        $name = $alert->handledByUser ? trim($alert->handledByUser->first_name.' '.$alert->handledByUser->last_name) : null;
+
+        return $name ? "Cette demande d’aide est déjà prise en charge par {$name}." : 'Cette demande d’aide est déjà prise en charge.';
     }
 
     private function ensureOpen(DriverAlert $alert): void
