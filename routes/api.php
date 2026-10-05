@@ -305,6 +305,7 @@ Route::name('api.')->group(function (): void {
          */
         Route::middleware('permission:organizations.view')->group(function (): void {
             Route::get('/organizations', [OrganizationController::class, 'index'])->name('organizations.index');
+            Route::get('/organizations/types', [OrganizationController::class, 'types'])->name('organizations.types');
             Route::get('/organizations/{organization}', [OrganizationController::class, 'show'])->name('organizations.show');
         });
 

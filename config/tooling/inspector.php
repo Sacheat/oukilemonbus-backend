@@ -2919,29 +2919,39 @@ return [
 
             'request' => [
                 'reason',
+                'cancel_upcoming',
             ],
 
             'service' => [
-                'class' => 'Organization',
-                'method' => 'update',
+                'class' => 'OrganizationService',
+                'method' => 'ban',
                 'internal_methods' => [
                     'Validation du motif',
                     'Vérification de la permission organizations.ban',
-                    'is_banned = true, banned_reason enregistré',
+                    'is_banned = true, banned_reason enregistré (422 si déjà bannie)',
+                    'DomainEventLogger : organization.banned',
+                    'cancel_upcoming : ReservationService::cancel pour chaque réservation à venir',
+                    'Notification des membres (organization.banned)',
                 ],
             ],
 
-            'related_services' => [],
+            'related_services' => [
+                'ReservationService',
+                'NotificationDispatchService',
+            ],
 
             'tables' => [
                 'organizations',
+                'reservations',
+                'domain_events',
+                'notifications',
             ],
 
             'effects' => [
-                'L’organisation est marquée comme bannie.',
-                'Le motif du ban est conservé.',
+                'L’organisation est marquée comme bannie, avec le motif.',
                 'L’organisation ne peut plus créer de réservations.',
-                'Les réservations existantes ne sont pas annulées automatiquement.',
+                'Au choix de l’admin, ses réservations à venir sont annulées (motif, demandeur et chauffeur prévenus) ; celles qui ne peuvent pas l’être sont listées.',
+                'Les membres sont prévenus.',
             ],
         ],
 
