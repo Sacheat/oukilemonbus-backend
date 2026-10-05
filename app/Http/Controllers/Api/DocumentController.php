@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Documents\ListDocumentsRequest;
 use App\Http\Resources\DocumentResource;
 use App\Models\Document;
 use App\Services\Documents\DocumentAccessTokenService;
@@ -26,12 +27,12 @@ class DocumentController extends Controller
     ) {
     }
 
-    public function index(Request $request): AnonymousResourceCollection
+    public function index(ListDocumentsRequest $request): AnonymousResourceCollection
     {
         Gate::authorize('viewAny', Document::class);
 
         // DocumentService filtre selon le rôle : agent voit tout, chauffeur voit ses feuilles de route, etc.
-        $documents = $this->documentService->listVisibleForUser($request->user());
+        $documents = $this->documentService->listVisibleForUser($request->user(), $request->validated());
 
         return DocumentResource::collection($documents);
     }

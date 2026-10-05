@@ -133,6 +133,34 @@ Elle ne doit pas renvoyer directement :
 le chemin privé du fichier ;
 des données internes inutiles au front ;
 des informations sensibles sans contrôle de rôle.
+7 bis. Liste paginée : GET /api/documents
+
+Permission `documents.view`, tous rôles. Les règles d'accès (`DocumentAccessService::visibleQueryFor`) s'appliquent
+avant les filtres : un filtre ne peut jamais élargir ce que l'utilisateur voit.
+
+Réponse paginée Laravel : `data` (DocumentResource, avec `reservation` et `user` chargés), `links`, `meta`
+(`current_page`, `last_page`, `per_page`, `total`). Ordre : `generated_at` décroissant, puis `created_at`, puis `id`.
+
+| Paramètre | Règle |
+|---|---|
+| `page` | numéro de page |
+| `per_page` | 1 à 100, 15 par défaut (422 au-delà) |
+| `document_type[]` | valeurs de `DocumentType` : `feuille_route`, `attestation`, `deliberation`, `planning`, `justificatif` |
+| `exclude_type[]` | mêmes valeurs ; masque ces types (ex. `exclude_type[]=justificatif`) |
+| `date_from`, `date_to` | `AAAA-MM-JJ`, jours à Bruxelles, bornes incluses, sur `generated_at` sinon `created_at` ; `date_to` ≥ `date_from` |
+| `q` | 100 caractères max : nom de fichier (contient), numéro exact de réservation (entier), objet du trajet (`trip_purpose`, contient). Les `%` et `_` sont littéraux |
+| `reservation_id` | documents de cette réservation, y compris les feuilles de route qui la couvrent (table pivot) |
+
+Les filtres se cumulent (ET). Les valeurs inconnues renvoient 422.
+
+Changements de contrat pour le front (GET /documents renvoyait auparavant la liste complète, sans `meta`) :
+- la réponse reste `{ data: [...] }` mais ne contient plus que 15 documents par défaut : tout écran qui lisait
+  « tous les documents » doit paginer (`meta.last_page`) ou passer `per_page` (100 max) ;
+- `meta` et `links` apparaissent désormais ; un écran qui comptait `data.length` doit lire `meta.total` ;
+- tout filtrage fait côté client (type, date, recherche) ne porte plus que sur la page chargée : à remplacer par
+  les paramètres ci-dessus, par exemple `exclude_type[]=justificatif` pour masquer les justificatifs ;
+- l'ordre est inchangé.
+
 8. Contrôle d'accès aux documents
 
 L'accès aux documents doit être strictement contrôlé.
@@ -461,9 +489,7 @@ Améliorations possibles :
 
 vrai système d'archivage avec statut actif/remplacé ;
 chiffrement ou protection renforcée des fichiers sensibles ;
-recherche documentaire avancée ;
-filtres par type de document ;
-filtres par réservation ;
+recherche documentaire avancée (véhicule, organisation) ;
 filtres par véhicule ;
 filtres par organisation ;
 génération automatique de certains documents ;
