@@ -29,7 +29,7 @@ use Throwable;
  *   5. Création du NotificationDelivery (traçabilité), puis envoi via Laravel Notifications.
  *      La base de données (in-app) est envoyée synchrone ; l'email est mis en queue.
  *
- * `documentActionUrl()` émet un DocumentAccessToken à usage unique (signedRoute + token).
+ * `documentActionUrl()` émet un DocumentAccessToken réutilisable jusqu'à expiration (signedRoute + token).
  * La priorité high utilise la queue 'critical' ; les emails normaux la queue 'default'.
  *
  * Deux paramètres facultatifs servent à l'email seulement (le canal `database` ne change pas) :

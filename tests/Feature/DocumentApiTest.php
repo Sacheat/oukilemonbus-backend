@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Enums\DocumentType;
+use App\Models\DocumentAccessLog;
 use App\Models\DocumentAccessToken;
 use App\Models\Driver;
 use App\Models\Document;
@@ -286,25 +287,87 @@ class DocumentApiTest extends TestCase
         $this->getJson("/api/documents/{$routeSheet->id}")->assertOk();
     }
 
-    public function test_signed_download_link_can_be_used_only_once(): void
+    public function test_signed_download_link_can_be_opened_several_times_until_expiration(): void
     {
         $user = $this->userWithRole('user');
         $document = $this->createStoredDocument($user);
-        $token = DocumentAccessToken::create([
-            'document_id' => $document->id,
-            'user_id' => $user->id,
-            'token' => 'tok_once_123',
-            'expires_at' => now()->addHour(),
-        ]);
-
-        $url = URL::temporarySignedRoute(
-            'api.documents.signed-download',
-            now()->addHour(),
-            ['document' => $document->id, 'token' => $token->token]
-        );
+        $token = $this->createToken($document, $user, 'tok_reuse_123');
+        $url = $this->signedUrl($document, $token->token);
 
         $this->get($url)->assertOk();
-        $this->get($url)->assertForbidden();
+        $this->get($url)->assertOk();
+
+        $this->assertSame(2, DocumentAccessLog::where('document_id', $document->id)->where('is_success', true)->count());
+        $this->assertNull($token->fresh()->used_at);
+    }
+
+    public function test_signed_download_serves_pdf_inline_with_original_file_name(): void
+    {
+        $user = $this->userWithRole('user');
+        $document = $this->createStoredDocument($user);
+        $url = $this->signedUrl($document, $this->createToken($document, $user, 'tok_inline_123')->token);
+
+        $response = $this->get($url)->assertOk();
+
+        $this->assertStringStartsWith('inline;', $response->headers->get('Content-Disposition'));
+        $this->assertStringContainsString('justificatif-test.pdf', $response->headers->get('Content-Disposition'));
+        $this->assertStringContainsString('application/pdf', $response->headers->get('Content-Type'));
+    }
+
+    public function test_signed_download_serves_non_pdf_as_attachment(): void
+    {
+        $user = $this->userWithRole('user');
+        $document = $this->createStoredDocument($user);
+        Storage::disk('local')->put('documents/tests/planning-test.xlsx', 'XLSX');
+        $document->update([
+            'file_name' => 'planning-test.xlsx',
+            'file_path' => 'documents/tests/planning-test.xlsx',
+            'mime_type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ]);
+        $url = $this->signedUrl($document, $this->createToken($document, $user, 'tok_attach_123')->token);
+
+        $response = $this->get($url)->assertOk();
+
+        $this->assertStringStartsWith('attachment;', $response->headers->get('Content-Disposition'));
+        $this->assertStringContainsString('planning-test.xlsx', $response->headers->get('Content-Disposition'));
+    }
+
+    public function test_authenticated_download_stays_an_attachment_for_pdf(): void
+    {
+        $user = $this->userWithRole('user');
+        $document = $this->createStoredDocument($user);
+        Sanctum::actingAs($user);
+
+        $response = $this->get("/api/documents/{$document->id}/download")->assertOk();
+
+        $this->assertStringStartsWith('attachment;', $response->headers->get('Content-Disposition'));
+    }
+
+    public function test_signed_download_link_is_refused_when_token_is_revoked(): void
+    {
+        $user = $this->userWithRole('user');
+        $document = $this->createStoredDocument($user);
+        $token = $this->createToken($document, $user, 'tok_revoked_123', ['revoked_at' => now()]);
+
+        $this->get($this->signedUrl($document, $token->token))
+            ->assertForbidden()
+            ->assertJsonPath('message', 'Lien de téléchargement invalide ou expiré.');
+
+        $this->assertDatabaseHas('document_access_logs', [
+            'document_id' => $document->id,
+            'is_success' => false,
+            'failure_reason' => 'revoked_token',
+        ]);
+    }
+
+    public function test_signed_download_link_is_refused_when_signature_is_tampered(): void
+    {
+        $user = $this->userWithRole('user');
+        $document = $this->createStoredDocument($user);
+        $url = $this->signedUrl($document, $this->createToken($document, $user, 'tok_tamper_123')->token);
+
+        $this->get($url.'0')->assertForbidden();
+        $this->get(preg_replace('/expires=\d+/', 'expires='.now()->addYear()->timestamp, $url))->assertForbidden();
     }
 
     public function test_signed_download_link_is_refused_when_token_is_expired(): void
@@ -325,6 +388,11 @@ class DocumentApiTest extends TestCase
         );
 
         $this->get($url)->assertForbidden();
+        $this->assertDatabaseHas('document_access_logs', [
+            'document_id' => $document->id,
+            'is_success' => false,
+            'failure_reason' => 'expired_token',
+        ]);
     }
 
     public function test_signed_download_link_is_refused_when_token_document_mismatch(): void
@@ -346,6 +414,25 @@ class DocumentApiTest extends TestCase
         );
 
         $this->get($url)->assertForbidden();
+    }
+
+    private function createToken(Document $document, User $user, string $value, array $attributes = []): DocumentAccessToken
+    {
+        return DocumentAccessToken::create(array_merge([
+            'document_id' => $document->id,
+            'user_id' => $user->id,
+            'token' => $value,
+            'expires_at' => now()->addHour(),
+        ], $attributes));
+    }
+
+    private function signedUrl(Document $document, string $token): string
+    {
+        return URL::temporarySignedRoute(
+            'api.documents.signed-download',
+            now()->addHour(),
+            ['document' => $document->id, 'token' => $token]
+        );
     }
 
     private function userWithRole(string $role): User

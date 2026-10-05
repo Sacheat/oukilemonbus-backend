@@ -17,10 +17,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 ])]
 /**
  * Token de téléchargement sécurisé pour un document.
- * Usage unique : `used_at` est positionné à la première consommation, le token est alors invalide.
- * `expires_at` : durée de vie courte (quelques minutes).
+ * Réutilisable jusqu'à `expires_at` (24 h par défaut) ; `used_at` n'est plus écrit.
+ * `expires_at` : durée de vie limitée.
  * `revoked_at` : révocation administrative anticipée.
- * Créé par DocumentAccessTokenService, consommé lors du GET /api/documents/{document}/download.
+ * Créé par DocumentAccessTokenService, validé lors du GET /api/documents/{document}/signed-download.
  */
 class DocumentAccessToken extends Model
 {

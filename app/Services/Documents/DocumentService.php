@@ -101,7 +101,10 @@ class DocumentService
         }
     }
 
-    public function download(Document $document): StreamedResponse
+    /**
+     * @param bool $inline Ouvre les PDF dans le navigateur (Content-Disposition: inline) au lieu de les télécharger.
+     */
+    public function download(Document $document, bool $inline = false): StreamedResponse
     {
         if (! $document->is_available) {
             abort(404, 'Document indisponible.');
@@ -111,7 +114,7 @@ class DocumentService
             abort(404, 'Fichier introuvable.');
         }
 
-        return $this->storageService->download($document);
+        return $this->storageService->download($document, $inline);
     }
 
     public function markUnavailable(Document $document): Document

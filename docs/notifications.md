@@ -129,7 +129,7 @@ Les emails peuvent inclure un document en pièce jointe ou en lien signé selon 
 Les liens signés sont :
 - Uniques (token 100 caractères)
 - À durée limitée (`expires_at`)
-- À usage unique (`used_at`)
+- Réutilisables jusqu'à expiration (`used_at` n'est plus écrit) ; les PDF s'ouvrent dans l'onglet (`Content-Disposition: inline`), les autres types sont téléchargés
 - Révocables (`revoked_at`)
 - Journalisés (`document_access_logs` — succès et échecs)
 
