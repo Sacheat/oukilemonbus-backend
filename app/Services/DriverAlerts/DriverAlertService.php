@@ -198,7 +198,7 @@ class DriverAlertService
             ->update([
                 'status' => DriverAlertStatus::CLOTUREE->value,
                 'handled_by_user_id' => DB::raw('COALESCE(handled_by_user_id, '.(int) $actor->id.')'),
-                'handled_at' => DB::raw('COALESCE(handled_at, CURRENT_TIMESTAMP)'),
+                'handled_at' => DB::raw('COALESCE(handled_at, \''.now()->toDateTimeString().'\')'),
                 'closed_by_user_id' => $actor->id,
                 'closed_at' => now(),
                 'closing_note' => trim($note),
