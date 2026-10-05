@@ -214,6 +214,20 @@ réservation), à part du cycle de statuts : la réservation reste `confirme`.
   est réalisé (un « non réalisé » reste annulable, dans le délai habituel). Une indisponibilité saisie après coup
   ignore les trajets qui ont un compte rendu (ni conflit ni désaffectation).
 
+6.5 Affectations simultanées et file « À affecter »
+
+- Deux agents qui approuvent (ou affectent) au même moment sur le dernier chauffeur ou véhicule libre d'un créneau :
+  `ReservationAssignmentService::withDayLock()` prend un verrou nommé MariaDB par jour de trajet (`GET_LOCK`), autour
+  de `autoAssign()` et `assign()`. La seconde requête attend (au plus `reservations.assignment_lock_wait_seconds`,
+  5 s), puis voit la ressource prise : conflit « aucun chauffeur / véhicule disponible » au lieu d'une double
+  affectation. Verrou toujours pris après l'attente : **409** « Une autre affectation est en cours pour ce jour :
+  réessayez dans un instant. » Deux jours différents ne se gênent pas ; le verrou est réentrant.
+- Pourquoi un verrou nommé et pas un verrou de cache : le cache est en base et l'approbation tourne dans une
+  transaction ; un verrou écrit dans cette transaction serait invisible des autres requêtes jusqu'à la fin. Les
+  lectures des ressources occupées sont verrouillantes (`sharedLock`) : elles voient la dernière version enregistrée.
+- GET /api/reservations?unassigned=1 : seulement les réservations auxquelles il manque le chauffeur ou le véhicule
+  (avec `statuses[]=approuve` : file « À affecter » de la gestion), filtré par la base.
+
 7. Types d'approbation
 
 Le champ approval_type permet de distinguer le type de validation.

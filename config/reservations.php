@@ -25,6 +25,9 @@ return [
     'annual_quota' => 5,
     'max_pending_requests' => 2,
     'max_confirmed_reservations' => 2,
+
+    // Affectations simultanées sur un même jour : attente du verrou (secondes) avant de répondre 409
+    'assignment_lock_wait_seconds' => (int) env('RESERVATIONS_ASSIGNMENT_LOCK_WAIT_SECONDS', 5),
     // Délai minimum d'annulation pour le demandeur (en heures avant le départ).
     'cancellation_requester_min_hours_before' => 24,
 

@@ -63,6 +63,10 @@ class ReservationController extends Controller
                 ->when(request('organization_id'), fn ($query, $organizationId) => $query->where('organization_id', $organizationId))
                 // council=a_decider : réservations qui attendent le Collège (même règle que le tableau de bord)
                 ->when($request->validated('council') === 'a_decider', fn ($query) => $query->awaitingCouncilDecision())
+                // unassigned=1 : il manque le chauffeur ou le véhicule (file « À affecter »)
+                ->when($request->boolean('unassigned'), fn ($query) => $query->where(
+                    fn ($missing) => $missing->whereNull('driver_id')->orWhereNull('vehicle_id')
+                ))
                 ->when(request('date_from'), fn ($query, $date) => $query->whereDate('trip_date', '>=', $date))
                 ->when(request('date_to'), fn ($query, $date) => $query->whereDate('trip_date', '<=', $date))
                 // sort=asc : trajet le plus proche d'abord (onglet « À venir ») ; desc par défaut.

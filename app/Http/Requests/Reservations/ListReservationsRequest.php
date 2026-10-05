@@ -13,6 +13,8 @@ use Illuminate\Validation\Rule;
  * `q` : recherche libre (voir ReservationController::index).
  * `council=a_decider` : réservations qui attendent le Collège (scope Reservation::awaitingCouncilDecision,
  * même règle que le compteur council_pending du tableau de bord).
+ * `unassigned=1` : réservations auxquelles il manque un chauffeur ou un véhicule (file « À affecter » de la gestion,
+ * avec statuses[]=approuve) ; filtré par la base, pour garder une pagination juste.
  * L'accès est contrôlé par la Policy dans le contrôleur.
  */
 class ListReservationsRequest extends FormRequest
@@ -30,6 +32,7 @@ class ListReservationsRequest extends FormRequest
             'statuses.*' => ['string', Rule::enum(ReservationStatus::class)],
             'q' => ['sometimes', 'nullable', 'string', 'max:100'],
             'council' => ['sometimes', 'in:a_decider'],
+            'unassigned' => ['sometimes', 'boolean'],
         ];
     }
 
