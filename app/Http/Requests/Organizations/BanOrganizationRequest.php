@@ -18,6 +18,16 @@ class BanOrganizationRequest extends FormRequest
     {
         return [
             'reason' => ['required', 'string', 'max:500'],
+            // Annuler aussi ses réservations à venir (choix de l'admin, non par défaut)
+            'cancel_upcoming' => ['sometimes', 'boolean'],
+        ];
+    }
+
+    public function messages(): array
+    {
+        return [
+            'reason.required' => 'Indiquez le motif du bannissement.',
+            'reason.max' => 'Le motif ne peut pas dépasser 500 caractères.',
         ];
     }
 }

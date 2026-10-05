@@ -22,13 +22,22 @@ Les comportements (priorité, auto-approbation, exemptions) sont configurés dan
 
 ## Quota annuel
 
-Chaque organisation non exempte a un quota de réservations par année civile :
+Chaque organisation non exempte (types de `config('reservations.quota_exempt_types')` : école communale, personnel
+communal) a un quota de réservations par année civile (cahier des charges §5.6) :
 
-- `annual_quota` : nombre maximum de réservations autorisées (défaut : 5)
-- `reservations_used_this_year` : compteur incrémenté à chaque réservation créée
-- `quota_reset_year` : horodatage du dernier reset (reset automatique au 1er janvier via le scheduler)
-
-Le dépassement de quota génère un conflit de type `quota_exceeded` (soft conflict, non bloquant au niveau DB).
+- `annual_quota` : nombre maximum de réservations, **réglé par un agent ou un admin dans les deux sens** (0 = aucune
+  réservation possible ; au-delà de 5 possible). `config('reservations.annual_quota')` (5) n'est que la valeur par
+  défaut d'une nouvelle organisation.
+- **Le quota se compte** (`ReservationQuotaService`) : les réservations `approuve` et `confirme` de l'année du trajet.
+  La création d'une réservation au-delà est **bloquée (422)**. Puisqu'on compte par année, la remise à zéro au
+  1er janvier se fait d'elle-même : aucune tâche planifiée.
+- `reservations_used_this_year` et `quota_reset_year` (colonnes) ne sont plus utilisés. L'API renvoie `quota`
+  `{ exempt, used, limit, remaining, year }`, calculé par la même règle (`ReservationQuotaService::summary`), dans la
+  liste et le détail des organisations ; `reservations_used_this_year` y vaut `quota.used` (compatibilité). Une
+  organisation imbriquée dans une réservation, le planning ou une demande ne renvoie pas `quota` (pas de requête par
+  ligne).
+- Autres limites (inchangées) : au plus `max_pending_requests` demandes en attente et `max_confirmed_reservations`
+  réservations confirmées à venir (2 et 2 par défaut).
 
 ---
 
@@ -41,13 +50,27 @@ Un administrateur peut bannir une organisation (`organizations.ban` — permissi
 | `is_banned` | boolean | true si l'organisation est bannie |
 | `banned_reason` | varchar(500) nullable | Raison du bannissement |
 
-Endpoint :
+Endpoints :
 ```
-PATCH /api/organizations/{id}/ban
-PATCH /api/organizations/{id}/unban
+POST /api/organizations/{id}/ban     { reason (obligatoire), cancel_upcoming (facultatif, false par défaut) }
+POST /api/organizations/{id}/unban
 ```
 
-Effet : les réservations d'une organisation bannie sont bloquées au niveau applicatif.
+Effets (`OrganizationService::ban`) :
+
+```
+organisation déjà bannie                         → 422
+bannir                                           → plus aucune nouvelle réservation (ReservationPreviewService)
+  si cancel_upcoming                             → chaque réservation à venir (en attente, en conflit, approuvée,
+                                                   confirmée) est annulée par ReservationService::cancel, motif
+                                                   « Organisation bannie : … » (demandeur et chauffeur prévenus) ;
+                                                   celles qui ne peuvent pas l'être sont renvoyées dans meta.skipped
+  sinon                                          → les réservations à venir restent (un agent les annule s'il le faut)
+membres actifs prévenus                          → organization.banned (motif) / organization.unbanned
+historique                                       → organization.banned / organization.unbanned
+```
+
+Réponse du bannissement : l'organisation + `meta.cancelled_reservation_ids` et `meta.skipped` (`{id, reason}`).
 
 ---
 
@@ -181,13 +204,29 @@ Les changements indirects (téléphone ou compte du demandeur, autre demande en 
 ## API
 
 ```
-GET    /api/organizations                     Liste (filtrée selon le rôle)
+GET    /api/organizations                     Liste (filtrée selon le rôle) : q, type, banned, sort, per_page
 GET    /api/organizations/{id}               Détail
 POST   /api/organizations                    Créer (agent_communal, admin)
-PATCH  /api/organizations/{id}               Mettre à jour
-PATCH  /api/organizations/{id}/ban           Bannir (admin)
-PATCH  /api/organizations/{id}/unban         Débannir (admin)
+PATCH  /api/organizations/{id}               Mettre à jour (agent_communal, admin)
+POST   /api/organizations/{id}/ban           Bannir (admin)
+POST   /api/organizations/{id}/unban         Débannir (admin)
+GET    /api/organizations/types              Types, libellés et règles (config/reservations.php)
 ```
+
+Liste (`ListOrganizationsRequest`, `OrganizationService::list`) :
+
+| Paramètre | Valeurs |
+|---|---|
+| `q` | chaque mot dans le nom, l'email officiel ou le contact (casse et accents ignorés) |
+| `type` | `ecole_communale`, `personnel_communal`, `cpas`, `asbl`, `externe` |
+| `banned` | `0` ou `1` |
+| `sort` | `nom` (défaut), `quota` (part du quota utilisée, la plus grande d'abord ; exemptées à la fin), `activite` (le plus de réservations à venir d'abord) |
+| `per_page` | 1 à 100 (15 par défaut) |
+
+Chaque organisation de la liste et du détail renvoie aussi `members_count`, `upcoming_reservations_count`, `quota` et
+`rules` (`priority`, `auto_approve`, `quota_exempt`, `council_required`, `recurrences_allowed`). Le justificatif est
+`proof_document_id` (document existant). Création et modification sont tracées (`organization.created`,
+`organization.updated` avec les champs changés).
 
 ---
 
@@ -224,8 +263,8 @@ Compteur de la pastille « à traiter » : `meta.total` de `GET /api/user-org-re
 | `banned_reason` | varchar(500) nullable | Raison du bannissement |
 | `proof_document_id` | bigint FK nullable | Justificatif |
 | `annual_quota` | int | Quota annuel (défaut : 5) |
-| `reservations_used_this_year` | int | Compteur utilisé (reset 1er jan.) |
-| `quota_reset_year` | timestamp | Horodatage du dernier reset |
+| `reservations_used_this_year` | int | Ancien compteur, **plus utilisé** (le quota se compte : voir « Quota annuel ») |
+| `quota_reset_year` | timestamp | Ancien horodatage de remise à zéro, **plus utilisé** |
 | `created_at` | timestamp | |
 | `updated_at` | timestamp | |
 

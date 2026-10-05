@@ -85,6 +85,23 @@ enum OrganizationType: string
         return in_array($this->value, config("reservations.{$key}", []), true);
     }
 
+    /**
+     * Ce que le type implique, d'après config/reservations.php (pour l'affichage et la confirmation d'un changement
+     * de type) : priorité, approbation automatique, quota, Collège, récurrences.
+     *
+     * @return array{priority: bool, auto_approve: bool, quota_exempt: bool, council_required: bool, recurrences_allowed: bool}
+     */
+    public function rules(): array
+    {
+        return [
+            'priority' => $this->isPriorityByDefault(),
+            'auto_approve' => $this->isAutoApproveType(),
+            'quota_exempt' => $this->isQuotaExempt(),
+            'council_required' => ! $this->isCouncilDecisionExempt(),
+            'recurrences_allowed' => $this->canUseRecurrences(),
+        ];
+    }
+
     public static function toArray(): array
     {
         return array_column(

@@ -26,8 +26,9 @@ class UpdateOrganizationRequest extends FormRequest
             'name_contact' => ['sometimes', 'nullable', 'string', 'max:255'],
             'location_id' => ['sometimes', 'nullable', 'integer', 'exists:locations,id'],
             'is_priority' => ['sometimes', 'boolean'],
-            'annual_quota' => ['sometimes', 'integer', 'min:0'],
-            'document_proof_path' => ['sometimes', 'nullable', 'string', 'max:500'],
+            // 0 = aucune réservation possible
+            'annual_quota' => ['sometimes', 'integer', 'min:0', 'max:1000'],
+            'proof_document_id' => ['sometimes', 'nullable', 'integer', 'exists:documents,id'],
         ];
     }
 

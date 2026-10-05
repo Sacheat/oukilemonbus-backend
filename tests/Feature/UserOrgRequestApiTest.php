@@ -115,7 +115,6 @@ class UserOrgRequestApiTest extends TestCase
             'phone_contact' => '082111111',
             'name_contact' => 'Alice Martin',
             'location_id' => $location->id,
-            'document_proof_path' => 'proofs/asbl.pdf',
         ]);
 
         $this->postJson('/api/user-org-requests', [

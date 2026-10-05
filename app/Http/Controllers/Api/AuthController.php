@@ -3,9 +3,11 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Services\Organizations\OrganizationService;
 use App\Http\Requests\Auth\LoginRequest;
 use App\Http\Requests\Auth\RegisterRequest;
 use App\Http\Resources\UserResource;
+use App\Models\User;
 use App\Services\Auth\AuthService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -59,12 +61,12 @@ class AuthController extends Controller
         }
 
         // Rôles et organisations chargés ici pour éviter un aller-retour supplémentaire depuis le frontend.
-        return (new UserResource($user->load('roles', 'organizations')))->withEffectivePermissions();
+        return (new UserResource($this->withOrganizations($user)))->withEffectivePermissions();
     }
 
     public function me(Request $request): UserResource
     {
-        return (new UserResource($request->user()->load('roles', 'organizations')))->withEffectivePermissions();
+        return (new UserResource($this->withOrganizations($request->user())))->withEffectivePermissions();
     }
 
     public function logout(Request $request): JsonResponse
@@ -78,5 +80,17 @@ class AuthController extends Controller
         }
 
         return response()->json(null, 204);
+    }
+
+    /**
+     * Rôles et organisations de l'utilisateur, avec le quota de l'année, les membres et les réservations à venir de
+     * chaque organisation (une requête, sous-requêtes de comptage) : la jauge du quota de l'espace usager est juste.
+     */
+    private function withOrganizations(User $user): User
+    {
+        return $user->load([
+            'roles',
+            'organizations' => fn ($organizations) => app(OrganizationService::class)->withListCounts($organizations),
+        ]);
     }
 }
