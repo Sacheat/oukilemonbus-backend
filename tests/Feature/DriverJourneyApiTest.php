@@ -19,6 +19,7 @@ use Database\Seeders\TestOrganizationsSeeder;
 use Database\Seeders\TestUsersSeeder;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Laravel\Sanctum\Sanctum;
 use Spatie\Permission\PermissionRegistrar;
@@ -158,6 +159,23 @@ class DriverJourneyApiTest extends TestCase
 
         Sanctum::actingAs($this->user('user.test@bus-communal.local'));
         $this->getJson("/api/reservations/{$reservation->id}/route")->assertForbidden();
+    }
+
+    public function test_a_failed_route_is_not_retried_straight_away(): void
+    {
+        Http::fake([self::ORS_URL => Http::sequence()->push(['error' => 'down'], 500)->push($this->orsResponse(), 200)]);
+        $reservation = $this->confirmedReservation();
+        Cache::flush();
+        Sanctum::actingAs($this->user('agent.test@bus-communal.local'));
+
+        $this->getJson("/api/reservations/{$reservation->id}/route")->assertOk()->assertJsonPath('data', null);
+        $this->getJson("/api/reservations/{$reservation->id}/route")->assertOk()->assertJsonPath('data', null);
+        Http::assertSentCount(1);
+
+        // Le service revient et le délai est passé : le tracé est calculé
+        Carbon::setTestNow(now()->addMinutes(4));
+        $this->getJson("/api/reservations/{$reservation->id}/route")->assertOk()->assertJsonPath('data.distance_m', 1850);
+        Http::assertSentCount(2);
     }
 
     public function test_agents_see_how_far_each_step_was_from_the_expected_place(): void

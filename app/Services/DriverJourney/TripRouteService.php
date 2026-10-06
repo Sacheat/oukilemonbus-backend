@@ -6,6 +6,7 @@ use App\Exceptions\GeocodingException;
 use App\Models\Reservation;
 use App\Models\TripRoute;
 use App\Services\Locations\LocationService;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
@@ -17,9 +18,13 @@ use Throwable;
  *   coordonnées manquantes ou ORS en panne          → null : le front garde la ligne à vol d'oiseau
  *
  * Calculé à la première ouverture seulement : ORS n'est appelé que pour les trajets réellement consultés.
+ * Un échec est retenu FAILURE_RETRY_SECONDS : tant qu'ORS est en panne, les ouvertures suivantes ne le rappellent pas.
  */
 class TripRouteService
 {
+    /** Délai avant de rappeler ORS pour un tracé qui vient d'échouer */
+    private const FAILURE_RETRY_SECONDS = 180;
+
     public function __construct(
         private readonly LocationService $locationService
     ) {}
@@ -37,6 +42,12 @@ class TripRouteService
             return $reservation->tripRoute;
         }
 
+        $failureKey = 'trip-route-failed:'.$reservation->id.':'.md5($signature);
+
+        if (Cache::has($failureKey)) {
+            return null;
+        }
+
         try {
             $route = $this->locationService->route(
                 (float) $reservation->pickupLocation->latitude,
@@ -46,6 +57,7 @@ class TripRouteService
             );
         } catch (GeocodingException|Throwable $exception) {
             Log::info('Tracé du trajet non calculé', ['reservation_id' => $reservation->id, 'error' => $exception->getMessage()]);
+            Cache::put($failureKey, true, self::FAILURE_RETRY_SECONDS);
 
             return null;
         }
