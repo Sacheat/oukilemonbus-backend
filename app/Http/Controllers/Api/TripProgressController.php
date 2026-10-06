@@ -74,6 +74,20 @@ class TripProgressController extends Controller
     }
 
     /**
+     * DELETE /reservations/{reservation}/trip-events/last : annule la dernière étape (agents et admins, voir
+     * TripProgressService::cancelLastStep). Renvoie l'étape annulée et le nouvel avancement.
+     */
+    public function destroyLast(Request $request, Reservation $reservation): JsonResponse
+    {
+        $result = $this->tripProgressService->cancelLastStep($reservation, $request->user());
+
+        return response()->json([
+            'data' => new TripEventResource($result['cancelled']),
+            'meta' => ['progress' => new TripProgressResource($this->tripProgressService->summary($result['events'], $reservation->id))],
+        ]);
+    }
+
+    /**
      * POST /reservations/{reservation}/trip-events : enregistre une étape. 201 si elle est nouvelle, 200 si elle l'était
      * déjà (double appui). Renvoie l'étape, l'avancement et le compte rendu créé à la dernière arrivée.
      */

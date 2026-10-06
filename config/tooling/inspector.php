@@ -167,6 +167,7 @@ return [
         'api.recurrences.cancel'                  => 'recurrences.cancel',
         'api.reservations.trip-report.update'     => 'reservations.trip_report',
         'api.reservations.trip-events.store'      => 'reservations.trip_events.record',
+        'api.reservations.trip-events.destroy-last' => 'reservations.trip_events.cancel_last',
         'api.driver-alerts.store'                 => 'driver_alerts.create',
         'api.driver-alerts.position'              => 'driver_alerts.position',
         'api.driver-alerts.take'                  => 'driver_alerts.take',
@@ -4125,6 +4126,46 @@ return [
             'effects' => [
                 'L’étape est enregistrée avec sa source (chauffeur ou agent) et la position du téléphone.',
                 'La dernière arrivée crée le compte rendu « réalisé » s’il n’existe pas encore.',
+            ],
+        ],
+
+        'reservations.trip_events.cancel_last' => [
+            'title' => 'Annuler la dernière étape d’un trajet',
+            'category' => 'Réservations',
+            'goal' => 'Effacer une étape appuyée par erreur (par exemple un « Départ » trop tôt) pour que le chauffeur réappuie.',
+
+            'route' => [
+                'api' => 'DELETE /api/reservations/{reservation}/trip-events/last',
+            ],
+
+            'api_controller' => [
+                'class' => 'TripProgressController',
+                'method' => 'destroyLast',
+            ],
+
+            'service' => [
+                'class' => 'TripProgressService',
+                'method' => 'cancelLastStep',
+                'internal_methods' => [
+                    'trip-progress.manage seulement (403)',
+                    'Aucune étape (422) ; compte rendu déjà créé (422 : corriger le compte rendu)',
+                    'Verrou sur la réservation, seule la dernière étape est supprimée',
+                    'DomainEventLogger : trip_event.cancelled (étape annulée dans old_values)',
+                ],
+            ],
+
+            'related_services' => [
+                'DomainEventLogger',
+            ],
+
+            'tables' => [
+                'trip_events',
+                'domain_events',
+            ],
+
+            'effects' => [
+                'La dernière étape est supprimée ; l’avancement revient à l’étape précédente.',
+                'Le chauffeur peut appuyer à nouveau sur le bouton.',
             ],
         ],
 

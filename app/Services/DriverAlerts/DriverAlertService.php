@@ -19,6 +19,7 @@ use App\Support\DevicePosition;
 use Carbon\CarbonImmutable;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
@@ -46,6 +47,9 @@ use Throwable;
  * l'alerte, la prise en charge ou la clôture restent enregistrées et la réponse reste un succès.
  *
  * Suivi (agent / admin, driver-alerts.manage) : ouverte → prise_en_charge → cloturee (note obligatoire).
+ *
+ * Relance (driver-alerts:remind, chaque minute) : alerte toujours ouverte après alert_reminder_minutes (10) → mêmes
+ * destinataires qu'à la création, titre « sans réponse depuis N min » ; une seule relance par alerte (reminded_at).
  */
 class DriverAlertService
 {
@@ -166,6 +170,42 @@ class DriverAlertService
         }
 
         return $alert;
+    }
+
+    /**
+     * Relance les alertes toujours ouvertes après le délai, une fois chacune. reminded_at est posé par une mise à jour
+     * conditionnelle (WHERE reminded_at IS NULL AND status = ouverte) : deux passages simultanés ne relancent qu'une fois,
+     * et une alerte prise en charge entre-temps n'est pas relancée.
+     *
+     * @return Collection<int, DriverAlert> alertes relancées
+     */
+    public function remindUnanswered(): Collection
+    {
+        $minutes = max(1, (int) config('driver_journey.alert_reminder_minutes', 10));
+        $candidates = DriverAlert::query()
+            ->where('status', DriverAlertStatus::OUVERTE->value)
+            ->whereNull('reminded_at')
+            ->where('created_at', '<=', now()->subMinutes($minutes))
+            ->orderBy('id')
+            ->get();
+
+        return $candidates
+            ->filter(fn (DriverAlert $alert): bool => DriverAlert::query()
+                ->whereKey($alert->getKey())
+                ->where('status', DriverAlertStatus::OUVERTE->value)
+                ->whereNull('reminded_at')
+                ->update(['reminded_at' => now()]) === 1)
+            ->each(function (DriverAlert $alert) use ($minutes): void {
+                $alert->refresh()->load($this->relations());
+                $this->eventLogger->log(
+                    aggregateType: 'driver_alert',
+                    aggregateId: $alert->id,
+                    eventType: 'driver_alert.reminded',
+                    newValues: ['after_minutes' => $minutes]
+                );
+                $this->safely('relance', $alert, fn () => $this->notifyCreated($alert, $minutes));
+            })
+            ->values();
     }
 
     /** Nouvel appui sur « Aide » pendant une alerte en cours : position remplacée si elle en a une, message ajouté. */
@@ -353,17 +393,19 @@ class DriverAlertService
         ];
     }
 
-    private function notifyCreated(DriverAlert $alert): void
+    /** Création, ou relance si `$reminderMinutes` (« sans réponse depuis N min ») : mêmes destinataires */
+    private function notifyCreated(DriverAlert $alert, ?int $reminderMinutes = null): void
     {
         $driverName = $this->driverName($alert);
         $plate = $alert->vehicle?->licence_plate;
-        $title = 'Demande d’aide'.($plate ? " : {$plate}" : '').($driverName ? " ({$driverName})" : '');
+        $title = ($reminderMinutes !== null ? "Sans réponse depuis {$reminderMinutes} min – demande d’aide" : 'Demande d’aide')
+            .($plate ? " : {$plate}" : '').($driverName ? " ({$driverName})" : '');
         $message = $this->alertSummary($alert);
         $links = $this->mapLinks($alert);
 
         $this->notificationDispatchService->dispatch(
             users: $this->notificationRecipientResolver->internalUsers(),
-            eventKey: 'driver_alert.created',
+            eventKey: $reminderMinutes !== null ? 'driver_alert.reminder' : 'driver_alert.created',
             category: 'driver_alert',
             title: $title,
             message: $message,

@@ -44,6 +44,11 @@ Schedule::command('reservations:send-passenger-reminders')
     ->timezone('Europe/Brussels')
     ->withoutOverlapping();
 
+// Demandes d'aide des chauffeurs restées sans prise en charge : une relance (config driver_journey.alert_reminder_minutes)
+Schedule::command('driver-alerts:remind')
+    ->everyMinute()
+    ->withoutOverlapping();
+
 // Clôture des réservations non confirmées dont la date du trajet est dépassée (la veille ou avant)
 Schedule::command('reservations:close-expired')
     ->dailyAt('00:15')

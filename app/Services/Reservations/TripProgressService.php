@@ -305,6 +305,59 @@ class TripProgressService
         return ['event' => $event, 'created' => true, 'report' => $report];
     }
 
+    /**
+     * Annule la dernière étape enregistrée (appui par erreur), pour un agent ou un admin seulement :
+     *
+     *   pas trip-progress.manage                 → 403 (le chauffeur appelle un agent)
+     *   aucune étape                             → 422 « Aucune étape à annuler »
+     *   compte rendu déjà créé                   → 422 : on corrige le compte rendu (« Corriger » dans le Planning)
+     *   sinon                                    → étape supprimée (la dernière seulement : l'ordre reste juste),
+     *                                              historique trip_event.cancelled avec l'étape annulée ; le chauffeur
+     *                                              peut appuyer à nouveau
+     *
+     * @return array{cancelled: TripEvent, events: Collection<int, TripEvent>}
+     */
+    public function cancelLastStep(Reservation $reservation, User $actor): array
+    {
+        if (! $this->canManage($actor)) {
+            throw new AuthorizationException('Seul un agent peut annuler une étape enregistrée.');
+        }
+
+        return DB::transaction(function () use ($reservation, $actor): array {
+            // Verrou sur la réservation : deux annulations simultanées n'effacent pas deux étapes
+            Reservation::query()->whereKey($reservation->id)->lockForUpdate()->first();
+            $events = $reservation->tripEvents()->get();
+            $last = $events->sortByDesc(fn (TripEvent $event): int => $event->type->position())->first();
+
+            if ($last === null) {
+                throw ValidationException::withMessages(['type' => 'Aucune étape à annuler sur ce trajet.']);
+            }
+
+            if ($reservation->tripReport()->exists()) {
+                throw ValidationException::withMessages([
+                    'type' => 'Le compte rendu de ce trajet existe déjà : corrigez-le plutôt (« Corriger »).',
+                ]);
+            }
+
+            $last->delete();
+
+            $this->eventLogger->log(
+                aggregateType: 'reservation',
+                aggregateId: $reservation->id,
+                eventType: 'trip_event.cancelled',
+                actor: $actor,
+                oldValues: [
+                    'type' => $last->type->value,
+                    'occurred_at' => $last->occurred_at?->toISOString(),
+                    'source' => $last->source->value,
+                    'recorded_by_user_id' => $last->recorded_by_user_id,
+                ]
+            );
+
+            return ['cancelled' => $last, 'events' => $events->reject(fn (TripEvent $event): bool => $event->is($last))->values()];
+        });
+    }
+
     /** Compte rendu « réalisé » à la dernière arrivée, s'il n'y en a pas encore (sinon on n'y touche pas). */
     private function createRealisedReport(Reservation $reservation, User $actor, Collection $events, array $passengers): ?TripReport
     {

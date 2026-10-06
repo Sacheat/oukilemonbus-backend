@@ -53,6 +53,7 @@ Routes (`TripProgressController`, permission `trip-progress.record` ou `trip-pro
 | POST | `/reservations/{id}/trip-events` | `type`, `position {state, latitude, longitude, accuracy_m, captured_at}`, et pour `arrivee_retour` `actual_nb_children` / `actual_nb_adults`. 201 (nouvelle étape) ou 200 (déjà enregistrée : double appui). `data` = l'étape, `meta.progress`, `meta.trip_report` (créé à la dernière arrivée) |
 | GET | `/reservations/{id}/trip-progress` | `data {state, next_step, events}` + `meta` : `first_departure_opens_at`, `first_departure_closes_at`, `steps_close_at` (heure locale sans fuseau), `can_record` |
 | GET | `/trip-progress?reservation_ids[]=` | 1 à 100 réservations ; le chauffeur ne reçoit que les siennes |
+| DELETE | `/reservations/{id}/trip-events/last` | **agents et admins** (`trip-progress.manage`) : annule la dernière étape. `data` = l'étape annulée, `meta.progress` |
 
 Règles (`TripProgressService::record`) :
 
@@ -73,6 +74,16 @@ heures réelles du départ et du départ du retour (heure de Bruxelles) et les p
 existe déjà. La réservation reste `confirme`. Si cette création échoue (erreur 500 après l'enregistrement de l'étape),
 le réessai de la dernière arrivée la refait : étape déjà enregistrée et pas de compte rendu → compte rendu créé
 (`meta.trip_report`).
+
+**Annuler la dernière étape** (appui par erreur, par exemple un « Départ » trop tôt), bouton du panneau du Planning :
+
+```
+pas agent / admin                 → 403 (le chauffeur appelle un agent)
+aucune étape                      → 422 (type)
+compte rendu déjà créé            → 422 (type) : on corrige le compte rendu (« Corriger » dans le Planning)
+sinon                             → la dernière étape est supprimée (jamais une étape du milieu : l'ordre reste juste),
+                                    historique trip_event.cancelled avec l'étape annulée ; le chauffeur peut réappuyer
+```
 
 ## 4. Demandes d'aide
 
@@ -118,6 +129,11 @@ Notifications (catégorie `driver_alert`, `urgent` : ni récapitulatif, ni déla
   `failed()` prévient les agents et admins dans l'application (`driver_alert.on_call_failed` : « prévenez-le autrement »,
   avec son téléphone) et le note dans l'historique de l'alerte ;
 - prise en charge : le chauffeur (`driver_alert.taken`) ;
+- **relance** : alerte toujours `ouverte` (personne ne l'a prise en charge) après `alert_reminder_minutes` (config
+  `driver_journey`, 10 par défaut, `DRIVER_ALERT_REMINDER_MINUTES`) → mêmes destinataires qu'à la création, contact de
+  garde compris, titre « Sans réponse depuis 10 min » (`driver_alert.reminder`). Commande `driver-alerts:remind`,
+  planifiée chaque minute ; **une seule relance par alerte** (`reminded_at`, posé par une mise à jour conditionnelle :
+  deux passages simultanés ne relancent qu'une fois). Pas de SMS ;
 - clôture : le chauffeur, avec la note (`driver_alert.closed`). Une alerte clôturée sans prise en charge est notée prise
   en charge par celui qui la clôture.
 

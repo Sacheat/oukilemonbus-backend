@@ -248,6 +248,55 @@ class TripProgressApiTest extends TestCase
         $this->assertDatabaseCount('trip_reports', 1);
     }
 
+    public function test_an_agent_cancels_the_last_step_and_the_driver_can_press_again(): void
+    {
+        $reservation = $this->confirmedReservation();
+        Sanctum::actingAs($this->driverUser());
+        Carbon::setTestNow('2026-06-16 07:00:00');
+        $this->record($reservation, 'depart_aller')->assertCreated();
+        Carbon::setTestNow('2026-06-16 07:05:00');
+        $this->record($reservation, 'arrivee_aller')->assertCreated(); // appuyé trop tôt
+
+        // Le chauffeur ne peut pas annuler seul
+        $this->deleteJson($this->url($reservation, 'trip-events/last'))->assertForbidden();
+
+        Sanctum::actingAs($this->user('agent.test@bus-communal.local'));
+        $this->deleteJson($this->url($reservation, 'trip-events/last'))
+            ->assertOk()
+            ->assertJsonPath('data.type', 'arrivee_aller')
+            ->assertJsonPath('meta.progress.state', 'en_route_aller')
+            ->assertJsonPath('meta.progress.next_step', 'arrivee_aller');
+
+        $this->assertDatabaseCount('trip_events', 1);
+        $this->assertDatabaseHas('domain_events', ['aggregate_id' => $reservation->id, 'event_type' => 'trip_event.cancelled']);
+
+        // Le chauffeur réappuie au bon moment
+        Sanctum::actingAs($this->driverUser());
+        Carbon::setTestNow('2026-06-16 07:25:00');
+        $this->record($reservation, 'arrivee_aller')->assertCreated()->assertJsonPath('data.local_time', '09:25');
+    }
+
+    public function test_no_step_can_be_cancelled_without_steps_or_once_the_report_exists(): void
+    {
+        $reservation = $this->confirmedReservation();
+        Sanctum::actingAs($this->user('agent.test@bus-communal.local'));
+
+        $this->deleteJson($this->url($reservation, 'trip-events/last'))->assertUnprocessable()->assertJsonValidationErrors('type');
+
+        Carbon::setTestNow('2026-06-16 09:30:00');
+        foreach (['depart_aller', 'arrivee_aller', 'depart_retour'] as $type) {
+            $this->record($reservation, $type)->assertCreated();
+        }
+        $this->record($reservation, 'arrivee_retour', ['actual_nb_children' => 9, 'actual_nb_adults' => 1])
+            ->assertCreated()
+            ->assertJsonPath('meta.trip_report.outcome', 'realise');
+
+        $this->deleteJson($this->url($reservation, 'trip-events/last'))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('type');
+        $this->assertDatabaseCount('trip_events', 4);
+    }
+
     private function record(Reservation $reservation, string $type, array $extra = [])
     {
         return $this->postJson($this->url($reservation, 'trip-events'), ['type' => $type, 'position' => self::POSITION, ...$extra]);
