@@ -19,7 +19,8 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 /**
  * Demandes d'aide des chauffeurs (bouton « Aide »). Règles : DriverAlertService.
- * POST /driver-alerts accepte un header Idempotency-Key : un double appui ne crée pas deux alertes.
+ * POST /driver-alerts accepte un header Idempotency-Key : un double appui ne crée pas deux alertes. Une alerte déjà en
+ * cours est renvoyée (200, meta.created = false) ; 10 envois par minute au plus.
  */
 class DriverAlertController extends Controller
 {
@@ -51,7 +52,14 @@ class DriverAlertController extends Controller
                 $request->validated('message')
             );
 
-            return ['status' => 201, 'body' => (new DriverAlertResource($alert))->response()->getData(true)];
+            // 201 : nouvelle alerte ; 200 : alerte en cours renvoyée (une seule par chauffeur, voir DriverAlertService)
+            return [
+                'status' => $alert->wasRecentlyCreated ? 201 : 200,
+                'body' => [
+                    ...(new DriverAlertResource($alert))->response()->getData(true),
+                    'meta' => ['created' => $alert->wasRecentlyCreated],
+                ],
+            ];
         };
 
         $key = $request->header('Idempotency-Key');

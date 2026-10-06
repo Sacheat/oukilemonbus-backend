@@ -5,8 +5,9 @@ namespace App\Services\DriverJourney;
 use App\Models\Municipality;
 
 /**
- * Réglages de « Ma journée » pour la commune active : application de navigation, délai du premier départ, seuil des
- * étapes « loin du lieu prévu ». Valeur de la commune (page Communes, admins), sinon config/driver_journey.php.
+ * Réglages de « Ma journée » pour la commune active :
+ *   application de navigation, délai du premier départ → valeur de la commune (page Communes, admins), sinon la config
+ *   seuil des étapes « loin du lieu prévu »            → config/driver_journey.php seulement (pas réglable par commune)
  */
 class DriverJourneySettingsService
 {
@@ -60,8 +61,12 @@ class DriverJourneySettingsService
     }
 
     /** Lue à chaque appel : pas de cache, un réglage changé s'applique tout de suite */
+    /**
+     * Commune active (une seule : règle du projet). Lue à chaque appel, sans cache ni once() : le contrôleur peut être
+     * réutilisé d'une requête à l'autre, et un réglage changé par un admin doit s'appliquer tout de suite.
+     */
     private function municipality(): ?Municipality
     {
-        return Municipality::query()->where('is_active', true)->first();
+        return Municipality::query()->where('is_active', true)->orderBy('id')->first();
     }
 }

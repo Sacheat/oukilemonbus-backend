@@ -209,6 +209,23 @@ class DriverJourneyApiTest extends TestCase
         $this->assertEqualsWithDelta(1330, $response->json('meta.step_checks.1.distance_m'), 50);
     }
 
+    public function test_an_imprecise_position_is_not_reported_far_from_the_expected_place(): void
+    {
+        $reservation = $this->confirmedReservation();
+        Sanctum::actingAs($this->user('chauffeur.test@bus-communal.local'));
+        Carbon::setTestNow('2026-06-16 07:00:00');
+        // ~1,3 km de la destination, mais à 1 000 m près : 1 330 < 500 + 1 000, pas de signal
+        $this->record($reservation, 'depart_aller', ['state' => 'envoyee', 'latitude' => 50.2591, 'longitude' => 4.9118, 'accuracy_m' => 15])->assertCreated();
+        Carbon::setTestNow('2026-06-16 07:20:00');
+        $this->record($reservation, 'arrivee_aller', ['state' => 'envoyee', 'latitude' => 50.26, 'longitude' => 4.91, 'accuracy_m' => 1000])->assertCreated();
+
+        Sanctum::actingAs($this->user('agent.test@bus-communal.local'));
+        $this->getJson("/api/reservations/{$reservation->id}/trip-progress")
+            ->assertOk()
+            ->assertJsonPath('meta.step_checks.1.type', 'arrivee_aller')
+            ->assertJsonPath('meta.step_checks.1.far_from_expected', false);
+    }
+
     private function record(Reservation $reservation, string $type, array $position = ['state' => 'refusee'])
     {
         return $this->postJson("/api/reservations/{$reservation->id}/trip-events", ['type' => $type, 'position' => $position]);

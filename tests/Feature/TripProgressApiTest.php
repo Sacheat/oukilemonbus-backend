@@ -5,11 +5,13 @@ namespace Tests\Feature;
 use App\Enums\ApprovalType;
 use App\Enums\OrganizationType;
 use App\Enums\ReservationStatus;
+use App\Enums\TripEventSource;
 use App\Enums\TripReportOutcome;
 use App\Models\Driver;
 use App\Models\Location;
 use App\Models\Organization;
 use App\Models\Reservation;
+use App\Models\TripEvent;
 use App\Models\TripReport;
 use App\Models\User;
 use App\Models\Vehicle;
@@ -202,6 +204,48 @@ class TripProgressApiTest extends TestCase
         $this->getJson("/api/trip-progress?reservation_ids[]={$reservation->id}&reservation_ids[]={$other->id}")
             ->assertOk()
             ->assertJsonCount(2, 'data');
+    }
+
+    public function test_another_driver_learns_nothing_about_a_trip_that_is_not_his(): void
+    {
+        // Trajet d'un autre chauffeur, pas encore confirmé : 403 (droit), pas 422 (statut)
+        $reservation = $this->confirmedReservation(['driver_id' => $this->otherDriver()->id, 'status' => ReservationStatus::APPROUVE]);
+        Sanctum::actingAs($this->driverUser());
+        Carbon::setTestNow('2026-06-16 07:00:00');
+
+        $this->record($reservation, 'depart_aller')->assertForbidden();
+    }
+
+    public function test_retrying_the_last_arrival_creates_the_report_that_could_not_be_created(): void
+    {
+        $reservation = $this->confirmedReservation();
+        // Les quatre étapes sont enregistrées, mais le compte rendu n'a pas pu être créé à la dernière arrivée
+        foreach (['depart_aller' => '07:02', 'arrivee_aller' => '07:25', 'depart_retour' => '09:05', 'arrivee_retour' => '09:30'] as $type => $utc) {
+            TripEvent::query()->create([
+                'reservation_id' => $reservation->id,
+                'driver_id' => $reservation->driver_id,
+                'type' => $type,
+                'occurred_at' => "2026-06-16 {$utc}:00",
+                'source' => TripEventSource::CHAUFFEUR,
+                'position_state' => 'refusee',
+            ]);
+        }
+        $this->assertDatabaseCount('trip_reports', 0);
+
+        Sanctum::actingAs($this->driverUser());
+        Carbon::setTestNow('2026-06-16 09:31:00');
+        $this->record($reservation, 'arrivee_retour', ['actual_nb_children' => 9, 'actual_nb_adults' => 1])
+            ->assertOk()
+            ->assertJsonPath('meta.created', false)
+            ->assertJsonPath('meta.trip_report.outcome', 'realise')
+            ->assertJsonPath('meta.trip_report.actual_departure_time', '09:02')
+            ->assertJsonPath('meta.trip_report.actual_nb_children', 9);
+
+        // Un nouvel appui ne recrée rien
+        $this->record($reservation, 'arrivee_retour', ['actual_nb_children' => 9, 'actual_nb_adults' => 1])
+            ->assertOk()
+            ->assertJsonPath('meta.trip_report', null);
+        $this->assertDatabaseCount('trip_reports', 1);
     }
 
     private function record(Reservation $reservation, string $type, array $extra = [])
