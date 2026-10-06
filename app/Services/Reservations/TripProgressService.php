@@ -306,24 +306,28 @@ class TripProgressService
     }
 
     /**
-     * Annule la dernière étape enregistrée (appui par erreur), pour un agent ou un admin seulement :
+     * Annule la dernière étape enregistrée (appui par erreur) :
      *
-     *   pas trip-progress.manage                 → 403 (le chauffeur appelle un agent)
+     *   ni agent / admin, ni chauffeur affecté   → 403
      *   aucune étape                             → 422 « Aucune étape à annuler »
      *   compte rendu déjà créé                   → 422 : on corrige le compte rendu (« Corriger » dans le Planning)
-     *   sinon                                    → étape supprimée (la dernière seulement : l'ordre reste juste),
-     *                                              historique trip_event.cancelled avec l'étape annulée ; le chauffeur
-     *                                              peut appuyer à nouveau
+     *   chauffeur : seulement son propre appui (source chauffeur), dans les driver_undo_seconds (120) qui suivent
+     *               → 422 sinon (« demandez à un agent ») : il corrige une erreur, pas les heures après coup
+     *   agent / admin : sans délai
+     *   sinon        → étape supprimée (la dernière seulement : l'ordre reste juste), historique trip_event.cancelled
+     *                  avec l'étape annulée et qui l'a annulée ; le chauffeur peut appuyer à nouveau
      *
      * @return array{cancelled: TripEvent, events: Collection<int, TripEvent>}
      */
     public function cancelLastStep(Reservation $reservation, User $actor): array
     {
-        if (! $this->canManage($actor)) {
-            throw new AuthorizationException('Seul un agent peut annuler une étape enregistrée.');
+        $isManager = $this->canManage($actor);
+
+        if (! $isManager && (! $actor->can('trip-progress.record') || ! $this->isAssignedDriver($reservation, $actor))) {
+            throw new AuthorizationException('Vous n’êtes pas autorisé à annuler une étape de ce trajet.');
         }
 
-        return DB::transaction(function () use ($reservation, $actor): array {
+        return DB::transaction(function () use ($reservation, $actor, $isManager): array {
             // Verrou sur la réservation : deux annulations simultanées n'effacent pas deux étapes
             Reservation::query()->whereKey($reservation->id)->lockForUpdate()->first();
             $events = $reservation->tripEvents()->get();
@@ -335,7 +339,15 @@ class TripProgressService
 
             if ($reservation->tripReport()->exists()) {
                 throw ValidationException::withMessages([
-                    'type' => 'Le compte rendu de ce trajet existe déjà : corrigez-le plutôt (« Corriger »).',
+                    'type' => $isManager
+                        ? 'Le compte rendu de ce trajet existe déjà : corrigez-le plutôt (« Corriger »).'
+                        : 'Le compte rendu de ce trajet est enregistré : demandez à un agent de le corriger.',
+                ]);
+            }
+
+            if (! $isManager && ! $this->driverCanUndo($last, $actor)) {
+                throw ValidationException::withMessages([
+                    'type' => 'Le délai pour annuler cet appui est dépassé : demandez à un agent de le corriger.',
                 ]);
             }
 
@@ -351,11 +363,27 @@ class TripProgressService
                     'occurred_at' => $last->occurred_at?->toISOString(),
                     'source' => $last->source->value,
                     'recorded_by_user_id' => $last->recorded_by_user_id,
-                ]
+                ],
+                newValues: ['cancelled_by' => $isManager ? 'agent' : 'chauffeur']
             );
 
             return ['cancelled' => $last, 'events' => $events->reject(fn (TripEvent $event): bool => $event->is($last))->values()];
         });
+    }
+
+    /** Délai pendant lequel le chauffeur peut annuler lui-même son dernier appui (config driver_undo_seconds) */
+    public function driverUndoSeconds(): int
+    {
+        return max(0, (int) config('driver_journey.driver_undo_seconds', 120));
+    }
+
+    /** Son propre appui (source chauffeur), il y a moins de driverUndoSeconds() */
+    private function driverCanUndo(TripEvent $event, User $actor): bool
+    {
+        return $event->source === TripEventSource::CHAUFFEUR
+            && $event->recorded_by_user_id === $actor->id
+            && $event->occurred_at !== null
+            && $event->occurred_at->greaterThanOrEqualTo(now()->subSeconds($this->driverUndoSeconds()));
     }
 
     /** Compte rendu « réalisé » à la dernière arrivée, s'il n'y en a pas encore (sinon on n'y touche pas). */

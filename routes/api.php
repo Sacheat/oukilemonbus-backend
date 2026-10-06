@@ -474,8 +474,8 @@ Route::name('api.')->group(function (): void {
             Route::get('/trip-progress', [TripProgressController::class, 'index'])->name('trip-progress.index');
             Route::get('/reservations/{reservation}/trip-progress', [TripProgressController::class, 'show'])->name('reservations.trip-progress.show');
             Route::post('/reservations/{reservation}/trip-events', [TripProgressController::class, 'store'])->name('reservations.trip-events.store');
+            // Agents et admins sans délai, chauffeur pendant 2 min sur son propre appui (TripProgressService)
             Route::delete('/reservations/{reservation}/trip-events/last', [TripProgressController::class, 'destroyLast'])
-                ->middleware('permission:trip-progress.manage')
                 ->name('reservations.trip-events.destroy-last');
             // Partie 2 : réglages de la commune (navigation, délai) et tracé réel, calculé à la première ouverture
             Route::get('/driver-journey/settings', [DriverJourneyController::class, 'settings'])->name('driver-journey.settings');

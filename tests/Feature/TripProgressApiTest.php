@@ -257,8 +257,9 @@ class TripProgressApiTest extends TestCase
         Carbon::setTestNow('2026-06-16 07:05:00');
         $this->record($reservation, 'arrivee_aller')->assertCreated(); // appuyé trop tôt
 
-        // Le chauffeur ne peut pas annuler seul
-        $this->deleteJson($this->url($reservation, 'trip-events/last'))->assertForbidden();
+        // 3 minutes après, le chauffeur ne peut plus annuler seul : il passe par un agent
+        Carbon::setTestNow('2026-06-16 07:08:00');
+        $this->deleteJson($this->url($reservation, 'trip-events/last'))->assertUnprocessable()->assertJsonValidationErrors('type');
 
         Sanctum::actingAs($this->user('agent.test@bus-communal.local'));
         $this->deleteJson($this->url($reservation, 'trip-events/last'))
@@ -274,6 +275,56 @@ class TripProgressApiTest extends TestCase
         Sanctum::actingAs($this->driverUser());
         Carbon::setTestNow('2026-06-16 07:25:00');
         $this->record($reservation, 'arrivee_aller')->assertCreated()->assertJsonPath('data.local_time', '09:25');
+    }
+
+    public function test_the_driver_cancels_his_own_press_within_two_minutes(): void
+    {
+        $reservation = $this->confirmedReservation();
+        Sanctum::actingAs($this->driverUser());
+        Carbon::setTestNow('2026-06-16 07:00:00');
+
+        // Le backend annonce le délai d'annulation au chauffeur
+        $this->record($reservation, 'depart_aller')->assertCreated()->assertJsonPath('meta.undo_seconds', 120);
+
+        Carbon::setTestNow('2026-06-16 07:01:50');
+        $this->deleteJson($this->url($reservation, 'trip-events/last'))
+            ->assertOk()
+            ->assertJsonPath('data.type', 'depart_aller')
+            ->assertJsonPath('meta.progress.state', 'a_venir');
+        $this->assertDatabaseCount('trip_events', 0);
+        $this->assertDatabaseHas('domain_events', ['aggregate_id' => $reservation->id, 'event_type' => 'trip_event.cancelled']);
+
+        // Une étape saisie par un agent : le chauffeur ne l'annule pas, même tout de suite ; l'agent n'a pas de délai annoncé
+        Sanctum::actingAs($this->user('agent.test@bus-communal.local'));
+        $this->record($reservation, 'depart_aller')->assertCreated()->assertJsonPath('meta.undo_seconds', null);
+        Sanctum::actingAs($this->driverUser());
+        $this->deleteJson($this->url($reservation, 'trip-events/last'))->assertUnprocessable()->assertJsonValidationErrors('type');
+
+        // Un autre chauffeur : 403
+        Sanctum::actingAs($this->otherDriverUser());
+        $this->deleteJson($this->url($reservation, 'trip-events/last'))->assertForbidden();
+    }
+
+    public function test_no_undo_is_offered_when_the_trip_already_has_a_report(): void
+    {
+        // Compte rendu saisi par un agent avant que le chauffeur n'appuie
+        $reservation = $this->confirmedReservation();
+        TripReport::query()->create([
+            'reservation_id' => $reservation->id,
+            'driver_id' => $reservation->driver_id,
+            'outcome' => TripReportOutcome::REALISE,
+            'actual_departure_time' => '09:00',
+            'actual_return_time' => '11:00',
+            'actual_nb_children' => 10,
+            'actual_nb_adults' => 1,
+            'reported_by_user_id' => $this->user('agent.test@bus-communal.local')->id,
+            'reported_at' => '2026-06-16 06:50:00',
+        ]);
+        Sanctum::actingAs($this->driverUser());
+        Carbon::setTestNow('2026-06-16 07:00:00');
+
+        $this->record($reservation, 'depart_aller')->assertCreated()->assertJsonPath('meta.undo_seconds', null);
+        $this->deleteJson($this->url($reservation, 'trip-events/last'))->assertUnprocessable()->assertJsonValidationErrors('type');
     }
 
     public function test_no_step_can_be_cancelled_without_steps_or_once_the_report_exists(): void

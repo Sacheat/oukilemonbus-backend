@@ -4147,8 +4147,9 @@ return [
                 'class' => 'TripProgressService',
                 'method' => 'cancelLastStep',
                 'internal_methods' => [
-                    'trip-progress.manage seulement (403)',
+                    'Agent / admin, ou chauffeur affecté (403 sinon)',
                     'Aucune étape (422) ; compte rendu déjà créé (422 : corriger le compte rendu)',
+                    'Chauffeur : son propre appui seulement, dans les 2 min (config driver_journey.driver_undo_seconds) ; 422 sinon',
                     'Verrou sur la réservation, seule la dernière étape est supprimée',
                     'DomainEventLogger : trip_event.cancelled (étape annulée dans old_values)',
                 ],

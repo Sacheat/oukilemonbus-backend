@@ -74,8 +74,9 @@ class TripProgressController extends Controller
     }
 
     /**
-     * DELETE /reservations/{reservation}/trip-events/last : annule la dernière étape (agents et admins, voir
-     * TripProgressService::cancelLastStep). Renvoie l'étape annulée et le nouvel avancement.
+     * DELETE /reservations/{reservation}/trip-events/last : annule la dernière étape (agents et admins sans délai ;
+     * chauffeur : son propre appui, pendant 2 min ; voir TripProgressService::cancelLastStep). Renvoie l'étape annulée
+     * et le nouvel avancement.
      */
     public function destroyLast(Request $request, Reservation $reservation): JsonResponse
     {
@@ -102,11 +103,20 @@ class TripProgressController extends Controller
         );
 
         $events = $reservation->tripEvents()->get();
+        // Le chauffeur peut annuler son appui pendant ce délai (bouton « Annuler » de Ma journée) ; pas la dernière
+        // arrivée, ni un trajet qui a déjà un compte rendu (saisi par un agent par exemple) : l'annulation serait refusée
+        $undoSeconds = $result['created']
+            && ! $this->tripProgressService->canManage($request->user())
+            && $result['event']->type !== TripEventType::ARRIVEE_RETOUR
+            && ! $reservation->tripReport()->exists()
+                ? $this->tripProgressService->driverUndoSeconds()
+                : null;
 
         return response()->json([
             'data' => new TripEventResource($result['event']),
             'meta' => [
                 'created' => $result['created'],
+                'undo_seconds' => $undoSeconds,
                 'progress' => new TripProgressResource($this->tripProgressService->summary($events, $reservation->id)),
                 'trip_report' => $result['report'] ? new TripReportResource($result['report']) : null,
             ],

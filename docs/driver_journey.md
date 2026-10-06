@@ -53,7 +53,7 @@ Routes (`TripProgressController`, permission `trip-progress.record` ou `trip-pro
 | POST | `/reservations/{id}/trip-events` | `type`, `position {state, latitude, longitude, accuracy_m, captured_at}`, et pour `arrivee_retour` `actual_nb_children` / `actual_nb_adults`. 201 (nouvelle étape) ou 200 (déjà enregistrée : double appui). `data` = l'étape, `meta.progress`, `meta.trip_report` (créé à la dernière arrivée) |
 | GET | `/reservations/{id}/trip-progress` | `data {state, next_step, events}` + `meta` : `first_departure_opens_at`, `first_departure_closes_at`, `steps_close_at` (heure locale sans fuseau), `can_record` |
 | GET | `/trip-progress?reservation_ids[]=` | 1 à 100 réservations ; le chauffeur ne reçoit que les siennes |
-| DELETE | `/reservations/{id}/trip-events/last` | **agents et admins** (`trip-progress.manage`) : annule la dernière étape. `data` = l'étape annulée, `meta.progress` |
+| DELETE | `/reservations/{id}/trip-events/last` | annule la dernière étape : **agents et admins** sans délai, **chauffeur** sur son propre appui pendant 2 min. `data` = l'étape annulée, `meta.progress` |
 
 Règles (`TripProgressService::record`) :
 
@@ -75,15 +75,25 @@ existe déjà. La réservation reste `confirme`. Si cette création échoue (err
 le réessai de la dernière arrivée la refait : étape déjà enregistrée et pas de compte rendu → compte rendu créé
 (`meta.trip_report`).
 
-**Annuler la dernière étape** (appui par erreur, par exemple un « Départ » trop tôt), bouton du panneau du Planning :
+**Erreur humaine, double sécurité** (décidé avec Sacha le 06/10) : le front demande une confirmation à chaque appui
+(« Confirmer le départ maintenant ? »), puis le chauffeur peut encore annuler pendant 2 min.
+
+**Annuler la dernière étape** (appui par erreur, par exemple un « Départ » trop tôt) : bouton « Annuler » de Ma journée
+(chauffeur) et du panneau du Planning (agent).
 
 ```
-pas agent / admin                 → 403 (le chauffeur appelle un agent)
-aucune étape                      → 422 (type)
-compte rendu déjà créé            → 422 (type) : on corrige le compte rendu (« Corriger » dans le Planning)
-sinon                             → la dernière étape est supprimée (jamais une étape du milieu : l'ordre reste juste),
-                                    historique trip_event.cancelled avec l'étape annulée ; le chauffeur peut réappuyer
+ni agent / admin, ni chauffeur affecté → 403
+aucune étape                          → 422 (type)
+compte rendu déjà créé                → 422 (type) : on corrige le compte rendu (« Corriger » dans le Planning)
+chauffeur : pas son appui, ou plus de driver_undo_seconds (120) après
+                                      → 422 « demandez à un agent » (il corrige une erreur, pas les heures après coup)
+sinon                                 → la dernière étape est supprimée (jamais une étape du milieu : l'ordre reste juste),
+                                        historique trip_event.cancelled (étape annulée, cancelled_by chauffeur ou agent) ;
+                                        le chauffeur peut réappuyer
 ```
+
+`POST …/trip-events` renvoie `meta.undo_seconds` (120) quand le chauffeur vient d'enregistrer une étape qu'il peut
+encore annuler (pas pour la dernière arrivée, qui crée le compte rendu ; null pour un agent).
 
 ## 4. Demandes d'aide
 
