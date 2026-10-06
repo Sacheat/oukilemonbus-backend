@@ -206,12 +206,13 @@ class LocationService
         ];
     }
 
-    /** @throws GeocodingException */
     /**
      * Tracé routier entre deux points (ORS, profil voiture, GeoJSON, instructions en français) :
      * géométrie [[lat, lng], …], distance (m), durée (s), étapes [{instruction, name, distance_m, duration_s}].
      *
      * @return array{geometry: list<array{0: float, 1: float}>, distance_m: int, duration_s: int, steps: list<array>}
+     *
+     * @throws GeocodingException
      */
     public function route(float $fromLat, float $fromLng, float $toLat, float $toLng): array
     {
@@ -258,6 +259,7 @@ class LocationService
         ];
     }
 
+    /** @throws GeocodingException */
     private function ensureConfigured(): void
     {
         if (blank($this->apiKey) || blank($this->baseUrl)) {
