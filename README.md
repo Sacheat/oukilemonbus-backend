@@ -382,6 +382,7 @@ docker compose exec app php artisan config:clear && php artisan route:clear && p
 | [`docs/documents.md`](docs/documents.md) | Stockage, accès, téléchargement sécurisé, tokens signés |
 | [`docs/route_sheets.md`](docs/route_sheets.md) | Feuilles de route, génération, versioning |
 | [`docs/driver_journey.md`](docs/driver_journey.md) | Ma journée du chauffeur : étapes des trajets (source, position, avancement), compte rendu automatique, demandes d'aide et contact de garde |
+| [`docs/weekly_planning.md`](docs/weekly_planning.md) | Planning hebdomadaire envoyé automatiquement (vendredi 12:00 par défaut, réglable par l'admin), versions corrigées, responsable du planning, préférences |
 | [`docs/deliberations.md`](docs/deliberations.md) | Délibérations du Collège communal |
 | [`docs/operational-resources.md`](docs/operational-resources.md) | Chauffeurs, véhicules, indisponibilités |
 | [`docs/logging.md`](docs/logging.md) | Stratégie de logs et audit par domaine |

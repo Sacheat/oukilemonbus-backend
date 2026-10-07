@@ -35,6 +35,11 @@ class MunicipalitySettingsService
     /** « Ma journée » du chauffeur : application de navigation et délai du premier départ (DriverJourneySettingsService). */
     private const DRIVER_JOURNEY_FIELDS = ['navigation_engine', 'driver_departure_window_min'];
 
+    /** Planning hebdomadaire envoyé automatiquement (WeeklyPlanningService) : null = config/weekly_planning.php. */
+    private const WEEKLY_PLANNING_FIELDS = [
+        'weekly_planning_enabled', 'weekly_planning_send_day', 'weekly_planning_send_time', 'weekly_planning_owner_user_id',
+    ];
+
     public function __construct(
         private readonly GeoNamesMunicipalityProvider $municipalityProvider
     ) {}
@@ -86,6 +91,7 @@ class MunicipalitySettingsService
                 ...self::REFERENCE_FIELDS,
                 ...self::ON_CALL_FIELDS,
                 ...self::DRIVER_JOURNEY_FIELDS,
+                ...self::WEEKLY_PLANNING_FIELDS,
             ]));
 
             if (($data['is_active'] ?? false) === true) {

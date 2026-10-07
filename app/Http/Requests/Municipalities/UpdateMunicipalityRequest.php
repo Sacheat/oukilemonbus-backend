@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Municipalities;
 
 use App\Models\Location;
+use App\Models\User;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -36,6 +37,13 @@ class UpdateMunicipalityRequest extends FormRequest
             // Réservé aux admins (un agent garde le reste de la page Communes)
             'navigation_engine' => ['sometimes', Rule::prohibitedIf(! $this->isAdmin()), 'nullable', 'string', Rule::in(array_keys(config('driver_journey.navigation_engines', [])))],
             'driver_departure_window_min' => ['sometimes', Rule::prohibitedIf(! $this->isAdmin()), 'nullable', 'integer', 'min:0', 'max:240'],
+            // Planning hebdomadaire (admins) : null = valeur par défaut de config/weekly_planning.php
+            'weekly_planning_enabled' => ['sometimes', Rule::prohibitedIf(! $this->isAdmin()), 'nullable', 'boolean'],
+            'weekly_planning_send_day' => ['sometimes', Rule::prohibitedIf(! $this->isAdmin()), 'nullable', 'integer', 'between:1,7'],
+            'weekly_planning_send_time' => ['sometimes', Rule::prohibitedIf(! $this->isAdmin()), 'nullable', 'date_format:H:i'],
+            'weekly_planning_owner_user_id' => [
+                'sometimes', Rule::prohibitedIf(! $this->isAdmin()), 'nullable', 'integer', $this->activeInternalUser(...),
+            ],
         ];
     }
 
@@ -47,11 +55,27 @@ class UpdateMunicipalityRequest extends FormRequest
             'on_call_phone.max' => 'Le téléphone du contact de garde ne peut pas dépasser 30 caractères.',
             'navigation_engine.prohibited' => 'Seul un administrateur peut choisir l’application de navigation des chauffeurs.',
             'driver_departure_window_min.prohibited' => 'Seul un administrateur peut régler le délai du premier départ.',
+            'weekly_planning_enabled.prohibited' => 'Seul un administrateur peut régler l’envoi du planning hebdomadaire.',
+            'weekly_planning_send_day.prohibited' => 'Seul un administrateur peut régler l’envoi du planning hebdomadaire.',
+            'weekly_planning_send_time.prohibited' => 'Seul un administrateur peut régler l’envoi du planning hebdomadaire.',
+            'weekly_planning_owner_user_id.prohibited' => 'Seul un administrateur peut désigner le responsable du planning.',
+            'weekly_planning_send_day.between' => 'Choisissez un jour de la semaine.',
+            'weekly_planning_send_time.date_format' => 'L’heure d’envoi doit être au format HH:MM.',
             'navigation_engine.in' => 'Cette application de navigation n’est pas proposée.',
             'driver_departure_window_min.integer' => 'Le délai du premier départ doit être un nombre de minutes.',
             'driver_departure_window_min.min' => 'Le délai du premier départ ne peut pas être négatif.',
             'driver_departure_window_min.max' => 'Le délai du premier départ ne peut pas dépasser 240 minutes (4 heures).',
         ];
+    }
+
+    /** Le responsable du planning est un agent ou un admin actif (il reçoit le planning et ses versions corrigées) */
+    private function activeInternalUser(string $attribute, mixed $value, \Closure $fail): void
+    {
+        $user = User::query()->find($value);
+
+        if ($user === null || ! $user->active || ! $user->hasAnyRole(['admin', 'agent_communal'])) {
+            $fail('Le responsable du planning doit être un agent ou un administrateur actif.');
+        }
     }
 
     private function isAdmin(): bool

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Services\Planning\WeeklyPlanningService;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Municipalities\StoreMunicipalityRequest;
 use App\Http\Requests\Municipalities\SyncMunicipalityLocalitiesRequest;
@@ -27,7 +28,7 @@ class MunicipalityController extends Controller
     {
         return MunicipalityResource::collection(
             Municipality::query()
-                ->with(['localities', 'depotLocation'])
+                ->with(['localities', 'depotLocation', 'weeklyPlanningOwner'])
                 ->orderByDesc('is_active')
                 ->orderBy('name')
                 ->paginate()
@@ -38,21 +39,27 @@ class MunicipalityController extends Controller
     {
         $municipality = $this->municipalitySettingsService->create($request->validated());
 
-        return (new MunicipalityResource($municipality->load(['localities', 'depotLocation'])))
+        return (new MunicipalityResource($municipality->load(['localities', 'depotLocation', 'weeklyPlanningOwner'])))
             ->response()
             ->setStatusCode(201);
     }
 
     public function show(Municipality $municipality): MunicipalityResource
     {
-        return new MunicipalityResource($municipality->load(['localities', 'depotLocation']));
+        return new MunicipalityResource($municipality->load(['localities', 'depotLocation', 'weeklyPlanningOwner']));
     }
 
     public function update(UpdateMunicipalityRequest $request, Municipality $municipality): MunicipalityResource
     {
+        $previousOwnerId = $municipality->weekly_planning_owner_user_id;
         $municipality = $this->municipalitySettingsService->update($municipality, $request->validated());
 
-        return new MunicipalityResource($municipality->load(['localities', 'depotLocation']));
+        // Responsable du planning changé : historique et personnes prévenues
+        if ($request->has('weekly_planning_owner_user_id')) {
+            app(WeeklyPlanningService::class)->ownerChanged($municipality, $previousOwnerId, $request->user());
+        }
+
+        return new MunicipalityResource($municipality->load(['localities', 'depotLocation', 'weeklyPlanningOwner']));
     }
 
     public function syncLocalities(
@@ -61,6 +68,6 @@ class MunicipalityController extends Controller
     ): MunicipalityResource {
         $municipality = $this->municipalitySettingsService->syncFromExternalProvider($municipality);
 
-        return new MunicipalityResource($municipality->load(['localities', 'depotLocation']));
+        return new MunicipalityResource($municipality->load(['localities', 'depotLocation', 'weeklyPlanningOwner']));
     }
 }

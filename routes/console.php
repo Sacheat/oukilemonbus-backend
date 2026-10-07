@@ -44,6 +44,12 @@ Schedule::command('reservations:send-passenger-reminders')
     ->timezone('Europe/Brussels')
     ->withoutOverlapping();
 
+// Planning hebdomadaire (§5.9) : envoi au moment réglé par la commune (vendredi 12:00 par défaut), puis versions
+// corrigées ; vérifié toutes les 15 minutes pour rattraper un serveur arrêté (WeeklyPlanningService)
+Schedule::command('planning:send-weekly')
+    ->everyFifteenMinutes()
+    ->withoutOverlapping();
+
 // Demandes d'aide des chauffeurs restées sans prise en charge : une relance (config driver_journey.alert_reminder_minutes)
 Schedule::command('driver-alerts:remind')
     ->everyMinute()

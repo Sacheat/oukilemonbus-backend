@@ -48,6 +48,8 @@ class NotificationPreferenceService
             ['admin_workflow', 'mail'] => 'notify_admin_workflow_email',
             ['last_minute_cancellation', 'database'] => 'notify_last_minute_cancellation_in_app',
             ['last_minute_cancellation', 'mail'] => 'notify_last_minute_cancellation_email',
+            ['weekly_planning', 'database'] => 'notify_weekly_planning_in_app',
+            ['weekly_planning', 'mail'] => 'notify_weekly_planning_email',
             default => null,
         };
 
@@ -69,6 +71,10 @@ class NotificationPreferenceService
             'notify_admin_workflow_email' => true,
             'notify_last_minute_cancellation_in_app' => true,
             'notify_last_minute_cancellation_email' => true,
+            // Planning hebdomadaire : null = automatique (le responsable désigné, sinon tous), voir WeeklyPlanningService
+            'weekly_planning_opt_in' => null,
+            'notify_weekly_planning_in_app' => true,
+            'notify_weekly_planning_email' => true,
             'digest_frequency' => 'none',
             'quiet_hours_start' => null,
             'quiet_hours_end' => null,

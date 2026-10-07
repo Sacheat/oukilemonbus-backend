@@ -38,6 +38,20 @@ class MunicipalityResource extends JsonResource
             'effective_navigation_engine' => isset(config('driver_journey.navigation_engines', [])[$this->navigation_engine ?? ''])
                 ? $this->navigation_engine
                 : config('driver_journey.default_navigation_engine', 'openstreetmap'),
+            // Planning hebdomadaire : valeurs choisies (null = défaut) et appliquées, responsable désigné
+            'weekly_planning_enabled' => $this->weekly_planning_enabled,
+            'weekly_planning_send_day' => $this->weekly_planning_send_day,
+            'weekly_planning_send_time' => $this->weekly_planning_send_time,
+            'weekly_planning_owner_user_id' => $this->weekly_planning_owner_user_id,
+            'weekly_planning_owner' => $this->whenLoaded('weeklyPlanningOwner', fn () => $this->weeklyPlanningOwner ? [
+                'id' => $this->weeklyPlanningOwner->id,
+                'name' => trim($this->weeklyPlanningOwner->first_name.' '.$this->weeklyPlanningOwner->last_name),
+                'email' => $this->weeklyPlanningOwner->email,
+                'active' => (bool) $this->weeklyPlanningOwner->active,
+            ] : null),
+            'effective_weekly_planning_enabled' => (bool) ($this->weekly_planning_enabled ?? config('weekly_planning.enabled', true)),
+            'effective_weekly_planning_send_day' => (int) ($this->weekly_planning_send_day ?? config('weekly_planning.send_day', 5)),
+            'effective_weekly_planning_send_time' => $this->weekly_planning_send_time ?? config('weekly_planning.send_time', '12:00'),
             'effective_driver_departure_window_min' => $this->driver_departure_window_min ?? (int) config('driver_journey.departure_window_minutes', 60),
             'localities' => $this->whenLoaded('localities', fn () => MunicipalityLocalityResource::collection($this->localities)),
             'active_localities' => $this->whenLoaded('activeLocalities', fn () => MunicipalityLocalityResource::collection($this->activeLocalities)),

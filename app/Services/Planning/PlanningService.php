@@ -5,6 +5,7 @@ namespace App\Services\Planning;
 use App\Enums\ReservationStatus;
 use App\Models\Reservation;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 
 /**
@@ -42,7 +43,38 @@ class PlanningService
             ReservationStatus::EN_CONFLIT->value,
         ];
 
-        $reservations = Reservation::query()
+        $reservations = $this->periodQuery($startDate, $endDate, $statuses, $filters)
+            ->visibleTo($user)
+            ->orderBy('trip_date')
+            ->orderBy('departure_time')
+            ->get();
+
+        // Les disponibilités détaillées sont ajoutées uniquement lorsque le contrôleur
+        // les a autorisées. En pratique, elles sont réservées aux rôles internes.
+        if ($includeAvailability && $user->hasAnyRole(['admin', 'agent_communal'])) {
+            $reservations->each(function (Reservation $reservation): void {
+                $reservation->setAttribute('planning_availability', $this->availabilityService->forReservation($reservation));
+            });
+        }
+
+        return $reservations;
+    }
+
+    /**
+     * Planning de tout le service, sans filtre de visibilité : envoi automatique du planning hebdomadaire
+     * (WeeklyPlanningService), qui n'a pas d'utilisateur. Mêmes relations et même tri que forPeriod().
+     */
+    public function forService(string $startDate, string $endDate, array $statuses): Collection
+    {
+        return $this->periodQuery($startDate, $endDate, $statuses, [])
+            ->orderBy('trip_date')
+            ->orderBy('departure_time')
+            ->get();
+    }
+
+    private function periodQuery(string $startDate, string $endDate, array $statuses, array $filters): Builder
+    {
+        return Reservation::query()
             ->with([
                 'organization',
                 'requestedByUser',
@@ -61,21 +93,6 @@ class PlanningService
             // par chauffeur ou par organisation.
             ->when(isset($filters['vehicle_id']), fn ($query) => $query->where('vehicle_id', $filters['vehicle_id']))
             ->when(isset($filters['driver_id']), fn ($query) => $query->where('driver_id', $filters['driver_id']))
-            ->when(isset($filters['organization_id']), fn ($query) => $query->where('organization_id', $filters['organization_id']))
-
-            ->visibleTo($user)
-            ->orderBy('trip_date')
-            ->orderBy('departure_time')
-            ->get();
-
-        // Les disponibilités détaillées sont ajoutées uniquement lorsque le contrôleur
-        // les a autorisées. En pratique, elles sont réservées aux rôles internes.
-        if ($includeAvailability && $user->hasAnyRole(['admin', 'agent_communal'])) {
-            $reservations->each(function (Reservation $reservation): void {
-                $reservation->setAttribute('planning_availability', $this->availabilityService->forReservation($reservation));
-            });
-        }
-
-        return $reservations;
+            ->when(isset($filters['organization_id']), fn ($query) => $query->where('organization_id', $filters['organization_id']));
     }
 }
