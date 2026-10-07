@@ -80,6 +80,11 @@ class RolesAndPermissionsSeeder extends Seeder
             Permission::findOrCreate($permission, 'web');
         }
 
+        // Le cache des permissions a été chargé (vide sur une base neuve) au premier findOrCreate. Sous
+        // WithoutModelEvents (DatabaseSeeder), les créations ne le vident pas : sans ce reset, syncPermissions ne
+        // trouve pas les permissions qu'on vient de créer (« There is no permission named … »).
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+
         $admin = Role::findOrCreate('admin', 'web');
         $user = Role::findOrCreate('user', 'web');
         $chauffeur = Role::findOrCreate('chauffeur', 'web');

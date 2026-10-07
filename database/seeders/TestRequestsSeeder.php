@@ -31,7 +31,6 @@ class TestRequestsSeeder extends Seeder
                 'location_id' => $location->id,
                 'contact_person_name' => 'Alice Martin',
                 'contact_person_role' => 'Responsable',
-                'proof_document_path' => 'proofs/asbl-dinant-solidaire.pdf',
                 'comment' => 'Demande de creation',
                 'status' => RequestStatus::EN_ATTENTE,
                 'confidence_note' => 96,
@@ -46,7 +45,6 @@ class TestRequestsSeeder extends Seeder
             ],
             [
                 'justification' => 'Je coordonne les activites et les inscriptions.',
-                'proof_document_path' => 'proofs/rattachement-asbl.pdf',
                 'status' => RequestStatus::EN_ATTENTE,
                 'confidence_note' => 100,
             ]
