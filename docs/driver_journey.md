@@ -53,7 +53,7 @@ Routes (`TripProgressController`, permission `trip-progress.record` ou `trip-pro
 | POST | `/reservations/{id}/trip-events` | `type`, `position {state, latitude, longitude, accuracy_m, captured_at}`, et pour `arrivee_retour` `actual_nb_children` / `actual_nb_adults`. 201 (nouvelle étape) ou 200 (déjà enregistrée : double appui). `data` = l'étape, `meta.progress`, `meta.trip_report` (créé à la dernière arrivée) |
 | GET | `/reservations/{id}/trip-progress` | `data {state, next_step, events}` + `meta` : `first_departure_opens_at`, `first_departure_closes_at`, `steps_close_at` (heure locale sans fuseau), `can_record` |
 | GET | `/trip-progress?reservation_ids[]=` | 1 à 100 réservations ; le chauffeur ne reçoit que les siennes |
-| DELETE | `/reservations/{id}/trip-events/last` | annule la dernière étape : **agents et admins** sans délai, **chauffeur** sur son propre appui pendant 2 min. `data` = l'étape annulée, `meta.progress` |
+| DELETE | `/reservations/{id}/trip-events/last?type=` | `type` obligatoire : l'étape que le front affiche comme dernière. Annule la dernière étape : **agents et admins** sans délai, **chauffeur** sur son propre appui pendant 2 min. `data` = l'étape annulée, `meta.progress` |
 
 Règles (`TripProgressService::record`) :
 
@@ -83,7 +83,10 @@ le réessai de la dernière arrivée la refait : étape déjà enregistrée et p
 
 ```
 ni agent / admin, ni chauffeur affecté → 403
+type absent ou inconnu                → 422 (type)
 aucune étape                          → 422 (type)
+type n'est plus la dernière étape     → 422 (type), rien n'est supprimé (double clic ou réessai : sans ce contrôle,
+                                        la 2e requête effacerait l'étape d'avant)
 compte rendu déjà créé                → 422 (type) : on corrige le compte rendu (« Corriger » dans le Planning)
 chauffeur : pas son appui, ou plus de driver_undo_seconds (120) après
                                       → 422 « demandez à un agent » (il corrige une erreur, pas les heures après coup)
@@ -94,6 +97,9 @@ sinon                                 → la dernière étape est supprimée (ja
 
 `POST …/trip-events` renvoie `meta.undo_seconds` (120) quand le chauffeur vient d'enregistrer une étape qu'il peut
 encore annuler (pas pour la dernière arrivée, qui crée le compte rendu ; null pour un agent).
+
+L'enregistrement et l'annulation prennent le même verrou sur la réservation (`lockForUpdate`) : ils passent l'un après
+l'autre, et une étape ne peut pas être enregistrée pendant que la précédente est effacée (pas de trou dans l'ordre).
 
 ## 4. Demandes d'aide
 

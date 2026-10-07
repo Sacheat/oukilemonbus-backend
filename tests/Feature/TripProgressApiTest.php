@@ -22,6 +22,7 @@ use Database\Seeders\TestOrganizationsSeeder;
 use Database\Seeders\TestUsersSeeder;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Laravel\Sanctum\Sanctum;
 use Spatie\Permission\PermissionRegistrar;
 use Tests\TestCase;
@@ -259,10 +260,10 @@ class TripProgressApiTest extends TestCase
 
         // 3 minutes après, le chauffeur ne peut plus annuler seul : il passe par un agent
         Carbon::setTestNow('2026-06-16 07:08:00');
-        $this->deleteJson($this->url($reservation, 'trip-events/last'))->assertUnprocessable()->assertJsonValidationErrors('type');
+        $this->cancel($reservation, 'arrivee_aller')->assertUnprocessable()->assertJsonValidationErrors(['type' => 'délai']);
 
         Sanctum::actingAs($this->user('agent.test@bus-communal.local'));
-        $this->deleteJson($this->url($reservation, 'trip-events/last'))
+        $this->cancel($reservation, 'arrivee_aller')
             ->assertOk()
             ->assertJsonPath('data.type', 'arrivee_aller')
             ->assertJsonPath('meta.progress.state', 'en_route_aller')
@@ -287,7 +288,7 @@ class TripProgressApiTest extends TestCase
         $this->record($reservation, 'depart_aller')->assertCreated()->assertJsonPath('meta.undo_seconds', 120);
 
         Carbon::setTestNow('2026-06-16 07:01:50');
-        $this->deleteJson($this->url($reservation, 'trip-events/last'))
+        $this->cancel($reservation, 'depart_aller')
             ->assertOk()
             ->assertJsonPath('data.type', 'depart_aller')
             ->assertJsonPath('meta.progress.state', 'a_venir');
@@ -298,11 +299,11 @@ class TripProgressApiTest extends TestCase
         Sanctum::actingAs($this->user('agent.test@bus-communal.local'));
         $this->record($reservation, 'depart_aller')->assertCreated()->assertJsonPath('meta.undo_seconds', null);
         Sanctum::actingAs($this->driverUser());
-        $this->deleteJson($this->url($reservation, 'trip-events/last'))->assertUnprocessable()->assertJsonValidationErrors('type');
+        $this->cancel($reservation, 'depart_aller')->assertUnprocessable()->assertJsonValidationErrors(['type' => 'délai']);
 
         // Un autre chauffeur : 403
         Sanctum::actingAs($this->otherDriverUser());
-        $this->deleteJson($this->url($reservation, 'trip-events/last'))->assertForbidden();
+        $this->cancel($reservation, 'depart_aller')->assertForbidden();
     }
 
     public function test_no_undo_is_offered_when_the_trip_already_has_a_report(): void
@@ -324,7 +325,7 @@ class TripProgressApiTest extends TestCase
         Carbon::setTestNow('2026-06-16 07:00:00');
 
         $this->record($reservation, 'depart_aller')->assertCreated()->assertJsonPath('meta.undo_seconds', null);
-        $this->deleteJson($this->url($reservation, 'trip-events/last'))->assertUnprocessable()->assertJsonValidationErrors('type');
+        $this->cancel($reservation, 'depart_aller')->assertUnprocessable()->assertJsonValidationErrors(['type' => 'compte rendu']);
     }
 
     public function test_no_step_can_be_cancelled_without_steps_or_once_the_report_exists(): void
@@ -332,7 +333,7 @@ class TripProgressApiTest extends TestCase
         $reservation = $this->confirmedReservation();
         Sanctum::actingAs($this->user('agent.test@bus-communal.local'));
 
-        $this->deleteJson($this->url($reservation, 'trip-events/last'))->assertUnprocessable()->assertJsonValidationErrors('type');
+        $this->cancel($reservation, 'depart_aller')->assertUnprocessable()->assertJsonValidationErrors(['type' => 'Aucune étape']);
 
         Carbon::setTestNow('2026-06-16 09:30:00');
         foreach (['depart_aller', 'arrivee_aller', 'depart_retour'] as $type) {
@@ -342,15 +343,51 @@ class TripProgressApiTest extends TestCase
             ->assertCreated()
             ->assertJsonPath('meta.trip_report.outcome', 'realise');
 
-        $this->deleteJson($this->url($reservation, 'trip-events/last'))
+        $this->cancel($reservation, 'arrivee_retour')
             ->assertUnprocessable()
-            ->assertJsonValidationErrors('type');
+            ->assertJsonValidationErrors(['type' => 'compte rendu']);
         $this->assertDatabaseCount('trip_events', 4);
+    }
+
+    public function test_a_double_click_on_cancel_removes_only_one_step(): void
+    {
+        $reservation = $this->confirmedReservation();
+        Sanctum::actingAs($this->user('agent.test@bus-communal.local'));
+        Carbon::setTestNow('2026-06-16 09:30:00');
+        $this->record($reservation, 'depart_aller')->assertCreated();
+        $this->record($reservation, 'arrivee_aller')->assertCreated();
+
+        $this->cancel($reservation, 'arrivee_aller')->assertOk()->assertJsonPath('data.type', 'arrivee_aller');
+
+        // 2e clic (ou réessai réseau) avec la même étape : rien n'est supprimé, le départ reste
+        $this->cancel($reservation, 'arrivee_aller')
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['type' => 'n’est plus la dernière étape']);
+        $this->assertDatabaseCount('trip_events', 1);
+        $this->assertDatabaseHas('trip_events', ['reservation_id' => $reservation->id, 'type' => 'depart_aller']);
+        $this->assertSame(1, DB::table('domain_events')->where('aggregate_id', $reservation->id)->where('event_type', 'trip_event.cancelled')->count());
+    }
+
+    public function test_cancelling_requires_the_step_shown_as_last(): void
+    {
+        $reservation = $this->confirmedReservation();
+        Sanctum::actingAs($this->user('agent.test@bus-communal.local'));
+        Carbon::setTestNow('2026-06-16 09:30:00');
+        $this->record($reservation, 'depart_aller')->assertCreated();
+
+        $this->deleteJson($this->url($reservation, 'trip-events/last'))->assertUnprocessable()->assertJsonValidationErrors(['type' => 'Indiquez l’étape à annuler']);
+        $this->cancel($reservation, 'inconnue')->assertUnprocessable()->assertJsonValidationErrors(['type' => 'inconnue']);
+        $this->assertDatabaseCount('trip_events', 1);
     }
 
     private function record(Reservation $reservation, string $type, array $extra = [])
     {
         return $this->postJson($this->url($reservation, 'trip-events'), ['type' => $type, 'position' => self::POSITION, ...$extra]);
+    }
+
+    private function cancel(Reservation $reservation, string $type)
+    {
+        return $this->deleteJson($this->url($reservation, "trip-events/last?type={$type}"));
     }
 
     private function url(Reservation $reservation, string $path): string

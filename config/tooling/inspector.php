@@ -4135,7 +4135,7 @@ return [
             'goal' => 'Effacer une étape appuyée par erreur (par exemple un « Départ » trop tôt) pour que le chauffeur réappuie.',
 
             'route' => [
-                'api' => 'DELETE /api/reservations/{reservation}/trip-events/last',
+                'api' => 'DELETE /api/reservations/{reservation}/trip-events/last?type={étape affichée comme dernière}',
             ],
 
             'api_controller' => [
@@ -4148,9 +4148,9 @@ return [
                 'method' => 'cancelLastStep',
                 'internal_methods' => [
                     'Agent / admin, ou chauffeur affecté (403 sinon)',
-                    'Aucune étape (422) ; compte rendu déjà créé (422 : corriger le compte rendu)',
+                    'Aucune étape (422) ; type qui n’est plus la dernière étape (422, double clic) ; compte rendu déjà créé (422 : corriger le compte rendu)',
                     'Chauffeur : son propre appui seulement, dans les 2 min (config driver_journey.driver_undo_seconds) ; 422 sinon',
-                    'Verrou sur la réservation, seule la dernière étape est supprimée',
+                    'Verrou sur la réservation (le même que record) : seule la dernière étape est supprimée',
                     'DomainEventLogger : trip_event.cancelled (étape annulée dans old_values)',
                 ],
             ],

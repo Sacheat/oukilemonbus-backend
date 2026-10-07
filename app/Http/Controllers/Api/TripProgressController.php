@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Enums\TripEventType;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\DriverJourney\CancelTripEventRequest;
 use App\Http\Requests\DriverJourney\RecordTripEventRequest;
 use App\Http\Resources\TripEventResource;
 use App\Http\Resources\TripProgressResource;
@@ -74,13 +75,17 @@ class TripProgressController extends Controller
     }
 
     /**
-     * DELETE /reservations/{reservation}/trip-events/last : annule la dernière étape (agents et admins sans délai ;
-     * chauffeur : son propre appui, pendant 2 min ; voir TripProgressService::cancelLastStep). Renvoie l'étape annulée
-     * et le nouvel avancement.
+     * DELETE /reservations/{reservation}/trip-events/last?type=… : annule la dernière étape, si c'est bien `type`
+     * (agents et admins sans délai ; chauffeur : son propre appui, pendant 2 min ; voir
+     * TripProgressService::cancelLastStep). Renvoie l'étape annulée et le nouvel avancement.
      */
-    public function destroyLast(Request $request, Reservation $reservation): JsonResponse
+    public function destroyLast(CancelTripEventRequest $request, Reservation $reservation): JsonResponse
     {
-        $result = $this->tripProgressService->cancelLastStep($reservation, $request->user());
+        $result = $this->tripProgressService->cancelLastStep(
+            $reservation,
+            $request->user(),
+            TripEventType::from($request->validated('type'))
+        );
 
         return response()->json([
             'data' => new TripEventResource($result['cancelled']),
