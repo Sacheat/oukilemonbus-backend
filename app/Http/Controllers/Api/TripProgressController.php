@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Enums\TripEventType;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\DriverJourney\CancelTripEventRequest;
 use App\Http\Requests\DriverJourney\RecordTripEventRequest;
 use App\Http\Resources\TripEventResource;
 use App\Http\Resources\TripProgressResource;
@@ -74,6 +75,25 @@ class TripProgressController extends Controller
     }
 
     /**
+     * DELETE /reservations/{reservation}/trip-events/last?type=… : annule la dernière étape, si c'est bien `type`
+     * (agents et admins sans délai ; chauffeur : son propre appui, pendant 2 min ; voir
+     * TripProgressService::cancelLastStep). Renvoie l'étape annulée et le nouvel avancement.
+     */
+    public function destroyLast(CancelTripEventRequest $request, Reservation $reservation): JsonResponse
+    {
+        $result = $this->tripProgressService->cancelLastStep(
+            $reservation,
+            $request->user(),
+            TripEventType::from($request->validated('type'))
+        );
+
+        return response()->json([
+            'data' => new TripEventResource($result['cancelled']),
+            'meta' => ['progress' => new TripProgressResource($this->tripProgressService->summary($result['events'], $reservation->id))],
+        ]);
+    }
+
+    /**
      * POST /reservations/{reservation}/trip-events : enregistre une étape. 201 si elle est nouvelle, 200 si elle l'était
      * déjà (double appui). Renvoie l'étape, l'avancement et le compte rendu créé à la dernière arrivée.
      */
@@ -88,11 +108,20 @@ class TripProgressController extends Controller
         );
 
         $events = $reservation->tripEvents()->get();
+        // Le chauffeur peut annuler son appui pendant ce délai (bouton « Annuler » de Ma journée) ; pas la dernière
+        // arrivée, ni un trajet qui a déjà un compte rendu (saisi par un agent par exemple) : l'annulation serait refusée
+        $undoSeconds = $result['created']
+            && ! $this->tripProgressService->canManage($request->user())
+            && $result['event']->type !== TripEventType::ARRIVEE_RETOUR
+            && ! $reservation->tripReport()->exists()
+                ? $this->tripProgressService->driverUndoSeconds()
+                : null;
 
         return response()->json([
             'data' => new TripEventResource($result['event']),
             'meta' => [
                 'created' => $result['created'],
+                'undo_seconds' => $undoSeconds,
                 'progress' => new TripProgressResource($this->tripProgressService->summary($events, $reservation->id)),
                 'trip_report' => $result['report'] ? new TripReportResource($result['report']) : null,
             ],

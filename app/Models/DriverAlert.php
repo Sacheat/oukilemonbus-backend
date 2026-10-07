@@ -33,6 +33,7 @@ class DriverAlert extends Model
         'created_by_user_id',
         'handled_by_user_id',
         'handled_at',
+        'reminded_at',
         'closed_by_user_id',
         'closed_at',
         'closing_note',
@@ -52,6 +53,7 @@ class DriverAlert extends Model
             'fallback_latitude' => 'float',
             'fallback_longitude' => 'float',
             'handled_at' => 'datetime',
+            'reminded_at' => 'datetime',
             'closed_at' => 'datetime',
         ];
     }

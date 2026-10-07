@@ -394,6 +394,44 @@ class DriverAlertApiTest extends TestCase
         $this->patchJson("/api/driver-alerts/{$alertId}/position", ['position' => self::POSITION])->assertForbidden();
     }
 
+    public function test_an_alert_nobody_takes_is_reminded_once_after_ten_minutes(): void
+    {
+        $this->activeMunicipality(['on_call_name' => 'Garde technique', 'on_call_email' => 'garde@dinant.test']);
+        $agent = $this->user('agent.test@bus-communal.local');
+        Carbon::setTestNow('2026-06-16 07:00:00');
+
+        Sanctum::actingAs($this->driverUser());
+        $waiting = $this->postJson('/api/driver-alerts', ['position' => self::POSITION])->json('data.id');
+        Sanctum::actingAs($this->otherDriver()->user);
+        $taken = $this->postJson('/api/driver-alerts', ['position' => self::POSITION])->json('data.id');
+        Sanctum::actingAs($agent);
+        $this->postJson("/api/driver-alerts/{$taken}/take")->assertOk();
+        Mail::fake(); // on ne compte que les emails de la relance
+
+        $reminders = fn (): int => NotificationDelivery::query()
+            ->where('notifiable_id', $agent->id)->where('event_key', 'driver_alert.reminder')->where('channel', 'database')->count();
+
+        // 9 minutes : trop tôt
+        Carbon::setTestNow('2026-06-16 07:09:00');
+        $this->artisan('driver-alerts:remind')->assertSuccessful();
+        $this->assertSame(0, $reminders());
+
+        // 10 minutes : relance de l'alerte toujours ouverte, pas de celle prise en charge
+        Carbon::setTestNow('2026-06-16 07:10:30');
+        $this->artisan('driver-alerts:remind')->expectsOutputToContain('1 demande(s)')->assertSuccessful();
+        $this->assertSame(1, $reminders());
+        $this->assertNotNull(DriverAlert::query()->findOrFail($waiting)->reminded_at);
+        $this->assertNull(DriverAlert::query()->findOrFail($taken)->reminded_at);
+        Mail::assertQueued(DriverAlertOnCallMail::class, 1);
+
+        // Une seule relance par alerte
+        Carbon::setTestNow('2026-06-16 07:30:00');
+        $this->artisan('driver-alerts:remind')->expectsOutputToContain('0 demande(s)')->assertSuccessful();
+        $this->assertSame(1, $reminders());
+
+        $this->getJson("/api/driver-alerts/{$waiting}")->assertOk()->assertJsonPath('data.reminded_at', '2026-06-16T07:10:30.000000Z');
+    }
+
     private function activeMunicipality(array $attributes = []): Municipality
     {
         Municipality::query()->update(['is_active' => false]);

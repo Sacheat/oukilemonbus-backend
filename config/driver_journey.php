@@ -21,6 +21,12 @@ return [
     // Une étape enregistrée à plus de N mètres du lieu prévu est signalée aux agents (Planning), sans rien bloquer
     'step_distance_warning_meters' => (int) env('DRIVER_STEP_DISTANCE_WARNING_METERS', 500),
 
+    // Le chauffeur peut annuler lui-même son dernier appui pendant N secondes (appui par erreur) ; ensuite, un agent
+    'driver_undo_seconds' => (int) env('DRIVER_UNDO_SECONDS', 120),
+
+    // Demande d'aide toujours ouverte après N minutes : une relance aux agents, admins et contact de garde
+    'alert_reminder_minutes' => (int) env('DRIVER_ALERT_REMINDER_MINUTES', 10),
+
     'default_navigation_engine' => env('DRIVER_NAVIGATION_ENGINE', 'openstreetmap'),
 
     'navigation_engines' => [

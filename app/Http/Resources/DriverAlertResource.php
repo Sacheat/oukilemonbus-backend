@@ -74,6 +74,8 @@ class DriverAlertResource extends JsonResource
             ] : null,
             'handled_by' => $this->handledByUser ? trim($this->handledByUser->first_name.' '.$this->handledByUser->last_name) : null,
             'handled_at' => $this->handled_at?->toISOString(),
+            // Relance automatique (driver-alerts:remind) si personne ne l'a prise en charge à temps
+            'reminded_at' => $this->reminded_at?->toISOString(),
             'closed_by' => $this->closedByUser ? trim($this->closedByUser->first_name.' '.$this->closedByUser->last_name) : null,
             'closed_at' => $this->closed_at?->toISOString(),
             'closing_note' => $this->closing_note,

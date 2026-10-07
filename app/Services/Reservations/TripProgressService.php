@@ -239,36 +239,34 @@ class TripProgressService
             ]);
         }
 
-        $events = $reservation->tripEvents()->get();
-        $existing = $events->first(fn (TripEvent $event): bool => $event->type === $type);
-
-        if ($existing !== null) {
-            // Réessai de la dernière arrivée alors que le compte rendu n'avait pas pu être créé : on le crée maintenant
-            $report = $type === TripEventType::ARRIVEE_RETOUR
-                ? $this->createRealisedReport($reservation->fresh(), $actor, $events, $passengers)
-                : null;
-
-            return ['event' => $existing, 'created' => false, 'report' => $report];
-        }
-
-        $next = $this->nextStep($events);
-
-        if ($next !== $type) {
-            throw ValidationException::withMessages([
-                'type' => $next === null
-                    ? 'Toutes les étapes de ce trajet sont déjà enregistrées.'
-                    : 'Étape attendue : « '.$next->label().' ».',
-            ]);
-        }
-
-        if (! $isManager && ($problem = $this->timeProblem($reservation, $type)) !== null) {
-            throw ValidationException::withMessages(['type' => $problem]);
-        }
-
         $source = $isManager && ! $this->isAssignedDriver($reservation, $actor) ? TripEventSource::AGENT : TripEventSource::CHAUFFEUR;
 
         try {
-            $event = DB::transaction(function () use ($reservation, $actor, $type, $position, $source): TripEvent {
+            $result = DB::transaction(function () use ($reservation, $actor, $type, $position, $source, $isManager): array {
+                // Même verrou que cancelLastStep : une annulation et un enregistrement simultanés ne laissent pas de trou
+                // (étape N+1 enregistrée pendant que N est effacée)
+                Reservation::query()->whereKey($reservation->id)->lockForUpdate()->first();
+                $events = $reservation->tripEvents()->get();
+                $existing = $events->first(fn (TripEvent $event): bool => $event->type === $type);
+
+                if ($existing !== null) {
+                    return ['event' => $existing, 'created' => false, 'events' => $events];
+                }
+
+                $next = $this->nextStep($events);
+
+                if ($next !== $type) {
+                    throw ValidationException::withMessages([
+                        'type' => $next === null
+                            ? 'Toutes les étapes de ce trajet sont déjà enregistrées.'
+                            : 'Étape attendue : « '.$next->label().' ».',
+                    ]);
+                }
+
+                if (! $isManager && ($problem = $this->timeProblem($reservation, $type)) !== null) {
+                    throw ValidationException::withMessages(['type' => $problem]);
+                }
+
                 $event = TripEvent::query()->create([
                     'reservation_id' => $reservation->id,
                     'driver_id' => $reservation->driver_id,
@@ -291,18 +289,110 @@ class TripProgressService
                     ]
                 );
 
-                return $event;
+                return ['event' => $event, 'created' => true, 'events' => $events->push($event)];
             });
         } catch (UniqueConstraintViolationException) {
-            // Deux appuis simultanés : l'autre requête a déjà enregistré l'étape
+            // Filet de sécurité (le verrou fait déjà passer les doubles appuis l'un après l'autre)
             return ['event' => $reservation->tripEvents()->where('type', $type->value)->firstOrFail(), 'created' => false, 'report' => null];
         }
 
+        // Dernière arrivée : compte rendu créé s'il n'existe pas encore, y compris au réessai d'une étape déjà
+        // enregistrée dont le compte rendu n'avait pas pu être créé
         $report = $type === TripEventType::ARRIVEE_RETOUR
-            ? $this->createRealisedReport($reservation->fresh(), $actor, $events->push($event), $passengers)
+            ? $this->createRealisedReport($reservation->fresh(), $actor, $result['events'], $passengers)
             : null;
 
-        return ['event' => $event, 'created' => true, 'report' => $report];
+        return ['event' => $result['event'], 'created' => $result['created'], 'report' => $report];
+    }
+
+    /**
+     * Annule la dernière étape enregistrée (appui par erreur) :
+     *
+     *   ni agent / admin, ni chauffeur affecté   → 403
+     *   aucune étape                             → 422 « Aucune étape à annuler »
+     *   `$type` n'est plus la dernière étape     → 422, rien n'est supprimé (double clic, réessai : la 1re requête l'a
+     *                                              déjà annulée ; sans ce contrôle, la 2e effacerait l'étape d'avant)
+     *   compte rendu déjà créé                   → 422 : on corrige le compte rendu (« Corriger » dans le Planning)
+     *   chauffeur : seulement son propre appui (source chauffeur), dans les driver_undo_seconds (120) qui suivent
+     *               → 422 sinon (« demandez à un agent ») : il corrige une erreur, pas les heures après coup
+     *   agent / admin : sans délai
+     *   sinon        → étape supprimée (la dernière seulement : l'ordre reste juste), historique trip_event.cancelled
+     *                  avec l'étape annulée et qui l'a annulée ; le chauffeur peut appuyer à nouveau
+     *
+     * @return array{cancelled: TripEvent, events: Collection<int, TripEvent>}
+     */
+    public function cancelLastStep(Reservation $reservation, User $actor, TripEventType $type): array
+    {
+        $isManager = $this->canManage($actor);
+
+        if (! $isManager && (! $actor->can('trip-progress.record') || ! $this->isAssignedDriver($reservation, $actor))) {
+            throw new AuthorizationException('Vous n’êtes pas autorisé à annuler une étape de ce trajet.');
+        }
+
+        return DB::transaction(function () use ($reservation, $actor, $isManager, $type): array {
+            // Verrou sur la réservation (comme record) : les requêtes passent l'une après l'autre, et la 2e voit l'effet
+            // de la 1re
+            Reservation::query()->whereKey($reservation->id)->lockForUpdate()->first();
+            $events = $reservation->tripEvents()->get();
+            $last = $events->sortByDesc(fn (TripEvent $event): int => $event->type->position())->first();
+
+            if ($last === null) {
+                throw ValidationException::withMessages(['type' => 'Aucune étape à annuler sur ce trajet.']);
+            }
+
+            if ($last->type !== $type) {
+                throw ValidationException::withMessages([
+                    'type' => '« '.$type->label().' » n’est plus la dernière étape de ce trajet (déjà annulée ?) : rien n’a été annulé.',
+                ]);
+            }
+
+            if ($reservation->tripReport()->exists()) {
+                throw ValidationException::withMessages([
+                    'type' => $isManager
+                        ? 'Le compte rendu de ce trajet existe déjà : corrigez-le plutôt (« Corriger »).'
+                        : 'Le compte rendu de ce trajet est enregistré : demandez à un agent de le corriger.',
+                ]);
+            }
+
+            if (! $isManager && ! $this->driverCanUndo($last, $actor)) {
+                throw ValidationException::withMessages([
+                    'type' => 'Le délai pour annuler cet appui est dépassé : demandez à un agent de le corriger.',
+                ]);
+            }
+
+            $last->delete();
+
+            $this->eventLogger->log(
+                aggregateType: 'reservation',
+                aggregateId: $reservation->id,
+                eventType: 'trip_event.cancelled',
+                actor: $actor,
+                oldValues: [
+                    'type' => $last->type->value,
+                    'occurred_at' => $last->occurred_at?->toISOString(),
+                    'source' => $last->source->value,
+                    'recorded_by_user_id' => $last->recorded_by_user_id,
+                ],
+                newValues: ['cancelled_by' => $isManager ? 'agent' : 'chauffeur']
+            );
+
+            return ['cancelled' => $last, 'events' => $events->reject(fn (TripEvent $event): bool => $event->is($last))->values()];
+        });
+    }
+
+    /** Délai pendant lequel le chauffeur peut annuler lui-même son dernier appui (config driver_undo_seconds) */
+    public function driverUndoSeconds(): int
+    {
+        return max(0, (int) config('driver_journey.driver_undo_seconds', 120));
+    }
+
+    /** Son propre appui (source chauffeur), il y a moins de driverUndoSeconds() */
+    private function driverCanUndo(TripEvent $event, User $actor): bool
+    {
+        return $event->source === TripEventSource::CHAUFFEUR
+            && $event->recorded_by_user_id === $actor->id
+            && $event->occurred_at !== null
+            && $event->occurred_at->greaterThanOrEqualTo(now()->subSeconds($this->driverUndoSeconds()));
     }
 
     /** Compte rendu « réalisé » à la dernière arrivée, s'il n'y en a pas encore (sinon on n'y touche pas). */
