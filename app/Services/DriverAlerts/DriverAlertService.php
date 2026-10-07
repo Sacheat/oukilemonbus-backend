@@ -3,8 +3,10 @@
 namespace App\Services\DriverAlerts;
 
 use App\Enums\DriverAlertStatus;
+use App\Enums\ReservationStatus;
 use App\Enums\TripProgressState;
 use App\Mail\DriverAlertOnCallMail;
+use App\Models\Driver;
 use App\Models\DriverAlert;
 use App\Models\Municipality;
 use App\Models\Reservation;
@@ -28,12 +30,20 @@ use Throwable;
  *
  * Création (chauffeur, driver-alerts.create) : position du téléphone si elle est envoyée ; sinon dernier lieu connu,
  * déduit de l'avancement du trajet (en route vers la destination ou sur place → destination ; sinon → lieu de départ).
- * Le trajet est facultatif (aide entre deux trajets) ; s'il est donné, ce doit être une mission du chauffeur.
+ * Le trajet est facultatif (aide entre deux trajets) ; s'il est donné, ce doit être une mission du chauffeur. Il n'est
+ * rattaché que s'il a lieu (approuvé ou confirmé) aujourd'hui ou hier : sinon l'alerte part sans trajet, pour ne pas
+ * donner un contexte trompeur aux agents (l'aide n'est jamais refusée pour autant).
+ *
+ * Une seule alerte en cours par chauffeur :
+ *   alerte ouverte ou prise en charge → on la renvoie (200), avec la nouvelle position si elle en a une et le nouveau
+ *                                       message ajouté ; pas de nouvel email (pas de pluie d'alertes urgentes)
+ *   sinon                             → nouvelle alerte (201) et notifications
  *
  * Notifications, toujours envoyées (catégorie driver_alert, urgente : ni récapitulatif, ni délai anti-spam, ni
  * préférence qui la coupe) : agents et admins actifs (cloche + email avec « Voir l'alerte » et « Ouvrir la carte »),
- * et le contact de garde de la commune active s'il est renseigné (email seul). À la prise en charge, le chauffeur est
- * prévenu.
+ * et le contact de garde de la commune active s'il est renseigné (email seul). À la prise en charge et à la clôture,
+ * le chauffeur est prévenu. Une notification qui échoue est notée dans le journal sans faire échouer l'action :
+ * l'alerte, la prise en charge ou la clôture restent enregistrées et la réponse reste un succès.
  *
  * Suivi (agent / admin, driver-alerts.manage) : ouverte → prise_en_charge → cloturee (note obligatoire).
  */
@@ -99,16 +109,35 @@ class DriverAlertService
             throw ValidationException::withMessages(['reservation_id' => 'Ce trajet ne fait pas partie de vos missions.']);
         }
 
+        // Trajet passé, futur ou qui n'a plus lieu : l'alerte part sans trajet
+        if ($reservation !== null && ! $this->isCurrentTrip($reservation)) {
+            $reservation = null;
+        }
+
         $progress = $reservation !== null ? $this->tripProgressService->stateFor($reservation->tripEvents()->get()) : null;
         $fallback = $position->latitude === null && $reservation !== null ? $this->fallbackLocation($reservation, $progress) : null;
+        $message = $message !== null && trim($message) !== '' ? trim($message) : null;
 
         $alert = DB::transaction(function () use ($actor, $driver, $reservation, $position, $message, $progress, $fallback): DriverAlert {
+            // Verrou sur le chauffeur : deux appuis simultanés ne créent pas deux alertes
+            Driver::query()->whereKey($driver->id)->lockForUpdate()->first();
+
+            $current = DriverAlert::query()
+                ->where('driver_id', $driver->id)
+                ->whereIn('status', [DriverAlertStatus::OUVERTE->value, DriverAlertStatus::PRISE_EN_CHARGE->value])
+                ->latest('id')
+                ->first();
+
+            if ($current !== null) {
+                return $this->repeat($current, $actor, $position, $message);
+            }
+
             $alert = DriverAlert::query()->create([
                 'driver_id' => $driver->id,
                 'reservation_id' => $reservation?->id,
                 'vehicle_id' => $reservation?->vehicle_id,
                 'status' => DriverAlertStatus::OUVERTE,
-                'message' => $message !== null && trim($message) !== '' ? trim($message) : null,
+                'message' => $message,
                 'trip_progress' => $progress,
                 'position_updates' => 0,
                 'fallback_label' => $fallback['label'] ?? null,
@@ -130,7 +159,40 @@ class DriverAlertService
         });
 
         $alert->load($this->relations());
-        $this->notifyCreated($alert);
+
+        // wasRecentlyCreated : false quand l'alerte en cours est renvoyée (le contrôleur répond alors 200)
+        if ($alert->wasRecentlyCreated) {
+            $this->safely('création', $alert, fn () => $this->notifyCreated($alert));
+        }
+
+        return $alert;
+    }
+
+    /** Nouvel appui sur « Aide » pendant une alerte en cours : position remplacée si elle en a une, message ajouté. */
+    private function repeat(DriverAlert $alert, User $actor, DevicePosition $position, ?string $message): DriverAlert
+    {
+        $changes = [];
+
+        if ($position->latitude !== null) {
+            $changes = [...$position->toColumns(), 'position_updates' => $alert->position_updates + 1];
+        }
+
+        if ($message !== null) {
+            $time = now()->setTimezone($this->timezone())->format('H:i');
+            $changes['message'] = $alert->message !== null ? "{$alert->message}\n{$time} : {$message}" : $message;
+        }
+
+        if ($changes !== []) {
+            $alert->update($changes);
+        }
+
+        $this->eventLogger->log(
+            aggregateType: 'driver_alert',
+            aggregateId: $alert->id,
+            eventType: 'driver_alert.repeated',
+            actor: $actor,
+            newValues: ['position_state' => $position->state->value, 'message_added' => $message !== null]
+        );
 
         return $alert;
     }
@@ -184,30 +246,39 @@ class DriverAlertService
         $this->eventLogger->log(aggregateType: 'driver_alert', aggregateId: $alert->id, eventType: 'driver_alert.taken', actor: $actor);
 
         $alert->refresh()->load($this->relations());
-        $this->notifyDriverTaken($alert, $actor);
+        $this->safely('prise en charge', $alert, fn () => $this->notifyDriverTaken($alert, $actor));
 
         return $alert;
     }
 
-    /** Clôture (note obligatoire), en une requête conditionnelle comme take() : une seule clôture gagne. */
+    /**
+     * Clôture (note obligatoire), en une requête conditionnelle comme take() : une seule clôture gagne. Une alerte
+     * clôturée sans prise en charge préalable est considérée prise en charge par celui qui la clôture. Le chauffeur
+     * est prévenu, avec la note.
+     */
     public function close(DriverAlert $alert, User $actor, string $note): DriverAlert
     {
+        $now = now();
         $updated = DriverAlert::query()
             ->whereKey($alert->getKey())
             ->where('status', '!=', DriverAlertStatus::CLOTUREE->value)
             ->update([
                 'status' => DriverAlertStatus::CLOTUREE->value,
-                'handled_by_user_id' => DB::raw('COALESCE(handled_by_user_id, '.(int) $actor->id.')'),
-                'handled_at' => DB::raw('COALESCE(handled_at, \''.now()->toDateTimeString().'\')'),
                 'closed_by_user_id' => $actor->id,
-                'closed_at' => now(),
+                'closed_at' => $now,
                 'closing_note' => trim($note),
-                'updated_at' => now(),
+                'updated_at' => $now,
             ]);
 
         if ($updated === 0) {
             throw ValidationException::withMessages(['status' => 'Cette demande d’aide est déjà clôturée.']);
         }
+
+        // Seule la clôture gagnante arrive ici : on complète la prise en charge si personne ne l'avait faite
+        DriverAlert::query()
+            ->whereKey($alert->getKey())
+            ->whereNull('handled_by_user_id')
+            ->update(['handled_by_user_id' => $actor->id, 'handled_at' => $now]);
 
         $this->eventLogger->log(
             aggregateType: 'driver_alert',
@@ -217,7 +288,10 @@ class DriverAlertService
             newValues: ['closing_note' => trim($note)]
         );
 
-        return $alert->refresh()->load($this->relations());
+        $alert->refresh()->load($this->relations());
+        $this->safely('clôture', $alert, fn () => $this->notifyDriverClosed($alert, $actor));
+
+        return $alert;
     }
 
     /** @return list<string> */
@@ -304,7 +378,7 @@ class DriverAlertService
             ]
         );
 
-        $municipality = Municipality::query()->where('is_active', true)->first();
+        $municipality = $this->activeMunicipality();
 
         if ($municipality?->on_call_email) {
             try {
@@ -323,7 +397,7 @@ class DriverAlertService
      */
     public function onCallMailFailed(DriverAlert $alert, Throwable $exception): void
     {
-        $municipality = Municipality::query()->where('is_active', true)->first();
+        $municipality = $this->activeMunicipality();
         $contact = trim(($municipality?->on_call_name ?? 'Le contact de garde').($municipality?->on_call_phone ? " ({$municipality->on_call_phone})" : ''));
 
         $this->eventLogger->log(
@@ -367,6 +441,62 @@ class DriverAlertService
             urgent: true,
             link: ['path' => '/chauffeur/journee', 'label' => 'Ma journée', 'overrides_reservation' => true]
         );
+    }
+
+    private function notifyDriverClosed(DriverAlert $alert, User $actor): void
+    {
+        $driverUser = $alert->driver?->user;
+
+        if ($driverUser === null) {
+            return;
+        }
+
+        $agentName = trim($actor->first_name.' '.$actor->last_name);
+
+        $this->notificationDispatchService->dispatch(
+            users: collect([$driverUser]),
+            eventKey: 'driver_alert.closed',
+            category: 'driver_alert',
+            title: 'Votre demande d’aide est clôturée',
+            message: "Demande d’aide n° {$alert->id}, clôturée par {$agentName} : « {$alert->closing_note} »",
+            reservation: $alert->reservation,
+            priority: 'high',
+            urgent: true,
+            link: ['path' => '/chauffeur/journee', 'label' => 'Ma journée', 'overrides_reservation' => true]
+        );
+    }
+
+    /**
+     * Notification après une action déjà enregistrée : une panne (base, file d'attente, email) ne doit pas transformer
+     * le succès en erreur 500, sinon le chauffeur croit que son aide n'est pas partie et l'agent réessaie pour rien.
+     */
+    private function safely(string $action, DriverAlert $alert, callable $send): void
+    {
+        try {
+            $send();
+        } catch (Throwable $exception) {
+            Log::error("Notification de demande d’aide non envoyée ({$action})", [
+                'alert_id' => $alert->id,
+                'error' => $exception->getMessage(),
+            ]);
+        }
+    }
+
+    /** Trajet en cours de journée : approuvé ou confirmé, aujourd'hui ou hier (un trajet du soir qui finit après minuit) */
+    private function isCurrentTrip(Reservation $reservation): bool
+    {
+        $today = CarbonImmutable::now($this->timezone())->toDateString();
+        $yesterday = CarbonImmutable::now($this->timezone())->subDay()->toDateString();
+        $day = $reservation->trip_date?->toDateString();
+
+        return in_array($reservation->status, [ReservationStatus::APPROUVE, ReservationStatus::CONFIRME], true)
+            && in_array($day, [$today, $yesterday], true);
+    }
+
+    /** Commune active, lue une fois par requête (une seule commune active : règle du projet) */
+    private function activeMunicipality(): ?Municipality
+    {
+        return once(fn () => Municipality::query()->where('is_active', true)->orderBy('id')->first());
     }
 
     /** Texte commun à la cloche, à l'email et au contact de garde */

@@ -45,6 +45,7 @@ final class EmailPresenter
         'trip_report.not_realised' => 'Compte rendu du chauffeur',
         'driver_alert.created' => 'Demande d’aide',
         'driver_alert.taken' => 'Aide en cours',
+        'driver_alert.closed' => 'Aide terminée',
         'driver_alert.on_call_failed' => 'Contact de garde non prévenu',
         'organization.banned' => 'Organisation suspendue',
         'organization.unbanned' => 'Organisation réactivée',
@@ -125,7 +126,7 @@ final class EmailPresenter
             $eventKey === 'organization.banned' => 'danger',
             $eventKey === 'organization.unbanned' => 'success',
             $eventKey === 'driver_alert.created', $eventKey === 'driver_alert.on_call_failed' => 'danger',
-            $eventKey === 'driver_alert.taken' => 'info',
+            $eventKey === 'driver_alert.taken', $eventKey === 'driver_alert.closed' => 'info',
             $category === 'admin_workflow', $category === 'driver_planning' => 'info',
             default => 'neutral',
         };

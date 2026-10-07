@@ -24,7 +24,9 @@ use Database\Seeders\TestFleetSeeder;
 use Database\Seeders\TestLocationsSeeder;
 use Database\Seeders\TestOrganizationsSeeder;
 use Database\Seeders\TestUsersSeeder;
+use App\Services\Notifications\NotificationDispatchService;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\ValidationException;
 use Laravel\Sanctum\Sanctum;
@@ -58,10 +60,18 @@ class DriverAlertApiTest extends TestCase
         Mail::fake();
     }
 
+    protected function tearDown(): void
+    {
+        Carbon::setTestNow();
+
+        parent::tearDown();
+    }
+
     public function test_driver_sends_an_alert_with_position_and_agents_admins_and_on_call_contact_are_warned(): void
     {
         $this->activeMunicipality(['on_call_name' => 'Garde technique', 'on_call_email' => 'garde@dinant.test']);
         $reservation = $this->confirmedReservation();
+        Carbon::setTestNow('2026-06-16 07:30:00'); // 09:30 à Bruxelles, le jour du trajet
         Sanctum::actingAs($this->driverUser());
 
         $alertId = $this->postJson('/api/driver-alerts', [
@@ -108,6 +118,7 @@ class DriverAlertApiTest extends TestCase
     {
         $this->activeMunicipality();
         $reservation = $this->confirmedReservation();
+        Carbon::setTestNow('2026-06-16 07:30:00');
         TripEvent::query()->create([
             'reservation_id' => $reservation->id,
             'driver_id' => $reservation->driver_id,
@@ -189,6 +200,12 @@ class DriverAlertApiTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.status', 'cloturee')
             ->assertJsonPath('data.closed_by', 'Bruno Agent');
+
+        $this->assertDatabaseHas('notification_deliveries', [
+            'notifiable_id' => $this->driverUser()->id,
+            'event_key' => 'driver_alert.closed',
+            'channel' => 'database',
+        ]);
 
         Sanctum::actingAs($this->driverUser());
         $this->patchJson("/api/driver-alerts/{$alertId}/position", ['position' => self::POSITION])
@@ -274,6 +291,107 @@ class DriverAlertApiTest extends TestCase
             'event_type' => 'driver_alert.on_call_failed',
         ]);
         $this->assertSame(3, (new DriverAlertOnCallMail($alert, 'x', 'y', null))->tries);
+    }
+
+    public function test_a_second_press_returns_the_alert_in_progress_without_warning_everyone_again(): void
+    {
+        $agent = $this->user('agent.test@bus-communal.local');
+        Sanctum::actingAs($this->driverUser());
+
+        $first = $this->postJson('/api/driver-alerts', ['position' => self::POSITION, 'message' => 'Pneu crevé'])
+            ->assertCreated()
+            ->assertJsonPath('meta.created', true)
+            ->json('data.id');
+
+        // Nouvel appui sans clé anti-doublon : même alerte, position et message mis à jour, pas de nouvel avertissement
+        $this->postJson('/api/driver-alerts', ['position' => [...self::POSITION, 'latitude' => 50.27], 'message' => 'Un enfant a froid'])
+            ->assertOk()
+            ->assertJsonPath('meta.created', false)
+            ->assertJsonPath('data.id', $first)
+            ->assertJsonPath('data.position.latitude', 50.27)
+            ->assertJsonPath('data.position.updates', 1);
+
+        $this->assertDatabaseCount('driver_alerts', 1);
+        $this->assertStringContainsString('Pneu crevé', DriverAlert::query()->findOrFail($first)->message);
+        $this->assertStringContainsString('Un enfant a froid', DriverAlert::query()->findOrFail($first)->message);
+        $this->assertSame(1, NotificationDelivery::query()
+            ->where('notifiable_id', $agent->id)->where('event_key', 'driver_alert.created')->where('channel', 'database')->count());
+
+        // Une fois clôturée, un nouvel appui crée une nouvelle alerte
+        Sanctum::actingAs($agent);
+        $this->postJson("/api/driver-alerts/{$first}/close", ['closing_note' => 'Réglé.'])->assertOk();
+        Sanctum::actingAs($this->driverUser());
+        $this->postJson('/api/driver-alerts', ['position' => self::POSITION])->assertCreated();
+        $this->assertDatabaseCount('driver_alerts', 2);
+    }
+
+    public function test_an_alert_is_attached_only_to_a_trip_that_takes_place_today(): void
+    {
+        Sanctum::actingAs($this->driverUser());
+        Carbon::setTestNow('2026-06-20 08:00:00'); // le trajet du 16/06 est passé
+
+        $past = $this->confirmedReservation();
+        $this->postJson('/api/driver-alerts', ['reservation_id' => $past->id, 'position' => self::POSITION])
+            ->assertCreated()
+            ->assertJsonPath('data.reservation', null)
+            ->assertJsonPath('data.trip_progress', null);
+
+        Sanctum::actingAs($this->user('agent.test@bus-communal.local'));
+        $this->postJson('/api/driver-alerts/'.DriverAlert::query()->latest('id')->value('id').'/close', ['closing_note' => 'Test.'])->assertOk();
+
+        // Annulé le jour même : pas de trajet non plus ; confirmé le jour même : rattaché
+        Sanctum::actingAs($this->driverUser());
+        $cancelled = $this->confirmedReservation(['trip_date' => '2026-06-20', 'status' => ReservationStatus::ANNULE]);
+        $alertId = $this->postJson('/api/driver-alerts', ['reservation_id' => $cancelled->id, 'position' => self::POSITION])
+            ->assertCreated()
+            ->assertJsonPath('data.reservation', null)
+            ->json('data.id');
+
+        Sanctum::actingAs($this->user('agent.test@bus-communal.local'));
+        $this->postJson("/api/driver-alerts/{$alertId}/close", ['closing_note' => 'Test.'])->assertOk();
+
+        Sanctum::actingAs($this->driverUser());
+        $today = $this->confirmedReservation(['trip_date' => '2026-06-20', 'departure_time' => '08:00:00', 'return_time' => '18:00:00']);
+        $this->postJson('/api/driver-alerts', ['reservation_id' => $today->id, 'position' => self::POSITION])
+            ->assertCreated()
+            ->assertJsonPath('data.reservation.id', $today->id);
+    }
+
+    public function test_a_notification_failure_never_turns_a_recorded_action_into_an_error(): void
+    {
+        $this->mock(NotificationDispatchService::class, fn ($mock) => $mock
+            ->shouldReceive('dispatch')
+            ->andThrow(new RuntimeException('File de notifications en panne')));
+
+        Sanctum::actingAs($this->driverUser());
+        $alertId = $this->postJson('/api/driver-alerts', ['position' => self::POSITION])->assertCreated()->json('data.id');
+
+        $agent = $this->user('agent.test@bus-communal.local');
+        Sanctum::actingAs($agent);
+        $this->postJson("/api/driver-alerts/{$alertId}/take")->assertOk()->assertJsonPath('data.status', 'prise_en_charge');
+        $this->postJson("/api/driver-alerts/{$alertId}/close", ['closing_note' => 'Réglé par téléphone.'])
+            ->assertOk()
+            ->assertJsonPath('data.status', 'cloturee');
+    }
+
+    public function test_closing_an_alert_nobody_took_marks_the_closer_as_handler(): void
+    {
+        Sanctum::actingAs($this->driverUser());
+        $alertId = $this->postJson('/api/driver-alerts', ['position' => ['state' => 'refusee']])
+            ->assertCreated()
+            ->assertJsonPath('data.position.state', 'refusee')
+            ->json('data.id');
+
+        Sanctum::actingAs($this->user('agent.test@bus-communal.local'));
+        $this->postJson("/api/driver-alerts/{$alertId}/close", ['closing_note' => 'Fausse alerte.'])
+            ->assertOk()
+            ->assertJsonPath('data.handled_by', 'Bruno Agent')
+            ->assertJsonPath('data.closed_by', 'Bruno Agent');
+        $this->assertNotNull(DriverAlert::query()->findOrFail($alertId)->handled_at);
+
+        // Un autre chauffeur ne peut pas envoyer de position sur cette alerte
+        Sanctum::actingAs($this->otherDriver()->user);
+        $this->patchJson("/api/driver-alerts/{$alertId}/position", ['position' => self::POSITION])->assertForbidden();
     }
 
     private function activeMunicipality(array $attributes = []): Municipality

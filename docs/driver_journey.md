@@ -57,9 +57,9 @@ Routes (`TripProgressController`, permission `trip-progress.record` ou `trip-pro
 Règles (`TripProgressService::record`) :
 
 ```
+ni agent / admin, ni chauffeur affecté                   → 403 (vérifié en premier : rien n'est dit d'un autre trajet)
 trajet pas confirmé, ou déclaré non réalisé              → 422 (reservation)
-ni agent / admin, ni chauffeur affecté                   → 403
-étape déjà enregistrée                                   → 200, rien ne change
+étape déjà enregistrée                                   → 200, rien ne change (sauf le rattrapage ci-dessous)
 pas l'étape suivante                                     → 422 (type) « Étape attendue : … »
 chauffeur, départ : à partir de N min avant l'heure prévue
   (config driver_journey.departure_window_minutes, 60)
@@ -70,7 +70,9 @@ agent / admin : pas de contrainte d'heure (source agent)
 
 **Validation automatique** : la dernière arrivée crée le compte rendu « réalisé » (`TripReportService::save`) avec les
 heures réelles du départ et du départ du retour (heure de Bruxelles) et les passagers confirmés, sauf si un compte rendu
-existe déjà. La réservation reste `confirme`.
+existe déjà. La réservation reste `confirme`. Si cette création échoue (erreur 500 après l'enregistrement de l'étape),
+le réessai de la dernière arrivée la refait : étape déjà enregistrée et pas de compte rendu → compte rendu créé
+(`meta.trip_report`).
 
 ## 4. Demandes d'aide
 
@@ -78,7 +80,7 @@ Table `driver_alerts`, routes `DriverAlertController` :
 
 | Méthode | Route | Qui | Effet |
 | --- | --- | --- | --- |
-| POST | `/driver-alerts` | chauffeur (`driver-alerts.create`) | `reservation_id` (facultatif, une de ses missions), `message` (facultatif, 500 max), `position`. 201. `Idempotency-Key` accepté : un double appui ne crée pas deux alertes |
+| POST | `/driver-alerts` | chauffeur (`driver-alerts.create`) | `reservation_id` (facultatif, une de ses missions), `message` (facultatif, 500 max), `position`. 201 et `meta.created: true` ; **une seule alerte en cours par chauffeur** : 200 et `meta.created: false` (voir plus bas). `Idempotency-Key` accepté. 10 envois par minute au plus (429) |
 | PATCH | `/driver-alerts/{id}/position` | le chauffeur de l'alerte | « Renvoyer ma position » (alerte non clôturée) ; `position.updates` compte les renvois |
 | GET | `/driver-alerts` | agent / admin (toutes), chauffeur (les siennes) | `statuses[]`, `date_from`, `date_to`, `per_page` (1 à 100) ; non clôturées d'abord, puis les plus récentes |
 | GET | `/driver-alerts/{id}` | idem | détail |
@@ -88,6 +90,18 @@ Table `driver_alerts`, routes `DriverAlertController` :
 Prise en charge et clôture sont des mises à jour conditionnelles en une requête (`WHERE status = 'ouverte'`, ou
 `!= 'cloturee'`) : si deux agents cliquent en même temps, un seul gagne ; l'autre reçoit 422 « déjà prise en charge
 par … » et le chauffeur n'est prévenu qu'une fois.
+
+Une seule alerte en cours (ouverte ou prise en charge) par chauffeur, sous verrou sur le chauffeur :
+
+```
+alerte en cours           → renvoyée (200) : nouvelle position si elle a des coordonnées (position.updates + 1),
+                            nouveau message ajouté avec l'heure ; pas de nouvel email (historique driver_alert.repeated)
+sinon                     → nouvelle alerte (201) et notifications
+```
+
+Le trajet n'est rattaché que s'il a lieu : approuvé ou confirmé, **aujourd'hui ou hier** (trajet du soir qui finit
+après minuit). Sinon (trajet passé, futur, annulé), l'alerte part **sans trajet** : jamais refusée, mais sans contexte
+trompeur pour les agents. Un trajet d'un autre chauffeur reste refusé (422).
 
 Sans position, `fallback_location` donne le **dernier lieu connu**, d'après l'avancement du trajet : en route vers la
 destination ou sur place → la destination ; sinon → le lieu de départ (libellé explicite : « En route vers la
@@ -103,7 +117,17 @@ Notifications (catégorie `driver_alert`, `urgent` : ni récapitulatif, ni déla
   avec la carte en bouton principal ; une panne d'envoi n'empêche pas l'alerte. Si l'email échoue définitivement,
   `failed()` prévient les agents et admins dans l'application (`driver_alert.on_call_failed` : « prévenez-le autrement »,
   avec son téléphone) et le note dans l'historique de l'alerte ;
-- prise en charge : le chauffeur (`driver_alert.taken`).
+- prise en charge : le chauffeur (`driver_alert.taken`) ;
+- clôture : le chauffeur, avec la note (`driver_alert.closed`). Une alerte clôturée sans prise en charge est notée prise
+  en charge par celui qui la clôture.
+
+Une notification qui échoue (base, file d'attente, email) est notée dans le journal (`Log::error`) sans faire échouer
+l'action : l'alerte, la prise en charge ou la clôture restent enregistrées et la réponse reste un succès. Sinon, le
+chauffeur croirait que son aide n'est pas partie.
+
+**Données envoyées au contact de garde** : le téléphone du chauffeur, sa position et son message partent par email vers
+une adresse sans compte dans l'application. C'est voulu : la garde doit pouvoir le rappeler et le localiser. L'adresse
+est réglée par un admin (Communes) ; la laisser vide coupe cet envoi.
 
 Le texte (`summary`) reprend le numéro, l'heure, le trajet et les passagers prévus, le message, la position (précision)
 ou le dernier lieu connu, et le téléphone du chauffeur.
@@ -169,11 +193,14 @@ coordonnées manquantes ou ORS en panne           → data: null (le front garde
 ```
 départ (aller), arrivée au lieu de départ  → lieu prévu = lieu de départ (pickup)
 arrivée à destination, départ du retour   → lieu prévu = destination
-distance (vol d'oiseau) > seuil            → far_from_expected = true (signalé dans le Planning, rien n'est bloqué)
+distance (vol d'oiseau) > seuil + précision du GPS (accuracy_m)
+                                           → far_from_expected = true (signalé dans le Planning, rien n'est bloqué)
 position ou coordonnées du lieu absentes   → distance_m null, pas de signal
 ```
 
 Chaque entrée : `type`, `expected_place`, `expected_latitude`, `expected_longitude`, `distance_m`, `far_from_expected`.
+La précision est ajoutée au seuil : une position à 1 000 m près ne crée pas de faux signal. Le seuil vient de la config
+seulement (pas réglable par commune).
 
 ## 9. Étape suivante prévue
 

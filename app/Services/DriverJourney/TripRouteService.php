@@ -2,10 +2,10 @@
 
 namespace App\Services\DriverJourney;
 
-use App\Exceptions\GeocodingException;
 use App\Models\Reservation;
 use App\Models\TripRoute;
 use App\Services\Locations\LocationService;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Throwable;
@@ -55,17 +55,22 @@ class TripRouteService
                 (float) $reservation->destinationLocation->latitude,
                 (float) $reservation->destinationLocation->longitude
             );
-        } catch (GeocodingException|Throwable $exception) {
+        } catch (Throwable $exception) { // GeocodingException comprise
             Log::info('Tracé du trajet non calculé', ['reservation_id' => $reservation->id, 'error' => $exception->getMessage()]);
             Cache::put($failureKey, true, self::FAILURE_RETRY_SECONDS);
 
             return null;
         }
 
-        return TripRoute::query()->updateOrCreate(
-            ['reservation_id' => $reservation->id],
-            [...$route, 'signature' => $signature, 'provider' => 'openrouteservice', 'computed_at' => now()]
-        );
+        try {
+            return TripRoute::query()->updateOrCreate(
+                ['reservation_id' => $reservation->id],
+                [...$route, 'signature' => $signature, 'provider' => 'openrouteservice', 'computed_at' => now()]
+            );
+        } catch (UniqueConstraintViolationException) {
+            // Deux premières ouvertures en même temps : l'autre requête vient d'enregistrer le tracé
+            return TripRoute::query()->where('reservation_id', $reservation->id)->first();
+        }
     }
 
     /** Lieux et coordonnées du calcul ; null s'il manque des coordonnées */

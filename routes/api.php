@@ -487,7 +487,9 @@ Route::name('api.')->group(function (): void {
             Route::get('/driver-alerts/{driverAlert}', [DriverAlertController::class, 'show'])->name('driver-alerts.show');
         });
         Route::middleware('permission:driver-alerts.create')->group(function (): void {
-            Route::post('/driver-alerts', [DriverAlertController::class, 'store'])->name('driver-alerts.store');
+            Route::post('/driver-alerts', [DriverAlertController::class, 'store'])
+                ->middleware('throttle:10,1')
+                ->name('driver-alerts.store');
             Route::patch('/driver-alerts/{driverAlert}/position', [DriverAlertController::class, 'updatePosition'])->name('driver-alerts.position');
         });
         Route::middleware('permission:driver-alerts.manage')->group(function (): void {

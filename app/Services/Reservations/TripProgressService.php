@@ -161,7 +161,8 @@ class TripProgressService
      *
      *   départ (aller) et arrivée au lieu de départ → lieu de départ ; arrivée à destination et départ du retour → destination
      *   position ou coordonnées du lieu absentes → distance null, pas de signal
-     *   distance > seuil (step_distance_warning_meters) → far_from_expected = true
+     *   distance > seuil + précision du GPS (step_distance_warning_meters + accuracy_m) → far_from_expected = true
+     *   (une position imprécise ne crée pas de faux signal ; sans précision connue, le seuil seul)
      *
      * @param  Collection<int, TripEvent>  $events
      * @return list<array{type: string, expected_place: string, expected_latitude: ?float, expected_longitude: ?float, distance_m: ?int, far_from_expected: bool}>
@@ -193,7 +194,7 @@ class TripProgressService
                     'expected_latitude' => $place?->latitude !== null ? (float) $place->latitude : null,
                     'expected_longitude' => $place?->longitude !== null ? (float) $place->longitude : null,
                     'distance_m' => $distance,
-                    'far_from_expected' => $distance !== null && $distance > $threshold,
+                    'far_from_expected' => $distance !== null && $distance > $threshold + (int) ($event->accuracy_m ?? 0),
                 ];
             })
             ->values()
@@ -219,16 +220,17 @@ class TripProgressService
      */
     public function record(Reservation $reservation, User $actor, TripEventType $type, DevicePosition $position, array $passengers = []): array
     {
-        if ($reservation->status !== ReservationStatus::CONFIRME) {
-            throw ValidationException::withMessages([
-                'reservation' => 'Seul un trajet confirmé (chauffeur et véhicule affectés) peut être suivi.',
-            ]);
-        }
-
+        // Le droit d'abord : un chauffeur n'apprend rien (statut…) d'un trajet qui n'est pas le sien
         $isManager = $this->canManage($actor);
 
         if (! $isManager && (! $actor->can('trip-progress.record') || ! $this->isAssignedDriver($reservation, $actor))) {
             throw new AuthorizationException('Seul le chauffeur affecté peut enregistrer les étapes de ce trajet.');
+        }
+
+        if ($reservation->status !== ReservationStatus::CONFIRME) {
+            throw ValidationException::withMessages([
+                'reservation' => 'Seul un trajet confirmé (chauffeur et véhicule affectés) peut être suivi.',
+            ]);
         }
 
         if ($this->isDeclaredNotRealised($reservation)) {
@@ -241,7 +243,12 @@ class TripProgressService
         $existing = $events->first(fn (TripEvent $event): bool => $event->type === $type);
 
         if ($existing !== null) {
-            return ['event' => $existing, 'created' => false, 'report' => null];
+            // Réessai de la dernière arrivée alors que le compte rendu n'avait pas pu être créé : on le crée maintenant
+            $report = $type === TripEventType::ARRIVEE_RETOUR
+                ? $this->createRealisedReport($reservation->fresh(), $actor, $events, $passengers)
+                : null;
+
+            return ['event' => $existing, 'created' => false, 'report' => $report];
         }
 
         $next = $this->nextStep($events);
