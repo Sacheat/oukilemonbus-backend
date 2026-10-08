@@ -2,7 +2,6 @@
 
 namespace App\Policies;
 
-use App\Enums\OrganizationType;
 use App\Enums\ReservationStatus;
 use App\Models\CouncilDecision;
 use App\Models\Reservation;
@@ -15,9 +14,9 @@ use App\Models\User;
  *          membre de l'organisation, chauffeur assigné) voient celles liées à leurs
  *          réservations — miroir de ReservationPolicy::view().
  *
- * create() / update() : réservés aux internes, avec deux gardes supplémentaires :
- *   - L'organisation ne doit pas être isCouncilDecisionExempt() (ex. les écoles).
- *   - Le statut de la réservation doit être EN_ATTENTE, EN_CONFLIT ou APPROUVE.
+ * create() / update() : réservés aux internes, réservation EN_ATTENTE, EN_CONFLIT ou APPROUVE.
+ *   Toutes les organisations : la décision est exigée pour les types non exemptés (CPAS, ASBL, externes) et
+ *   facultative pour les autres (écoles, personnel communal), qui peuvent en recevoir une pour une dérogation horaire.
  */
 class CouncilDecisionPolicy
 {
@@ -57,7 +56,6 @@ class CouncilDecisionPolicy
     {
         return $user->can('council-decisions.create')
             && $this->isInternal($user)
-            && ! $reservation->organization->type?->isCouncilDecisionExempt()
             && $this->hasAllowedReservationStatus($reservation);
     }
 
@@ -65,7 +63,6 @@ class CouncilDecisionPolicy
     {
         return $user->can('council-decisions.update')
             && $this->isInternal($user)
-            && ! $councilDecision->reservation->organization->type?->isCouncilDecisionExempt()
             && $this->hasAllowedReservationStatus($councilDecision->reservation);
     }
 

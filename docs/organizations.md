@@ -18,6 +18,11 @@ Définis dans l'enum `App\Enums\OrganizationType` :
 
 Les comportements (priorité, auto-approbation, exemptions) sont configurés dans `config/reservations.php` et non codés en dur, ce qui permet de les ajuster sans modifier le code.
 
+« Exempte de décision du Collège » veut dire que la décision n'est jamais **exigée** (approbation sans Collège, absente
+de « Collège à décider »). Elle reste **possible** (`POST /council-decisions`) : utile pour une dérogation horaire, avec
+les mêmes effets que pour les autres types (favorable : dérogations levées et délibération ; défavorable : réservation
+refusée).
+
 ---
 
 ## Quota annuel

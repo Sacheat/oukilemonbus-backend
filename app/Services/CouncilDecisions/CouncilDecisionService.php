@@ -26,8 +26,9 @@ use Illuminate\Validation\ValidationException;
  *   - APPROUVE → résout les conflits de dérogation (horaire / durée) via
  *                resolveCouncilDerogationConflicts() ; ne touche pas les autres conflits.
  *
- * Seules les organisations qui ne sont pas isCouncilDecisionExempt() peuvent avoir
- * une décision du collège (ex. les écoles en sont exemptées).
+ * Toutes les organisations peuvent avoir une décision du collège. Elle est exigée avant approbation pour les types
+ * non exemptés (ReservationService::ensureCouncilDecisionAllowsApproval) et facultative pour les autres (écoles,
+ * personnel communal) : utile pour une dérogation horaire, avec les mêmes effets (refus → réservation refusée).
  *
  * Après create() ou update(), génère la délibération PDF si le statut est final
  * (APPROUVE ou REFUSE) via DeliberationDocumentService, puis notifie le demandeur.
@@ -48,7 +49,6 @@ class CouncilDecisionService
             ->with(['organization', 'councilDecision'])
             ->findOrFail($data['reservation_id']);
 
-        $this->ensureCouncilDecisionRequired($reservation);
 
         if ($reservation->hasTripDatePassed()) {
             throw ValidationException::withMessages([
@@ -91,7 +91,6 @@ class CouncilDecisionService
     {
         $councilDecision->loadMissing(['reservation.organization', 'recordedByUser']);
 
-        $this->ensureCouncilDecisionRequired($councilDecision->reservation);
 
         // Trajet passé : la décision est figée, seules les notes peuvent encore être corrigées
         if ($councilDecision->reservation->hasTripDatePassed()) {
@@ -190,18 +189,13 @@ class CouncilDecisionService
         return $councilDecision->refresh()->load(['reservation.organization', 'recordedByUser']);
     }
 
-    private function ensureCouncilDecisionRequired(Reservation $reservation): void
-    {
-        if ($reservation->organization->type?->isCouncilDecisionExempt()) {
-            throw ValidationException::withMessages([
-                'reservation' => 'Aucune décision du collège n’est requise pour ce type d’organisation.',
-            ]);
-        }
-    }
-
+    /**
+     * Décision favorable : lève les dérogations horaires, puis fait avancer la réservation s'il ne reste aucun conflit
+     * ouvert (même suite qu'une résolution manuelle, ReservationService::checkAndAutoTransition).
+     */
     private function resolveCouncilDerogationConflicts(Reservation $reservation, User $actor): void
     {
-        $reservation->conflicts()
+        $resolved = $reservation->conflicts()
             ->where('is_resolved', false)
             ->whereIn('type', [
                 ReservationConflictType::DEPARTURE_BEFORE_ALLOWED_TIME->value,
@@ -213,6 +207,10 @@ class CouncilDecisionService
                 'resolved_by_user_id' => $actor->id,
                 'resolved_at' => now(),
             ]);
+
+        if ($resolved > 0) {
+            $this->reservationService->checkAndAutoTransition($reservation, $actor);
+        }
     }
 
     private function generateDeliberationIfFinal(CouncilDecision $decision): ?Document
