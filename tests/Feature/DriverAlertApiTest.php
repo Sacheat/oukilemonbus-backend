@@ -237,6 +237,24 @@ class DriverAlertApiTest extends TestCase
         $this->getJson("/api/driver-alerts/{$other}")->assertForbidden();
     }
 
+    public function test_open_alerts_come_before_taken_ones_even_when_older(): void
+    {
+        Sanctum::actingAs($this->driverUser());
+        $open = $this->postJson('/api/driver-alerts', ['position' => self::POSITION])->json('data.id');
+        Sanctum::actingAs($this->otherDriver()->user);
+        $taken = $this->postJson('/api/driver-alerts', ['position' => self::POSITION])->json('data.id');
+
+        // La demande ouverte est la plus ancienne ; l'autre, plus récente, est déjà prise en charge
+        DriverAlert::query()->whereKey($open)->update(['created_at' => now()->subMinutes(30)]);
+        Sanctum::actingAs($this->user('agent.test@bus-communal.local'));
+        $this->postJson("/api/driver-alerts/{$taken}/take")->assertOk();
+
+        $this->getJson('/api/driver-alerts')
+            ->assertOk()
+            ->assertJsonPath('data.0.id', $open) // personne ne s'en occupe : en tête malgré son ancienneté
+            ->assertJsonPath('data.1.id', $taken);
+    }
+
     public function test_two_agents_taking_the_same_alert_at_once_only_one_wins(): void
     {
         Sanctum::actingAs($this->driverUser());
