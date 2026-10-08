@@ -15,6 +15,8 @@ use Illuminate\Validation\Rule;
  * même règle que le compteur council_pending du tableau de bord).
  * `unassigned=1` : réservations auxquelles il manque un chauffeur ou un véhicule (file « À affecter » de la gestion,
  * avec statuses[]=approuve) ; filtré par la base, pour garder une pagination juste.
+ * `passengers_to_confirm=1` : trajets actifs des 14 prochains jours dont les passagers ne sont pas confirmés
+ * (scope Reservation::awaitingPassengerConfirmation, même règle que le compteur du tableau de bord).
  * L'accès est contrôlé par la Policy dans le contrôleur.
  */
 class ListReservationsRequest extends FormRequest
@@ -33,6 +35,7 @@ class ListReservationsRequest extends FormRequest
             'q' => ['sometimes', 'nullable', 'string', 'max:100'],
             'council' => ['sometimes', 'in:a_decider'],
             'unassigned' => ['sometimes', 'boolean'],
+            'passengers_to_confirm' => ['sometimes', 'boolean'],
         ];
     }
 
@@ -43,6 +46,7 @@ class ListReservationsRequest extends FormRequest
             'statuses.prohibits' => 'Utilisez soit status, soit statuses[], pas les deux.',
             'statuses.*.enum' => 'Statut inconnu.',
             'council.in' => 'Le filtre council n’accepte que la valeur a_decider.',
+            'passengers_to_confirm.boolean' => 'Le filtre passengers_to_confirm doit valoir 0 ou 1.',
         ];
     }
 
