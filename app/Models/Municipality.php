@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'latitude', 'longitude', 'depot_location_id', 'max_trip_distance_km', 'max_pickup_distance_km',
     'on_call_name', 'on_call_email', 'on_call_phone',
     'navigation_engine', 'driver_departure_window_min',
+    'weekly_planning_enabled', 'weekly_planning_send_day', 'weekly_planning_send_time', 'weekly_planning_owner_user_id',
 ])]
 /**
  * Commune belge avec ses localités.
@@ -40,6 +41,12 @@ class Municipality extends Model
         return $this->hasMany(MunicipalityLocality::class)->where('is_active', true);
     }
 
+    /** Responsable du planning hebdomadaire (agent ou admin) : seul à le recevoir par défaut (WeeklyPlanningService) */
+    public function weeklyPlanningOwner(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'weekly_planning_owner_user_id');
+    }
+
     public function depotLocation(): BelongsTo
     {
         return $this->belongsTo(Location::class, 'depot_location_id');
@@ -54,6 +61,8 @@ class Municipality extends Model
             'longitude' => 'decimal:8',
             'max_trip_distance_km' => 'integer',
             'max_pickup_distance_km' => 'integer',
+            'weekly_planning_enabled' => 'boolean',
+            'weekly_planning_send_day' => 'integer',
         ];
     }
 }

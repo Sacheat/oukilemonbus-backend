@@ -17,6 +17,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'notify_admin_workflow_email',
     'notify_last_minute_cancellation_in_app',
     'notify_last_minute_cancellation_email',
+    'weekly_planning_opt_in',
+    'notify_weekly_planning_in_app',
+    'notify_weekly_planning_email',
     'digest_frequency',
     'quiet_hours_start',
     'quiet_hours_end',
@@ -24,6 +27,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 /**
  * Préférences de notification d'un utilisateur.
  * Créée automatiquement par NotificationPreferenceService::forUser() si elle n'existe pas encore.
+ * `weekly_planning_opt_in` : planning hebdomadaire, null = automatique (le responsable désigné de la commune, sinon
+ * tous les agents et admins), true = toujours, false = jamais (WeeklyPlanningService).
  * `digest_frequency` : none | daily | weekly — détermine la fréquence des emails récapitulatifs.
  * `quiet_hours_start` / `quiet_hours_end` : plage horaire pendant laquelle les notifications
  * sont mises en file d'attente plutôt qu'envoyées immédiatement (0–23h).
@@ -48,6 +53,9 @@ class UserNotificationPreference extends Model
             'notify_admin_workflow_email' => 'boolean',
             'notify_last_minute_cancellation_in_app' => 'boolean',
             'notify_last_minute_cancellation_email' => 'boolean',
+            'weekly_planning_opt_in' => 'boolean',
+            'notify_weekly_planning_in_app' => 'boolean',
+            'notify_weekly_planning_email' => 'boolean',
             'quiet_hours_start' => 'integer',
             'quiet_hours_end' => 'integer',
         ];

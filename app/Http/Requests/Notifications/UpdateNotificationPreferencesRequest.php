@@ -23,6 +23,10 @@ class UpdateNotificationPreferencesRequest extends FormRequest
             'notify_admin_workflow_email' => ['sometimes', 'boolean'],
             'notify_last_minute_cancellation_in_app' => ['sometimes', 'boolean'],
             'notify_last_minute_cancellation_email' => ['sometimes', 'boolean'],
+            // Planning hebdomadaire (agents et admins) : null = automatique, true = toujours, false = jamais
+            'weekly_planning_opt_in' => ['sometimes', 'nullable', 'boolean'],
+            'notify_weekly_planning_in_app' => ['sometimes', 'boolean'],
+            'notify_weekly_planning_email' => ['sometimes', 'boolean'],
             'digest_frequency' => ['sometimes', 'string', 'in:none,hourly,daily'],
             // null = heures silencieuses désactivées. Les deux bornes vont ensemble (voir after()).
             'quiet_hours_start' => ['sometimes', 'nullable', 'integer', 'between:0,23'],

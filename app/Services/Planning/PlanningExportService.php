@@ -136,7 +136,7 @@ class PlanningExportService
             '.$this->normalCell($reservation->destinationLocation?->formatted_address, $backgroundColor).'
             '.$this->centeredCell($passengers, $backgroundColor).'
             '.$this->normalCell($reservation->trip_purpose, $backgroundColor).'
-            '.$this->centeredCell($reservation->status?->value ?? $reservation->status, $backgroundColor).'
+            '.$this->centeredCell($reservation->status?->label() ?? $reservation->status, $backgroundColor).'
             '.$this->normalCell($contact, $backgroundColor).'
         </tr>';
     }
