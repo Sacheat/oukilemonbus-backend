@@ -213,6 +213,13 @@ réservation), à part du cycle de statuts : la réservation reste `confirme`.
   réaffectation (`/assign`) ni de confirmation des passagers (`/confirm-passengers`) ; plus d'annulation si le trajet
   est réalisé (un « non réalisé » reste annulable, dans le délai habituel). Une indisponibilité saisie après coup
   ignore les trajets qui ont un compte rendu (ni conflit ni désaffectation).
+- Plus tôt encore, un trajet **commencé** est figé (422, clé `reservation`) : dès la première étape enregistrée
+  (« Départ » du chauffeur, voir `docs/driver_journey.md`), plus de modification (`PATCH`), d'affectation (`/assign`,
+  `/retry-assign`) ni d'annulation (`/cancel`), pour l'agent comme pour l'usager. Le message donne l'heure du départ.
+  Si l'heure est passée mais que le chauffeur n'a rien signalé (absent, panne), l'agent peut encore réaffecter. Une
+  étape enregistrée par erreur s'annule d'abord (`DELETE /reservations/{id}/trip-events/last`), ce qui lève le blocage.
+  La réservation expose `trip_started_at` (UTC) et `trip_started_local_time` (HH:MM, Bruxelles), null avant le départ,
+  dans la liste et le détail (absents des réservations imbriquées : décisions du Collège, documents, séries).
 
 6.5 Affectations simultanées et file « À affecter »
 

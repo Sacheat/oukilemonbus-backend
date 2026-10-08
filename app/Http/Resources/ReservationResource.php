@@ -40,6 +40,14 @@ class ReservationResource extends JsonResource
             'estimated_occupation' => $this->estimatedOccupation(),
             'status' => $this->status,
             'status_label' => $this->status?->label(),
+            // Trajet commencé (première étape du chauffeur) : figé, plus de modification, d'affectation ni d'annulation.
+            // Seulement quand l'information est chargée (liste et détail des réservations) : pas de requête par ligne
+            // dans les ressources imbriquées (décisions du Collège, documents, séries).
+            'trip_started_at' => $this->when($this->resource->isTripStartKnown(), fn () => $this->resource->tripStartedAt()?->toISOString()),
+            'trip_started_local_time' => $this->when(
+                $this->resource->isTripStartKnown(),
+                fn () => $this->resource->tripStartedAt()?->setTimezone(config('reservations.local_timezone', 'Europe/Brussels'))->format('H:i'),
+            ),
             'approval_type' => $this->approval_type,
             'approval_type_label' => $this->approval_type?->label(),
             'validated_by_user_id' => $this->validated_by_user_id,

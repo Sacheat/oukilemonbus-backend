@@ -101,6 +101,9 @@ encore annuler (pas pour la dernière arrivée, qui crée le compte rendu ; null
 L'enregistrement et l'annulation prennent le même verrou sur la réservation (`lockForUpdate`) : ils passent l'un après
 l'autre, et une étape ne peut pas être enregistrée pendant que la précédente est effacée (pas de trou dans l'ordre).
 
+Dès la première étape, la réservation est figée : plus de modification, d'affectation ni d'annulation (422, voir
+`docs/reservations.md`, `Reservation::hasTripStarted`). Annuler cette étape lève le blocage.
+
 ## 4. Demandes d'aide
 
 Table `driver_alerts`, routes `DriverAlertController` :

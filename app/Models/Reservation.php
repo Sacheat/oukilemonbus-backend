@@ -117,6 +117,35 @@ class Reservation extends Model
         return $this->hasMany(TripEvent::class);
     }
 
+    /**
+     * Heure (UTC) de la première étape enregistrée (« Départ » du chauffeur, ou saisie par un agent), null si le trajet
+     * n'a pas commencé. Lit l'agrégat withMin('tripEvents', 'occurred_at') de la liste s'il est chargé, sinon la relation.
+     * Un trajet commencé est figé : plus de modification, d'affectation ni d'annulation (ReservationService).
+     */
+    public function tripStartedAt(): ?CarbonImmutable
+    {
+        if (array_key_exists('trip_events_min_occurred_at', $this->attributes)) {
+            $first = $this->attributes['trip_events_min_occurred_at'];
+        } elseif ($this->relationLoaded('tripEvents')) {
+            $first = $this->tripEvents->min('occurred_at');
+        } else {
+            $first = $this->tripEvents()->min('occurred_at');
+        }
+
+        return $first === null ? null : CarbonImmutable::parse($first, config('app.timezone'))->utc();
+    }
+
+    public function hasTripStarted(): bool
+    {
+        return $this->tripStartedAt() !== null;
+    }
+
+    /** L'heure de la première étape est déjà chargée (agrégat ou relation) : la lire ne coûte aucune requête. */
+    public function isTripStartKnown(): bool
+    {
+        return array_key_exists('trip_events_min_occurred_at', $this->attributes) || $this->relationLoaded('tripEvents');
+    }
+
     /** Tracé réel du trajet (OpenRouteService), calculé à la première ouverture, voir TripRouteService. */
     public function tripRoute(): HasOne
     {

@@ -142,6 +142,7 @@ class ReservationService
     public function update(Reservation $reservation, array $data, User $actor): Reservation
     {
         $this->ensureNoTripReport($reservation, 'modifiée');
+        $this->ensureTripNotStarted($reservation, 'modifiée');
 
         return DB::transaction(function () use ($reservation, $data, $actor): Reservation {
             // Valeurs actuelles au format des données entrantes (Y-m-d, H:i) : les attributs castés
@@ -358,6 +359,7 @@ class ReservationService
         $this->assertCanTransition($reservation, ReservationStatus::ANNULE);
         // Un trajet « non réalisé » peut encore être annulé ; un trajet réalisé, non
         $this->ensureNoTripReport($reservation, 'annulée', TripReportOutcome::REALISE);
+        $this->ensureTripNotStarted($reservation, 'annulée');
         $this->ensureCancellationDeadlineNotPassed($reservation, $actor);
 
         return DB::transaction(function () use ($reservation, $actor, $reason): Reservation {
@@ -447,6 +449,8 @@ class ReservationService
 
     public function retryAutoAssign(Reservation $reservation, User $actor): Reservation
     {
+        $this->ensureTripNotStarted($reservation, 'réaffectée');
+
         $reservation = $this->assignmentService->autoAssign($reservation, $actor);
         $this->refreshScheduleOverlapConflicts($reservation, $actor);
         $this->checkAndAutoTransition($reservation, $actor);
@@ -457,6 +461,7 @@ class ReservationService
     public function assign(Reservation $reservation, array $data, User $actor): Reservation
     {
         $this->ensureNoTripReport($reservation, 'réaffectée');
+        $this->ensureTripNotStarted($reservation, 'réaffectée');
 
         $reservation = $this->assignmentService->assign($reservation, $data, $actor);
         $this->refreshScheduleOverlapConflicts($reservation, $actor);
@@ -1013,6 +1018,28 @@ class ReservationService
 
         throw ValidationException::withMessages([
             'reservation' => "Ce trajet a déjà un compte rendu ({$report->outcome->label()}) : la réservation ne peut plus être {$action}.",
+        ]);
+    }
+
+    /**
+     * Trajet commencé (au moins une étape enregistrée, voir TripProgressService) : le bus est parti avec ce chauffeur,
+     * ce véhicule et ces horaires. Plus de modification, d'affectation ni d'annulation ; le trajet se termine par son
+     * compte rendu (« non réalisé » si besoin). Une étape enregistrée par erreur s'annule d'abord
+     * (DELETE /reservations/{id}/trip-events/last), ce qui lève le blocage.
+     */
+    private function ensureTripNotStarted(Reservation $reservation, string $action): void
+    {
+        $startedAt = $reservation->tripStartedAt();
+
+        if ($startedAt === null) {
+            return;
+        }
+
+        $time = $startedAt->setTimezone(config('reservations.local_timezone', 'Europe/Brussels'))->format('H:i');
+
+        throw ValidationException::withMessages([
+            'reservation' => "Le trajet a commencé (départ signalé à {$time}) : la réservation ne peut plus être {$action}. "
+                .'S’il s’agit d’une erreur, un agent peut annuler cette étape depuis le Planning.',
         ]);
     }
 
