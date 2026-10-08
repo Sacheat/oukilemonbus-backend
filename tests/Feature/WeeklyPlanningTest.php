@@ -149,6 +149,29 @@ class WeeklyPlanningTest extends TestCase
         $this->assertSame(3, WeeklyPlanningDispatch::query()->whereDate('week_start', '2026-06-15')->max('version'));
     }
 
+    public function test_corrected_versions_of_two_weeks_sent_in_the_same_pass_both_reach_everyone(): void
+    {
+        // Le samedi, la semaine en cours et la suivante sont toutes deux ouvertes aux corrections
+        $thisWeekTrip = $this->reservation(['trip_date' => '2026-06-10']);
+        $nextWeekTrip = $this->reservation(['trip_date' => '2026-06-16']);
+        Carbon::setTestNow('2026-06-05 10:00:00');
+        $this->artisan('planning:send-weekly')->assertSuccessful();
+        Carbon::setTestNow('2026-06-12 10:00:00');
+        $this->artisan('planning:send-weekly')->assertSuccessful();
+
+        Carbon::setTestNow('2026-06-13 07:00:00');
+        $thisWeekTrip->update(['departure_time' => '10:00:00', 'return_time' => '12:00:00']);
+        $nextWeekTrip->update(['departure_time' => '10:00:00', 'return_time' => '12:00:00']);
+        Carbon::setTestNow('2026-06-13 08:00:00');
+        $this->artisan('planning:send-weekly')->expectsOutputToContain('2 planning(s)')->assertSuccessful();
+
+        // Une notification par semaine : l'anti-spam ne confond pas les deux versions corrigées
+        $this->assertSame(2, NotificationDelivery::query()
+            ->where('notifiable_id', $this->user('agent.test@bus-communal.local')->id)
+            ->where('event_key', 'planning.weekly.updated')->where('channel', 'database')
+            ->count());
+    }
+
     public function test_the_owner_receives_it_alone_by_default_and_the_others_can_opt_in(): void
     {
         $agent = $this->user('agent.test@bus-communal.local');

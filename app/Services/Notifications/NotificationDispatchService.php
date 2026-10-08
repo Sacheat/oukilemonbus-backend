@@ -37,6 +37,9 @@ use Throwable;
  *     le motif (« Motif : … ») pour la cloche du front, l'email le retire du texte et l'affiche à part ;
  *   - `$link` : ['path' => '/gestion/demandes?…', 'label' => 'Ouvrir la demande'], lien vers la SPA quand il n'y a pas
  *     de réservation (demandes d'adhésion et de création). Avec une réservation, le lien dépend du destinataire.
+ *
+ * `$antiSpamScope` distingue, sans réservation, deux envois du même événement qui ne sont pas des doublons (ex. les
+ * versions corrigées de deux semaines de planning envoyées au même passage) ; par défaut, la réservation.
  */
 class NotificationDispatchService
 {
@@ -56,7 +59,8 @@ class NotificationDispatchService
         string $priority = 'normal',
         bool $urgent = false,
         ?string $reason = null,
-        ?array $link = null
+        ?array $link = null,
+        ?string $antiSpamScope = null
     ): void {
         $eventId = (string) Str::uuid();
         $reservationId = $reservation?->id;
@@ -79,7 +83,7 @@ class NotificationDispatchService
                     continue;
                 }
 
-                if (! $urgent && ! $this->passesAntiSpam($user, $eventKey, $channel, $reservationId)) {
+                if (! $urgent && ! $this->passesAntiSpam($user, $eventKey, $channel, $antiSpamScope ?? $reservationId)) {
                     continue;
                 }
 
@@ -188,14 +192,14 @@ class NotificationDispatchService
         }
     }
 
-    private function passesAntiSpam(User $user, string $eventKey, string $channel, ?int $reservationId): bool
+    private function passesAntiSpam(User $user, string $eventKey, string $channel, int|string|null $scope): bool
     {
         $key = sprintf(
             'notifications:cooldown:%d:%s:%s:%s',
             $user->id,
             $eventKey,
             $channel,
-            $reservationId ?? 'none'
+            $scope ?? 'none'
         );
 
         return Cache::add(

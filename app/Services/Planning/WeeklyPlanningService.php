@@ -287,7 +287,8 @@ class WeeklyPlanningService
             message: $this->message($dispatch, $weekStart),
             document: $document,
             priority: 'normal',
-            urgent: false
+            urgent: false,
+            antiSpamScope: 'week:'.$weekStart->toDateString()
         );
 
         return $dispatch->refresh();
