@@ -37,7 +37,7 @@ class DashboardService
                 'pending' => $this->countByStatus(ReservationStatus::EN_ATTENTE),
                 'in_conflict' => $this->countByStatus(ReservationStatus::EN_CONFLIT),
                 'awaiting_assignment' => $this->awaitingAssignmentCount(),
-                'passengers_to_confirm' => $this->passengersToConfirmCount($today),
+                'passengers_to_confirm' => $this->passengersToConfirmCount(),
                 'council_pending' => $this->councilPendingCount(),
                 'join_requests_pending' => UserOrgRequest::query()->where('status', RequestStatus::EN_ATTENTE->value)->count(),
                 'registration_requests_pending' => OrgRegistrationRequest::query()->where('status', RequestStatus::EN_ATTENTE->value)->count(),
@@ -77,16 +77,13 @@ class DashboardService
             ->count();
     }
 
-    /** Trajets actifs d'aujourd'hui à J+N−1 dont les passagers ne sont pas encore confirmés. */
-    private function passengersToConfirmCount(CarbonImmutable $today): int
+    /**
+     * Trajets actifs d'aujourd'hui à J+N−1 dont les passagers ne sont pas encore confirmés
+     * (même règle que GET /reservations?passengers_to_confirm=1 : scope Reservation::awaitingPassengerConfirmation).
+     */
+    private function passengersToConfirmCount(): int
     {
-        $windowDays = (int) config('reservations.passenger_confirmation_window_days', 14);
-
-        return $this->activeReservations()
-            ->whereNull('passengers_confirmed_at')
-            ->whereDate('trip_date', '>=', $today->toDateString())
-            ->whereDate('trip_date', '<=', $today->addDays($windowDays - 1)->toDateString())
-            ->count();
+        return Reservation::query()->awaitingPassengerConfirmation()->count();
     }
 
     /**

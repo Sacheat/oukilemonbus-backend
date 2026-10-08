@@ -78,6 +78,7 @@ docker compose exec app php artisan db:seed   # rôles/permissions + comptes et 
 Utilisateur des processus : php-fpm et le worker de file (`queue`) tournent en `www-data`, pour que les fichiers générés en tâche de fond (exports du planning, feuilles de route…) restent lisibles par l'API. Un `docker compose exec app php artisan …` tourne en root : pour une commande qui écrit dans `storage/` (génération de documents, cache des vues…), préférer `docker compose exec -u www-data app php artisan …`. Au démarrage, l'entrypoint remet `storage/` et `bootstrap/cache/` à `www-data`.
 
 Comptes de test créés en local (mot de passe `password`) : `admin`, `agent`, `reviewer`, `responsable`, `user`, `chauffeur` `.test@bus-communal.local` (`responsable` a le rôle `user` et est responsable de l'ASBL Les Amis du Parc).
+Pour tester « Ma journée » du chauffeur : `docker compose exec app php artisan db:seed --class=DriverJourneyDemoSeeder` (3 trajets aujourd'hui pour `chauffeur.test`, relancer pour remettre la journée à zéro).
 En production, ne lancer que `db:seed --class=RolesAndPermissionsSeeder`.
 
 ---
@@ -228,7 +229,7 @@ app/
   Tooling/                   # Module isolé : Backend Inspector + Dev Toolbox (voir docs/tooling.md)
 database/
   migrations/                # 43 migrations (+ 1 dans app/Tooling/database/migrations)
-  seeders/                   # RolesAndPermissionsSeeder + jeux de test (Test*Seeder, RouteSheetDemoSeeder)
+  seeders/                   # RolesAndPermissionsSeeder + jeux de test (Test*Seeder, RouteSheetDemoSeeder, DriverJourneyDemoSeeder)
 docs/                        # Documentation technique par module
 routes/
   api.php                    # 117 routes API métier

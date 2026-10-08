@@ -132,6 +132,7 @@ ReservationConflict::create([
 | `TestLocationsSeeder` | Lieux avec `place_id` stables (`seed-dinant-pickup`, etc.) |
 | `TestFleetSeeder` | Véhicules et chauffeurs assignables |
 | `TestMunicipalitySeeder` | Commune Dinant active avec localités |
+| `DriverJourneyDemoSeeder` | Démo « Ma journée » (à lancer à la main, `db:seed --class=DriverJourneyDemoSeeder`) : 3 trajets confirmés aujourd'hui pour `chauffeur.test`, à partir de l'heure actuelle ; relancer remet la journée à zéro |
 
 ---
 

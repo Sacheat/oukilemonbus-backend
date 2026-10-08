@@ -67,6 +67,8 @@ class ReservationController extends Controller
                 ->when($request->boolean('unassigned'), fn ($query) => $query->where(
                     fn ($missing) => $missing->whereNull('driver_id')->orWhereNull('vehicle_id')
                 ))
+                // passengers_to_confirm=1 : passagers pas encore confirmés, 14 prochains jours (même règle que le tableau de bord)
+                ->when($request->boolean('passengers_to_confirm'), fn ($query) => $query->awaitingPassengerConfirmation())
                 ->when(request('date_from'), fn ($query, $date) => $query->whereDate('trip_date', '>=', $date))
                 ->when(request('date_to'), fn ($query, $date) => $query->whereDate('trip_date', '<=', $date))
                 // sort=asc : trajet le plus proche d'abord (onglet « À venir ») ; desc par défaut.

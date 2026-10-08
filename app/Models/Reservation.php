@@ -177,6 +177,22 @@ class Reservation extends Model
         );
     }
 
+    /**
+     * Trajets actifs (statut non terminal) d'aujourd'hui à J+N−1 (N = reservations.passenger_confirmation_window_days,
+     * 14 par défaut, jours de Bruxelles) dont le demandeur n'a pas encore confirmé les passagers.
+     * Règle unique, utilisée par GET /reservations?passengers_to_confirm=1 et par le compteur du tableau de bord.
+     */
+    public function scopeAwaitingPassengerConfirmation(Builder $query): void
+    {
+        $today = CarbonImmutable::parse(self::localToday());
+        $windowDays = (int) config('reservations.passenger_confirmation_window_days', 14);
+
+        $query->whereIn('status', ReservationStatus::activeValues())
+            ->whereNull('passengers_confirmed_at')
+            ->whereDate('trip_date', '>=', $today->toDateString())
+            ->whereDate('trip_date', '<=', $today->addDays($windowDays - 1)->toDateString());
+    }
+
     /** Le jour du trajet est passé : strictement avant aujourd'hui à Bruxelles (le jour même n'est pas passé). */
     public function hasTripDatePassed(): bool
     {
