@@ -380,6 +380,49 @@ class TripProgressApiTest extends TestCase
         $this->assertDatabaseCount('trip_events', 1);
     }
 
+    public function test_a_started_trip_is_frozen_until_its_step_is_cancelled(): void
+    {
+        $reservation = $this->confirmedReservation();
+        $agent = $this->user('agent.test@bus-communal.local');
+        $otherVehicle = Vehicle::query()->where('licence_plate', 'BUS-SEED-002')->firstOrFail();
+
+        // Avant le départ : rien n'est figé, et le détail le dit
+        Sanctum::actingAs($agent);
+        Carbon::setTestNow('2026-06-16 06:30:00'); // 08:30 à Bruxelles
+        $this->getJson("/api/reservations/{$reservation->id}")->assertOk()->assertJsonPath('data.trip_started_at', null);
+
+        Sanctum::actingAs($this->driverUser());
+        Carbon::setTestNow('2026-06-16 07:02:00'); // 09:02 à Bruxelles
+        $this->record($reservation, 'depart_aller')->assertCreated();
+
+        // Trajet commencé : modifier, affecter, relancer l'affectation et annuler sont refusés, avec l'heure du départ
+        Sanctum::actingAs($agent);
+        $refusals = [
+            $this->patchJson("/api/reservations/{$reservation->id}", ['trip_purpose' => 'Autre motif']),
+            $this->patchJson("/api/reservations/{$reservation->id}/assign", ['vehicle_id' => $otherVehicle->id]),
+            $this->patchJson("/api/reservations/{$reservation->id}/retry-assign"),
+            $this->patchJson("/api/reservations/{$reservation->id}/cancel", ['reason' => 'Plus besoin du bus.']),
+        ];
+        foreach ($refusals as $response) {
+            $response->assertUnprocessable()->assertJsonValidationErrors(['reservation' => 'départ signalé à 09:02']);
+        }
+        $this->assertSame('Sortie', $reservation->fresh()->trip_purpose);
+        $this->assertSame(ReservationStatus::CONFIRME, $reservation->fresh()->status);
+
+        // Le détail et la liste annoncent le départ
+        $this->getJson("/api/reservations/{$reservation->id}")
+            ->assertJsonPath('data.trip_started_local_time', '09:02')
+            ->assertJsonPath('data.trip_started_at', '2026-06-16T07:02:00.000000Z');
+        $listed = collect($this->getJson('/api/reservations?date_from=2026-06-16&date_to=2026-06-16')->json('data'))
+            ->firstWhere('id', $reservation->id);
+        $this->assertSame('09:02', $listed['trip_started_local_time']);
+
+        // Départ enregistré par erreur : l'agent annule l'étape, la réservation peut de nouveau être modifiée
+        $this->cancel($reservation, 'depart_aller')->assertOk();
+        $this->patchJson("/api/reservations/{$reservation->id}", ['trip_purpose' => 'Autre motif'])->assertOk();
+        $this->assertSame('Autre motif', $reservation->fresh()->trip_purpose);
+    }
+
     private function record(Reservation $reservation, string $type, array $extra = [])
     {
         return $this->postJson($this->url($reservation, 'trip-events'), ['type' => $type, 'position' => self::POSITION, ...$extra]);
