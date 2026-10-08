@@ -263,33 +263,42 @@ class WeeklyPlanningService
             throw $exception;
         }
 
-        $recipients = $this->recipients();
-        $dispatch->update(['document_id' => $document->id, 'recipient_count' => $recipients->count()]);
+        // Même règle après le fichier : un envoi interrompu (base, historique…) ne doit pas compter comme fait. Le fichier
+        // n'est plus proposé et le passage suivant refait cette version (les destinataires déjà prévenus le seront à nouveau).
+        try {
+            $recipients = $this->recipients();
+            $dispatch->update(['document_id' => $document->id, 'recipient_count' => $recipients->count()]);
 
-        $this->eventLogger->log(
-            aggregateType: 'weekly_planning',
-            aggregateId: $dispatch->id,
-            eventType: $version === 1 ? 'weekly_planning.sent' : 'weekly_planning.updated',
-            newValues: [
-                'week_start' => $weekStart->toDateString(),
-                'version' => $version,
-                'document_id' => $document->id,
-                'trip_count' => $dispatch->trip_count,
-                'recipient_count' => $recipients->count(),
-            ]
-        );
+            $this->eventLogger->log(
+                aggregateType: 'weekly_planning',
+                aggregateId: $dispatch->id,
+                eventType: $version === 1 ? 'weekly_planning.sent' : 'weekly_planning.updated',
+                newValues: [
+                    'week_start' => $weekStart->toDateString(),
+                    'version' => $version,
+                    'document_id' => $document->id,
+                    'trip_count' => $dispatch->trip_count,
+                    'recipient_count' => $recipients->count(),
+                ]
+            );
 
-        $this->notificationDispatchService->dispatch(
-            users: $recipients,
-            eventKey: $version === 1 ? 'planning.weekly.sent' : 'planning.weekly.updated',
-            category: 'weekly_planning',
-            title: $this->title($weekStart, $version),
-            message: $this->message($dispatch, $weekStart),
-            document: $document,
-            priority: 'normal',
-            urgent: false,
-            antiSpamScope: 'week:'.$weekStart->toDateString()
-        );
+            $this->notificationDispatchService->dispatch(
+                users: $recipients,
+                eventKey: $version === 1 ? 'planning.weekly.sent' : 'planning.weekly.updated',
+                category: 'weekly_planning',
+                title: $this->title($weekStart, $version),
+                message: $this->message($dispatch, $weekStart),
+                document: $document,
+                priority: 'normal',
+                urgent: false,
+                antiSpamScope: 'week:'.$weekStart->toDateString()
+            );
+        } catch (Throwable $exception) {
+            $this->documentService->markUnavailable($document);
+            $dispatch->delete();
+
+            throw $exception;
+        }
 
         return $dispatch->refresh();
     }

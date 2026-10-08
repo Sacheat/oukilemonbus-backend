@@ -16,6 +16,8 @@ use App\Models\Reservation;
 use App\Models\User;
 use App\Models\Vehicle;
 use App\Models\WeeklyPlanningDispatch;
+use App\Services\Audit\DomainEventLogger;
+use App\Services\Planning\WeeklyPlanningService;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Database\Seeders\TestFleetSeeder;
 use Database\Seeders\TestLocationsSeeder;
@@ -25,6 +27,7 @@ use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\Sanctum;
+use RuntimeException;
 use Spatie\Permission\PermissionRegistrar;
 use Tests\TestCase;
 
@@ -183,6 +186,32 @@ class WeeklyPlanningTest extends TestCase
         Carbon::setTestNow('2026-06-12 11:00:00');
         $this->artisan('planning:send-weekly')->expectsOutputToContain('1 planning(s)')->assertSuccessful();
         $this->assertSame(2, WeeklyPlanningDispatch::query()->whereDate('week_start', '2026-06-15')->max('version'));
+    }
+
+    public function test_a_send_interrupted_after_the_file_is_retried_at_the_next_pass(): void
+    {
+        $this->reservation(['trip_date' => '2026-06-16']);
+        Carbon::setTestNow('2026-06-12 10:00:00');
+
+        // L'historique échoue après la création du fichier : l'envoi ne compte pas comme fait
+        $this->mock(DomainEventLogger::class)->shouldReceive('log')->andThrow(new RuntimeException('base indisponible'));
+        try {
+            app(WeeklyPlanningService::class)->run();
+            $this->fail('L’erreur aurait dû remonter.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('base indisponible', $exception->getMessage());
+        }
+        $this->assertSame(0, WeeklyPlanningDispatch::query()->count());
+        $this->assertFalse((bool) Document::query()->where('document_type', DocumentType::PLANNING)->latest('id')->firstOrFail()->is_available);
+
+        // Au passage suivant, la version 1 part
+        $this->forgetMock(DomainEventLogger::class);
+        Carbon::setTestNow('2026-06-12 10:15:00');
+        $this->artisan('planning:send-weekly')->expectsOutputToContain('1 planning(s)')->assertSuccessful();
+        $this->assertDatabaseHas('notification_deliveries', [
+            'notifiable_id' => $this->user('agent.test@bus-communal.local')->id,
+            'event_key' => 'planning.weekly.sent',
+        ]);
     }
 
     public function test_the_owner_receives_it_alone_by_default_and_the_others_can_opt_in(): void
