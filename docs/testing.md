@@ -133,6 +133,7 @@ ReservationConflict::create([
 | `TestFleetSeeder` | Véhicules et chauffeurs assignables |
 | `TestMunicipalitySeeder` | Commune Dinant active avec localités |
 | `DriverJourneyDemoSeeder` | Démo « Ma journée » (à lancer à la main, `db:seed --class=DriverJourneyDemoSeeder`) : 3 trajets confirmés aujourd'hui pour `chauffeur.test`, à partir de l'heure actuelle ; relancer remet la journée à zéro |
+| `DemoDataSeeder` | Données de démonstration pour parcourir toute l'application à la main (à lancer en journée, `docker compose exec -u www-data app php artisan db:seed --class=DemoDataSeeder`) : environ 300 réservations « [Démo] », dates relatives à aujourd'hui. Couverture (un cas par état, nommé selon ce qu'il montre : files de la gestion, Collège, conflits, journée en cours, passé, série, demandes, indisponibilités, demandes d'aide, organisation bannie, quota presque atteint) et volume (trajets ordinaires sur la flotte `DEMO-…`, 6 semaines avant et après). Comptes `demo.*@bus-communal.local` (mot de passe `password`) ; `user.test` est ajouté aux organisations de démo, `chauffeur.test` reçoit des missions. Relancer remplace la démo ; `DEMO_CLEAR=1` la retire seulement, sans toucher au reste |
 
 ---
 
