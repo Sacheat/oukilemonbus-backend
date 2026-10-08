@@ -314,7 +314,7 @@ class WeeklyPlanningService
             ->count();
     }
 
-    /** Empreinte de ce que montre le fichier : un changement de date, d'heure, de statut, de bus, de chauffeur… la change */
+    /** Empreinte de ce que montre le fichier : un changement de date, d'heure, de statut, de bus, de chauffeur, d'organisation… la change */
     private function signature(Collection $trips): string
     {
         return hash('sha256', $trips
@@ -326,6 +326,7 @@ class WeeklyPlanningService
                 $trip->return_time?->format('H:i'),
                 $trip->driver_id,
                 $trip->vehicle_id,
+                $trip->organization_id,
                 $trip->pickup_location_id,
                 $trip->destination_location_id,
                 (int) $trip->nb_children + (int) $trip->nb_adults,

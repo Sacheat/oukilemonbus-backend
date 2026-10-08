@@ -172,6 +172,19 @@ class WeeklyPlanningTest extends TestCase
             ->count());
     }
 
+    public function test_moving_a_trip_to_another_organization_sends_a_corrected_version(): void
+    {
+        $trip = $this->reservation(['trip_date' => '2026-06-16']);
+        Carbon::setTestNow('2026-06-12 10:00:00');
+        $this->artisan('planning:send-weekly')->assertSuccessful();
+
+        // Les colonnes Organisation et Contact du fichier changent
+        $trip->update(['organization_id' => Organization::query()->whereKeyNot($trip->organization_id)->orderBy('id')->firstOrFail()->id]);
+        Carbon::setTestNow('2026-06-12 11:00:00');
+        $this->artisan('planning:send-weekly')->expectsOutputToContain('1 planning(s)')->assertSuccessful();
+        $this->assertSame(2, WeeklyPlanningDispatch::query()->whereDate('week_start', '2026-06-15')->max('version'));
+    }
+
     public function test_the_owner_receives_it_alone_by_default_and_the_others_can_opt_in(): void
     {
         $agent = $this->user('agent.test@bus-communal.local');
