@@ -203,7 +203,8 @@ class WeeklyPlanningService
         $this->notificationDispatchService->dispatch(
             users: collect([$user]),
             eventKey: $eventKey,
-            category: 'admin_workflow',
+            // Catégorie du planning : l'avis arrive même à qui a coupé « Travail à traiter »
+            category: 'weekly_planning',
             title: $title,
             message: $message,
             link: ['path' => '/compte#notifications', 'label' => 'Mes notifications']

@@ -21,7 +21,8 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 class MunicipalityController extends Controller
 {
     public function __construct(
-        private readonly MunicipalitySettingsService $municipalitySettingsService
+        private readonly MunicipalitySettingsService $municipalitySettingsService,
+        private readonly WeeklyPlanningService $weeklyPlanningService
     ) {}
 
     public function index(): AnonymousResourceCollection
@@ -56,7 +57,7 @@ class MunicipalityController extends Controller
 
         // Responsable du planning changé : historique et personnes prévenues
         if ($request->has('weekly_planning_owner_user_id')) {
-            app(WeeklyPlanningService::class)->ownerChanged($municipality, $previousOwnerId, $request->user());
+            $this->weeklyPlanningService->ownerChanged($municipality, $previousOwnerId, $request->user());
         }
 
         return new MunicipalityResource($municipality->load(['localities', 'depotLocation', 'weeklyPlanningOwner']));
