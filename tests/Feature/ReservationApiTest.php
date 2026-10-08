@@ -10,6 +10,7 @@ use App\Enums\ReservationStatus;
 use App\Models\Location;
 use App\Models\Organization;
 use App\Models\Reservation;
+use App\Models\ReservationConflict;
 use App\Models\User;
 use App\Models\Vehicle;
 use Database\Seeders\RolesAndPermissionsSeeder;
@@ -685,7 +686,7 @@ class ReservationApiTest extends TestCase
             ->assertJsonPath('data.status', ReservationStatus::CONFIRME->value);
     }
 
-    public function test_school_reservation_cannot_receive_a_council_decision(): void
+    public function test_school_reservation_can_receive_an_optional_council_decision_for_a_derogation(): void
     {
         Http::fake([
             'https://ors.test/*' => Http::response([
@@ -707,16 +708,64 @@ class ReservationApiTest extends TestCase
             ->assertCreated()
             ->json('data.id');
 
+        // Dérogation horaire ouverte sur une réservation d'école (décision du Collège facultative pour ce type)
+        Reservation::query()->whereKey($reservationId)->update(['status' => ReservationStatus::EN_CONFLIT->value]);
+        $derogation = ReservationConflict::create([
+            'reservation_id' => $reservationId,
+            'type' => ReservationConflictType::DEPARTURE_BEFORE_ALLOWED_TIME->value,
+            'message' => 'Départ avant l’heure autorisée.',
+            'is_resolved' => false,
+        ]);
+
+        // Facultative : elle n'est jamais attendue, la réservation ne remonte pas dans « Collège à décider »
+        $awaiting = collect($this->getJson('/api/reservations?council=a_decider')->assertOk()->json('data'))->pluck('id');
+        $this->assertFalse($awaiting->contains($reservationId));
+
+        // Mais elle peut être encodée, et une décision favorable lève la dérogation
         $this->postJson('/api/council-decisions', [
             'reservation_id' => $reservationId,
             'decision_status' => CouncilDecisionStatus::APPROUVE->value,
             'decision_date' => '2026-06-01',
             'decision_reference' => 'COL-2026-003',
-        ])->assertForbidden();
+        ])->assertCreated();
 
-        $this->assertDatabaseMissing('council_decisions', [
-            'reservation_id' => $reservationId,
+        $this->assertTrue($derogation->fresh()->is_resolved);
+        // Plus aucun conflit ouvert : la réservation quitte « en conflit », comme après une résolution manuelle
+        $this->assertNotSame(ReservationStatus::EN_CONFLIT, Reservation::query()->findOrFail($reservationId)->status);
+    }
+
+    public function test_an_unfavorable_council_decision_refuses_a_school_reservation_too(): void
+    {
+        Http::fake([
+            'https://ors.test/*' => Http::response([
+                'routes' => [[
+                    'summary' => [
+                        'distance' => 12000,
+                        'duration' => 1800,
+                    ],
+                ]],
+            ]),
         ]);
+
+        $agent = $this->seededUser('agent.test@bus-communal.local');
+        $organization = $this->seededOrganization('Ecole communale de Dinant');
+
+        Sanctum::actingAs($agent);
+
+        $reservationId = $this->postJson('/api/reservations', $this->payload($organization))
+            ->assertCreated()
+            ->json('data.id');
+        Reservation::query()->whereKey($reservationId)->update(['status' => ReservationStatus::EN_CONFLIT->value]);
+
+        $this->postJson('/api/council-decisions', [
+            'reservation_id' => $reservationId,
+            'decision_status' => CouncilDecisionStatus::REFUSE->value,
+            'decision_date' => '2026-06-01',
+            'decision_reference' => 'COL-2026-004',
+            'notes' => 'Dérogation refusée.',
+        ])->assertCreated();
+
+        $this->assertSame(ReservationStatus::REFUSE, Reservation::query()->findOrFail($reservationId)->status);
     }
 
     public function test_organization_user_cannot_record_council_decision(): void
