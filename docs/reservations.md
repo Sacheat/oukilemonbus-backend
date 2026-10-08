@@ -227,6 +227,10 @@ réservation), à part du cycle de statuts : la réservation reste `confirme`.
   lectures des ressources occupées sont verrouillantes (`sharedLock`) : elles voient la dernière version enregistrée.
 - GET /api/reservations?unassigned=1 : seulement les réservations auxquelles il manque le chauffeur ou le véhicule
   (avec `statuses[]=approuve` : file « À affecter » de la gestion), filtré par la base.
+- GET /api/reservations?passengers_to_confirm=1 : trajets actifs d'aujourd'hui à J+13 (jours de Bruxelles, fenêtre
+  `reservations.passenger_confirmation_window_days`) dont les passagers ne sont pas encore confirmés par le demandeur.
+  Même règle que le compteur `passengers_to_confirm` du tableau de bord (scope `Reservation::awaitingPassengerConfirmation`) :
+  le compteur et la liste donnent toujours le même nombre. Se combine avec les autres filtres (statuses[], q…).
 
 7. Types d'approbation
 

@@ -133,6 +133,33 @@ class DashboardApiTest extends TestCase
             ]);
     }
 
+    public function test_passengers_to_confirm_filter_lists_the_counted_trips(): void
+    {
+        $school = $this->organization(OrganizationType::ECOLE_COMMUNALE);
+        $asbl = $this->organization(OrganizationType::ASBL);
+
+        // Dans la fenêtre (15 → 28 juin), statut actif, passagers non confirmés : listées
+        $tomorrow = $this->reservation($school, '2026-06-16', ReservationStatus::APPROUVE);
+        $lastDay = $this->reservation($school, '2026-06-28', ReservationStatus::EN_ATTENTE);
+        // Écartées : passagers confirmés, hors fenêtre (J+14, hier), statut terminal
+        $this->reservation($school, '2026-06-15', ReservationStatus::CONFIRME, ['passengers_confirmed_at' => now()]);
+        $this->reservation($school, '2026-06-29', ReservationStatus::EN_ATTENTE);
+        $this->reservation($school, '2026-06-14', ReservationStatus::EN_ATTENTE);
+        $this->reservation($asbl, '2026-06-17', ReservationStatus::REFUSE);
+
+        Sanctum::actingAs($this->user('agent.test@bus-communal.local'));
+
+        $listed = $this->getJson('/api/reservations?passengers_to_confirm=1&sort=asc')->assertOk();
+        $this->assertSame([$tomorrow->id, $lastDay->id], collect($listed->json('data'))->pluck('id')->all());
+
+        // Le compteur du tableau de bord suit la même règle
+        $this->getJson('/api/dashboard')->assertJsonPath('data.to_process.passengers_to_confirm', $listed->json('meta.total'));
+
+        $this->getJson('/api/reservations?passengers_to_confirm=abc')
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('passengers_to_confirm');
+    }
+
     public function test_today_trips_are_sorted_and_exclude_terminal_statuses(): void
     {
         $school = $this->organization(OrganizationType::ECOLE_COMMUNALE);
