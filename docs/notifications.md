@@ -129,7 +129,7 @@ Les emails peuvent inclure un document en pièce jointe ou en lien signé selon 
 Les liens signés sont :
 - Uniques (token 100 caractères)
 - À durée limitée (`expires_at`)
-- Réutilisables jusqu'à expiration (`used_at` n'est plus écrit) ; les PDF s'ouvrent dans l'onglet (`Content-Disposition: inline`), les autres types (export Excel…) sont toujours téléchargés (`attachment`, jamais `inline`). Le `Content-Type` est celui du `mime_type` du document (jamais deviné depuis le contenu : un export `.xls` est un tableau HTML) avec `X-Content-Type-Options: nosniff`. Dans l'email, le bouton dit « Ouvrir … » pour un PDF et « Télécharger le fichier » pour le reste. `GET /documents/{id}/download` (authentifié) reste en `attachment`
+- Réutilisables jusqu'à expiration (`used_at` n'est plus écrit) ; les PDF s'ouvrent dans l'onglet (`Content-Disposition: inline`), les autres types (export Excel…) sont toujours téléchargés (`attachment`, jamais `inline`). Le `Content-Type` est celui du `mime_type` du document (jamais deviné depuis le contenu) avec `X-Content-Type-Options: nosniff`. Dans l'email, le bouton dit « Ouvrir … » pour un PDF et « Télécharger le fichier » pour le reste. `GET /documents/{id}/download` (authentifié) reste en `attachment`
 - Révocables (`revoked_at`)
 - Journalisés (`document_access_logs` — succès et échecs)
 

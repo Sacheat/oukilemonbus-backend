@@ -82,14 +82,14 @@ class GeneratePlanningExportJob implements ShouldQueue
                 $exportRequest->filters ?? []
             );
 
-            $content = $planningExportService->htmlExportContent(
+            $content = $planningExportService->content(
                 $items,
                 $exportRequest->start_date->toDateString(),
                 $exportRequest->end_date->toDateString()
             );
 
             $fileName = sprintf(
-                'planning-%s-%s-export-%d.xls',
+                'planning-%s-%s-export-%d.xlsx',
                 $exportRequest->start_date->toDateString(),
                 $exportRequest->end_date->toDateString(),
                 $exportRequest->id

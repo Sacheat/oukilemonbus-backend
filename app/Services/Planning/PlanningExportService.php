@@ -2,142 +2,227 @@
 
 namespace App\Services\Planning;
 
+use App\Enums\ReservationStatus;
 use App\Models\Reservation;
 use App\Services\Reservations\ReservationOccupationService;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Collection;
+use PhpOffice\PhpSpreadsheet\RichText\RichText;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
+use PhpOffice\PhpSpreadsheet\Style\Border;
+use PhpOffice\PhpSpreadsheet\Style\Color;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
+use PhpOffice\PhpSpreadsheet\Worksheet\PageSetup;
+use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- * Génère l'export planning sous forme de fichier XLS téléchargeable.
+ * Export du planning en fichier Excel (.xlsx, PhpSpreadsheet).
  *
- * Astuce technique : le fichier produit est du HTML servi avec le Content-Type
- * `application/vnd.ms-excel`. Excel et LibreOffice l'ouvrent directement sans
- * conversion. Ne pas remplacer par PhpSpreadsheet sans valider que le besoin le justifie.
+ * Un vrai .xlsx plutôt que du HTML servi comme .xls : LibreOffice coupait chaque retour à la ligne en une nouvelle
+ * ligne du tableur et ignorait largeurs de colonnes et mise en page ; le fichier s'affiche maintenant de la même façon
+ * dans Excel et LibreOffice.
  *
- * Chaque ligne inclut les horaires de départ et retour avec la fenêtre d'occupation
- * calculée par ReservationOccupationService (lisible directement par le chauffeur).
+ * Mise en page : une ligne de titre par jour, puis un trajet par ligne en 6 colonnes (horaire avec la fenêtre
+ * d'occupation de ReservationOccupationService, chauffeur, bus, organisation et contact, trajet et objet, passagers).
+ * Le statut n'est affiché que s'il n'est pas « Confirmé ». En-tête figé et répété à l'impression, paysage ajusté à la
+ * largeur de la page.
  */
 class PlanningExportService
 {
+    public const MIME_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+
+    /** Colonnes et largeur (en caractères) */
+    private const COLUMNS = [
+        'Horaire' => 15,
+        'Chauffeur' => 20,
+        'Bus' => 12,
+        'Organisation' => 30,
+        'Trajet' => 60,
+        'Pass.' => 7,
+    ];
+
+    private const GREY = '6B7280';
+
+    private const BORDER = 'D1D5DB';
+
     public function __construct(
         private readonly ReservationOccupationService $occupationService
     ) {}
 
-    // Le fichier produit est du HTML servi avec un Content-Type Excel (astuce BIFF).
-    // Excel et LibreOffice l'ouvrent correctement. Ne pas "corriger" en ajoutant
-    // PhpSpreadsheet sans avoir validé que le besoin justifie la dépendance.
     public function download(Collection $reservations, string $startDate, string $endDate): Response
     {
-        $fileName = sprintf('planning-%s-%s.xls', $startDate, $endDate);
+        $fileName = sprintf('planning-%s-%s.xlsx', $startDate, $endDate);
 
-        return response($this->htmlExportContent($reservations, $startDate, $endDate), 200, [
-            'Content-Type' => 'application/vnd.ms-excel; charset=UTF-8',
+        return response($this->content($reservations, $startDate, $endDate), 200, [
+            'Content-Type' => self::MIME_TYPE,
             'Content-Disposition' => 'attachment; filename="'.$fileName.'"',
             'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
         ]);
     }
 
-    public function htmlExportContent(Collection $reservations, string $startDate, string $endDate): string
+    /** Contenu binaire du fichier .xlsx */
+    public function content(Collection $reservations, string $startDate, string $endDate): string
     {
-        $rows = $reservations
-            ->values()
-            ->map(fn (Reservation $reservation, int $index): string => $this->row($reservation, $index))
-            ->implode('');
+        $spreadsheet = new Spreadsheet();
+        $spreadsheet->getDefaultStyle()->getFont()->setName('Arial')->setSize(10);
+        $sheet = $spreadsheet->getActiveSheet()->setTitle('Planning');
+        $lastColumn = chr(ord('A') + count(self::COLUMNS) - 1);
 
-        return '<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-</head>
-<body>
-    <table border="1" cellspacing="0" cellpadding="6" style="border-collapse: collapse; width: 100%; font-family: Arial, sans-serif; font-size: 12px;">
-        <thead>
-            <tr style="height: 55px;">
-                <td colspan="12"
-                    align="center"
-                    valign="middle"
-                    height="55"
-                    style="text-align: center; vertical-align: middle; font-size: 22px; font-weight: bold; background-color: #ffffff; padding-top: 18px; padding-bottom: 18px; height: 55px; mso-height-source: userset;">
-                    <strong>Planning du '.e($startDate).' au '.e($endDate).'</strong>
-                </td>
-            </tr>
-            <tr>
-                '.$this->headerCell('Date').'
-                '.$this->headerCell('Depart').'
-                '.$this->headerCell('Retour').'
-                '.$this->headerCell('Chauffeur').'
-                '.$this->headerCell('Vehicule').'
-                '.$this->headerCell('Organisation').'
-                '.$this->headerCell('Lieu de depart').'
-                '.$this->headerCell('Destination').'
-                '.$this->headerCell('Passagers').'
-                '.$this->headerCell('Objet').'
-                '.$this->headerCell('Statut').'
-                '.$this->headerCell('Contact').'
-            </tr>
-        </thead>
-        <tbody>
-            '.$rows.'
-        </tbody>
-    </table>
-</body>
-</html>';
+        $this->header($sheet, $lastColumn, $startDate, $endDate);
+
+        $row = 3;
+        $days = $reservations->values()->groupBy(fn (Reservation $reservation): string => (string) $reservation->trip_date?->toDateString());
+
+        if ($days->isEmpty()) {
+            $sheet->setCellValue("A{$row}", 'Aucun trajet sur cette période.');
+            $sheet->mergeCells("A{$row}:{$lastColumn}{$row}");
+            $sheet->getStyle("A{$row}")->getFont()->setItalic(true)->getColor()->setRGB(self::GREY);
+        }
+
+        foreach ($days as $date => $trips) {
+            $this->dayRow($sheet, $row++, $lastColumn, $date, $trips->count());
+
+            foreach ($trips->values() as $index => $trip) {
+                $this->tripRow($sheet, $row++, $lastColumn, $trip, $index);
+            }
+        }
+
+        $this->pageSetup($sheet, $lastColumn);
+
+        return $this->write($spreadsheet);
     }
 
-    private function headerCell(string $label): string
+    private function header(Worksheet $sheet, string $lastColumn, string $startDate, string $endDate): void
     {
-        return '<th align="center" valign="middle" style="background-color: #eaeaea; font-weight: bold; font-size: 15px; text-align: center; vertical-align: middle; padding: 8px; height: 24px;">'.e($label).'</th>';
+        $sheet->setCellValue('A1', 'Planning du '.$this->date($startDate).' au '.$this->date($endDate));
+        $sheet->mergeCells("A1:{$lastColumn}1");
+        $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(16);
+        $sheet->getRowDimension(1)->setRowHeight(28);
+
+        $column = 'A';
+        foreach (self::COLUMNS as $label => $width) {
+            $sheet->setCellValue("{$column}2", $label);
+            $sheet->getColumnDimension($column)->setWidth($width);
+            $column++;
+        }
+
+        $style = $sheet->getStyle("A2:{$lastColumn}2");
+        $style->getFont()->setBold(true)->getColor()->setRGB('FFFFFF');
+        $style->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('1F2937');
+        $style->getAlignment()->setVertical(Alignment::VERTICAL_CENTER);
+        $sheet->getStyle('F2')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+        $sheet->getRowDimension(2)->setRowHeight(20);
     }
 
-    private function centeredCell(?string $value, string $backgroundColor): string
+    /** Ligne de titre d'un jour : remplace la colonne Date */
+    private function dayRow(Worksheet $sheet, int $row, string $lastColumn, string $date, int $count): void
     {
-        return '<td align="center" valign="middle" bgcolor="'.$backgroundColor.'" style="text-align: center; vertical-align: middle; white-space: nowrap; background-color: '.$backgroundColor.';">'.e($value).'</td>';
+        $label = ucfirst(CarbonImmutable::parse($date)->locale('fr')->isoFormat('dddd D MMMM YYYY'));
+        $text = new RichText();
+        $text->createTextRun($label)->getFont()?->setBold(true)->setName('Arial')->setSize(11);
+        $text->createTextRun('  ·  '.$count.' trajet'.($count > 1 ? 's' : ''))->getFont()?->setName('Arial')->setSize(10)->setColor(new Color('4B5563'));
+
+        $sheet->setCellValue("A{$row}", $text);
+        $sheet->mergeCells("A{$row}:{$lastColumn}{$row}");
+        $sheet->getStyle("A{$row}:{$lastColumn}{$row}")->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('E5E7EB');
+        $sheet->getStyle("A{$row}")->getAlignment()->setVertical(Alignment::VERTICAL_CENTER);
+        $sheet->getRowDimension($row)->setRowHeight(20);
     }
 
-    private function normalCell(?string $value, string $backgroundColor): string
+    private function tripRow(Worksheet $sheet, int $row, string $lastColumn, Reservation $reservation, int $index): void
     {
-        return '<td valign="middle" bgcolor="'.$backgroundColor.'" style="text-align: left; vertical-align: middle; background-color: '.$backgroundColor.';">'.e($value).'</td>';
-    }
-
-    private function row(Reservation $reservation, int $index): string
-    {
-        $backgroundColor = $index % 2 === 1 ? '#f3f3f3' : '#ffffff';
-
         $occupation = $this->occupationService->windowForReservation($reservation);
-        $occupationStart = $occupation['start'];
-        $occupationEnd = $occupation['end'];
-
-        $driverName = trim(
-            ($reservation->driver?->user?->first_name ?? '').' '.
-            ($reservation->driver?->user?->last_name ?? '')
-        );
-
+        $driverName = trim(($reservation->driver?->user?->first_name ?? '').' '.($reservation->driver?->user?->last_name ?? ''));
         $contact = $reservation->organization?->phone_contact
             ?? $reservation->requestedByUser?->phone
             ?? $reservation->organization?->official_email
             ?? $reservation->requestedByUser?->email;
 
-        $departure = e($reservation->departure_time?->format('H:i'))
-            .'<br><span style="font-size: 10px; color: #555;">Occupation '.$occupationStart->format('H:i').'</span>';
+        // Le statut n'apparaît que s'il n'est pas « Confirmé » (le cas normal du planning)
+        $status = $reservation->status !== null && $reservation->status !== ReservationStatus::CONFIRME
+            ? $reservation->status->label()
+            : null;
 
-        $return = e($reservation->return_time?->format('H:i'))
-            .'<br><span style="font-size: 10px; color: #555;">Fin occupation '.$occupationEnd->format('H:i').'</span>';
+        $sheet->setCellValue("A{$row}", $this->lines(
+            $reservation->departure_time?->format('H:i').' → '.$reservation->return_time?->format('H:i'),
+            'occ. '.$occupation['start']->format('H:i').'–'.$occupation['end']->format('H:i'),
+            bold: true
+        ));
+        $sheet->setCellValue("B{$row}", $driverName !== '' ? $driverName : 'Non assigné');
+        $sheet->setCellValue("C{$row}", $reservation->vehicle?->licence_plate ?? 'Non assigné');
+        $sheet->setCellValue("D{$row}", $this->lines($reservation->organization?->name ?? '', $contact));
+        $sheet->setCellValue("E{$row}", $this->lines(
+            $reservation->pickupLocation?->formatted_address.' → '.$reservation->destinationLocation?->formatted_address,
+            $reservation->trip_purpose,
+            status: $status
+        ));
+        $sheet->setCellValue("F{$row}", ($reservation->nb_children ?? 0) + ($reservation->nb_adults ?? 0));
 
-        $passengers = (string) (($reservation->nb_children ?? 0) + ($reservation->nb_adults ?? 0));
+        foreach (['B' => $driverName === '', 'C' => $reservation->vehicle === null] as $column => $missing) {
+            if ($missing) {
+                $sheet->getStyle("{$column}{$row}")->getFont()->setItalic(true)->getColor()->setRGB('9CA3AF');
+            }
+        }
 
-        return '<tr bgcolor="'.$backgroundColor.'" style="background-color: '.$backgroundColor.';">
-            '.$this->centeredCell($reservation->trip_date?->format('d/m/Y'), $backgroundColor).'
-            <td align="center" valign="middle" bgcolor="'.$backgroundColor.'" style="text-align: center; vertical-align: middle; white-space: nowrap; background-color: '.$backgroundColor.';">'.$departure.'</td>
-            <td align="center" valign="middle" bgcolor="'.$backgroundColor.'" style="text-align: center; vertical-align: middle; white-space: nowrap; background-color: '.$backgroundColor.';">'.$return.'</td>
-            '.$this->centeredCell($driverName !== '' ? $driverName : 'Non assigné', $backgroundColor).'
-            '.$this->centeredCell($reservation->vehicle?->licence_plate ?? 'Non assigné', $backgroundColor).'
-            '.$this->normalCell($reservation->organization?->name, $backgroundColor).'
-            '.$this->normalCell($reservation->pickupLocation?->formatted_address, $backgroundColor).'
-            '.$this->normalCell($reservation->destinationLocation?->formatted_address, $backgroundColor).'
-            '.$this->centeredCell($passengers, $backgroundColor).'
-            '.$this->normalCell($reservation->trip_purpose, $backgroundColor).'
-            '.$this->centeredCell($reservation->status?->label() ?? $reservation->status, $backgroundColor).'
-            '.$this->normalCell($contact, $backgroundColor).'
-        </tr>';
+        $style = $sheet->getStyle("A{$row}:{$lastColumn}{$row}");
+        $style->getAlignment()->setVertical(Alignment::VERTICAL_TOP)->setWrapText(true);
+        $style->getBorders()->getBottom()->setBorderStyle(Border::BORDER_THIN)->getColor()->setRGB(self::BORDER);
+        if ($index % 2 === 1) {
+            $style->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('F9FAFB');
+        }
+        $sheet->getStyle("F{$row}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+    }
+
+    /** Cellule sur deux lignes : la principale, puis un détail en petit et en gris (et le statut en orange) */
+    private function lines(string $main, ?string $detail, bool $bold = false, ?string $status = null): RichText
+    {
+        $text = new RichText();
+        $text->createTextRun($main)->getFont()?->setName('Arial')->setSize(10)->setBold($bold);
+
+        if ($detail !== null && $detail !== '') {
+            $text->createTextRun("\n".$detail)->getFont()?->setName('Arial')->setSize(9)->setColor(new Color(self::GREY));
+        }
+
+        if ($status !== null) {
+            $text->createTextRun("\n".$status)->getFont()?->setName('Arial')->setSize(9)->setBold(true)->setColor(new Color('B45309'));
+        }
+
+        return $text;
+    }
+
+    private function pageSetup(Worksheet $sheet, string $lastColumn): void
+    {
+        $sheet->freezePane('A3');
+        $sheet->getPageSetup()
+            ->setOrientation(PageSetup::ORIENTATION_LANDSCAPE)
+            ->setPaperSize(PageSetup::PAPERSIZE_A4)
+            ->setFitToWidth(1)
+            ->setFitToHeight(0)
+            ->setRowsToRepeatAtTopByStartAndEnd(1, 2)
+            ->setPrintArea("A1:{$lastColumn}".$sheet->getHighestRow());
+        $sheet->getPageMargins()->setTop(0.5)->setBottom(0.5)->setLeft(0.4)->setRight(0.4);
+        $sheet->getHeaderFooter()->setOddFooter('&L&8Planning&R&8Page &P / &N');
+    }
+
+    private function write(Spreadsheet $spreadsheet): string
+    {
+        $path = tempnam(sys_get_temp_dir(), 'planning-');
+
+        try {
+            (new Xlsx($spreadsheet))->save($path);
+
+            return (string) file_get_contents($path);
+        } finally {
+            @unlink($path);
+            $spreadsheet->disconnectWorksheets();
+        }
+    }
+
+    private function date(string $date): string
+    {
+        return CarbonImmutable::parse($date)->format('d/m/Y');
     }
 }
