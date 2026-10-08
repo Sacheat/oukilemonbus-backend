@@ -245,8 +245,8 @@ class WeeklyPlanningService
             $document = $this->documentService->registerGeneratedDocument(
                 documentType: DocumentType::PLANNING,
                 directory: sprintf('documents/planning/hebdomadaire/%s', $weekStart->format('Y')),
-                fileName: sprintf('planning-semaine-%s-v%d.xls', $weekStart->toDateString(), $version),
-                content: $this->planningExportService->htmlExportContent($trips, $weekStart->toDateString(), $weekEnd->toDateString()),
+                fileName: sprintf('planning-semaine-%s-v%d.xlsx', $weekStart->toDateString(), $version),
+                content: $this->planningExportService->content($trips, $weekStart->toDateString(), $weekEnd->toDateString()),
                 data: [
                     'generation_mode' => 'auto',
                     'generation_context' => ['weekly_planning' => true, 'week_start' => $weekStart->toDateString(), 'version' => $version],

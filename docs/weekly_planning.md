@@ -26,8 +26,9 @@ une semaine déjà envoyée et pas encore terminée (jusqu'au dimanche) :
 
 ## 2. Quoi
 
-- Le fichier est l'**export Excel du Planning** (`PlanningExportService`, tableau HTML en `.xls`) de la semaine du lundi au
-  dimanche, tous bus et chauffeurs : trajets **approuvés et confirmés**, avec la colonne **Statut** (libellé lisible).
+- Le fichier est l'**export Excel du Planning** (`PlanningExportService`, fichier `.xlsx`) de la semaine du lundi au
+  dimanche, tous bus et chauffeurs : trajets **approuvés et confirmés** ; les trajets approuvés, pas encore confirmés,
+  portent la mention « Approuvé » en orange.
 - Les demandes **en attente ou en conflit** ne sont pas dans le fichier ; leur nombre est annoncé dans le message.
 - Un **seul document** par version (`documents`, type `planning`, `service_date` = lundi, `version`), visible dans la
   page Documents par les rôles internes. Chaque destinataire reçoit un **lien personnel** vers ce document (jeton valable
