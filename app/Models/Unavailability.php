@@ -4,7 +4,9 @@ namespace App\Models;
 
 use App\Casts\LocalDateTime;
 use App\Enums\UnavailabilityReasonType;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -54,6 +56,20 @@ class Unavailability extends Model
     public function history(): HasMany
     {
         return $this->hasMany(UnavailabilityHistory::class);
+    }
+
+    /**
+     * Indisponibilités actives qui s'appliquent maintenant : début ≤ maintenant ≤ fin, en heure de Bruxelles sans fuseau
+     * (comme les réservations et le moteur de conflits). Utilisé par GET /unavailabilities?current=1 (état du jour des
+     * pages Véhicules et Chauffeurs).
+     */
+    public function scopeCurrentlyActive(Builder $query): void
+    {
+        $now = CarbonImmutable::now(config('reservations.local_timezone', 'Europe/Brussels'))->format('Y-m-d H:i:s');
+
+        $query->where('is_active', true)
+            ->where('start_datetime', '<=', $now)
+            ->where('end_datetime', '>=', $now);
     }
 
     protected function casts(): array

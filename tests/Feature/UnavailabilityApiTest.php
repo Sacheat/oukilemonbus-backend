@@ -17,6 +17,7 @@ use Database\Seeders\TestLocationsSeeder;
 use Database\Seeders\TestOrganizationsSeeder;
 use Database\Seeders\TestUsersSeeder;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Support\Carbon;
 use Laravel\Sanctum\Sanctum;
 use Spatie\Permission\PermissionRegistrar;
 use Tests\TestCase;
@@ -278,6 +279,35 @@ class UnavailabilityApiTest extends TestCase
         $this->patchJson("/api/unavailabilities/{$unavailability->id}/cancel")
             ->assertOk()
             ->assertJsonPath('data.is_active', false);
+    }
+
+    public function test_current_filter_lists_only_active_unavailabilities_applying_now(): void
+    {
+        $agent = $this->seededUser('agent.test@bus-communal.local');
+        Sanctum::actingAs($agent);
+        Carbon::setTestNow('2026-06-10 12:00:00'); // 14:00 à Bruxelles
+
+        $driver = $this->createDriver();
+        $vehicle = $this->createVehicle();
+        $make = fn (array $attributes) => Unavailability::create([
+            'reason_type' => 'driver',
+            'driver_id' => $driver->id,
+            'created_by_user_id' => $agent->id,
+            ...$attributes,
+        ]);
+        $now = $make(['start_datetime' => '2026-06-10 08:00:00', 'end_datetime' => '2026-06-10 18:00:00']);
+        $vehicleNow = $make(['reason_type' => 'vehicle', 'driver_id' => null, 'vehicle_id' => $vehicle->id, 'start_datetime' => '2026-06-09 08:00:00', 'end_datetime' => '2026-06-12 18:00:00']);
+        $make(['start_datetime' => '2026-06-10 15:00:00', 'end_datetime' => '2026-06-10 18:00:00']); // plus tard aujourd'hui
+        $make(['start_datetime' => '2026-06-10 08:00:00', 'end_datetime' => '2026-06-10 13:59:00']); // déjà finie
+        $make(['start_datetime' => '2026-06-10 08:00:00', 'end_datetime' => '2026-06-10 18:00:00', 'is_active' => false]); // annulée
+
+        $ids = collect($this->getJson('/api/unavailabilities?current=1')->assertOk()->json('data'))->pluck('id')->sort()->values()->all();
+        $this->assertSame(collect([$now->id, $vehicleNow->id])->sort()->values()->all(), $ids);
+
+        // Sans le filtre : toutes, comme avant
+        $this->assertCount(5, $this->getJson('/api/unavailabilities')->json('data'));
+
+        Carbon::setTestNow();
     }
 
     public function test_agent_can_show_unavailability(): void
