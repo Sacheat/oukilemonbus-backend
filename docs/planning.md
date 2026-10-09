@@ -410,7 +410,7 @@ Exemple simplifié :
     }
   ]
 }
-17. Export Excel-compatible
+17. Export Excel
 
 Le service d'export est :
 
@@ -420,17 +420,18 @@ L'export est disponible via :
 
 GET /api/planning/export
 
-Il retourne un fichier :
+Il retourne un vrai fichier Excel (PhpSpreadsheet) :
 
-planning-startDate-endDate.xls
+planning-startDate-endDate.xlsx
+application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
 
-L'export actuel est compatible Excel, mais il ne s'agit pas d'un vrai fichier .xlsx natif.
+Mise en page : titre, en-tête figé (répété à l'impression), puis une ligne de titre par jour (« Lundi 12 octobre 2026 ·
+3 trajets ») suivie d'un trajet par ligne en 6 colonnes : Horaire (avec la fenêtre d'occupation en petit), Chauffeur, Bus,
+Organisation (avec le contact), Trajet (départ → destination, avec l'objet), Passagers. Le statut n'est affiché, en
+orange, que s'il n'est pas « Confirmé ». Impression en paysage A4, ajustée à la largeur de la page.
 
-Il s'agit d'un tableau HTML servi avec un type MIME compatible Excel :
-
-application/vnd.ms-excel
-
-Cela fonctionne pour une V1, mais une amélioration future pourrait consister à générer un vrai fichier .xlsx.
+L'ancien export (tableau HTML servi en `.xls`) a été abandonné : LibreOffice coupait chaque retour à la ligne en une
+nouvelle ligne du tableur et ignorait largeurs de colonnes et mise en page.
 
 17.1 Export en tâche de fond
 

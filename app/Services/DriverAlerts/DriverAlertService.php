@@ -95,7 +95,11 @@ class DriverAlertService
                 'created_at', '<=', CarbonImmutable::parse($day, $timezone)->endOfDay()->utc()
             ))
             ->with($this->relations())
-            ->orderByRaw('CASE WHEN status = ? THEN 1 ELSE 0 END', [DriverAlertStatus::CLOTUREE->value]) // clôturées en dernier
+            // Ouvertes (personne ne s'en occupe) d'abord, puis prises en charge, puis clôturées ; les plus récentes d'abord
+            ->orderByRaw('CASE status WHEN ? THEN 0 WHEN ? THEN 1 ELSE 2 END', [
+                DriverAlertStatus::OUVERTE->value,
+                DriverAlertStatus::PRISE_EN_CHARGE->value,
+            ])
             ->orderByDesc('created_at')
             ->orderByDesc('id')
             ->paginate((int) ($filters['per_page'] ?? 15));

@@ -21,6 +21,7 @@ use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Schema;
 use Laravel\Sanctum\Sanctum;
+use PhpOffice\PhpSpreadsheet\IOFactory;
 use Spatie\Permission\PermissionRegistrar;
 use Tests\TestCase;
 
@@ -388,12 +389,16 @@ class PlanningApiTest extends TestCase
         $response = $this->get('/api/planning/export?start_date=2026-06-16&end_date=2026-06-16');
 
         $response->assertOk()
-            ->assertHeader('content-disposition', 'attachment; filename="planning-2026-06-16-2026-06-16.xls"');
+            ->assertHeader('content-disposition', 'attachment; filename="planning-2026-06-16-2026-06-16.xlsx"')
+            ->assertHeader('content-type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
 
-        $this->assertStringContainsString('application/vnd.ms-excel', $response->headers->get('content-type'));
-        $this->assertStringContainsString('Sortie piscine', $response->getContent());
-        $this->assertStringContainsString('Alice Martin', $response->getContent());
-        $this->assertStringContainsString('1-XLS-001', $response->getContent());
+        $text = $this->spreadsheetText($response->getContent());
+        $this->assertStringContainsString('Planning du 16/06/2026 au 16/06/2026', $text);
+        $this->assertStringContainsString('Mardi 16 juin 2026', $text);
+        $this->assertStringContainsString('09:00 → 11:00', $text);
+        $this->assertStringContainsString('Sortie piscine', $text);
+        $this->assertStringContainsString('Alice Martin', $text);
+        $this->assertStringContainsString('1-XLS-001', $text);
     }
 
     public function test_chauffeur_exports_only_his_assigned_planning(): void
@@ -439,8 +444,24 @@ class PlanningApiTest extends TestCase
         $response = $this->get('/api/planning/export?start_date=2026-06-16&end_date=2026-06-16');
 
         $response->assertOk();
-        $this->assertStringContainsString('Trajet visible chauffeur', $response->getContent());
-        $this->assertStringNotContainsString('Trajet masque chauffeur', $response->getContent());
+        $text = $this->spreadsheetText($response->getContent());
+        $this->assertStringContainsString('Trajet visible chauffeur', $text);
+        $this->assertStringNotContainsString('Trajet masque chauffeur', $text);
+    }
+
+    /** Texte de toutes les cellules du fichier .xlsx exporté */
+    private function spreadsheetText(string $content): string
+    {
+        $path = tempnam(sys_get_temp_dir(), 'planning-test-');
+        file_put_contents($path, $content);
+
+        try {
+            $rows = IOFactory::load($path)->getActiveSheet()->toArray(null, false, false);
+        } finally {
+            unlink($path);
+        }
+
+        return collect($rows)->flatten()->filter()->map(fn ($value): string => (string) $value)->implode("\n");
     }
 
     public function test_agent_can_filter_planning_by_vehicle(): void
