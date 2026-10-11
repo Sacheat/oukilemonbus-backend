@@ -134,7 +134,7 @@ class WeeklyPlanningService
             ? User::query()->find($municipality->weekly_planning_owner_user_id)
             : null;
 
-        return $owner !== null && $owner->active && $owner->hasAnyRole(['admin', 'agent_communal']) ? $owner : null;
+        return $owner?->canOwnWeeklyPlanning() ? $owner : null;
     }
 
     /** @return Collection<int, User> */

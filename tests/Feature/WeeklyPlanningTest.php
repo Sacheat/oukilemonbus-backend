@@ -255,17 +255,25 @@ class WeeklyPlanningTest extends TestCase
         $this->assertSame(collect([$agent->id, $admin->id])->sort()->values()->all(), $received);
         $this->assertSame(2, WeeklyPlanningDispatch::query()->sole()->recipient_count);
 
-        // Responsable qui n'est plus agent : il ne compte plus, le front le signale (effective = false)
+        // Responsable désactivé : retour à « tous » pour que le planning ne se perde pas
+        $agent->update(['active' => false]);
+        $this->assertTrue(app(WeeklyPlanningService::class)->recipients()
+            ->contains(fn (User $user): bool => $user->email === 'reviewer.test@bus-communal.local'));
+    }
+
+    public function test_an_owner_who_is_no_longer_internal_does_not_count(): void
+    {
+        $agent = $this->user('agent.test@bus-communal.local');
+        $municipality = Municipality::query()->where('is_active', true)->sole();
+        $municipality->update(['weekly_planning_owner_user_id' => $agent->id]);
+
+        // Plus agent ni admin : il ne compte plus (le front le signale), tous reçoivent à nouveau le planning
         $agent->syncRoles(['user']);
+        Sanctum::actingAs($this->user('admin.test@bus-communal.local'));
         $this->getJson("/api/municipalities/{$municipality->id}")
             ->assertOk()
             ->assertJsonPath('data.weekly_planning_owner.effective', false);
-        $agent->syncRoles(['agent_communal']);
-
-        // Responsable désactivé : retour à « tous » pour que le planning ne se perde pas
-        $agent->update(['active' => false]);
-        $this->assertTrue(app(\App\Services\Planning\WeeklyPlanningService::class)->recipients()
-            ->contains(fn (User $user): bool => $user->email === 'reviewer.test@bus-communal.local'));
+        $this->assertNull(app(WeeklyPlanningService::class)->settings()['owner']);
     }
 
     public function test_only_an_admin_sets_the_sending_and_it_can_be_moved_or_turned_off(): void

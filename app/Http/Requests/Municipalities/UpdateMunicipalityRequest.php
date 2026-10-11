@@ -77,7 +77,7 @@ class UpdateMunicipalityRequest extends FormRequest
     {
         $user = User::query()->find($value);
 
-        if ($user === null || ! $user->active || ! $user->hasAnyRole(['admin', 'agent_communal'])) {
+        if ($user === null || ! $user->canOwnWeeklyPlanning()) {
             $fail('Le responsable du planning doit être un agent ou un administrateur actif.');
         }
     }
