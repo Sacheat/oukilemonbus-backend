@@ -183,6 +183,11 @@ un véhicule.
 
 Elle permet d'éviter qu'une ressource soit affectée à une réservation alors qu'elle n'est pas disponible.
 
+`GET /api/unavailabilities` liste toutes les indisponibilités (paginées, par date de début ; le chauffeur ne voit que
+les siennes). `?current=1` ne garde que celles actives qui s'appliquent **maintenant** (début ≤ maintenant ≤ fin, en
+heure de Bruxelles sans fuseau, scope `Unavailability::currentlyActive`) : c'est l'état du jour affiché sur les pages
+Véhicules et Chauffeurs de la gestion.
+
 14. Exemples d'indisponibilités
 
 Exemples pour un chauffeur :

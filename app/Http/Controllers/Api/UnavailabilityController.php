@@ -38,6 +38,8 @@ class UnavailabilityController extends Controller
                     // qu'un utilisateur sans profil chauffeur ne voie toutes les indisponibilités sans driver_id.
                     fn ($query) => $query->where('driver_id', $user->driver?->getKey() ?? 0)
                 )
+                // current=1 : seulement celles qui s'appliquent maintenant (état du jour des véhicules et chauffeurs)
+                ->when(request()->boolean('current'), fn ($query) => $query->currentlyActive())
                 ->orderBy('start_datetime')
                 ->paginate()
         );
