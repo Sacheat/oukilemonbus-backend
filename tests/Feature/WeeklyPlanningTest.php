@@ -17,6 +17,7 @@ use App\Models\User;
 use App\Models\Vehicle;
 use App\Models\WeeklyPlanningDispatch;
 use App\Services\Audit\DomainEventLogger;
+use App\Services\Notifications\NotificationPreferenceService;
 use App\Services\Planning\WeeklyPlanningService;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Database\Seeders\TestFleetSeeder;
@@ -220,12 +221,24 @@ class WeeklyPlanningTest extends TestCase
         $admin = $this->user('admin.test@bus-communal.local');
         $municipality = Municipality::query()->where('is_active', true)->sole();
 
+        // L'agent a coupé « Travail à traiter » : l'avis de sa désignation doit quand même lui arriver
+        app(NotificationPreferenceService::class)->update($agent, [
+            'notify_admin_workflow_in_app' => false,
+            'notify_admin_workflow_email' => false,
+        ]);
+
         // L'admin désigne l'agent : historique et agent prévenu
         Sanctum::actingAs($admin);
         $this->patchJson("/api/municipalities/{$municipality->id}", ['weekly_planning_owner_user_id' => $agent->id])
             ->assertOk()
-            ->assertJsonPath('data.weekly_planning_owner.id', $agent->id);
-        $this->assertDatabaseHas('notification_deliveries', ['notifiable_id' => $agent->id, 'event_key' => 'planning.weekly.owner_assigned']);
+            ->assertJsonPath('data.weekly_planning_owner.id', $agent->id)
+            ->assertJsonPath('data.weekly_planning_owner.effective', true);
+        // Avis dans la catégorie du planning : reçu malgré « Travail à traiter » coupé
+        $this->assertDatabaseHas('notification_deliveries', [
+            'notifiable_id' => $agent->id,
+            'event_key' => 'planning.weekly.owner_assigned',
+            'channel' => 'database',
+        ]);
         $this->assertDatabaseHas('domain_events', ['aggregate_id' => $municipality->id, 'event_type' => 'weekly_planning.owner_changed']);
 
         // L'admin choisit quand même de le recevoir (remplacement en cas d'absence) ; un autre agent, non
@@ -244,8 +257,23 @@ class WeeklyPlanningTest extends TestCase
 
         // Responsable désactivé : retour à « tous » pour que le planning ne se perde pas
         $agent->update(['active' => false]);
-        $this->assertTrue(app(\App\Services\Planning\WeeklyPlanningService::class)->recipients()
+        $this->assertTrue(app(WeeklyPlanningService::class)->recipients()
             ->contains(fn (User $user): bool => $user->email === 'reviewer.test@bus-communal.local'));
+    }
+
+    public function test_an_owner_who_is_no_longer_internal_does_not_count(): void
+    {
+        $agent = $this->user('agent.test@bus-communal.local');
+        $municipality = Municipality::query()->where('is_active', true)->sole();
+        $municipality->update(['weekly_planning_owner_user_id' => $agent->id]);
+
+        // Plus agent ni admin : il ne compte plus (le front le signale), tous reçoivent à nouveau le planning
+        $agent->syncRoles(['user']);
+        Sanctum::actingAs($this->user('admin.test@bus-communal.local'));
+        $this->getJson("/api/municipalities/{$municipality->id}")
+            ->assertOk()
+            ->assertJsonPath('data.weekly_planning_owner.effective', false);
+        $this->assertNull(app(WeeklyPlanningService::class)->settings()['owner']);
     }
 
     public function test_only_an_admin_sets_the_sending_and_it_can_be_moved_or_turned_off(): void
@@ -263,6 +291,11 @@ class WeeklyPlanningTest extends TestCase
             'weekly_planning_owner_user_id' => $this->user('chauffeur.test@bus-communal.local')->id,
             'weekly_planning_send_time' => '25:00',
         ])->assertUnprocessable()->assertJsonValidationErrors(['weekly_planning_owner_user_id', 'weekly_planning_send_time']);
+
+        // Heure hors quart d'heure : refusée (la vérification tourne toutes les 15 min, 12:07 partirait à 12:15)
+        $this->patchJson("/api/municipalities/{$municipality->id}", ['weekly_planning_send_time' => '12:07'])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('weekly_planning_send_time');
 
         // Coupé : rien ne part le vendredi
         $this->patchJson("/api/municipalities/{$municipality->id}", ['weekly_planning_enabled' => false])

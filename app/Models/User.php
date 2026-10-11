@@ -92,6 +92,12 @@ class User extends Authenticatable implements MustVerifyEmail
             ->all();
     }
 
+    /** Peut être responsable du planning hebdomadaire : agent ou admin actif (sinon il ne compte plus, tous le reçoivent) */
+    public function canOwnWeeklyPlanning(): bool
+    {
+        return (bool) $this->active && $this->hasAnyRole(['admin', 'agent_communal']);
+    }
+
     public function requestedReservations(): HasMany
     {
         return $this->hasMany(Reservation::class, 'requested_by_user_id');

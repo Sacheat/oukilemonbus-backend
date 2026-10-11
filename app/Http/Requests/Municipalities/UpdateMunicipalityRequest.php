@@ -40,7 +40,10 @@ class UpdateMunicipalityRequest extends FormRequest
             // Planning hebdomadaire (admins) : null = valeur par défaut de config/weekly_planning.php
             'weekly_planning_enabled' => ['sometimes', Rule::prohibitedIf(! $this->isAdmin()), 'nullable', 'boolean'],
             'weekly_planning_send_day' => ['sometimes', Rule::prohibitedIf(! $this->isAdmin()), 'nullable', 'integer', 'between:1,7'],
-            'weekly_planning_send_time' => ['sometimes', Rule::prohibitedIf(! $this->isAdmin()), 'nullable', 'date_format:H:i'],
+            // Au quart d'heure : planning:send-weekly tourne toutes les 15 minutes (12:07 partirait en fait à 12:15)
+            'weekly_planning_send_time' => [
+                'sometimes', Rule::prohibitedIf(! $this->isAdmin()), 'nullable', 'date_format:H:i', 'regex:/^\d{2}:(00|15|30|45)$/',
+            ],
             'weekly_planning_owner_user_id' => [
                 'sometimes', Rule::prohibitedIf(! $this->isAdmin()), 'nullable', 'integer', $this->activeInternalUser(...),
             ],
@@ -61,6 +64,7 @@ class UpdateMunicipalityRequest extends FormRequest
             'weekly_planning_owner_user_id.prohibited' => 'Seul un administrateur peut désigner le responsable du planning.',
             'weekly_planning_send_day.between' => 'Choisissez un jour de la semaine.',
             'weekly_planning_send_time.date_format' => 'L’heure d’envoi doit être au format HH:MM.',
+            'weekly_planning_send_time.regex' => 'Choisissez une heure au quart d’heure (00, 15, 30 ou 45) : l’envoi est vérifié toutes les 15 minutes.',
             'navigation_engine.in' => 'Cette application de navigation n’est pas proposée.',
             'driver_departure_window_min.integer' => 'Le délai du premier départ doit être un nombre de minutes.',
             'driver_departure_window_min.min' => 'Le délai du premier départ ne peut pas être négatif.',
@@ -73,7 +77,7 @@ class UpdateMunicipalityRequest extends FormRequest
     {
         $user = User::query()->find($value);
 
-        if ($user === null || ! $user->active || ! $user->hasAnyRole(['admin', 'agent_communal'])) {
+        if ($user === null || ! $user->canOwnWeeklyPlanning()) {
             $fail('Le responsable du planning doit être un agent ou un administrateur actif.');
         }
     }

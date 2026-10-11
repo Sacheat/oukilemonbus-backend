@@ -48,6 +48,8 @@ class MunicipalityResource extends JsonResource
                 'name' => trim($this->weeklyPlanningOwner->first_name.' '.$this->weeklyPlanningOwner->last_name),
                 'email' => $this->weeklyPlanningOwner->email,
                 'active' => (bool) $this->weeklyPlanningOwner->active,
+                // false : compte désactivé ou plus agent ni admin → il ne compte plus, tous reçoivent le planning
+                'effective' => $this->weeklyPlanningOwner->canOwnWeeklyPlanning(),
             ] : null),
             'effective_weekly_planning_enabled' => (bool) ($this->weekly_planning_enabled ?? config('weekly_planning.enabled', true)),
             'effective_weekly_planning_send_day' => (int) ($this->weekly_planning_send_day ?? config('weekly_planning.send_day', 5)),

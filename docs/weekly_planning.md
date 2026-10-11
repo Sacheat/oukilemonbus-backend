@@ -50,7 +50,8 @@ heures silencieuses de chacun.
 
 **Responsable du planning** (`municipalities.weekly_planning_owner_user_id`, réglé par un admin) : un agent ou un admin
 actif (sinon 422). Le changement est noté dans l'historique (`weekly_planning.owner_changed`), la personne désignée
-est prévenue (`planning.weekly.owner_assigned`) et l'ancienne aussi (`planning.weekly.owner_removed`). Un
+est prévenue (`planning.weekly.owner_assigned`) et l'ancienne aussi (`planning.weekly.owner_removed`), dans la catégorie
+`weekly_planning` (même si « Travail à traiter » est coupé). Un
 responsable désactivé ne compte plus : tout le monde le reçoit à nouveau, pour que le planning ne se perde pas.
 Les autres peuvent toujours l'activer pour eux (remplacement, maladie).
 
@@ -63,10 +64,11 @@ défaut de la config :
 | --- | --- | --- |
 | `weekly_planning_enabled` | booléen | `true` |
 | `weekly_planning_send_day` | 1 (lundi) à 7 (dimanche) | 5 (vendredi) |
-| `weekly_planning_send_time` | `HH:MM` (Bruxelles) | `12:00` |
+| `weekly_planning_send_time` | `HH:MM` (Bruxelles), au quart d'heure (00, 15, 30, 45 : la vérification tourne toutes les 15 min) | `12:00` |
 | `weekly_planning_owner_user_id` | id d'un agent ou admin actif, ou `null` | aucun (tous) |
 
-La réponse donne aussi `effective_weekly_planning_*` et `weekly_planning_owner` (`id`, `name`, `email`, `active`).
+La réponse donne aussi `effective_weekly_planning_*` et `weekly_planning_owner` (`id`, `name`, `email`, `active`,
+`effective` : false si le compte est désactivé ou n'est plus agent ni admin, il ne compte alors plus).
 `GET /notifications/preferences` et `PATCH` acceptent `weekly_planning_opt_in` (`null`, `true`, `false`) et les deux
 canaux.
 

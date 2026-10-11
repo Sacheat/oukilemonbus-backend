@@ -134,7 +134,7 @@ class WeeklyPlanningService
             ? User::query()->find($municipality->weekly_planning_owner_user_id)
             : null;
 
-        return $owner !== null && $owner->active && $owner->hasAnyRole(['admin', 'agent_communal']) ? $owner : null;
+        return $owner?->canOwnWeeklyPlanning() ? $owner : null;
     }
 
     /** @return Collection<int, User> */
@@ -203,7 +203,8 @@ class WeeklyPlanningService
         $this->notificationDispatchService->dispatch(
             users: collect([$user]),
             eventKey: $eventKey,
-            category: 'admin_workflow',
+            // Catégorie du planning : l'avis arrive même à qui a coupé « Travail à traiter »
+            category: 'weekly_planning',
             title: $title,
             message: $message,
             link: ['path' => '/compte#notifications', 'label' => 'Mes notifications']

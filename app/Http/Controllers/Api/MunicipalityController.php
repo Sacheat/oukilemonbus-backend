@@ -21,14 +21,15 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 class MunicipalityController extends Controller
 {
     public function __construct(
-        private readonly MunicipalitySettingsService $municipalitySettingsService
+        private readonly MunicipalitySettingsService $municipalitySettingsService,
+        private readonly WeeklyPlanningService $weeklyPlanningService
     ) {}
 
     public function index(): AnonymousResourceCollection
     {
         return MunicipalityResource::collection(
             Municipality::query()
-                ->with(['localities', 'depotLocation', 'weeklyPlanningOwner'])
+                ->with(['localities', 'depotLocation', 'weeklyPlanningOwner.roles'])
                 ->orderByDesc('is_active')
                 ->orderBy('name')
                 ->paginate()
@@ -39,14 +40,14 @@ class MunicipalityController extends Controller
     {
         $municipality = $this->municipalitySettingsService->create($request->validated());
 
-        return (new MunicipalityResource($municipality->load(['localities', 'depotLocation', 'weeklyPlanningOwner'])))
+        return (new MunicipalityResource($municipality->load(['localities', 'depotLocation', 'weeklyPlanningOwner.roles'])))
             ->response()
             ->setStatusCode(201);
     }
 
     public function show(Municipality $municipality): MunicipalityResource
     {
-        return new MunicipalityResource($municipality->load(['localities', 'depotLocation', 'weeklyPlanningOwner']));
+        return new MunicipalityResource($municipality->load(['localities', 'depotLocation', 'weeklyPlanningOwner.roles']));
     }
 
     public function update(UpdateMunicipalityRequest $request, Municipality $municipality): MunicipalityResource
@@ -56,10 +57,10 @@ class MunicipalityController extends Controller
 
         // Responsable du planning changé : historique et personnes prévenues
         if ($request->has('weekly_planning_owner_user_id')) {
-            app(WeeklyPlanningService::class)->ownerChanged($municipality, $previousOwnerId, $request->user());
+            $this->weeklyPlanningService->ownerChanged($municipality, $previousOwnerId, $request->user());
         }
 
-        return new MunicipalityResource($municipality->load(['localities', 'depotLocation', 'weeklyPlanningOwner']));
+        return new MunicipalityResource($municipality->load(['localities', 'depotLocation', 'weeklyPlanningOwner.roles']));
     }
 
     public function syncLocalities(
@@ -68,6 +69,6 @@ class MunicipalityController extends Controller
     ): MunicipalityResource {
         $municipality = $this->municipalitySettingsService->syncFromExternalProvider($municipality);
 
-        return new MunicipalityResource($municipality->load(['localities', 'depotLocation', 'weeklyPlanningOwner']));
+        return new MunicipalityResource($municipality->load(['localities', 'depotLocation', 'weeklyPlanningOwner.roles']));
     }
 }
