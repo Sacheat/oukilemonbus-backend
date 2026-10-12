@@ -34,6 +34,7 @@ class UserController extends Controller
     /**
      * `search` : chaque mot doit apparaître dans le prénom, le nom ou l'email (ex. « paul sec »).
      * `role` : comptes qui ont ce rôle global. `active` : 1/true (actifs) ou 0/false (désactivés).
+     * `meta.role_counts` : comptes par rôle (`all`, admin, agent_communal, chauffeur, user) pour la recherche et le statut.
      */
     public function index(Request $request): AnonymousResourceCollection
     {
@@ -52,23 +53,33 @@ class UserController extends Controller
 
         $patterns = LikeSearch::patterns($validated['search'] ?? null);
 
+        // Recherche et statut, sans le rôle : base de la liste et des compteurs par rôle
+        $base = User::query()
+            ->when($patterns !== [], function (Builder $query) use ($patterns): void {
+                foreach ($patterns as $like) {
+                    $query->where(fn (Builder $q) => $q
+                        ->where('first_name', 'like', $like)
+                        ->orWhere('last_name', 'like', $like)
+                        ->orWhere('email', 'like', $like));
+                }
+            })
+            ->when(isset($validated['active']), fn (Builder $query) => $query->where('active', (bool) $validated['active']));
+
+        // meta.role_counts : nombre de comptes par rôle global (et `all`) avec la même recherche et le même statut,
+        // pour les pastilles du filtre de rôle (un seul appel au lieu d'un par rôle)
+        $roleCounts = ['all' => (clone $base)->count()];
+        foreach (User::GLOBAL_ROLES as $role) {
+            $roleCounts[$role] = (clone $base)->role($role)->count();
+        }
+
         return UserResource::collection(
-            User::query()
+            $base
                 ->with('roles')
-                ->when($patterns !== [], function (Builder $query) use ($patterns): void {
-                    foreach ($patterns as $like) {
-                        $query->where(fn (Builder $q) => $q
-                            ->where('first_name', 'like', $like)
-                            ->orWhere('last_name', 'like', $like)
-                            ->orWhere('email', 'like', $like));
-                    }
-                })
                 ->when($validated['role'] ?? null, fn (Builder $query, string $role) => $query->role($role))
-                ->when(isset($validated['active']), fn (Builder $query) => $query->where('active', (bool) $validated['active']))
                 ->latest()
                 ->paginate()
                 ->withQueryString()
-        );
+        )->additional(['meta' => ['role_counts' => $roleCounts]]);
     }
 
     public function store(StoreUserRequest $request): JsonResponse
