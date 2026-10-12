@@ -123,7 +123,7 @@ return [
             [
                 'name'            => 'GeoNames — Autocomplétion de localités',
                 'env_key'         => 'GEONAMES_USERNAME',
-                'url'             => 'http://api.geonames.org/searchJSON',
+                'url'             => 'https://secure.geonames.org/searchJSON',
                 'used_for'        => 'Autocomplétion des noms de communes et localités belges lors de la saisie',
                 'request'         => [
                     'name_equals' => '"Dinant"',

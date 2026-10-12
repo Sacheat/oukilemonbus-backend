@@ -253,7 +253,7 @@ class SystemHealthService
     private function checkGeonames(): array
     {
         $username = config('services.geonames.username');
-        $baseUrl  = rtrim((string) config('services.geonames.base_url', 'http://api.geonames.org'), '/');
+        $baseUrl  = rtrim((string) config('services.geonames.base_url', 'https://secure.geonames.org'), '/');
 
         if (blank($username)) {
             return ['status' => 'error', 'details' => 'GEONAMES_USERNAME absent', 'duration_ms' => null];

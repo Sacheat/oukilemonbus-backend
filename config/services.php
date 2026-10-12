@@ -41,7 +41,7 @@ return [
     ],
 
     'geonames' => [
-        'base_url' => env('GEONAMES_BASE_URL', 'http://api.geonames.org'),
+        'base_url' => env('GEONAMES_BASE_URL', 'https://secure.geonames.org'),
         'username' => env('GEONAMES_USERNAME'),
         'max_rows' => env('GEONAMES_MAX_ROWS', 100),
     ],
