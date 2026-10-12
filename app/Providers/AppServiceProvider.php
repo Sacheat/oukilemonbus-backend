@@ -4,7 +4,10 @@ namespace App\Providers;
 
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Auth\Notifications\VerifyEmail;
+use Illuminate\Queue\Events\JobFailed;
 use Illuminate\Support\Facades\Blade;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
 
@@ -25,6 +28,22 @@ class AppServiceProvider extends ServiceProvider
     {
         // Composants Blade des emails : <x-emails::button>, <x-emails::trip-ticket>… (resources/views/emails/components).
         Blade::anonymousComponentPath(resource_path('views/emails/components'), 'emails');
+
+        // Tout job (ou notification, mail en file) qui échoue définitivement, après ses essais, est journalisé :
+        // dans jobs.log pour le détail, et dans le log principal pour qu'une supervision le voie.
+        Queue::failing(function (JobFailed $event): void {
+            $context = [
+                'job' => $event->job->resolveName(),
+                'queue' => $event->job->getQueue(),
+                'connection' => $event->connectionName,
+                'attempts' => $event->job->attempts(),
+                'uuid' => $event->job->uuid(),
+                'message' => $event->exception->getMessage(),
+            ];
+
+            Log::channel('jobs')->error('queue.job.failed', $context);
+            Log::error('queue.job.failed', $context);
+        });
 
         VerifyEmail::createUrlUsing(function (object $notifiable): string {
             $id = $notifiable->getKey();

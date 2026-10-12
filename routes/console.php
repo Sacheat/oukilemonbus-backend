@@ -2,7 +2,9 @@
 
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schedule;
+use Illuminate\Support\Stringable;
 
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
@@ -28,10 +30,16 @@ Schedule::command('notifications:send-digests')
     ->timezone('Europe/Brussels')
     ->withoutOverlapping();
 
+// La commande sort en FAILURE quand un seuil est dépassé : le résultat est journalisé (sinon le scheduler l'ignore).
 Schedule::command('notifications:health --json')
     ->everyFifteenMinutes()
     ->timezone('Europe/Brussels')
-    ->withoutOverlapping();
+    ->withoutOverlapping()
+    ->onFailureWithOutput(function (Stringable $output): void {
+        Log::error('notifications.health.alert', [
+            'report' => json_decode(trim((string) $output), true) ?? trim((string) $output),
+        ]);
+    });
 
 // Note de confiance enregistrée des demandes en attente (tri des files de demandes) : voir la commande.
 Schedule::command('requests:refresh-confidence-notes')

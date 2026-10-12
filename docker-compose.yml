@@ -35,9 +35,11 @@ services:
     # restent lisibles par l'API. En root, Laravel crée les dossiers privés en 0700 et le téléchargement répond 404.
     # L'entrypoint reste en root pour remettre storage/ à www-data au démarrage.
     # setpriv (et non runuser) remplace le processus : le worker reçoit SIGTERM directement et finit son job en cours
-    # (runuser tue l'enfant 2 s après SIGTERM). stop_grace_period couvre le --timeout=120 d'un job.
-    command: setpriv --reuid=www-data --regid=www-data --init-groups -- php artisan queue:work --queue=${QUEUE_WORKER_QUEUES} --sleep=1 --tries=3 --timeout=120
-    stop_grace_period: 130s
+    # (runuser tue l'enfant 2 s après SIGTERM). stop_grace_period couvre le timeout du plus long job (180 s).
+    # --max-time=3600 : le worker s'arrête proprement après une heure (après son job en cours) et restart le relance,
+    # ce qui évite qu'un processus PHP tourne des semaines (mémoire, connexions perdues).
+    command: setpriv --reuid=www-data --regid=www-data --init-groups -- php artisan queue:work --queue=${QUEUE_WORKER_QUEUES} --sleep=1 --tries=3 --timeout=120 --max-time=3600
+    stop_grace_period: 190s
     volumes:
       - .:/var/www/html
     depends_on:
