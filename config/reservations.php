@@ -53,16 +53,11 @@ return [
     // Types considérés prioritaires (niveau 2 dans le calcul de priorité).
     'high_priority_types' => ['ecole_communale', 'personnel_communal'],
 
-    'closed_dates' => [
-        '2026-01-01',
-        '2026-04-06',
-        '2026-05-01',
-        '2026-05-14',
-        '2026-05-25',
-        '2026-07-21',
-        '2026-08-15',
-        '2026-11-01',
-        '2026-11-11',
-        '2026-12-25',
-    ],
+    // Les 10 jours fériés légaux belges sont calculés pour toute année (App\Services\Calendar\ClosedDaysService) ;
+    // les fermetures propres à la commune se règlent dans Communes (municipality_calendar_periods).
+    // false seulement dans des tests qui vérifient autre chose que le calendrier.
+    'public_holidays' => true,
+
+    // Ancien réglage : dates fermées en plus, toujours lues (vide par défaut, les fériés sont calculés).
+    'closed_dates' => [],
 ];

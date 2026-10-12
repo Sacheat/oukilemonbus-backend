@@ -47,6 +47,15 @@ class UpdateMunicipalityRequest extends FormRequest
             'weekly_planning_owner_user_id' => [
                 'sometimes', Rule::prohibitedIf(! $this->isAdmin()), 'nullable', 'integer', $this->activeInternalUser(...),
             ],
+            // Composition du Collège sur les délibérations (admins) : null = valeur de config/deliberations.php
+            'council_present_text' => ['sometimes', Rule::prohibitedIf(! $this->isAdmin()), 'nullable', 'string', 'max:2000'],
+            'council_director_title' => ['sometimes', Rule::prohibitedIf(! $this->isAdmin()), 'nullable', 'string', 'max:100'],
+            'council_director_name' => ['sometimes', Rule::prohibitedIf(! $this->isAdmin()), 'nullable', 'string', 'max:150'],
+            'council_president_title' => ['sometimes', Rule::prohibitedIf(! $this->isAdmin()), 'nullable', 'string', 'max:100'],
+            'council_president_name' => ['sometimes', Rule::prohibitedIf(! $this->isAdmin()), 'nullable', 'string', 'max:150'],
+            'council_mayor_title' => ['sometimes', Rule::prohibitedIf(! $this->isAdmin()), 'nullable', 'string', 'max:100'],
+            'council_mayor_name' => ['sometimes', Rule::prohibitedIf(! $this->isAdmin()), 'nullable', 'string', 'max:150'],
+            'council_schools_recipient' => ['sometimes', Rule::prohibitedIf(! $this->isAdmin()), 'nullable', 'string', 'max:255'],
         ];
     }
 
@@ -62,6 +71,10 @@ class UpdateMunicipalityRequest extends FormRequest
             'weekly_planning_send_day.prohibited' => 'Seul un administrateur peut régler l’envoi du planning hebdomadaire.',
             'weekly_planning_send_time.prohibited' => 'Seul un administrateur peut régler l’envoi du planning hebdomadaire.',
             'weekly_planning_owner_user_id.prohibited' => 'Seul un administrateur peut désigner le responsable du planning.',
+            ...array_fill_keys(
+                array_map(fn (string $field) => "{$field}.prohibited", \App\Services\Municipalities\MunicipalitySettingsService::COUNCIL_FIELDS),
+                'Seul un administrateur peut modifier la composition du Collège.'
+            ),
             'weekly_planning_send_day.between' => 'Choisissez un jour de la semaine.',
             'weekly_planning_send_time.date_format' => 'L’heure d’envoi doit être au format HH:MM.',
             'weekly_planning_send_time.regex' => 'Choisissez une heure au quart d’heure (00, 15, 30 ou 45) : l’envoi est vérifié toutes les 15 minutes.',

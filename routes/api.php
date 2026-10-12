@@ -8,6 +8,8 @@ use App\Http\Controllers\Api\DriverJourneyController;
 use App\Http\Controllers\Api\DriverController;
 use App\Http\Controllers\Api\LocationController;
 use App\Http\Controllers\Api\MunicipalityController;
+use App\Http\Controllers\Api\MunicipalityCalendarController;
+use App\Http\Controllers\Api\PassengerListController;
 use App\Http\Controllers\Api\MunicipalityLocalityController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\NotificationPreferenceController;
@@ -188,6 +190,20 @@ Route::name('api.')->group(function (): void {
         Route::patch('/municipality-localities/{municipalityLocality}/deactivate', [MunicipalityLocalityController::class, 'deactivate'])
             ->middleware('permission:municipalities.manage')
             ->name('municipality-localities.deactivate');
+
+        // Calendrier de la commune : fermetures, vacances scolaires et jours fériés légaux (calculés)
+        Route::get('/municipalities/{municipality}/calendar-periods', [MunicipalityCalendarController::class, 'index'])
+            ->middleware('permission:municipalities.view')
+            ->name('municipality-calendar-periods.index');
+        Route::post('/municipalities/{municipality}/calendar-periods', [MunicipalityCalendarController::class, 'store'])
+            ->middleware('permission:municipalities.manage')
+            ->name('municipality-calendar-periods.store');
+        Route::patch('/municipality-calendar-periods/{municipalityCalendarPeriod}', [MunicipalityCalendarController::class, 'update'])
+            ->middleware('permission:municipalities.manage')
+            ->name('municipality-calendar-periods.update');
+        Route::delete('/municipality-calendar-periods/{municipalityCalendarPeriod}', [MunicipalityCalendarController::class, 'destroy'])
+            ->middleware('permission:municipalities.manage')
+            ->name('municipality-calendar-periods.destroy');
 
         /**
          * Vehicles routes
@@ -459,6 +475,22 @@ Route::name('api.')->group(function (): void {
         Route::patch('/reservations/{reservation}/conflicts/{conflict}/resolve', [ReservationConflictController::class, 'resolve'])
             ->middleware('permission:reservations.manage-conflicts')
             ->name('reservations.conflicts.resolve');
+
+        /**
+         * Liste des passagers d'une réservation (carnet de bord, contrôle du SPF Mobilité) : droits dans
+         * ReservationPolicy::view / managePassengerList, délai dans PassengerListService
+         */
+        Route::middleware('permission:reservations.view')->group(function (): void {
+            Route::get('/reservations/{reservation}/passenger-list', [PassengerListController::class, 'show'])
+                ->middleware('throttle:consultation')
+                ->name('reservations.passenger-list.show');
+            Route::post('/reservations/{reservation}/passenger-list', [PassengerListController::class, 'store'])
+                ->middleware('throttle:action')
+                ->name('reservations.passenger-list.store');
+            Route::delete('/reservations/{reservation}/passenger-list', [PassengerListController::class, 'destroy'])
+                ->middleware('throttle:action')
+                ->name('reservations.passenger-list.destroy');
+        });
 
         /**
          * Trip reports routes (compte rendu du trajet par le chauffeur, corrigeable par un agent)

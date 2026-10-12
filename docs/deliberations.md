@@ -359,3 +359,21 @@ Il est lié aux réservations, aux décisions du Collège et au module Documents
 Les points importants sont la sécurité d'accès, le versioning, la génération contrôlée et la cohérence avec les règles métier.
 
 Le module est déjà bien avancé, mais les cas de refus et la génération automatique doivent être confirmés ou finalisés selon les besoins du projet.
+
+## Deux modèles et composition du Collège (octobre 2026)
+
+La commune utilise deux modèles de délibération, repris de ses exemples (PDF client, pages 17 à 20) :
+
+| Modèle (`template_key`) | Organisations | Différences |
+| --- | --- | --- |
+| `deliberations.subvention` | ASBL, externes, CPAS (`config/deliberations.php` `subsidy_types`) | « Vu la circulaire du 30 mai 2013… », « Vu la décision du Conseil communal du 9 novembre 2020… », disponibilité « sous réserve d'immobilisation du car » |
+| `deliberations.sans_subvention` | écoles et personnel communaux | « avis positif rendu par le service enseignement », copie à la direction des écoles communales |
+
+Les deux affichent les heures : « Départ de Dinant à 10h15 - Départ de Bambois à 15h15 » (ville du lieu de départ et de
+la destination, heure de départ et heure de retour). Une seule vue Blade (`documents.deliberations.college`, ancienne
+`external`) choisit le texte selon `context.model`. `template_version` passe à `2.0`.
+
+Commune et composition du Collège ne sont plus écrites dans la vue : `context.college` reprend le nom de la commune
+active et ses colonnes `council_*` (bloc « PRÉSENTS », signataires « Par le Collège » et « Pour copie conforme »,
+destinataire « écoles »), réglées par un **admin** dans Communes (`PATCH /municipalities/{id}`, 422 pour un agent). Un
+champ vide reprend la valeur de `config/deliberations.php` (`effective_council_*` dans la réponse).

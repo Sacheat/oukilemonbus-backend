@@ -19,7 +19,7 @@ use Barryvdh\DomPDF\Facade\Pdf;
  */
 class DeliberationGenerator
 {
-    private const VIEW = 'documents.deliberations.external';
+    private const VIEW = 'documents.deliberations.college';
 
     public function generateHtml(array $context): string
     {

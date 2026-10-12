@@ -158,6 +158,9 @@ return [
         'api.municipality-localities.store'       => 'admin.municipality_localities.store',
         'api.municipality-localities.update'      => 'admin.municipality_localities.update',
         'api.municipality-localities.deactivate'  => 'admin.municipality_localities.deactivate',
+        'api.municipality-calendar-periods.store'   => 'admin.municipality_calendar',
+        'api.municipality-calendar-periods.update'  => 'admin.municipality_calendar',
+        'api.municipality-calendar-periods.destroy' => 'admin.municipality_calendar',
         'api.organizations.update'                => 'organizations.update',
         'api.organizations.members.update'        => 'organizations.members.update',
         'api.organizations.members.destroy'       => 'organizations.members.destroy',
@@ -166,6 +169,8 @@ return [
         'api.planning.exports.request'            => 'planning.exports.request',
         'api.recurrences.cancel'                  => 'recurrences.cancel',
         'api.reservations.trip-report.update'     => 'reservations.trip_report',
+        'api.reservations.passenger-list.store'   => 'reservations.passenger_list',
+        'api.reservations.passenger-list.destroy' => 'reservations.passenger_list',
         'api.reservations.trip-events.store'      => 'reservations.trip_events.record',
         'api.reservations.trip-events.destroy-last' => 'reservations.trip_events.cancel_last',
         'api.driver-alerts.store'                 => 'driver_alerts.create',
@@ -4025,6 +4030,96 @@ return [
             'effects' => [
                 'Les occurrences en_attente, approuve et confirme passent en annule.',
                 'Une occurrence qui ne peut pas être annulée est journalisée et ignorée.',
+            ],
+        ],
+
+        'admin.municipality_calendar' => [
+            'title' => 'Calendrier de la commune',
+            'category' => 'Administration',
+            'goal' => 'Ajouter, modifier ou supprimer une fermeture de la commune ou des vacances scolaires.',
+
+            'route' => [
+                'api' => 'POST /api/municipalities/{municipality}/calendar-periods, PATCH|DELETE /api/municipality-calendar-periods/{period}',
+            ],
+
+            'api_controller' => [
+                'class' => 'MunicipalityCalendarController',
+                'method' => 'store / update / destroy',
+            ],
+
+            'request' => [
+                'class' => 'SaveCalendarPeriodRequest',
+                'methods' => [
+                    'rules',
+                    'after',
+                ],
+            ],
+
+            'service' => [
+                'class' => 'ClosedDaysService',
+                'method' => 'closedReason / schoolHolidayReason',
+                'internal_methods' => [
+                    'publicHolidays (jours fériés légaux calculés)',
+                ],
+            ],
+
+            'related_services' => [
+                'ReservationPreviewService::ensureBookableDate',
+                'RecurrenceService::preview',
+            ],
+
+            'tables' => [
+                'municipality_calendar_periods',
+            ],
+
+            'effects' => [
+                'Fermeture : plus aucune réservation possible ces jours-là.',
+                'Vacances scolaires : les nouvelles séries sautent ces jours ; les réservations déjà créées ne changent pas.',
+            ],
+        ],
+
+        'reservations.passenger_list' => [
+            'title' => 'Liste des passagers d’un trajet',
+            'category' => 'Réservations',
+            'goal' => 'Joindre, remplacer ou retirer la liste nominative des passagers (carnet de bord, SPF Mobilité).',
+
+            'route' => [
+                'api' => 'POST|DELETE /api/reservations/{reservation}/passenger-list',
+            ],
+
+            'api_controller' => [
+                'class' => 'PassengerListController',
+                'method' => 'store / destroy',
+            ],
+
+            'request' => [
+                'class' => 'Request (champ passenger_list)',
+                'methods' => [
+                    'validate',
+                ],
+            ],
+
+            'service' => [
+                'class' => 'PassengerListService',
+                'method' => 'replace / remove',
+                'internal_methods' => [
+                    'window (jusqu’au départ, sauf agent et admin)',
+                    'ProofDocumentService::validateAs (sécurité du fichier)',
+                ],
+            ],
+
+            'related_services' => [
+                'DocumentStorageService',
+                'documents:purge-passenger-lists (3 ans après l’année du trajet)',
+            ],
+
+            'tables' => [
+                'documents',
+            ],
+
+            'effects' => [
+                'Une seule liste par réservation : la précédente est supprimée, fichier compris.',
+                'Lisible par l’agent, l’admin, le demandeur, l’organisation et le chauffeur affecté.',
             ],
         ],
 
