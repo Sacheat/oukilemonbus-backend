@@ -45,7 +45,8 @@ class DriverController extends Controller
 
     public function show(Driver $driver): DriverResource
     {
-        return new DriverResource($driver);
+        // Avec le compte, comme la liste : le panneau d'un chauffeur hors de la page chargée est relu par cette route
+        return new DriverResource($driver->load('user'));
     }
 
     public function update(UpdateDriverRequest $request, Driver $driver): DriverResource

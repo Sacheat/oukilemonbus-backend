@@ -18,6 +18,7 @@ class UnavailabilityHistoryController extends Controller
     {
         return UnavailabilityHistoryResource::collection(
             $unavailability->history()
+                ->with('changedByUser')
                 ->orderBy('created_at', 'desc')
                 ->paginate()
         );
@@ -28,6 +29,6 @@ class UnavailabilityHistoryController extends Controller
         // Empêche d'accéder à l'historique d'une autre indisponibilité via une URL forgée.
         abort_unless($history->unavailability_id === $unavailability->id, 404);
 
-        return new UnavailabilityHistoryResource($history);
+        return new UnavailabilityHistoryResource($history->load('changedByUser'));
     }
 }

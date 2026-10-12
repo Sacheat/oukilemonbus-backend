@@ -125,7 +125,8 @@ class DriverApiTest extends TestCase
 
         $this->getJson("/api/drivers/{$driver->id}")
             ->assertOk()
-            ->assertJsonPath('data.id', $driver->id);
+            ->assertJsonPath('data.id', $driver->id)
+            ->assertJsonPath('data.user.id', $driver->user_id);
     }
 
     private function seededUser(string $email): User
