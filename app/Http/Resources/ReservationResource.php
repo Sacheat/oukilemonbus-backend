@@ -13,6 +13,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * Retourne null si trip_date, departure_time ou return_time est absent.
  * `council_decision_status` n'est présent que si la relation councilDecision est chargée (GET /reservations et
  * GET /reservations/{id}).
+ * `trip_report` n'est présent que si la relation tripReport est chargée (GET /reservations?include=trip_report).
  */
 class ReservationResource extends JsonResource
 {
@@ -59,6 +60,11 @@ class ReservationResource extends JsonResource
             'passengers_confirmed_at' => $this->passengers_confirmed_at?->toISOString(),
             'created_at' => $this->created_at?->toISOString(),
             'updated_at' => $this->updated_at?->toISOString(),
+            // Compte rendu du trajet (ou null), seulement si la liste l'a demandé (include=trip_report)
+            'trip_report' => $this->when(
+                $this->resource->relationLoaded('tripReport'),
+                fn () => $this->tripReport ? new TripReportResource($this->tripReport) : null,
+            ),
             'organization' => new OrganizationResource($this->whenLoaded('organization')),
             'pickup_location' => new LocationResource($this->whenLoaded('pickupLocation')),
             'destination_location' => new LocationResource($this->whenLoaded('destinationLocation')),

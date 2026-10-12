@@ -10,6 +10,7 @@ use App\Models\Location;
 use App\Models\Municipality;
 use App\Models\Organization;
 use App\Models\Reservation;
+use App\Models\TripReport;
 use App\Models\User;
 use App\Models\Vehicle;
 use Database\Seeders\RolesAndPermissionsSeeder;
@@ -27,7 +28,8 @@ use Tests\TestCase;
 
 /**
  * « Ma journée », partie 2 : réglages de la commune (navigation, délai du premier départ), tracé réel d'un trajet
- * (GET /reservations/{id}/route, ORS simulé) et contrôle des étapes loin du lieu prévu (meta.step_checks).
+ * (GET /reservations/{id}/route, ORS simulé) et contrôle des étapes loin du lieu prévu (meta.step_checks) ; journée du
+ * chauffeur en un appel (GET /driver-journey/day) et compte rendu joint à la liste (GET /reservations?include=trip_report).
  * Trajet de test : mardi 16 juin 2026, départ 09:00 (Bruxelles, UTC+2) ; lieu de départ 50.26, 4.91 ; destination 50.27, 4.92.
  */
 class DriverJourneyApiTest extends TestCase
@@ -226,6 +228,97 @@ class DriverJourneyApiTest extends TestCase
             ->assertJsonPath('meta.step_checks.1.far_from_expected', false);
     }
 
+    public function test_the_day_of_the_driver_comes_in_one_call_with_progress_neighbour_days_and_settings(): void
+    {
+        // Jours lointains, pour ne pas croiser d'autres trajets de la base de test
+        $before = $this->confirmedReservation(['trip_date' => '2031-03-10']);
+        $late = $this->confirmedReservation(['trip_date' => '2031-03-12', 'departure_time' => '14:00:00', 'return_time' => '16:00:00']);
+        $early = $this->confirmedReservation(['trip_date' => '2031-03-12', 'status' => ReservationStatus::APPROUVE]);
+        $cancelled = $this->confirmedReservation(['trip_date' => '2031-03-12', 'status' => ReservationStatus::ANNULE]);
+        $cancelledLater = $this->confirmedReservation(['trip_date' => '2031-03-13', 'status' => ReservationStatus::ANNULE]);
+        $otherDriver = $this->confirmedReservation([
+            'trip_date' => '2031-03-12',
+            'driver_id' => Driver::query()->where('licence_number', 'DRV-SEED-002')->firstOrFail()->id,
+        ]);
+        $after = $this->confirmedReservation(['trip_date' => '2031-03-14']);
+
+        Carbon::setTestNow('2031-03-12 13:05:00'); // 14:05 à Bruxelles (UTC+1 en mars) : le trajet de 14:00 peut partir
+        Sanctum::actingAs($this->user('chauffeur.test@bus-communal.local'));
+        $this->record($late, 'depart_aller')->assertCreated();
+
+        $response = $this->getJson('/api/driver-journey/day?date=2031-03-12')
+            ->assertOk()
+            ->assertJsonPath('data.date', '2031-03-12')
+            ->assertJsonPath('data.previous_day', '2031-03-10')
+            ->assertJsonPath('data.next_day', '2031-03-14')
+            ->assertJsonPath('data.settings.navigation_engine.key', 'openstreetmap')
+            ->assertJsonCount(2, 'data.missions')
+            ->assertJsonPath('data.missions.0.id', $early->id)
+            ->assertJsonPath('data.missions.1.id', $late->id)
+            ->assertJsonPath('data.missions.1.organization.id', $late->organization_id)
+            ->assertJsonPath('data.missions.1.trip_started_local_time', '14:05')
+            ->assertJsonCount(2, 'data.progress')
+            ->assertJsonPath('data.progress.0.reservation_id', $early->id)
+            ->assertJsonPath('data.progress.0.state', 'a_venir')
+            ->assertJsonPath('data.progress.1.reservation_id', $late->id)
+            ->assertJsonPath('data.progress.1.state', 'en_route_aller');
+
+        $ids = collect($response->json('data.missions'))->pluck('id');
+        $this->assertNotContains($cancelled->id, $ids);
+        $this->assertNotContains($otherDriver->id, $ids);
+        $this->assertNotNull($before->id);
+        $this->assertNotNull($cancelledLater->id);
+        $this->assertNotNull($after->id);
+    }
+
+    public function test_the_day_needs_a_valid_date_and_is_reserved_to_drivers(): void
+    {
+        Sanctum::actingAs($this->user('chauffeur.test@bus-communal.local'));
+        $this->getJson('/api/driver-journey/day')->assertUnprocessable()->assertJsonValidationErrors('date');
+        $this->getJson('/api/driver-journey/day?date=12/03/2031')->assertUnprocessable()->assertJsonValidationErrors('date');
+
+        Sanctum::actingAs($this->user('agent.test@bus-communal.local'));
+        $this->getJson('/api/driver-journey/day?date=2031-03-12')->assertForbidden();
+
+        Sanctum::actingAs($this->user('user.test@bus-communal.local'));
+        $this->getJson('/api/driver-journey/day?date=2031-03-12')->assertForbidden();
+    }
+
+    public function test_the_reservation_list_can_carry_the_trip_report_for_those_who_may_read_it(): void
+    {
+        $reported = $this->confirmedReservation(['trip_date' => '2031-03-12']);
+        $waiting = $this->confirmedReservation(['trip_date' => '2031-03-12', 'departure_time' => '14:00:00', 'return_time' => '16:00:00']);
+        $chauffeur = $this->user('chauffeur.test@bus-communal.local');
+        TripReport::create([
+            'reservation_id' => $reported->id,
+            'driver_id' => $reported->driver_id,
+            'outcome' => 'realise',
+            'actual_departure_time' => '09:05',
+            'actual_return_time' => '11:00',
+            'actual_nb_children' => 10,
+            'actual_nb_adults' => 1,
+            'reported_by_user_id' => $chauffeur->id,
+            'reported_at' => now(),
+        ]);
+        $query = '/api/reservations?date_from=2031-03-12&date_to=2031-03-12&sort=asc';
+
+        foreach (['chauffeur.test@bus-communal.local', 'agent.test@bus-communal.local'] as $email) {
+            Sanctum::actingAs($this->user($email));
+            $this->getJson("{$query}&include=trip_report")
+                ->assertOk()
+                ->assertJsonPath('data.0.id', $reported->id)
+                ->assertJsonPath('data.0.trip_report.outcome', 'realise')
+                ->assertJsonPath('data.0.trip_report.reported_by_driver', true)
+                ->assertJsonPath('data.1.id', $waiting->id)
+                ->assertJsonPath('data.1.trip_report', null);
+        }
+
+        // Sans include : pas de clé (comme avant)
+        Sanctum::actingAs($chauffeur);
+        $this->assertArrayNotHasKey('trip_report', $this->getJson($query)->assertOk()->json('data.0'));
+        $this->getJson("{$query}&include=autre")->assertUnprocessable()->assertJsonValidationErrors('include');
+    }
+
     private function record(Reservation $reservation, string $type, array $position = ['state' => 'refusee'])
     {
         return $this->postJson("/api/reservations/{$reservation->id}/trip-events", ['type' => $type, 'position' => $position]);
@@ -260,9 +353,14 @@ class DriverJourneyApiTest extends TestCase
             ?? Municipality::create(['name' => 'Dinant', 'country' => 'BE', 'source' => 'manual', 'is_active' => true]);
     }
 
-    private function confirmedReservation(): Reservation
+    private function confirmedReservation(array $overrides = []): Reservation
     {
-        return Reservation::create([
+        return Reservation::create([...$this->reservationAttributes(), ...$overrides]);
+    }
+
+    private function reservationAttributes(): array
+    {
+        return [
             'requested_by_user_id' => $this->user('user.test@bus-communal.local')->id,
             'organization_id' => Organization::query()->where('type', OrganizationType::ECOLE_COMMUNALE)->orderBy('id')->firstOrFail()->id,
             'pickup_location_id' => Location::query()->where('place_id', 'seed-dinant-pickup')->firstOrFail()->id,
@@ -278,7 +376,7 @@ class DriverJourneyApiTest extends TestCase
             'estimated_duration_min' => 20,
             'status' => ReservationStatus::CONFIRME,
             'approval_type' => ApprovalType::AUTO,
-        ]);
+        ];
     }
 
     private function user(string $email): User

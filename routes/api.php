@@ -481,6 +481,10 @@ Route::name('api.')->group(function (): void {
             Route::get('/driver-journey/settings', [DriverJourneyController::class, 'settings'])->name('driver-journey.settings');
             Route::get('/reservations/{reservation}/route', [DriverJourneyController::class, 'route'])->name('reservations.route.show');
         });
+        // « Ma journée » en un appel : missions du jour, avancement, jours voisins et réglages (chauffeur seulement)
+        Route::get('/driver-journey/day', [DriverJourneyController::class, 'day'])
+            ->middleware('permission:trip-progress.record')
+            ->name('driver-journey.day');
 
         /**
          * Driver alerts routes (bouton « Aide » du chauffeur, suivi par les agents)
