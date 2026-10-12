@@ -56,6 +56,11 @@ class ReservationController extends Controller
                 ->with(['organization', 'pickupLocation', 'destinationLocation', 'driver', 'vehicle', 'conflicts', 'councilDecision'])
                 // Heure de la première étape (trip_started_at) en une requête pour toute la page
                 ->withMin('tripEvents', 'occurred_at')
+                // include=trip_report : compte rendu joint, pour qui peut en lire (liste déjà limitée par visibleTo)
+                ->when(
+                    $request->validated('include') === 'trip_report' && $user->hasAnyPermission(['trip-reports.submit', 'trip-reports.manage']),
+                    fn ($query) => $query->with(['tripReport.driver', 'tripReport.reportedByUser'])
+                )
                 // Le scope visibleTo filtre selon le rôle : admin/agent voit tout ; les autres voient
                 // leurs réservations et celles de leurs organisations, le chauffeur celles où il est assigné.
                 ->visibleTo($user)

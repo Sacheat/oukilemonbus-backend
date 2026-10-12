@@ -17,6 +17,8 @@ use Illuminate\Validation\Rule;
  * avec statuses[]=approuve) ; filtré par la base, pour garder une pagination juste.
  * `passengers_to_confirm=1` : trajets actifs des 14 prochains jours dont les passagers ne sont pas confirmés
  * (scope Reservation::awaitingPassengerConfirmation, même règle que le compteur du tableau de bord).
+ * `include=trip_report` : joint le compte rendu de chaque trajet (`trip_report`, ou null), pour un compte qui peut en lire
+ * (trip-reports.submit ou trip-reports.manage ; ignoré sinon) : le chauffeur évite un second appel à /trip-reports.
  * L'accès est contrôlé par la Policy dans le contrôleur.
  */
 class ListReservationsRequest extends FormRequest
@@ -36,6 +38,7 @@ class ListReservationsRequest extends FormRequest
             'council' => ['sometimes', 'in:a_decider'],
             'unassigned' => ['sometimes', 'boolean'],
             'passengers_to_confirm' => ['sometimes', 'boolean'],
+            'include' => ['sometimes', 'in:trip_report'],
         ];
     }
 
@@ -47,6 +50,7 @@ class ListReservationsRequest extends FormRequest
             'statuses.*.enum' => 'Statut inconnu.',
             'council.in' => 'Le filtre council n’accepte que la valeur a_decider.',
             'passengers_to_confirm.boolean' => 'Le filtre passengers_to_confirm doit valoir 0 ou 1.',
+            'include.in' => 'Le paramètre include n’accepte que la valeur trip_report.',
         ];
     }
 

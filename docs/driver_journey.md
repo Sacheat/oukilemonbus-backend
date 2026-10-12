@@ -240,3 +240,17 @@ seulement (pas réglable par commune).
 ## 9. Étape suivante prévue
 
 Relevé du compteur kilométrique, facultatif, activé par commune (désactivé par défaut).
+
+## 10. Moins de requêtes pour le téléphone du chauffeur
+
+Le téléphone du chauffeur est souvent sur un réseau faible : deux lectures regroupent ce qui demandait plusieurs appels.
+
+- `GET /driver-journey/day?date=AAAA-MM-JJ` (`trip-progress.record`, chauffeur seulement) : tout « Ma journée » en un
+  appel. `data.missions` : ses trajets approuvés ou confirmés du jour, par heure de départ (format de `GET /reservations`) ;
+  `data.progress` : leur avancement (format de `GET /trip-progress`) ; `data.previous_day` / `data.next_day` : jour
+  précédent et suivant qui ont une de ces missions (null sinon) ; `data.settings` : réglages (format de
+  `GET /driver-journey/settings`). Remplace 5 appels (missions, jours voisins, avancement, réglages) ; le front peut ainsi
+  relire la journée régulièrement (trajet annulé ou modifié par un agent).
+- `GET /reservations?include=trip_report` : chaque réservation porte `trip_report` (compte rendu, ou null), pour un
+  compte qui peut en lire (`trip-reports.submit` ou `trip-reports.manage` ; ignoré sinon). Évite l'appel à
+  `GET /trip-reports?reservation_ids[]=…` après une liste. Sans `include`, la clé est absente, comme avant.
