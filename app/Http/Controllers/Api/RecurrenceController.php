@@ -57,7 +57,11 @@ class RecurrenceController extends Controller
         // Réutilise la policy de création de réservation car créer une récurrence = créer plusieurs réservations.
         Gate::authorize('createForOrganization', [Reservation::class, $organization]);
 
-        $preview = $this->recurrenceService->preview($request->validated());
+        // Un agent ou un admin peut déroger au préavis de 15 jours (même règle qu'à la création)
+        $preview = $this->recurrenceService->preview([
+            ...$request->validated(),
+            'skip_minimum_notice' => $request->user()->hasAnyRole(['admin', 'agent_communal']),
+        ]);
 
         return response()->json(['data' => $preview]);
     }

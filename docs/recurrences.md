@@ -54,8 +54,19 @@ Les occurrences sont générées en une seule transaction. Chaque occurrence est
 ### Dates exclues automatiquement
 
 - Weekends (samedi, dimanche)
-- Dates fermées (`reservations.closed_dates` dans la config)
+- Les 10 jours fériés légaux belges, **calculés pour toute année** (`App\Services\Calendar\ClosedDaysService` :
+  Pâques par l'algorithme de Meeus, Ascension = Pâques + 39 j, lundi de Pentecôte = Pâques + 50 j) — motif
+  « Jour férié : Lundi de Pâques »
+- Les fermetures de la commune active (`municipality_calendar_periods`, `kind = fermeture`) — « Fermeture communale : … »
+- Les **vacances scolaires** de la commune active (`kind = vacances_scolaires`) — « Vacances scolaires : Congé
+  d'automne ». Elles ne concernent que les séries : une réservation ponctuelle reste possible pendant les vacances.
+- Dates de l'ancien réglage `reservations.closed_dates` (vide par défaut, toujours lu)
 - Dates hors de la plage `start_date` → `end_date`
+
+Les périodes se gèrent par `GET|POST /api/municipalities/{id}/calendar-periods` (`?year=`, avec
+`meta.public_holidays`) et `PATCH|DELETE /api/municipality-calendar-periods/{id}` (`municipalities.manage`). Une période
+dure au plus 100 jours. Le service lit les périodes une fois par aperçu de série (deux requêtes, quel que soit le nombre de
+dates). `reservations.public_holidays = false` ne sert qu'aux tests qui vérifient autre chose que le calendrier.
 
 ### Auto-confirmation pour les écoles communales
 

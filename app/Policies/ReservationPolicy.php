@@ -107,6 +107,15 @@ class ReservationPolicy
         return $reservation->requested_by_user_id === $user->getKey();
     }
 
+    /**
+     * Joindre ou retirer la liste des passagers (carnet de bord) : les mêmes que pour confirmer les passagers.
+     * Le délai (jusqu'au départ, sauf agent et admin) est vérifié par PassengerListService.
+     */
+    public function managePassengerList(User $user, Reservation $reservation): bool
+    {
+        return $this->confirmPassengers($user, $reservation);
+    }
+
     public function confirmPassengers(User $user, Reservation $reservation): bool
     {
         if (! $user->can('reservations.update') || $reservation->status->isTerminal()) {

@@ -4,6 +4,7 @@ namespace App\Services\Documents\ContextBuilders;
 
 use App\Models\CouncilDecision;
 use App\Models\Location;
+use App\Models\Municipality;
 use App\Models\User;
 use Illuminate\Support\Carbon;
 
@@ -15,8 +16,10 @@ use Illuminate\Support\Carbon;
  */
 class DeliberationContextBuilder
 {
-    private const TEMPLATE_KEY = 'deliberations.external';
-    private const TEMPLATE_VERSION = '1.0';
+    /** Deux modèles (config/deliberations.php) : avec subvention en nature, ou sans (écoles et personnel communaux) */
+    public const MODEL_SUBSIDY = 'subvention';
+    public const MODEL_NO_SUBSIDY = 'sans_subvention';
+    private const TEMPLATE_VERSION = '2.0';
 
     public function build(CouncilDecision $councilDecision): array
     {
@@ -32,14 +35,19 @@ class DeliberationContextBuilder
 
         $reservation = $councilDecision->reservation;
         $organization = $reservation?->organization;
+        $model = $this->modelFor($this->enumValue($organization?->type));
 
         return [
             'document' => [
                 'type' => 'deliberation',
-                'template_key' => self::TEMPLATE_KEY,
+                // deliberations.subvention ou deliberations.sans_subvention : le modèle utilisé reste lisible sur le document
+                'template_key' => "deliberations.{$model}",
                 'template_version' => self::TEMPLATE_VERSION,
                 'generated_at' => now()->toISOString(),
             ],
+
+            'model' => $model,
+            'college' => $this->college(),
 
             'decision' => [
                 'id' => $councilDecision->id,
@@ -103,6 +111,36 @@ class DeliberationContextBuilder
                     'capacity' => $reservation?->vehicle?->capacity,
                 ],
             ],
+        ];
+    }
+
+    /** Subvention en nature pour les types de config/deliberations.php (ASBL, externes, CPAS), sinon modèle sans subvention */
+    private function modelFor(?string $organizationType): string
+    {
+        return in_array($organizationType, config('deliberations.subsidy_types', []), true)
+            ? self::MODEL_SUBSIDY
+            : self::MODEL_NO_SUBSIDY;
+    }
+
+    /**
+     * Commune et composition du Collège : valeurs réglées par un admin dans Communes (commune active), sinon celles de
+     * config/deliberations.php.
+     */
+    private function college(): array
+    {
+        $municipality = Municipality::query()->where('is_active', true)->orderBy('id')->first();
+        $defaults = config('deliberations.council', []);
+        $value = fn (string $field) => filled($municipality?->{"council_{$field}"}) ? $municipality->{"council_{$field}"} : ($defaults[$field] ?? null);
+
+        return [
+            'municipality_name' => $municipality?->name ?? 'Dinant',
+            'present_lines' => array_values(array_filter(array_map('trim', preg_split('/\R/', (string) $value('present_text'))))),
+            'director' => ['title' => $value('director_title'), 'name' => $value('director_name')],
+            'president' => ['title' => $value('president_title'), 'name' => $value('president_name')],
+            'mayor' => ['title' => $value('mayor_title'), 'name' => $value('mayor_name')],
+            'schools_recipient' => $value('schools_recipient'),
+            'subsidy_circular' => config('deliberations.subsidy_circular'),
+            'subsidy_delegation' => config('deliberations.subsidy_delegation'),
         ];
     }
 

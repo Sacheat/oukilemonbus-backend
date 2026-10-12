@@ -64,9 +64,30 @@ class ProofDocumentService
         'image/png'       => "\x89PNG",
     ];
 
+    /** Jeu de règles de config/uploads.php et champ du formulaire qui reçoit les messages d'erreur */
+    private string $profile = 'proof_documents';
+
+    private string $field = 'proof_document';
+
     public function __construct(
         private readonly DocumentStorageService $storageService,
     ) {}
+
+    /**
+     * Même pipeline de sécurité pour un autre usage : `$profile` = clé de config/uploads.php (formats, taille),
+     * `$field` = champ qui reçoit les messages (ex. passenger_lists / passenger_list, PassengerListService).
+     */
+    public function validateAs(UploadedFile $file, string $profile, string $field): void
+    {
+        [$previousProfile, $previousField] = [$this->profile, $this->field];
+        [$this->profile, $this->field] = [$profile, $field];
+
+        try {
+            $this->validateContent($file);
+        } finally {
+            [$this->profile, $this->field] = [$previousProfile, $previousField];
+        }
+    }
 
     public function store(UploadedFile $file, string $ownerType, int $ownerId): Document
     {
@@ -142,7 +163,7 @@ class ProofDocumentService
     {
         if (str_contains($file->getClientOriginalName(), "\0")) {
             throw ValidationException::withMessages([
-                'proof_document' => 'Nom de fichier invalide.',
+                $this->field => 'Nom de fichier invalide.',
             ]);
         }
     }
@@ -154,7 +175,7 @@ class ProofDocumentService
 
         if (pathinfo($nameWithoutLastExt, PATHINFO_EXTENSION) !== '') {
             throw ValidationException::withMessages([
-                'proof_document' => 'Le nom de fichier contient plusieurs extensions, ce qui est interdit.',
+                $this->field => 'Le nom de fichier contient plusieurs extensions, ce qui est interdit.',
             ]);
         }
     }
@@ -163,24 +184,24 @@ class ProofDocumentService
 
     private function ensureSizeAllowed(UploadedFile $file): void
     {
-        $max = (int) config('uploads.proof_documents.max_size_bytes', 5 * 1024 * 1024);
+        $max = (int) config("uploads.{$this->profile}.max_size_bytes", 5 * 1024 * 1024);
 
         if ($file->getSize() > $max) {
             $maxMb = round($max / 1024 / 1024, 1);
             throw ValidationException::withMessages([
-                'proof_document' => "Le fichier ne doit pas dépasser {$maxMb} Mo.",
+                $this->field => "Le fichier ne doit pas dépasser {$maxMb} Mo.",
             ]);
         }
     }
 
     private function ensureExtensionAllowed(UploadedFile $file): void
     {
-        $allowed = config('uploads.proof_documents.allowed_extensions', ['pdf', 'jpg', 'jpeg', 'png']);
+        $allowed = config("uploads.{$this->profile}.allowed_extensions", ['pdf', 'jpg', 'jpeg', 'png']);
         $ext     = strtolower($file->getClientOriginalExtension());
 
         if (! in_array($ext, $allowed, true)) {
             throw ValidationException::withMessages([
-                'proof_document' => 'Format non autorisé. Seuls les fichiers PDF, JPG et PNG sont acceptés.',
+                $this->field => 'Format non autorisé. Seuls les fichiers '.config("uploads.{$this->profile}.formats_label", 'PDF, JPG et PNG').' sont acceptés.',
             ]);
         }
     }
@@ -196,28 +217,31 @@ class ProofDocumentService
 
     private function ensureMimeAllowed(string $realMime, UploadedFile $file): void
     {
-        $allowed = config('uploads.proof_documents.allowed_mimes', [
+        $allowed = config("uploads.{$this->profile}.allowed_mimes", [
             'application/pdf', 'image/jpeg', 'image/png',
         ]);
 
         if (! in_array($realMime, $allowed, true)) {
             throw ValidationException::withMessages([
-                'proof_document' => "Type de fichier invalide. PDF, JPEG ou PNG uniquement.",
+                $this->field => 'Type de fichier invalide : '.config("uploads.{$this->profile}.formats_label", 'PDF, JPG et PNG').' uniquement.',
             ]);
         }
 
         // Cohérence extension déclarée / MIME réel
         $ext = strtolower($file->getClientOriginalExtension());
-        $expectedMime = match ($ext) {
-            'pdf'        => 'application/pdf',
-            'jpg','jpeg' => 'image/jpeg',
-            'png'        => 'image/png',
+        $expectedMimes = match ($ext) {
+            'pdf'        => ['application/pdf'],
+            'jpg','jpeg' => ['image/jpeg'],
+            'png'        => ['image/png'],
+            // Selon la version de libmagic, un .xlsx est reconnu comme tableur Office ou comme archive zip
+            'xlsx'       => ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/zip'],
+            'csv'        => ['text/plain', 'text/csv'],
             default      => null,
         };
 
-        if ($expectedMime !== null && $realMime !== $expectedMime) {
+        if ($expectedMimes !== null && ! in_array($realMime, $expectedMimes, true)) {
             throw ValidationException::withMessages([
-                'proof_document' => "L’extension du fichier ne correspond pas à son contenu réel.",
+                $this->field => "L’extension du fichier ne correspond pas à son contenu réel.",
             ]);
         }
     }
@@ -234,7 +258,7 @@ class ProofDocumentService
 
         if ($handle === false) {
             throw ValidationException::withMessages([
-                'proof_document' => 'Impossible de lire le fichier.',
+                $this->field => 'Impossible de lire le fichier.',
             ]);
         }
 
@@ -243,7 +267,7 @@ class ProofDocumentService
 
         if ($header !== $expected) {
             throw ValidationException::withMessages([
-                'proof_document' => 'La structure du fichier est invalide.',
+                $this->field => 'La structure du fichier est invalide.',
             ]);
         }
     }
@@ -256,7 +280,7 @@ class ProofDocumentService
 
         if ($content === false) {
             throw ValidationException::withMessages([
-                'proof_document' => 'Impossible de lire le fichier.',
+                $this->field => 'Impossible de lire le fichier.',
             ]);
         }
 
@@ -268,7 +292,7 @@ class ProofDocumentService
         foreach (self::GENERIC_DANGEROUS_SIGNATURES as $signature) {
             if (str_contains($content, $signature)) {
                 throw ValidationException::withMessages([
-                    'proof_document' => 'Le fichier contient du contenu non autorisé.',
+                    $this->field => 'Le fichier contient du contenu non autorisé.',
                 ]);
             }
         }
@@ -279,7 +303,7 @@ class ProofDocumentService
         foreach (self::PDF_DANGEROUS_PATTERNS as $pattern) {
             if (str_contains($content, $pattern)) {
                 throw ValidationException::withMessages([
-                    'proof_document' => 'Le fichier PDF contient des elements potentiellement dangereux (scripts ou actions automatiques).',
+                    $this->field => 'Le fichier PDF contient des elements potentiellement dangereux (scripts ou actions automatiques).',
                 ]);
             }
         }

@@ -10,6 +10,7 @@ use App\Models\Recurrence;
 use App\Models\Reservation;
 use App\Models\User;
 use App\Services\Audit\DomainEventLogger;
+use App\Services\Calendar\ClosedDaysService;
 use App\Services\Logging\DomainLogger;
 use App\Services\Reservations\ReservationPreviewService;
 use App\Services\Reservations\ReservationService;
@@ -58,15 +59,18 @@ class RecurrenceService
         $conflictsByDate = [];
         $minNotice = (int) config('reservations.min_notice_days', 15);
         $minimumDate = CarbonImmutable::parse(Reservation::localToday())->addDays($minNotice);
+        // Une instance pour toute la série : les périodes de la commune sont lues une fois, puis comparées en mémoire
+        $closedDays = app(ClosedDaysService::class);
 
         foreach ($allDates as $date) {
-            $skipReason = $this->skipReason($date);
+            $skipReason = $this->skipReason($date, $closedDays);
             if ($skipReason !== null) {
                 $skippedDates[] = ['date' => $date, 'reason' => $skipReason];
                 continue;
             }
 
-            if (CarbonImmutable::parse($date)->startOfDay()->lessThan($minimumDate)) {
+            // Préavis : pas pour une série créée par un agent ou un admin (skip_minimum_notice, mis par le contrôleur)
+            if (! ($data['skip_minimum_notice'] ?? false) && CarbonImmutable::parse($date)->startOfDay()->lessThan($minimumDate)) {
                 $skippedDates[] = [
                     'date' => $date,
                     'reason' => "Délai minimum de {$minNotice} jours non respecté.",
@@ -125,6 +129,8 @@ class RecurrenceService
      */
     public function createWithReport(array $data, User $actor): array
     {
+        // Un agent ou un admin peut déroger au préavis de 15 jours (demande téléphonée, urgence)
+        $data['skip_minimum_notice'] = $actor->hasAnyRole(['admin', 'agent_communal']);
         $preview = $this->preview($data);
 
         if ($preview['valid_dates'] === []) {
@@ -294,19 +300,13 @@ class RecurrenceService
         return $dates;
     }
 
-    private function skipReason(string $date): ?string
+    /**
+     * Pourquoi une date de la série est sautée, ou null : week-end, jour férié légal, fermeture de la commune
+     * (ClosedDaysService), puis vacances scolaires de la commune (« sauf pendant les vacances scolaires »).
+     */
+    private function skipReason(string $date, ClosedDaysService $closedDays): ?string
     {
-        $carbon = CarbonImmutable::parse($date);
-
-        if ($carbon->isWeekend()) {
-            return 'Week-end';
-        }
-
-        if (in_array($carbon->toDateString(), config('reservations.closed_dates', []), true)) {
-            return 'Jour férié ou date de fermeture';
-        }
-
-        return null;
+        return $closedDays->closedReason($date) ?? $closedDays->schoolHolidayReason($date);
     }
 
     private function ensureSchoolOrganization(Organization $organization): void

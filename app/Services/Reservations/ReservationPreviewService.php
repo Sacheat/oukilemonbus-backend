@@ -13,6 +13,7 @@ use App\Models\Organization;
 use App\Models\Reservation;
 use App\Models\User;
 use App\Models\Vehicle;
+use App\Services\Calendar\ClosedDaysService;
 use App\Services\Locations\LocationService;
 use App\Services\Locations\MunicipalityService;
 use App\Services\Logging\DomainLogger;
@@ -399,11 +400,27 @@ class ReservationPreviewService
             ]);
         }
 
-        if (in_array($date->toDateString(), config('reservations.closed_dates', []), true)) {
+        // Jours fériés légaux (calculés pour toute année), fermetures de la commune, ancienne liste de config
+        $closedReason = app(ClosedDaysService::class)->closedReason($date->toDateString());
+        if ($closedReason !== null) {
             throw ValidationException::withMessages([
-                'trip_date' => 'Les réservations ne sont pas autorisées à cette date.',
+                'trip_date' => "Les réservations ne sont pas autorisées à cette date ({$this->lowerFirst($closedReason)}).",
             ]);
         }
+    }
+
+    /** « Jour férié : Ascension » → « jour férié : Ascension », pour l'intégrer dans une phrase */
+    private function lowerFirst(string $text): string
+    {
+        return mb_strtolower(mb_substr($text, 0, 1)).mb_substr($text, 1);
+    }
+
+    /** Le trajet tombe-t-il dans le préavis (moins de 15 jours) ? Sert à le signaler quand un agent y déroge. */
+    public function isWithinMinimumNotice(string $tripDate): bool
+    {
+        $minimumDate = CarbonImmutable::parse(Reservation::localToday())->addDays((int) config('reservations.min_notice_days', 15));
+
+        return CarbonImmutable::parse($tripDate)->startOfDay()->lessThan($minimumDate);
     }
 
     private function ensureMinimumNotice(string $tripDate): void

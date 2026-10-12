@@ -30,6 +30,13 @@ Schedule::command('sanctum:prune-expired --hours=24')
     ->dailyAt('02:50')
     ->timezone('Europe/Brussels');
 
+// Listes des passagers : supprimées 3 ans après l'année du trajet (données nominatives, RGPD),
+// avant le backup de 03:30 pour qu'une liste périmée n'y soit pas recopiée
+Schedule::command('documents:purge-passenger-lists')
+    ->dailyAt('03:15')
+    ->timezone('Europe/Brussels')
+    ->withoutOverlapping();
+
 // Backup chiffré chaque nuit, après les purges RGPD (backups.retention_days : 14 jours par défaut).
 // La copie hors de la VM se fait par deploy/backup-offsite.sh (rclone), voir deploy/README.md.
 Schedule::command('backup:run')

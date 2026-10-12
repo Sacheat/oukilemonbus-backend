@@ -9,6 +9,8 @@ namespace App\Enums;
  * ATTESTATION : document administratif officiel (ex : attestation de transport).
  * PLANNING : export du planning sur une période donnée.
  * JUSTIFICATIF : pièce jointe uploadée par un utilisateur (statuts ASBL, délibération de création, etc.).
+ * LISTE_PASSAGERS : liste nominative des passagers d'un trajet (carnet de bord, contrôle du SPF Mobilité), jointe par
+ *   le demandeur ou un agent (PassengerListService), gardée 3 ans après l'année du trajet.
  */
 enum DocumentType: string
 {
@@ -17,6 +19,7 @@ enum DocumentType: string
     case DELIBERATION = 'deliberation';
     case PLANNING = 'planning';
     case JUSTIFICATIF = 'justificatif';
+    case LISTE_PASSAGERS = 'liste_passagers';
 
     public function label(): string
     {
@@ -26,6 +29,7 @@ enum DocumentType: string
             self::DELIBERATION => 'Délibération',
             self::PLANNING => 'Planning',
             self::JUSTIFICATIF => 'Justificatif',
+            self::LISTE_PASSAGERS => 'Liste des passagers',
         };
     }
 
@@ -37,6 +41,7 @@ enum DocumentType: string
             self::DELIBERATION => 'clipboard-document-check',
             self::PLANNING => 'calendar',
             self::JUSTIFICATIF => 'paper-clip',
+            self::LISTE_PASSAGERS => 'users',
         };
     }
 

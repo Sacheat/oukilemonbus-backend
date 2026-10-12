@@ -55,6 +55,13 @@ class MunicipalityResource extends JsonResource
             'effective_weekly_planning_send_day' => (int) ($this->weekly_planning_send_day ?? config('weekly_planning.send_day', 5)),
             'effective_weekly_planning_send_time' => $this->weekly_planning_send_time ?? config('weekly_planning.send_time', '12:00'),
             'effective_driver_departure_window_min' => $this->driver_departure_window_min ?? (int) config('driver_journey.departure_window_minutes', 60),
+            // Composition du Collège sur les délibérations : valeurs réglées (null = défaut) et appliquées
+            ...collect(['present_text', 'director_title', 'director_name', 'president_title', 'president_name', 'mayor_title', 'mayor_name', 'schools_recipient'])
+                ->flatMap(fn (string $field) => [
+                    "council_{$field}" => $this->{"council_{$field}"},
+                    "effective_council_{$field}" => filled($this->{"council_{$field}"}) ? $this->{"council_{$field}"} : config("deliberations.council.{$field}"),
+                ])
+                ->all(),
             'localities' => $this->whenLoaded('localities', fn () => MunicipalityLocalityResource::collection($this->localities)),
             'active_localities' => $this->whenLoaded('activeLocalities', fn () => MunicipalityLocalityResource::collection($this->activeLocalities)),
             'created_at' => $this->created_at?->toISOString(),
