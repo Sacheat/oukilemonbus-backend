@@ -32,9 +32,26 @@ class PlanningAvailabilityService
 
     public function forReservation(Reservation $reservation): array
     {
-        $window = $this->occupationService->windowForReservation($reservation);
-        $start = $window['start'];
-        $end = $window['end'];
+        return $this->forReservations(collect([$reservation]))[$reservation->id];
+    }
+
+    /**
+     * Disponibilités de plusieurs réservations (un planning entier) : [id de réservation => disponibilités].
+     * Tout est lu en 5 requêtes, quel que soit le nombre de trajets (chauffeurs, véhicules, indisponibilités
+     * de la période, réservations affectées des jours concernés), puis comparé en mémoire pour chaque trajet.
+     */
+    public function forReservations(Collection $reservations): array
+    {
+        if ($reservations->isEmpty()) {
+            return [];
+        }
+
+        $windows = $reservations->mapWithKeys(
+            fn (Reservation $reservation) => [$reservation->id => $this->occupationService->windowForReservation($reservation)]
+        );
+        // Heures locales sans fuseau (comme en base) : comparées en texte, exactement comme le ferait la requête SQL
+        $periodStart = $windows->min(fn (array $window) => $window['start']->format('Y-m-d H:i:s'));
+        $periodEnd = $windows->max(fn (array $window) => $window['end']->format('Y-m-d H:i:s'));
 
         $drivers = Driver::query()
             ->with('user')
@@ -46,72 +63,79 @@ class PlanningAvailabilityService
             ->orderBy('id')
             ->get();
 
-        $driverUnavailabilities = Unavailability::query()
+        $unavailabilities = Unavailability::query()
             ->where('is_active', true)
-            ->whereNotNull('driver_id')
-            ->where('start_datetime', '<', $end)
-            ->where('end_datetime', '>', $start)
-            ->pluck('driver_id')
-            ->filter()
-            ->unique()
-            ->values()
-            ->all();
+            ->where('start_datetime', '<', $periodEnd)
+            ->where('end_datetime', '>', $periodStart)
+            ->get(['driver_id', 'vehicle_id', 'start_datetime', 'end_datetime']);
 
-        $vehicleUnavailabilities = Unavailability::query()
-            ->where('is_active', true)
-            ->whereNotNull('vehicle_id')
-            ->where('start_datetime', '<', $end)
-            ->where('end_datetime', '>', $start)
-            ->pluck('vehicle_id')
-            ->filter()
-            ->unique()
-            ->values()
-            ->all();
-
-        $overlappingReservations = Reservation::query()
-            ->whereKeyNot($reservation->id)
-            ->whereDate('trip_date', $reservation->trip_date)
+        // Réservations affectées des jours du planning, rangées par jour ; leurs fenêtres d'occupation calculées une fois
+        $assignedByDay = Reservation::query()
+            ->whereIn('trip_date', $reservations->map(fn (Reservation $reservation) => $reservation->trip_date->toDateString())->unique()->values())
             ->whereIn('status', [ReservationStatus::APPROUVE->value, ReservationStatus::CONFIRME->value])
             ->where(function ($query): void {
                 $query->whereNotNull('driver_id')
                     ->orWhereNotNull('vehicle_id');
             })
-            ->get();
+            // Ordre fixe : le motif « Déjà affecté à la réservation #… » nomme la première qui chevauche
+            ->orderBy('departure_time')
+            ->orderBy('id')
+            ->get()
+            ->groupBy(fn (Reservation $reservation) => $reservation->trip_date->toDateString());
+        $overlapWindowsByReservationId = $assignedByDay->flatten()->mapWithKeys(
+            fn (Reservation $reservation) => [$reservation->id => $windows[$reservation->id] ?? $this->occupationService->windowForReservation($reservation)]
+        )->all();
 
-        $overlapWindowsByReservationId = [];
-        $overlappingByDriver = [];
-        $overlappingByVehicle = [];
+        $availability = [];
+        foreach ($reservations as $reservation) {
+            $window = $windows[$reservation->id];
+            $start = $window['start']->format('Y-m-d H:i:s');
+            $end = $window['end']->format('Y-m-d H:i:s');
 
-        foreach ($overlappingReservations as $overlapReservation) {
-            $overlapWindowsByReservationId[$overlapReservation->id] = $this->occupationService->windowForReservation($overlapReservation);
+            $overlapping = $unavailabilities->filter(
+                fn (Unavailability $unavailability) => $unavailability->getRawOriginal('start_datetime') < $end
+                    && $unavailability->getRawOriginal('end_datetime') > $start
+            );
+            $driverUnavailabilities = $overlapping->pluck('driver_id')->filter()->unique()->values()->all();
+            $vehicleUnavailabilities = $overlapping->pluck('vehicle_id')->filter()->unique()->values()->all();
 
-            if ($overlapReservation->driver_id !== null) {
-                $overlappingByDriver[$overlapReservation->driver_id][] = $overlapReservation;
+            $overlappingByDriver = [];
+            $overlappingByVehicle = [];
+            foreach ($assignedByDay[$reservation->trip_date->toDateString()] ?? [] as $overlapReservation) {
+                if ($overlapReservation->id === $reservation->id) {
+                    continue;
+                }
+
+                if ($overlapReservation->driver_id !== null) {
+                    $overlappingByDriver[$overlapReservation->driver_id][] = $overlapReservation;
+                }
+
+                if ($overlapReservation->vehicle_id !== null) {
+                    $overlappingByVehicle[$overlapReservation->vehicle_id][] = $overlapReservation;
+                }
             }
 
-            if ($overlapReservation->vehicle_id !== null) {
-                $overlappingByVehicle[$overlapReservation->vehicle_id][] = $overlapReservation;
-            }
+            $availability[$reservation->id] = [
+                'drivers' => $this->driversForReservation(
+                    $reservation,
+                    $window,
+                    $drivers,
+                    $driverUnavailabilities,
+                    $overlappingByDriver,
+                    $overlapWindowsByReservationId
+                ),
+                'vehicles' => $this->vehiclesForReservation(
+                    $reservation,
+                    $window,
+                    $vehicles,
+                    $vehicleUnavailabilities,
+                    $overlappingByVehicle,
+                    $overlapWindowsByReservationId
+                ),
+            ];
         }
 
-        return [
-            'drivers' => $this->driversForReservation(
-                $reservation,
-                $window,
-                $drivers,
-                $driverUnavailabilities,
-                $overlappingByDriver,
-                $overlapWindowsByReservationId
-            ),
-            'vehicles' => $this->vehiclesForReservation(
-                $reservation,
-                $window,
-                $vehicles,
-                $vehicleUnavailabilities,
-                $overlappingByVehicle,
-                $overlapWindowsByReservationId
-            ),
-        ];
+        return $availability;
     }
 
     private function driversForReservation(

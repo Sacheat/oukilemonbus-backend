@@ -10,6 +10,7 @@ use App\Http\Requests\Reservations\CheckTripRequest;
 use App\Http\Requests\Reservations\ConfirmPassengersRequest;
 use App\Http\Requests\Reservations\RetryAutoAssignRequest;
 use App\Http\Requests\Reservations\ConfirmReservationRequest;
+use App\Http\Requests\Reservations\CountReservationsRequest;
 use App\Http\Requests\Reservations\ListReservationsRequest;
 use App\Http\Requests\Reservations\PreviewReservationRequest;
 use App\Http\Requests\Reservations\RejectReservationRequest;
@@ -51,8 +52,16 @@ class ReservationController extends Controller
 
         $user = $request->user();
 
+        // Filtres historiques (status, organization_id, date_from, date_to) lus tels quels : comportement tolérant d'avant
+        $filters = [
+            ...$request->validated(),
+            ...$request->only(['status', 'organization_id', 'date_from', 'date_to']),
+        ];
+
         return ReservationResource::collection(
-            Reservation::query()
+            // Le scope visibleTo filtre selon le rôle : admin/agent voit tout ; les autres voient
+            // leurs réservations et celles de leurs organisations, le chauffeur celles où il est assigné.
+            $this->applyListFilters(Reservation::query()->visibleTo($user), $filters)
                 ->with(['organization', 'pickupLocation', 'destinationLocation', 'driver', 'vehicle', 'conflicts', 'councilDecision'])
                 // Heure de la première étape (trip_started_at) en une requête pour toute la page
                 ->withMin('tripEvents', 'occurred_at')
@@ -61,29 +70,59 @@ class ReservationController extends Controller
                     $request->validated('include') === 'trip_report' && $user->hasAnyPermission(['trip-reports.submit', 'trip-reports.manage']),
                     fn ($query) => $query->with(['tripReport.driver', 'tripReport.reportedByUser'])
                 )
-                // Le scope visibleTo filtre selon le rôle : admin/agent voit tout ; les autres voient
-                // leurs réservations et celles de leurs organisations, le chauffeur celles où il est assigné.
-                ->visibleTo($user)
-                ->when(request('status'), fn ($query, $status) => $query->where('status', $status))
-                ->when($request->validated('statuses'), fn ($query, $statuses) => $query->whereIn('status', $statuses))
-                ->when(LikeSearch::patterns($request->validated('q')), fn ($query, $patterns) => $this->applySearch($query, $patterns, $request->validated('q')))
-                ->when(request('organization_id'), fn ($query, $organizationId) => $query->where('organization_id', $organizationId))
-                // council=a_decider : réservations qui attendent le Collège (même règle que le tableau de bord)
-                ->when($request->validated('council') === 'a_decider', fn ($query) => $query->awaitingCouncilDecision())
-                // unassigned=1 : il manque le chauffeur ou le véhicule (file « À affecter »)
-                ->when($request->boolean('unassigned'), fn ($query) => $query->where(
-                    fn ($missing) => $missing->whereNull('driver_id')->orWhereNull('vehicle_id')
-                ))
-                // passengers_to_confirm=1 : passagers pas encore confirmés, 14 prochains jours (même règle que le tableau de bord)
-                ->when($request->boolean('passengers_to_confirm'), fn ($query) => $query->awaitingPassengerConfirmation())
-                ->when(request('date_from'), fn ($query, $date) => $query->whereDate('trip_date', '>=', $date))
-                ->when(request('date_to'), fn ($query, $date) => $query->whereDate('trip_date', '<=', $date))
                 // sort=asc : trajet le plus proche d'abord (onglet « À venir ») ; desc par défaut.
                 ->orderBy('trip_date', $request->sortDirection())
                 ->orderBy('departure_time')
                 ->paginate()
                 ->withQueryString()
         );
+    }
+
+    /**
+     * Plusieurs nombres de réservations en un appel (pastilles d'une page) : { data: { nom: nombre } }.
+     * Chaque compteur reprend les filtres communs et ajoute les siens, avec exactement les mêmes règles que la liste
+     * (applyListFilters) : un compteur et la liste filtrée pareil donnent toujours le même nombre.
+     */
+    public function counts(CountReservationsRequest $request): JsonResponse
+    {
+        Gate::authorize('viewAny', Reservation::class);
+
+        $common = $request->safe()->only(['date_from', 'date_to', 'organization_id', 'q']);
+        $counts = [];
+        foreach ($request->validated('counts') as $name => $filters) {
+            $counts[$name] = $this->applyListFilters(
+                Reservation::query()->visibleTo($request->user()),
+                [...$common, ...$filters]
+            )->count();
+        }
+
+        return response()->json(['data' => $counts]);
+    }
+
+    /**
+     * Filtres de la liste des réservations, partagés par index() et counts().
+     * `$filters` : status, statuses, q, organization_id, council, unassigned, passengers_to_confirm, date_from, date_to.
+     */
+    private function applyListFilters(Builder $query, array $filters): Builder
+    {
+        $flag = fn (string $name): bool => filter_var($filters[$name] ?? false, FILTER_VALIDATE_BOOLEAN);
+        $search = $filters['q'] ?? null;
+
+        return $query
+            ->when($filters['status'] ?? null, fn ($query, $status) => $query->where('status', $status))
+            ->when($filters['statuses'] ?? null, fn ($query, $statuses) => $query->whereIn('status', $statuses))
+            ->when(LikeSearch::patterns($search), fn ($query, $patterns) => $this->applySearch($query, $patterns, $search))
+            ->when($filters['organization_id'] ?? null, fn ($query, $organizationId) => $query->where('organization_id', $organizationId))
+            // council=a_decider : réservations qui attendent le Collège (même règle que le tableau de bord)
+            ->when(($filters['council'] ?? null) === 'a_decider', fn ($query) => $query->awaitingCouncilDecision())
+            // unassigned=1 : il manque le chauffeur ou le véhicule (file « À affecter »)
+            ->when($flag('unassigned'), fn ($query) => $query->where(
+                fn ($missing) => $missing->whereNull('driver_id')->orWhereNull('vehicle_id')
+            ))
+            // passengers_to_confirm=1 : passagers pas encore confirmés, 14 prochains jours (même règle que le tableau de bord)
+            ->when($flag('passengers_to_confirm'), fn ($query) => $query->awaitingPassengerConfirmation())
+            ->when($filters['date_from'] ?? null, fn ($query, $date) => $query->whereDate('trip_date', '>=', $date))
+            ->when($filters['date_to'] ?? null, fn ($query, $date) => $query->whereDate('trip_date', '<=', $date));
     }
 
     public function preview(PreviewReservationRequest $request): JsonResponse

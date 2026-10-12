@@ -35,7 +35,7 @@ use Illuminate\Support\Facades\Route;
 Route::name('api.')->group(function (): void {
     Route::get('/documents/{document}/signed-download', [DocumentController::class, 'signedDownload'])
         ->middleware('signed')
-        ->middleware('throttle:30,1')
+        ->middleware('throttle:verification')
         ->name('documents.signed-download');
 
     // =========================================================================
@@ -43,20 +43,20 @@ Route::name('api.')->group(function (): void {
     // =========================================================================
     Route::middleware('guest')->group(function (): void {
         Route::post('/auth/register', [AuthController::class, 'register'])
-            ->middleware('throttle:10,1')
+            ->middleware('throttle:inscription')
             ->name('auth.register');
         Route::post('/auth/login', [AuthController::class, 'login'])
-            ->middleware('throttle:20,1')
+            ->middleware('throttle:connexion')
             ->name('auth.login');
         Route::post('/auth/forgot-password', [PasswordResetController::class, 'forgot'])
-            ->middleware('throttle:6,1')
+            ->middleware('throttle:envoi')
             ->name('auth.forgot-password');
     });
 
     // Hors du groupe guest : le jeton reçu par email prouve l'identité, même si le navigateur a déjà une session
     // (son propre compte, ou un admin qui teste le lien qu'il vient d'envoyer).
     Route::post('/auth/reset-password', [PasswordResetController::class, 'reset'])
-        ->middleware('throttle:6,1')
+        ->middleware('throttle:envoi')
         ->name('auth.reset-password');
 
     // =========================================================================
@@ -64,7 +64,7 @@ Route::name('api.')->group(function (): void {
     // Appelée par la SPA avec les paramètres reçus dans le lien de l'email.
     // =========================================================================
     Route::get('/email/verify/{id}/{hash}', [EmailVerificationController::class, 'verify'])
-        ->middleware(['signed:relative', 'throttle:6,1'])
+        ->middleware(['signed:relative', 'throttle:envoi'])
         ->name('verification.verify');
 
     // =========================================================================
@@ -76,11 +76,11 @@ Route::name('api.')->group(function (): void {
          */
         Route::get('/auth/me', [AuthController::class, 'me'])->name('auth.me');
         Route::post('/auth/logout', [AuthController::class, 'logout'])
-            ->middleware('throttle:30,1')
+            ->middleware('throttle:verification')
             ->name('auth.logout');
 
         Route::post('/email/verify/resend', [EmailVerificationController::class, 'resend'])
-            ->middleware('throttle:6,1')
+            ->middleware('throttle:envoi')
             ->name('verification.send');
 
         /**
@@ -95,7 +95,7 @@ Route::name('api.')->group(function (): void {
         Route::get('/notifications/summary', [NotificationController::class, 'summary'])->name('notifications.summary');
         Route::get('/notifications/unread-count', [NotificationController::class, 'unreadCount'])->name('notifications.unread-count');
         Route::get('/notifications/health', [NotificationController::class, 'health'])
-            ->middleware('throttle:30,1')
+            ->middleware('throttle:verification')
             ->middleware('permission:notifications.monitor')
             ->name('notifications.health');
         Route::patch('/notifications/{notificationId}/read', [NotificationController::class, 'markAsRead'])->name('notifications.mark-read');
@@ -129,7 +129,7 @@ Route::name('api.')->group(function (): void {
             ->name('users.update-roles');
 
         Route::post('/users/{user}/password-reset-link', [UserController::class, 'sendPasswordResetLink'])
-            ->middleware(['permission:users.send-password-reset', 'throttle:6,1'])
+            ->middleware(['permission:users.send-password-reset', 'throttle:envoi'])
             ->name('users.send-password-reset-link');
 
         Route::patch('/users/{user}/deactivate', [UserController::class, 'deactivate'])
@@ -141,7 +141,7 @@ Route::name('api.')->group(function (): void {
          */
         // Must be before {location} to avoid route model binding conflict
         Route::get('/locations/suggest', [LocationController::class, 'suggest'])
-            ->middleware('throttle:30,1')
+            ->middleware('throttle:verification')
             ->name('locations.suggest');
 
         Route::middleware('permission:locations.view')->group(function (): void {
@@ -345,12 +345,12 @@ Route::name('api.')->group(function (): void {
          * Planning routes
          */
         Route::get('/planning/export', [PlanningController::class, 'export'])
-            ->middleware('throttle:20,1')
+            ->middleware('throttle:action')
             ->middleware('permission:reservations.view')
             ->name('planning.export');
 
         Route::post('/planning/exports', [PlanningController::class, 'requestExport'])
-            ->middleware('throttle:20,1')
+            ->middleware('throttle:action')
             ->middleware('permission:reservations.view')
             ->name('planning.exports.request');
 
@@ -359,7 +359,7 @@ Route::name('api.')->group(function (): void {
             ->name('planning.exports.show');
 
         Route::get('/planning', [PlanningController::class, 'index'])
-            ->middleware('throttle:60,1')
+            ->middleware('throttle:consultation')
             ->middleware('permission:reservations.view')
             ->name('planning.index');
 
@@ -367,12 +367,12 @@ Route::name('api.')->group(function (): void {
          * Recurrences routes (écoles communales uniquement)
          */
         Route::get('/recurrences', [RecurrenceController::class, 'index'])
-            ->middleware('throttle:60,1')
+            ->middleware('throttle:consultation')
             ->middleware('permission:reservations.view')
             ->name('recurrences.index');
 
         Route::post('/recurrences/preview', [RecurrenceController::class, 'preview'])
-            ->middleware('throttle:20,1')
+            ->middleware('throttle:action')
             ->middleware('permission:reservations.create')
             ->name('recurrences.preview');
 
@@ -392,25 +392,27 @@ Route::name('api.')->group(function (): void {
          * Tableau de bord de gestion (admin, agents)
          */
         Route::get('/dashboard', [DashboardController::class, 'show'])
-            ->middleware(['permission:dashboard.view', 'throttle:60,1'])
+            ->middleware(['permission:dashboard.view', 'throttle:consultation'])
             ->name('dashboard.show');
 
         /**
          * Reservations routes
          */
-        Route::middleware(['permission:reservations.view', 'throttle:60,1'])->group(function (): void {
+        Route::middleware(['permission:reservations.view', 'throttle:consultation'])->group(function (): void {
             Route::get('/reservations', [ReservationController::class, 'index'])->name('reservations.index');
+            // Avant /reservations/{reservation} : « counts » n'est pas un identifiant
+            Route::get('/reservations/counts', [ReservationController::class, 'counts'])->name('reservations.counts');
             Route::get('/reservations/{reservation}', [ReservationController::class, 'show'])->name('reservations.show');
         });
 
         Route::post('/reservations/preview', [ReservationController::class, 'preview'])
-            ->middleware('throttle:20,1')
+            ->middleware('throttle:action')
             ->middleware('permission:reservations.create')
             ->name('reservations.preview');
 
         // Vérification du trajet seul, appelée en direct (debounce) pendant la saisie de l'étape 1.
         Route::post('/reservations/check-trip', [ReservationController::class, 'checkTrip'])
-            ->middleware('throttle:30,1')
+            ->middleware('throttle:verification')
             ->middleware('permission:reservations.create')
             ->name('reservations.check-trip');
 
@@ -495,7 +497,7 @@ Route::name('api.')->group(function (): void {
         });
         Route::middleware('permission:driver-alerts.create')->group(function (): void {
             Route::post('/driver-alerts', [DriverAlertController::class, 'store'])
-                ->middleware('throttle:10,1')
+                ->middleware('throttle:aide')
                 ->name('driver-alerts.store');
             Route::patch('/driver-alerts/{driverAlert}/position', [DriverAlertController::class, 'updatePosition'])->name('driver-alerts.position');
         });

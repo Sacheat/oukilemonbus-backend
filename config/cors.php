@@ -25,7 +25,8 @@ return [
 
     'allowed_headers' => ['*'],
 
-    'exposed_headers' => [],
+    // Retry-After : délai d'une réponse 429, lu par la SPA pour rejouer une lecture au bon moment
+    'exposed_headers' => ['Retry-After'],
 
     'max_age' => 0,
 

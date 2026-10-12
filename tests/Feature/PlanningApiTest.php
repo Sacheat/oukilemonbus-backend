@@ -13,12 +13,14 @@ use App\Models\PlanningExportRequest;
 use App\Models\Organization;
 use App\Models\Reservation;
 use App\Models\ReservationConflict;
+use App\Models\Unavailability;
 use App\Models\User;
 use App\Models\Vehicle;
 use App\Jobs\GeneratePlanningExportJob;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\Bus;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Laravel\Sanctum\Sanctum;
 use PhpOffice\PhpSpreadsheet\IOFactory;
@@ -642,6 +644,70 @@ class PlanningApiTest extends TestCase
                     ],
                 ]],
             ]);
+    }
+
+    public function test_availability_reasons_are_computed_per_trip_with_a_fixed_number_of_queries(): void
+    {
+        $agent = $this->userWithRole('agent_communal');
+        $organization = $this->organization();
+        [$pickup, $destination] = $this->locations();
+        $driver = $this->driver('Partage', 'Test');
+        $vehicle = Vehicle::create(['licence_plate' => '1-DISPO-01', 'capacity' => 60, 'is_active' => true]);
+        $trip = fn (string $date, string $departure, string $return, array $overrides = []) => $this->reservation([
+            'organization_id' => $organization->id,
+            'pickup_location_id' => $pickup->id,
+            'destination_location_id' => $destination->id,
+            'trip_date' => $date,
+            'departure_time' => $departure,
+            'return_time' => $return,
+            ...$overrides,
+        ]);
+
+        // Mardi : deux trajets qui se chevauchent, le premier a le chauffeur ; mercredi : le véhicule est indisponible
+        $morning = $trip('2026-06-16', '09:00:00', '11:00:00', ['driver_id' => $driver->id, 'status' => ReservationStatus::APPROUVE]);
+        $overlapping = $trip('2026-06-16', '10:00:00', '12:00:00', ['status' => ReservationStatus::EN_CONFLIT]);
+        $wednesday = $trip('2026-06-17', '09:00:00', '11:00:00', ['status' => ReservationStatus::EN_CONFLIT]);
+        Unavailability::create([
+            'vehicle_id' => $vehicle->id,
+            'reason_type' => 'vehicle',
+            'created_by_user_id' => $agent->id,
+            'start_datetime' => '2026-06-17 08:00:00',
+            'end_datetime' => '2026-06-17 12:00:00',
+            'reason' => 'Entretien',
+            'is_active' => true,
+        ]);
+        Sanctum::actingAs($agent);
+
+        $reasons = function () {
+            $items = collect($this->getJson('/api/planning?start_date=2026-06-15&end_date=2026-06-19&statuses[]=approuve&statuses[]=en_conflit&include_availability=1')
+                ->assertOk()
+                ->json('data'))->keyBy('reservation_id');
+
+            return fn (int $id, string $kind, int $resourceId) => collect($items[$id]['availability'][$kind]['unavailable'])
+                ->firstWhere('id', $resourceId)['unavailable_reason'] ?? null;
+        };
+        $reasonOf = $reasons();
+
+        $this->assertSame("Déjà affecté à la réservation #{$morning->id} sur ce créneau.", $reasonOf($overlapping->id, 'drivers', $driver->id));
+        $this->assertNull($reasonOf($morning->id, 'drivers', $driver->id)); // sa propre affectation ne le bloque pas
+        $this->assertSame('Véhicule indisponible sur ce créneau.', $reasonOf($wednesday->id, 'vehicles', $vehicle->id));
+        $this->assertNull($reasonOf($overlapping->id, 'vehicles', $vehicle->id)); // indisponible le mercredi seulement
+
+        // Le nombre de requêtes ne dépend plus du nombre de trajets
+        $queriesFor = function () use ($reasons): int {
+            DB::flushQueryLog();
+            DB::enableQueryLog();
+            $reasons();
+            $count = count(DB::getQueryLog());
+            DB::disableQueryLog();
+
+            return $count;
+        };
+        $withThreeTrips = $queriesFor();
+        foreach (range(0, 6) as $index) {
+            $trip('2026-06-18', sprintf('%02d:00:00', 8 + $index), sprintf('%02d:30:00', 8 + $index), ['status' => ReservationStatus::EN_CONFLIT]);
+        }
+        $this->assertSame($withThreeTrips, $queriesFor());
     }
 
     private function userWithRole(string $role): User

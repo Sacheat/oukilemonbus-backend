@@ -238,6 +238,13 @@ réservation), à part du cycle de statuts : la réservation reste `confirme`.
   `reservations.passenger_confirmation_window_days`) dont les passagers ne sont pas encore confirmés par le demandeur.
   Même règle que le compteur `passengers_to_confirm` du tableau de bord (scope `Reservation::awaitingPassengerConfirmation`) :
   le compteur et la liste donnent toujours le même nombre. Se combine avec les autres filtres (statuses[], q…).
+- GET /api/reservations/counts : plusieurs compteurs en un appel (pastilles d'une page), au lieu d'un
+  GET /api/reservations par pastille. Filtres communs : `date_from`, `date_to`, `organization_id`, `q` ; puis
+  `counts[nom][statuses][]`, `counts[nom][council]=a_decider`, `counts[nom][unassigned]=1`,
+  `counts[nom][passengers_to_confirm]=1` (12 compteurs au plus, nom : `a-z`, chiffres, `-`, `_`, `:`). Réponse
+  `{ "data": { "nom": nombre } }`. Mêmes filtres et même visibilité que la liste (`applyListFilters` partagé) : un
+  compteur vaut toujours le `meta.total` de la liste filtrée pareil. Compte pour un seul appel dans la limite de
+  60 par minute du groupe `reservations.view`.
 
 7. Types d'approbation
 
