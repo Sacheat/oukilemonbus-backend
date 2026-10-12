@@ -30,4 +30,11 @@ return [
         // … et prévenus par email ce nombre de jours avant. L'anonymisation n'a lieu qu'après l'avertissement.
         'inactive_accounts_warning_days' => (int) env('PRIVACY_INACTIVE_ACCOUNTS_WARNING_DAYS', 30),
     ],
+
+    // Politique de confidentialité (PrivacyPolicy) : page de la SPA et version en vigueur. Changer la version
+    // redemande à chacun d'en prendre connaissance.
+    'policy' => [
+        'version' => (string) (env('PRIVACY_POLICY_VERSION') ?: '2026-10-12'),
+        'url' => (string) (env('PRIVACY_POLICY_URL') ?: rtrim((string) env('FRONTEND_URL', 'http://localhost:3000'), '/').'/confidentialite'),
+    ],
 ];

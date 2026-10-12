@@ -87,6 +87,7 @@ class EmailVerificationTest extends TestCase
             'email' => 'file@example.test',
             'password' => 'Password123!',
             'password_confirmation' => 'Password123!',
+            'privacy_policy_accepted' => true,
         ])->assertCreated();
 
         Queue::assertPushed(SendQueuedNotifications::class, fn (SendQueuedNotifications $job): bool => $job->notification instanceof QueuedVerifyEmail);

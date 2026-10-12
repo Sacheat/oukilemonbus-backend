@@ -31,6 +31,11 @@ class AuthService
             'phone',
         ]));
 
+        $user->forceFill([
+            'privacy_policy_version' => config('privacy.policy.version'),
+            'privacy_policy_accepted_at' => now(),
+        ])->save();
+
         $user->assignRole(Role::findOrCreate('user', 'web'));
 
         $user->sendEmailVerificationNotification();

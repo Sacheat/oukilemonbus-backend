@@ -21,6 +21,8 @@ class RegisterRequest extends FormRequest
             'email' => ['required', 'string', 'lowercase', 'email:rfc', 'max:255', 'unique:users,email'],
             'password' => ['required', 'confirmed', Password::defaults()],
             'phone' => ['nullable', 'string', 'max:20'],
+            // Prise de connaissance de la politique de confidentialité en vigueur (PrivacyPolicy)
+            'privacy_policy_accepted' => ['accepted'],
         ];
     }
 
@@ -31,5 +33,12 @@ class RegisterRequest extends FormRequest
                 'email' => Str::lower($this->string('email')->trim()->toString()),
             ]);
         }
+    }
+
+    public function messages(): array
+    {
+        return [
+            'privacy_policy_accepted.accepted' => 'Prenez connaissance de la politique de confidentialité pour créer votre compte.',
+        ];
     }
 }

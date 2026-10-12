@@ -333,6 +333,89 @@ class PersonalDataPrivacyTest extends TestCase
             ->assertJsonPath('data.0.driver.user.email', $driverUser->email);
     }
 
+    public function test_plain_members_see_manager_contacts_and_only_names_of_other_members(): void
+    {
+        $organization = $this->organization();
+        $manager = $this->user('responsable.test@bus-communal.local');
+        $member = $this->user('user.test@bus-communal.local');
+        $colleague = User::factory()->create(['email' => 'collegue@example.test', 'phone' => '0470000000']);
+        $organization->users()->syncWithoutDetaching([
+            $manager->id => ['relationship_type' => 'responsable'],
+            $member->id => ['relationship_type' => 'prof'],
+            $colleague->id => ['relationship_type' => 'prof'],
+        ]);
+
+        Sanctum::actingAs($member);
+        $members = collect($this->getJson("/api/organizations/{$organization->id}/members")->assertOk()->json('data'))->keyBy('user_id');
+        $this->assertSame($manager->email, $members[$manager->id]['email']);
+        $this->assertSame($member->email, $members[$member->id]['email']);
+        $this->assertNull($members[$colleague->id]['email']);
+        $this->assertNull($members[$colleague->id]['phone']);
+        $this->assertSame($colleague->last_name, $members[$colleague->id]['last_name']);
+
+        Sanctum::actingAs($manager);
+        $members = collect($this->getJson("/api/organizations/{$organization->id}/members")->assertOk()->json('data'))->keyBy('user_id');
+        $this->assertSame('collegue@example.test', $members[$colleague->id]['email']);
+        $this->assertSame('0470000000', $members[$colleague->id]['phone']);
+    }
+
+    // ── Mots de passe ─────────────────────────────────────────────────────────
+
+    public function test_passwords_need_twelve_characters_with_letters_and_numbers(): void
+    {
+        foreach (['Court1234', 'sanschiffresdutout'] as $password) {
+            $this->postJson('/api/auth/register', [
+                'first_name' => 'Alice',
+                'last_name' => 'Martin',
+                'email' => 'alice.mdp@example.test',
+                'password' => $password,
+                'password_confirmation' => $password,
+                'privacy_policy_accepted' => true,
+            ])->assertUnprocessable()->assertJsonValidationErrors('password');
+        }
+    }
+
+    // ── Politique de confidentialité ──────────────────────────────────────────
+
+    public function test_registration_requires_reading_the_privacy_policy(): void
+    {
+        $this->getJson('/api/privacy-policy')
+            ->assertOk()
+            ->assertJsonPath('data.version', config('privacy.policy.version'))
+            ->assertJsonPath('data.url', config('privacy.policy.url'));
+
+        $this->postJson('/api/auth/register', [
+            'first_name' => 'Alice',
+            'last_name' => 'Martin',
+            'email' => 'alice.politique@example.test',
+            'password' => 'Password123!',
+            'password_confirmation' => 'Password123!',
+        ])
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.privacy_policy_accepted.0', 'Prenez connaissance de la politique de confidentialité pour créer votre compte.');
+    }
+
+    public function test_existing_accounts_acknowledge_the_current_policy_version_again_after_a_change(): void
+    {
+        config(['privacy.policy.version' => '2026-10-12']);
+        $user = $this->user('user.test@bus-communal.local');
+        Sanctum::actingAs($user);
+
+        $this->getJson('/api/auth/me')->assertJsonPath('data.privacy_policy.must_accept', true);
+        $this->postJson('/api/auth/me/privacy-policy', ['version' => '2020-01-01'])->assertUnprocessable()->assertJsonValidationErrors('version');
+        $this->postJson('/api/auth/me/privacy-policy', ['version' => '2026-10-12'])
+            ->assertOk()
+            ->assertJsonPath('data.accepted_version', '2026-10-12')
+            ->assertJsonPath('data.must_accept', false);
+
+        config(['privacy.policy.version' => '2027-01-01']);
+        $this->getJson('/api/auth/me')->assertJsonPath('data.privacy_policy.must_accept', true);
+
+        // Jamais exposé sur le compte d'un autre
+        Sanctum::actingAs($this->user('admin.test@bus-communal.local'));
+        $this->getJson("/api/users/{$user->id}")->assertOk()->assertJsonMissingPath('data.privacy_policy');
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private function reservation(array $attributes = []): Reservation

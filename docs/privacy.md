@@ -87,6 +87,51 @@ justificatifs orphelins (7 j). Une donnée effacée reste dans les backups jusqu
   agent et au chauffeur lui-même. Les membres d'organisation et les autres chauffeurs voient le nom et le téléphone.
 - Délibérations : le contexte gardé avec le PDF ne contient que le nom du chauffeur.
 
+- Membres d'une organisation (`GET /organizations/{id}/members`) : email et téléphone renvoyés aux responsables de
+  l'organisation, aux admins et agents, et au membre lui-même. Un simple membre voit ceux des responsables (pour les
+  joindre) ; pour les autres membres, `email` et `phone` valent `null`.
+
+## Textes libres (données sensibles)
+
+Les champs libres peuvent recevoir, par maladresse, des données de santé ou d'autres données sensibles (art. 9 :
+« hospitalisé », « enceinte »…). L'API ne peut pas les détecter : **la SPA affiche sous chaque champ la consigne
+« Pas d'information médicale ni personnelle : un motif court suffit (ex. "absent", "congé") »**.
+
+| Champ | Saisi par | Vu par |
+|---|---|---|
+| `unavailabilities.reason` | agent | agents, admins, le chauffeur concerné |
+| `driver_alerts.message`, `closing_note` | chauffeur, agent | agents, admins ; le message part aussi au contact de garde |
+| `trip_reports.remarks` | chauffeur, agent | chauffeur du trajet, agents, admins |
+| `reservations.rejection_reason`, `cancellation_reason` ; `reason` des historiques | agent, demandeur | le demandeur et son organisation ; envoyé par email |
+| `reservations.trip_purpose` | demandeur | organisation, agents ; feuilles de route |
+| `user_org_requests.justification`, `org_registration_requests.comment` | demandeur | agents (et responsables pour les adhésions) |
+
+Ces textes suivent la conservation de leur ligne (voir plus haut) ; l'anonymisation d'un compte vide la
+justification et le commentaire de ses demandes, pas les motifs des réservations (ils concernent l'organisation).
+
+## Comptes et sessions
+
+- Mots de passe (inscription, création par un admin, changement, réinitialisation) : 12 caractères au moins, avec
+  lettres et chiffres. En production, un mot de passe présent dans une fuite connue est refusé (Have I Been Pwned,
+  voir [`sous-traitants.md`](sous-traitants.md)). Les comptes existants ne sont pas forcés à changer.
+- Sessions : contenu chiffré en base (`SESSION_ENCRYPT`) et cookie `Secure`, par défaut en production. Passer
+  `SESSION_ENCRYPT` à `true` sur une instance existante déconnecte une fois les sessions ouvertes.
+
+## Politique de confidentialité (art. 13)
+
+La page vit dans la SPA (`PRIVACY_POLICY_URL`, défaut `{FRONTEND_URL}/confidentialite`) ; le backend garde la version
+lue par chacun (`users.privacy_policy_version`, `privacy_policy_accepted_at`). Ce n'est **pas un consentement** :
+les traitements reposent sur la mission de service public de la commune, rien n'est bloqué.
+
+- `GET /api/privacy-policy` (public) : `{ version, url }`, pour le lien du formulaire d'inscription.
+- `POST /api/auth/register` exige `privacy_policy_accepted: true` (422 sinon) et enregistre la version en vigueur.
+- `/auth/me`, login et inscription renvoient `privacy_policy { version, url, accepted_version, accepted_at, must_accept }`
+  pour son propre compte uniquement. `must_accept` vrai : la SPA affiche la politique (comptes antérieurs, comptes
+  créés par un admin, nouvelle version).
+- `POST /api/auth/me/privacy-policy { version }` : enregistre la lecture ; 422 sur `version` si ce n'est pas la
+  version en vigueur (page périmée).
+- Nouvelle version : changer `PRIVACY_POLICY_VERSION` (ex. la date) redemande la lecture à tous.
+
 ## Backups
 
 Chiffrés (libsodium), planifiés chaque nuit et refusés en clair en production ; copie hors VM par

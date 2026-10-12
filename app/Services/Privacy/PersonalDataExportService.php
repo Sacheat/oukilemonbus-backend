@@ -40,6 +40,8 @@ class PersonalDataExportService
                 'email_verified_at' => $user->email_verified_at?->toISOString(),
                 'anonymized_at' => $user->anonymized_at?->toISOString(),
                 'last_seen_at' => $user->last_seen_at?->toISOString(),
+                'privacy_policy_version' => $user->privacy_policy_version,
+                'privacy_policy_accepted_at' => $user->privacy_policy_accepted_at?->toISOString(),
                 'created_at' => $user->created_at?->toISOString(),
                 'updated_at' => $user->updated_at?->toISOString(),
                 'roles' => $user->roles->pluck('name')->values()->all(),

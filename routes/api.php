@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\NotificationPreferenceController;
 use App\Http\Controllers\Api\OrganizationController;
 use App\Http\Controllers\Api\OrganizationMemberController;
 use App\Http\Controllers\Api\PersonalDataController;
+use App\Http\Controllers\Api\PrivacyPolicyController;
 use App\Http\Controllers\Api\PasswordResetController;
 use App\Http\Controllers\Api\OrgRegistrationRequestController;
 use App\Http\Controllers\Api\PlanningController;
@@ -42,6 +43,10 @@ Route::name('api.')->group(function (): void {
     // =========================================================================
     // Routes accessibles sans authentification
     // =========================================================================
+    Route::get('/privacy-policy', [PrivacyPolicyController::class, 'show'])
+        ->middleware('throttle:consultation')
+        ->name('privacy-policy.show');
+
     Route::middleware('guest')->group(function (): void {
         Route::post('/auth/register', [AuthController::class, 'register'])
             ->middleware('throttle:inscription')
@@ -79,6 +84,9 @@ Route::name('api.')->group(function (): void {
         Route::get('/auth/me/personal-data', [PersonalDataController::class, 'mine'])
             ->middleware('throttle:action')
             ->name('auth.personal-data');
+        Route::post('/auth/me/privacy-policy', [PrivacyPolicyController::class, 'accept'])
+            ->middleware('throttle:action')
+            ->name('auth.privacy-policy.accept');
         Route::post('/auth/logout', [AuthController::class, 'logout'])
             ->middleware('throttle:verification')
             ->name('auth.logout');

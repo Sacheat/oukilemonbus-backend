@@ -204,6 +204,7 @@ class User extends Authenticatable implements MustVerifyEmail
             'anonymized_at' => 'datetime',
             'last_seen_at' => 'datetime',
             'inactivity_warned_at' => 'datetime',
+            'privacy_policy_accepted_at' => 'datetime',
             'password' => 'hashed',
         ];
     }

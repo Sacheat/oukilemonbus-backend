@@ -38,11 +38,14 @@ class AuthUserApiTest extends TestCase
             'password' => 'Password123!',
             'password_confirmation' => 'Password123!',
             'phone' => '082000000',
+            'privacy_policy_accepted' => true,
         ]);
 
         $response
             ->assertCreated()
             ->assertJsonPath('data.email', 'alice@example.test')
+            ->assertJsonPath('data.privacy_policy.version', config('privacy.policy.version'))
+            ->assertJsonPath('data.privacy_policy.must_accept', false)
             ->assertJsonMissingPath('data.password')
             ->assertJsonMissingPath('data.remember_token');
 

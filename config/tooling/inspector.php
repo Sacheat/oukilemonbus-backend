@@ -129,6 +129,7 @@ return [
         'api.users.update-status' => 'admin.users.update_status',
         'api.users.deactivate'    => 'admin.users.deactivate',
         'api.users.anonymize'     => 'admin.users.anonymize',
+        'api.auth.privacy-policy.accept' => 'auth.privacy_policy.accept',
 
         // Previews
         'api.reservations.preview' => 'reservations.preview',
@@ -2730,6 +2731,42 @@ return [
                 'Tous les tokens Sanctum de l’utilisateur sont révoqués immédiatement.',
                 'L’utilisateur ne peut plus se connecter.',
                 'Cette action est irréversible.',
+            ],
+        ],
+
+        'auth.privacy_policy.accept' => [
+            'title' => 'Prise de connaissance de la politique de confidentialité',
+            'category' => 'Authentification',
+            'goal' => 'Enregistrer la version de la politique de confidentialité lue par la personne connectée.',
+
+            'route' => [
+                'api' => 'POST /api/auth/me/privacy-policy',
+            ],
+
+            'api_controller' => [
+                'class' => 'PrivacyPolicyController',
+                'method' => 'accept',
+            ],
+
+            'request' => null,
+
+            'service' => [
+                'class' => 'PrivacyPolicy',
+                'method' => 'accept',
+                'internal_methods' => [
+                    'Refus si la version envoyée n’est pas la version en vigueur (422 sur version)',
+                    'Enregistrement de la version et de la date',
+                ],
+            ],
+
+            'related_services' => [],
+
+            'tables' => [
+                'users',
+            ],
+
+            'effects' => [
+                'privacy_policy.must_accept passe à false pour ce compte.',
             ],
         ],
 
