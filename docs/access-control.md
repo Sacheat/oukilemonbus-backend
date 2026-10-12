@@ -21,6 +21,8 @@ La vérification email est requise pour toutes les routes métier (`middleware('
 - `users.deactivate` — désactivation définitive : passe `active` à `false` **et révoque tous les tokens Sanctum** du compte
 - Création par un admin (`POST /api/users`) : le compte reçoit le même email de vérification qu'à l'inscription (file d'attente, lien vers `{FRONTEND_URL}/verify-email`) ; une panne d'envoi ne fait pas échouer la création
 - `users.send-password-reset` — `POST /api/users/{user}/password-reset-link` : envoie à l'email du compte le même lien que « Mot de passe oublié » (`{FRONTEND_URL}/reset-password?token=…&email=…`, 60 min). L'admin ne fixe aucun mot de passe et le jeton n'apparaît jamais dans la réponse (202 `{ message }`). 422 sur `user` si le compte est désactivé (« Ce compte est désactivé : réactivez-le avant d'envoyer un lien. ») ou si un lien a été envoyé il y a moins de 60 s (`auth.passwords.users.throttle`). Route limitée à 6 requêtes par minute
+- `users.anonymize` — `PATCH /api/users/{user}/anonymize` : effacement RGPD, irréversible (voir [`privacy.md`](privacy.md))
+- `users.export-data` — `GET /api/users/{user}/personal-data` : export RGPD des données d'un compte ; chacun exporte les siennes via `GET /api/auth/me/personal-data` sans permission
 - Un compte désactivé est bloqué par `EnsureUserIsActive` avant toute vérification de permission
 
 **Toujours un administrateur actif**
@@ -77,13 +79,15 @@ L'admin seul peut :
 - `users.deactivate` — désactivation définitive d'un compte
 - `users.manage-roles` — attribution des rôles globaux
 - `users.send-password-reset` — envoi d'un lien de réinitialisation du mot de passe à un compte
+- `users.anonymize` — effacement RGPD d'un compte (jamais le sien)
+- `users.export-data` — export RGPD des données d'un autre compte
 - `organizations.ban` — bannissement d'une organisation
 - `notifications.monitor` — health check système (outil de support/debug)
 - `tooling.access` — module Tooling : journal Backend Inspector et Dev Toolbox en lecture (voir [`tooling.md`](tooling.md))
 
 ---
 
-## Permissions (56)
+## Permissions (62)
 
 ### users
 
@@ -96,6 +100,8 @@ L'admin seul peut :
 | `users.deactivate` | ✓ | — | — | — |
 | `users.manage-roles` | ✓ | — | — | — |
 | `users.send-password-reset` | ✓ | — | — | — |
+| `users.anonymize` | ✓ | — | — | — |
+| `users.export-data` | ✓ | — | — | — |
 
 ### locations
 

@@ -10,6 +10,7 @@ use App\Http\Requests\Users\UpdateUserRolesRequest;
 use App\Http\Requests\Users\UpdateUserStatusRequest;
 use App\Http\Resources\UserResource;
 use App\Models\User;
+use App\Services\Privacy\UserAnonymizationService;
 use App\Services\Users\UserService;
 use App\Support\LikeSearch;
 use Illuminate\Database\Eloquent\Builder;
@@ -168,5 +169,17 @@ class UserController extends Controller
         $this->userService->deactivate($user);
 
         return response()->json(null, 204);
+    }
+
+    /**
+     * RGPD, droit à l'effacement : anonymise le compte (voir UserAnonymizationService). Irréversible.
+     * 422 si le compte a encore des réservations ou missions à venir, une demande d'aide ouverte, ou s'il est
+     * le dernier administrateur actif.
+     */
+    public function anonymize(Request $request, User $user, UserAnonymizationService $anonymizationService): UserResource
+    {
+        Gate::authorize('anonymize', $user);
+
+        return new UserResource($anonymizationService->anonymize($user, $request->user()));
     }
 }

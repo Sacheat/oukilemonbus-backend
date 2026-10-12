@@ -19,6 +19,8 @@ class RolesAndPermissionsSeeder extends Seeder
             'users.update',
             'users.update-status',
             'users.deactivate',
+            'users.anonymize',
+            'users.export-data',
             'locations.view',
             'locations.create',
             'locations.update',
@@ -102,6 +104,8 @@ class RolesAndPermissionsSeeder extends Seeder
         //   - tooling.access        : module Tooling (Backend Inspector, Dev Toolbox en lecture)
         //   - users.manage-roles    : attribution des rôles globaux
         //   - users.send-password-reset : envoi d'un lien de réinitialisation du mot de passe à un compte
+        //   - users.anonymize     : effacement RGPD d'un compte (anonymisation irréversible)
+        //   - users.export-data   : export RGPD des données personnelles d'un compte
         // syncPermissions : chaque rôle a EXACTEMENT la liste ci-dessous, y compris après un re-seed
         // (givePermissionTo ne faisait qu'ajouter et laissait subsister d'anciennes permissions).
         $admin->syncPermissions($permissions);

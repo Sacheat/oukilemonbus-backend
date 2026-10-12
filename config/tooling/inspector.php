@@ -128,6 +128,7 @@ return [
         // Users
         'api.users.update-status' => 'admin.users.update_status',
         'api.users.deactivate'    => 'admin.users.deactivate',
+        'api.users.anonymize'     => 'admin.users.anonymize',
 
         // Previews
         'api.reservations.preview' => 'reservations.preview',
@@ -2729,6 +2730,68 @@ return [
                 'Tous les tokens Sanctum de l’utilisateur sont révoqués immédiatement.',
                 'L’utilisateur ne peut plus se connecter.',
                 'Cette action est irréversible.',
+            ],
+        ],
+
+        'admin.users.anonymize' => [
+            'title' => 'Anonymisation RGPD d’un utilisateur',
+            'category' => 'Administration',
+            'goal' => 'Effacer les données identifiantes d’un compte (droit à l’effacement) en gardant l’historique des trajets.',
+
+            'route' => [
+                'api' => 'PATCH /api/users/{user}/anonymize',
+            ],
+
+            'api_controller' => [
+                'class' => 'UserController',
+                'method' => 'anonymize',
+            ],
+
+            'request' => null,
+
+            'service' => [
+                'class' => 'UserAnonymizationService',
+                'method' => 'anonymize',
+                'internal_methods' => [
+                    'Vérification de la permission users.anonymize (admin, jamais sur son propre compte)',
+                    'Refus si déjà anonymisé, dernier admin actif, réservations ou missions à venir, alerte ouverte (422)',
+                    'Demandes en attente refusées, contacts des demandes vidés, justificatifs supprimés',
+                    'Tokens, sessions, appartenances, rôles, préférences et notifications supprimés',
+                    'Profil chauffeur : permis remplacé par ANON-{id}, chauffeur désactivé',
+                    'Identité remplacée par « Utilisateur supprimé #id », anonymized_at renseigné',
+                ],
+            ],
+
+            'related_services' => [
+                'UserService::ensureNotLastActiveAdmin()',
+                'UserService::closeOtherSessions()',
+                'ProofDocumentService::delete()',
+                'DomainEventLogger::log()',
+            ],
+
+            'tables' => [
+                'users',
+                'drivers',
+                'personal_access_tokens',
+                'sessions',
+                'user_organization',
+                'model_has_roles',
+                'notifications',
+                'notification_deliveries',
+                'user_notification_preferences',
+                'notification_digest_queues',
+                'api_idempotency_keys',
+                'user_org_requests',
+                'org_registration_requests',
+                'documents',
+                'municipalities',
+                'domain_events',
+            ],
+
+            'effects' => [
+                'Le compte ne porte plus aucune donnée identifiante et ne peut plus se connecter.',
+                'Réservations, historiques, comptes rendus et documents générés restent, rattachés à « Utilisateur supprimé ».',
+                'Cette action est irréversible : le compte ne peut pas être réactivé.',
             ],
         ],
 

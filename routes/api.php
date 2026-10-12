@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\NotificationPreferenceController;
 use App\Http\Controllers\Api\OrganizationController;
 use App\Http\Controllers\Api\OrganizationMemberController;
+use App\Http\Controllers\Api\PersonalDataController;
 use App\Http\Controllers\Api\PasswordResetController;
 use App\Http\Controllers\Api\OrgRegistrationRequestController;
 use App\Http\Controllers\Api\PlanningController;
@@ -75,6 +76,9 @@ Route::name('api.')->group(function (): void {
          * Authentication routes — accessibles sans vérification email
          */
         Route::get('/auth/me', [AuthController::class, 'me'])->name('auth.me');
+        Route::get('/auth/me/personal-data', [PersonalDataController::class, 'mine'])
+            ->middleware('throttle:action')
+            ->name('auth.personal-data');
         Route::post('/auth/logout', [AuthController::class, 'logout'])
             ->middleware('throttle:verification')
             ->name('auth.logout');
@@ -135,6 +139,14 @@ Route::name('api.')->group(function (): void {
         Route::patch('/users/{user}/deactivate', [UserController::class, 'deactivate'])
             ->middleware('permission:users.deactivate')
             ->name('users.deactivate');
+
+        Route::get('/users/{user}/personal-data', [PersonalDataController::class, 'show'])
+            ->middleware(['permission:users.export-data', 'throttle:action'])
+            ->name('users.personal-data');
+
+        Route::patch('/users/{user}/anonymize', [UserController::class, 'anonymize'])
+            ->middleware(['permission:users.anonymize', 'throttle:action'])
+            ->name('users.anonymize');
 
         /**
          * Locations routes

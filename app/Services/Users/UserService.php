@@ -110,6 +110,12 @@ class UserService
     public function updateStatus(User $user, bool $active): User
     {
         return DB::transaction(function () use ($user, $active): User {
+            if ($active && $user->isAnonymized()) {
+                throw ValidationException::withMessages([
+                    'active' => 'Ce compte est anonymisé : il ne peut plus être réactivé.',
+                ]);
+            }
+
             if (! $active) {
                 $this->ensureNotLastActiveAdmin($user, 'active', self::LAST_ADMIN_DEACTIVATION);
             }
@@ -171,7 +177,7 @@ class UserService
      * Les lignes des admins actifs sont verrouillées : deux requêtes simultanées qui retirent chacune
      * un admin différent ne peuvent pas passer toutes les deux.
      */
-    private function ensureNotLastActiveAdmin(User $user, string $field, string $message): void
+    public function ensureNotLastActiveAdmin(User $user, string $field, string $message): void
     {
         $activeAdminIds = User::query()
             ->role('admin')
