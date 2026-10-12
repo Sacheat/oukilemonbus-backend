@@ -338,6 +338,7 @@ docker compose exec app php artisan config:clear && php artisan route:clear && p
 | `ORS_API_KEY` | Clé API OpenRouteService (géocodage + distances) |
 | `ORS_BASE_URL` | URL de base ORS |
 | `QUEUE_WORKER_QUEUES` | Queues du worker : `critical,default,low` |
+| `DB_QUEUE_RETRY_AFTER` | Délai (s) avant qu'un job en cours soit considéré comme perdu ; doit dépasser le plus long timeout des jobs (défaut : 240) |
 | `SANCTUM_STATEFUL_DOMAINS` | Domaines frontend autorisés (SPA cookie) |
 | `CORS_ALLOWED_ORIGINS` | Origines CORS autorisées |
 | `MAIL_MAILER`, `MAIL_HOST`, `MAIL_PORT` | Envoi des emails. Dev : `smtp`, `mailpit`, `1025` (Mailpit) ; Mailtrap ou un vrai serveur en remplaçant hôte, port et identifiants |
