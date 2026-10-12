@@ -22,6 +22,11 @@ class UnavailabilityHistoryResource extends JsonResource
             'old_reason'          => $this->old_reason,
             'new_reason'          => $this->new_reason,
             'changed_by_user_id'  => $this->changed_by_user_id,
+            // Auteur du changement (nom affiché dans le panneau de l'indisponibilité) ; null si le compte n'existe plus
+            'changed_by'          => $this->whenLoaded('changedByUser', fn () => $this->changedByUser ? [
+                'id' => $this->changedByUser->id,
+                'name' => trim($this->changedByUser->first_name.' '.$this->changedByUser->last_name),
+            ] : null),
             'change_reason'       => $this->change_reason,
             'created_at'          => $this->created_at?->toISOString(),
         ];

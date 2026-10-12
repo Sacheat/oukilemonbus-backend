@@ -126,7 +126,9 @@ class UnavailabilityHistoryApiTest extends TestCase
 
         $this->getJson("/api/unavailabilities/{$unavailability->id}/history")
             ->assertOk()
-            ->assertJsonPath('data.0.unavailability_id', $unavailability->id);
+            ->assertJsonPath('data.0.unavailability_id', $unavailability->id)
+            ->assertJsonPath('data.0.changed_by.id', $agent->id)
+            ->assertJsonPath('data.0.changed_by.name', trim($agent->first_name.' '.$agent->last_name));
     }
 
     public function test_agent_can_show_history_entry(): void
@@ -144,7 +146,8 @@ class UnavailabilityHistoryApiTest extends TestCase
 
         $this->getJson("/api/unavailabilities/{$unavailability->id}/history/{$history->id}")
             ->assertOk()
-            ->assertJsonPath('data.id', $history->id);
+            ->assertJsonPath('data.id', $history->id)
+            ->assertJsonPath('data.changed_by.id', $agent->id);
     }
 
     public function test_agent_cannot_show_history_entry_from_another_unavailability(): void
