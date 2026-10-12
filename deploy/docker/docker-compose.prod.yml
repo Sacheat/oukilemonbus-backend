@@ -1,0 +1,93 @@
+# Stack de production. À lancer via deploy/docker/deploy.sh, qui passe le .env de la racine du dépôt
+# (--env-file .env) pour les variables ${...} de ce fichier. Guide : deploy/README.md.
+#
+# Différences avec le docker-compose.yml de dev : code copié dans l'image, ni Mailpit ni Adminer, base non exposée,
+# nginx uniquement sur 127.0.0.1 (derrière Caddy ou le nginx de la VM), fichiers de storage/ dans un volume.
+
+name: bus-communal
+
+x-laravel: &laravel
+  image: bus-communal-app:latest
+  restart: unless-stopped
+  volumes:
+    # Lu une fois au démarrage pour mettre la config en cache (voir entrypoint.sh).
+    - ../../.env:/var/www/html/.env:ro
+    # Documents générés, justificatifs, backups, logs, sessions et cache fichiers.
+    - storage:/var/www/html/storage
+  depends_on:
+    mariadb:
+      condition: service_healthy
+
+services:
+  app:
+    <<: *laravel
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile.prod
+      target: app
+
+  # Worker de file : mêmes réglages qu'en dev (voir docker-compose.yml). --max-time=3600 : redémarrage propre
+  # chaque heure ; stop_grace_period couvre le plus long job (180 s).
+  queue:
+    <<: *laravel
+    command: setpriv --reuid=www-data --regid=www-data --init-groups -- php artisan queue:work --queue=${QUEUE_WORKER_QUEUES:-critical,default,low} --sleep=1 --tries=3 --timeout=120 --max-time=3600
+    stop_grace_period: 190s
+
+  scheduler:
+    <<: *laravel
+    command: setpriv --reuid=www-data --regid=www-data --init-groups -- php artisan schedule:work
+
+  web:
+    image: bus-communal-web:latest
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile.prod
+      target: web
+    restart: unless-stopped
+    # Jamais exposé directement sur Internet : Caddy (profil « https ») ou le nginx de la VM le relaie.
+    ports:
+      - "${HTTP_BIND:-127.0.0.1:8080}:80"
+    depends_on:
+      - app
+
+  mariadb:
+    image: mariadb:11.4
+    restart: unless-stopped
+    environment:
+      MARIADB_DATABASE: ${DB_DATABASE:?DB_DATABASE manquant dans .env}
+      MARIADB_USER: ${DB_USERNAME:?DB_USERNAME manquant dans .env}
+      MARIADB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD manquant dans .env}
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?DB_ROOT_PASSWORD manquant dans .env}
+    volumes:
+      - mariadb_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # HTTPS automatique, seulement si les ports 80 et 443 de la VM sont libres (profil activé par deploy.sh
+  # quand CADDY_DOMAIN est rempli). Sinon, c'est le nginx déjà présent sur la VM qui relaie vers HTTP_BIND.
+  caddy:
+    image: caddy:2.8-alpine
+    profiles: ["https"]
+    restart: unless-stopped
+    environment:
+      CADDY_DOMAIN: ${CADDY_DOMAIN:-}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - web
+
+volumes:
+  storage:
+  mariadb_data:
+  caddy_data:
+  caddy_config:
