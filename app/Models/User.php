@@ -176,6 +176,12 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->morphMany(NotificationDelivery::class, 'notifiable');
     }
 
+    /** Compte anonymisé (RGPD, UserAnonymizationService) : plus aucune donnée identifiante, réactivation impossible. */
+    public function isAnonymized(): bool
+    {
+        return $this->anonymized_at !== null;
+    }
+
     /** Envoi en file d'attente : l'inscription et le renvoi ne dépendent pas du serveur SMTP. */
     public function sendEmailVerificationNotification(): void
     {
@@ -198,6 +204,10 @@ class User extends Authenticatable implements MustVerifyEmail
         return [
             'active' => 'boolean',
             'email_verified_at' => 'datetime',
+            'anonymized_at' => 'datetime',
+            'last_seen_at' => 'datetime',
+            'inactivity_warned_at' => 'datetime',
+            'privacy_policy_accepted_at' => 'datetime',
             'tours_seen' => 'array',
             'password' => 'hashed',
         ];

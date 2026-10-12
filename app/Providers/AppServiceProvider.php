@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
+use Illuminate\Validation\Rules\Password;
 
 /**
  * Point d'amorçage de l'application.
@@ -74,6 +75,22 @@ class AppServiceProvider extends ServiceProvider
         });
 
         $this->configureRateLimiting();
+        $this->configurePasswordRules();
+    }
+
+    /**
+     * Règle des mots de passe (inscription, création par un admin, changement, réinitialisation) : 12 caractères au
+     * moins, avec lettres et chiffres. En production, refus d'un mot de passe connu des fuites (Have I Been Pwned :
+     * seuls les 5 premiers caractères du hash SHA-1 partent, voir docs/sous-traitants.md ; si le service ne répond
+     * pas, le mot de passe est accepté). Les comptes existants ne sont pas forcés à changer.
+     */
+    private function configurePasswordRules(): void
+    {
+        Password::defaults(function (): Password {
+            $rule = Password::min(12)->letters()->numbers();
+
+            return $this->app->isProduction() ? $rule->uncompromised() : $rule;
+        });
     }
 
     /**

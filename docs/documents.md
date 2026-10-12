@@ -528,6 +528,6 @@ voyage », joint à la réservation et mis à jour ensuite.
 - Formats : PDF, Excel (.xlsx), CSV, JPG et PNG, 5 Mo (`config/uploads.php` `passenger_lists`), avec le même pipeline
   de sécurité que les justificatifs (`ProofDocumentService::validateAs`).
 - Conservation : jusqu'au 31 décembre de la 3e année qui suit l'année du trajet (arrêté royal du 22 mai 2014, art. 2
-  § 4, pour les feuilles de route ; `PASSENGER_LIST_RETENTION_YEARS`), puis suppression chaque nuit à 03:30 par
+  § 4, pour les feuilles de route ; `PASSENGER_LIST_RETENTION_YEARS`), puis suppression chaque nuit à 03:15 (avant le backup de 03:30) par
   `documents:purge-passenger-lists`. Pour un transport « pour compte propre », l'art. 7 n'exige que des documents
   appropriés à bord : la durée est un choix prudent, à confirmer par le juriste de la commune.

@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\File;
 use InvalidArgumentException;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
+use RuntimeException;
 use SplFileInfo;
 use Throwable;
 
@@ -23,18 +24,23 @@ use Throwable;
  * chaque entrée tar est formatée manuellement selon le format POSIX ustar.
  * Les noms de fichiers > 100 chars sont découpés en (name, prefix) selon la spec tar.
  *
+ * Chiffrement (backups.encryption, BackupEncryptor) : l'archive devient `.tar.gz.enc` et la version en clair est
+ * supprimée. En production, un backup non chiffré est refusé : il contient toute la base et les justificatifs.
+ *
  * `pruneOldBackups()` supprime les archives plus anciennes que backups.retention_days (défaut 14).
  * En cas d'erreur, le fichier partiellement écrit est supprimé avant de propager l'exception.
  */
 class BackupService
 {
     public function __construct(
-        private readonly DomainLogger $logger
+        private readonly DomainLogger $logger,
+        private readonly BackupEncryptor $encryptor,
     ) {}
 
     public function run(string $type = 'full', bool $includeLogs = false): array
     {
         $this->ensureSupportedType($type);
+        $encryptionKey = $this->encryptionKey();
 
         $startedAt = CarbonImmutable::now();
         $backupName = sprintf(
@@ -59,6 +65,7 @@ class BackupService
             File::ensureDirectoryExists($backupPath);
 
             $metadata = $this->metadata($backupName, $type, $includeLogs, $startedAt);
+            $metadata['encrypted'] = $encryptionKey !== null;
 
             if ($this->includesDatabase($type)) {
                 $metadata['database'] = true;
@@ -73,6 +80,13 @@ class BackupService
             }
 
             $archivePath = $this->archiveBackup($archivePath, $metadata, $type, $includeLogs);
+
+            if ($encryptionKey !== null) {
+                $this->encryptor->encrypt($archivePath, $archivePath.BackupEncryptor::EXTENSION, $encryptionKey);
+                File::delete($archivePath);
+                $archivePath .= BackupEncryptor::EXTENSION;
+            }
+
             $size = File::size($archivePath);
 
             $this->pruneOldBackups();
@@ -88,7 +102,7 @@ class BackupService
 
             return $summary;
         } catch (Throwable $exception) {
-            File::delete($archivePath);
+            File::delete([$archivePath, $archivePath.BackupEncryptor::EXTENSION]);
 
             $this->logger->backupFailed($context, $exception);
 
@@ -105,7 +119,7 @@ class BackupService
         }
 
         return collect(File::files($backupPath))
-            ->filter(fn (SplFileInfo $file): bool => str_ends_with($file->getFilename(), '.tar.gz'))
+            ->filter(fn (SplFileInfo $file): bool => $this->isArchive($file))
             ->sortByDesc(fn (SplFileInfo $file): int => $file->getMTime())
             ->map(fn (SplFileInfo $file): array => [
                 'name' => $file->getFilename(),
@@ -129,7 +143,7 @@ class BackupService
         $deleted = 0;
 
         foreach (File::files($this->backupPath()) as $file) {
-            if (! str_ends_with($file->getFilename(), '.tar.gz')) {
+            if (! $this->isArchive($file)) {
                 continue;
             }
 
@@ -142,6 +156,33 @@ class BackupService
         }
 
         return $deleted;
+    }
+
+    /**
+     * Clé de chiffrement, ou null si le chiffrement est désactivé (refusé en production).
+     *
+     * @throws RuntimeException clé absente ou invalide, ou backup non chiffré en production
+     */
+    private function encryptionKey(): ?string
+    {
+        if (! config('backups.encryption.enabled')) {
+            if (app()->environment('production')) {
+                throw new RuntimeException('Backup non chiffré refusé en production : réglez BACKUP_ENCRYPTION_ENABLED=true et BACKUP_ENCRYPTION_KEY (php artisan backup:generate-key).');
+            }
+
+            return null;
+        }
+
+        $key = (string) config('backups.encryption.key');
+        $this->encryptor->decodeKey($key);
+
+        return $key;
+    }
+
+    private function isArchive(SplFileInfo $file): bool
+    {
+        return str_ends_with($file->getFilename(), '.tar.gz')
+            || str_ends_with($file->getFilename(), '.tar.gz'.BackupEncryptor::EXTENSION);
     }
 
     private function dumpDatabase(): string

@@ -50,7 +50,9 @@ return [
     |
     */
 
-    'expiration' => env('SANCTUM_TOKEN_EXPIRATION'),
+    // RGPD : un token API expire après 7 jours (la SPA utilise la session, pas les tokens) ; purge : sanctum:prune-expired
+    // (une valeur vide, comme dans les .env.example historiques, garde ce défaut)
+    'expiration' => (int) (env('SANCTUM_TOKEN_EXPIRATION') ?: 60 * 24 * 7),
 
     /*
     |--------------------------------------------------------------------------

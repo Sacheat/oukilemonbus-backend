@@ -89,6 +89,21 @@ class UserPolicy
             && $this->isInternal($user);
     }
 
+    /** Export RGPD : chacun pour son compte, un admin (users.export-data) pour tout compte. */
+    public function exportData(User $user, User $targetUser): bool
+    {
+        return $user->is($targetUser)
+            || ($user->can('users.export-data') && $this->isInternal($user));
+    }
+
+    /** Effacement RGPD : admin uniquement (users.anonymize), jamais sur son propre compte. */
+    public function anonymize(User $user, User $targetUser): bool
+    {
+        return $user->can('users.anonymize')
+            && $this->isInternal($user)
+            && ! $user->is($targetUser);
+    }
+
     private function isInternal(User $user): bool
     {
         return $user->hasAnyRole(self::INTERNAL_ROLES);

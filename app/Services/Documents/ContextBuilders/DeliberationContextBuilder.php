@@ -102,10 +102,8 @@ class DeliberationContextBuilder
             'assignment' => [
                 'driver' => [
                     'id' => $reservation?->driver?->id,
+                    // RGPD, minimisation : le modèle n'affiche que le nom ; ni contact ni permis dans le contexte gardé
                     'name' => $this->fullName($reservation?->driver?->user),
-                    'email' => $reservation?->driver?->user?->email,
-                    'phone' => $reservation?->driver?->user?->phone,
-                    'licence_number' => $reservation?->driver?->licence_number,
                 ],
                 'vehicle' => [
                     'id' => $reservation?->vehicle?->id,

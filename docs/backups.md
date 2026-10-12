@@ -2,7 +2,7 @@
 
 Ce document decrit la V1 du module de backup.
 
-Le chiffrement n'est pas encore implemente. La configuration reserve deja les cles necessaires pour une V1.1.
+Les archives sont chiffrees (`BackupEncryptor`, libsodium secretstream XChaCha20-Poly1305) et le backup tourne chaque nuit a 03:30. En production, un backup non chiffre est refuse. Copie hors VM : `deploy/backup-offsite.sh` (rclone), voir `deploy/README.md`.
 
 ## Objectif
 
@@ -52,15 +52,23 @@ Configuration :
 ```env
 BACKUP_PATH=
 BACKUP_RETENTION_DAYS=14
-BACKUP_ENCRYPTION_ENABLED=false
-BACKUP_ENCRYPTION_KEY=
+BACKUP_ENCRYPTION_ENABLED=true
+BACKUP_ENCRYPTION_KEY=base64:...   # php artisan backup:generate-key
 ```
+
+## Chiffrement
+
+Avec le chiffrement, l'archive `.tar.gz` est chiffree en `.tar.gz.enc` puis la version en clair est supprimee. Format : `BCBK1` + en-tete secretstream + blocs de 64 Ko authentifies ; une archive modifiee, tronquee ou dechiffree avec une autre cle est refusee.
+
+Sans la cle, une archive est irrecuperable : la garder hors du serveur. Changer de cle rend les anciennes archives illisibles avec la nouvelle (garder l'ancienne tant que des archives chiffrees avec elle existent).
+
+Une cle absente ou invalide fait echouer `backup:run` avant toute ecriture.
 
 Si `BACKUP_PATH` est vide, Laravel utilise le chemin par defaut defini dans `config/backups.php`.
 
 ## Retention
 
-Apres chaque backup reussi, les archives `.tar.gz` plus anciennes que `BACKUP_RETENTION_DAYS` sont supprimees.
+Apres chaque backup reussi, les archives `.tar.gz` et `.tar.gz.enc` plus anciennes que `BACKUP_RETENTION_DAYS` sont supprimees.
 
 Valeur recommandee de depart :
 
@@ -129,7 +137,7 @@ C'est volontaire : une restauration automatique peut ecraser des donnees de prod
 
 Procedure generale :
 
-1. Extraire l'archive `.tar.gz`.
+1. Dechiffrer l'archive avec la meme `BACKUP_ENCRYPTION_KEY` : `php artisan backup:decrypt <archive>.tar.gz.enc`, puis extraire le `.tar.gz` obtenu. Supprimer ce fichier en clair une fois la restauration faite.
 2. Restaurer la base :
 
 ```bash
@@ -170,8 +178,11 @@ Pour la production, prevoir une copie supplementaire :
 
 Prochaine etape recommandee :
 
-- chiffrement des archives ;
-- verification d'integrite ;
-- backup planifie via scheduler ;
 - notification en cas d'echec ;
-- stockage distant configurable.
+- verification periodique d'une restauration.
+
+Fait : chiffrement et integrite (BackupEncryptor), planification (03:30), copie hors serveur (`deploy/backup-offsite.sh`).
+
+## RGPD
+
+Une donnee effacee ou anonymisee (privacy:prune, anonymisation d'un compte) reste dans les archives jusqu'a leur expiration : 14 jours sur le serveur, `OFFSITE_RETENTION_DAYS` (30 par defaut) sur la copie distante. Une restauration doit donc etre suivie de `php artisan privacy:prune` et, si des comptes ont ete anonymises depuis l'archive, de leur nouvelle anonymisation.

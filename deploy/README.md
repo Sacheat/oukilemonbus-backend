@@ -273,13 +273,44 @@ fait échouer son job : il apparaît dans `queue:failed` et dans les logs.
 
 ## Backups
 
-`php artisan backup:run` crée une archive (base + fichiers) dans `storage/app/private/backups` (le volume
-`storage` avec Docker), donc **sur la même VM**.
-Ça protège d'une erreur de manipulation, pas d'une perte de la VM : copier régulièrement les archives ailleurs.
-La planification automatique des backups n'est pas encore en place (voir [`docs/backups.md`](../docs/backups.md)).
+Chaque nuit à 03:30, le scheduler lance `backup:run` : une archive **chiffrée** (base + fichiers,
+`*.tar.gz.enc`) dans `storage/app/private/backups` (le volume `storage` avec Docker), gardée 14 jours
+(`BACKUP_RETENTION_DAYS`). En production, un backup non chiffré est refusé.
+
+**1. Clé de chiffrement** (une fois) :
+
+```bash
+dc exec -u www-data app php artisan backup:generate-key   # sans Docker : php artisan backup:generate-key
+```
+
+Copier la clé dans `.env` (`BACKUP_ENCRYPTION_ENABLED=true`, `BACKUP_ENCRYPTION_KEY=base64:…`), puis redéployer.
+**La ranger aussi hors de la VM** (gestionnaire de mots de passe de la commune) : sans elle, aucun backup n'est
+récupérable, et changer de clé rend les anciennes archives illisibles avec la nouvelle.
+
+**2. Copie hors de la VM** : l'archive est sur la même VM, elle protège d'une erreur, pas d'une perte de la VM.
+`deploy/backup-offsite.sh` copie les archives chiffrées (et elles seules) vers une destination
+[rclone](https://rclone.org/) : NAS de la commune, stockage S3, autre serveur en SFTP…
+
+```bash
+sudo apt install rclone && rclone config        # créer la destination, ex. « nas-commune »
+deploy/backup-offsite.sh nas-commune:bus-communal/backups   # test à la main
+```
+
+Cron sur la VM (root pour lire le volume Docker), après le backup de 03:30 :
+
+```cron
+15 4 * * * root /opt/bus-communal/deploy/backup-offsite.sh nas-commune:bus-communal/backups >> /var/log/bus-communal-offsite.log 2>&1
+```
+
+`OFFSITE_RETENTION_DAYS` (défaut 30) supprime sur la destination les archives plus anciennes.
+
+**Commandes utiles** :
 
 ```bash
 dc exec -u www-data app php artisan backup:run
 dc exec -u www-data app php artisan backup:list
-dc cp app:/var/www/html/storage/app/private/backups ./backups-copie
+dc exec -u www-data app php artisan backup:decrypt storage/app/private/backups/<archive>.tar.gz.enc
 ```
+
+Restauration : voir [`docs/backups.md`](../docs/backups.md).
+

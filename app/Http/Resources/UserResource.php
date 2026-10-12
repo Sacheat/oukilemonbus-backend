@@ -3,6 +3,7 @@
 namespace App\Http\Resources;
 
 use App\Models\UserOrganization;
+use App\Support\Privacy\PrivacyPolicy;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -32,8 +33,14 @@ class UserResource extends JsonResource
             'phone' => $this->phone,
             'active' => $this->active,
             'email_verified_at' => $this->email_verified_at?->toISOString(),
+            'anonymized_at' => $this->anonymized_at?->toISOString(),
             'created_at' => $this->created_at?->toISOString(),
             'updated_at' => $this->updated_at?->toISOString(),
+            // Seulement pour son propre compte (/auth/me, login, inscription) : la SPA affiche la politique si must_accept
+            'privacy_policy' => $this->when(
+                $request->user()?->is($this->resource) ?? false,
+                fn () => app(PrivacyPolicy::class)->statusFor($this->resource)
+            ),
             'roles' => $this->whenLoaded('roles', fn () => $this->roles->pluck('name')->values()),
             'permissions' => $this->when(
                 $this->withEffectivePermissions,

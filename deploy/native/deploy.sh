@@ -24,6 +24,8 @@ artisan() { sudo -u "$APP_USER" php artisan "$@"; }
 [[ -f .env ]] || fail ".env introuvable à la racine du dépôt. Copier deploy/.env.production.example en .env et le remplir."
 grep -q '^APP_KEY=base64:' .env || fail "APP_KEY vide dans .env. Voir « Première installation » dans deploy/README.md."
 grep -q '^APP_ENV=production' .env || fail "APP_ENV doit valoir production dans .env."
+grep -Eq '^BACKUP_ENCRYPTION_KEY=base64:' .env && grep -q '^BACKUP_ENCRYPTION_ENABLED=true' .env \
+    || printf '\033[1;33mAttention : backups non chiffrés (BACKUP_ENCRYPTION_ENABLED / BACKUP_ENCRYPTION_KEY) : le backup de la nuit sera refusé. Voir « Backups » dans deploy/README.md.\033[0m\n' >&2
 sudo -u "$APP_USER" test -r .env || fail ".env illisible par $APP_USER : chgrp $APP_USER .env && chmod 640 .env"
 sudo -u "$APP_USER" test -w storage/logs || fail "storage/ non modifiable par $APP_USER : sudo chown -R $APP_USER:$APP_USER storage bootstrap/cache"
 
