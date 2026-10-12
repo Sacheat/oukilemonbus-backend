@@ -149,7 +149,8 @@ class DeliberationContextBuilderTest extends TestCase
         $this->assertSame('Rue de Namur 20, 5000 Namur', $context['locations']['destination']['formatted_address']);
 
         $this->assertSame('Marc Chauffeur', $context['assignment']['driver']['name']);
-        $this->assertSame('DRV-123', $context['assignment']['driver']['licence_number']);
+        $this->assertArrayNotHasKey('licence_number', $context['assignment']['driver']);
+        $this->assertArrayNotHasKey('email', $context['assignment']['driver']);
         $this->assertSame('1-ABC-123', $context['assignment']['vehicle']['licence_plate']);
         $this->assertSame(20, $context['assignment']['vehicle']['capacity']);
 

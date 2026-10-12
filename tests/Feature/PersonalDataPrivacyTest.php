@@ -222,6 +222,39 @@ class PersonalDataPrivacyTest extends TestCase
         $this->assertSame(50.1, $event->refresh()->latitude);
     }
 
+    // ── Minimisation ──────────────────────────────────────────────────────────
+
+    public function test_organization_members_see_the_driver_name_and_phone_but_not_the_licence_or_email(): void
+    {
+        $reservation = $this->reservation(['trip_date' => '2026-10-20']);
+        $driverUser = $this->user('chauffeur.test@bus-communal.local');
+        $this->organization()->users()->syncWithoutDetaching([
+            $this->user('user.test@bus-communal.local')->id => ['relationship_type' => 'prof'],
+        ]);
+
+        Sanctum::actingAs($this->user('user.test@bus-communal.local'));
+        $this->getJson("/api/reservations/{$reservation->id}")
+            ->assertOk()
+            ->assertJsonPath('data.driver.id', $this->driver()->id)
+            ->assertJsonMissingPath('data.driver.licence_number')
+            ->assertJsonMissingPath('data.driver.licence_expiry_date');
+        $this->getJson('/api/planning?start_date=2026-10-20&end_date=2026-10-20')
+            ->assertOk()
+            ->assertJsonPath('data.0.driver.user.phone', $driverUser->phone)
+            ->assertJsonPath('data.0.driver.user.last_name', $driverUser->last_name)
+            ->assertJsonMissingPath('data.0.driver.user.email')
+            ->assertJsonMissingPath('data.0.driver.licence_number');
+
+        Sanctum::actingAs($driverUser);
+        $this->getJson("/api/reservations/{$reservation->id}")
+            ->assertJsonPath('data.driver.licence_number', 'DRV-SEED-001');
+
+        Sanctum::actingAs($this->user('agent.test@bus-communal.local'));
+        $this->getJson('/api/planning?start_date=2026-10-20&end_date=2026-10-20')
+            ->assertJsonPath('data.0.driver.licence_number', 'DRV-SEED-001')
+            ->assertJsonPath('data.0.driver.user.email', $driverUser->email);
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private function reservation(array $attributes = []): Reservation
