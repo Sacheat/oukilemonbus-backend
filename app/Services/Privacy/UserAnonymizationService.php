@@ -43,6 +43,8 @@ class UserAnonymizationService
 
     private const string REJECTION_REASON = 'Compte supprimé à la demande de la personne (RGPD).';
 
+    private const string INACTIVITY_REJECTION_REASON = 'Compte supprimé après une longue inactivité (RGPD).';
+
     public function __construct(
         private readonly UserService $userService,
         private readonly ProofDocumentService $proofDocumentService,
@@ -50,9 +52,11 @@ class UserAnonymizationService
     ) {}
 
     /**
+     * @param  User|null  $actor  null : anonymisation automatique d'un compte inactif (privacy:prune)
+     *
      * @throws ValidationException compte déjà anonymisé, ou engagements en cours (liste dans `user`)
      */
-    public function anonymize(User $user, User $actor): User
+    public function anonymize(User $user, ?User $actor): User
     {
         $proofDocumentIds = DB::transaction(function () use ($user, $actor): array {
             $user = User::query()->lockForUpdate()->findOrFail($user->getKey());
@@ -70,7 +74,9 @@ class UserAnonymizationService
             $this->anonymizeDriverProfile($user);
             $this->anonymizeIdentity($user);
 
-            $this->eventLogger->log('user', $user->getKey(), 'user.anonymized', $actor);
+            $this->eventLogger->log('user', $user->getKey(), 'user.anonymized', $actor, context: [
+                'reason' => $actor === null ? 'inactivity' : 'request',
+            ]);
 
             return $proofDocumentIds;
         });
@@ -126,13 +132,13 @@ class UserAnonymizationService
      *
      * @return list<int> justificatifs à supprimer après la transaction
      */
-    private function closeRequests(User $user, User $actor): array
+    private function closeRequests(User $user, ?User $actor): array
     {
         $refusal = [
             'status' => RequestStatus::REFUSE->value,
-            'reviewed_by_user_id' => $actor->getKey(),
+            'reviewed_by_user_id' => $actor?->getKey(),
             'reviewed_at' => now(),
-            'rejection_reason' => self::REJECTION_REASON,
+            'rejection_reason' => $actor === null ? self::INACTIVITY_REJECTION_REASON : self::REJECTION_REASON,
         ];
 
         $userOrgRequests = UserOrgRequest::query()->where('requested_by_user_id', $user->getKey());

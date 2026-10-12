@@ -9,6 +9,8 @@ use App\Enums\RequestStatus;
 use App\Enums\ReservationStatus;
 use App\Enums\TripEventSource;
 use App\Enums\TripEventType;
+use App\Models\ApiIdempotencyKey;
+use App\Models\DomainEvent;
 use App\Models\Driver;
 use App\Models\DriverAlert;
 use App\Models\Location;
@@ -24,7 +26,9 @@ use Database\Seeders\TestLocationsSeeder;
 use Database\Seeders\TestOrganizationsSeeder;
 use Database\Seeders\TestUsersSeeder;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
+use App\Notifications\Privacy\InactiveAccountWarning;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Notification;
 use Laravel\Sanctum\Sanctum;
 use Spatie\Permission\PermissionRegistrar;
 use Tests\TestCase;
@@ -222,6 +226,80 @@ class PersonalDataPrivacyTest extends TestCase
         $this->assertSame(50.1, $event->refresh()->latitude);
     }
 
+    public function test_prune_deletes_old_idempotency_keys_and_audit_events(): void
+    {
+        $user = $this->user('user.test@bus-communal.local');
+        $oldKey = $this->idempotencyKey($user, 'old', '2026-10-01 10:00:00');
+        $recentKey = $this->idempotencyKey($user, 'recent', '2026-10-10 10:00:00');
+        $oldEvent = DomainEvent::query()->create(['aggregate_type' => 'user', 'aggregate_id' => $user->id, 'event_type' => 'test.old']);
+        $oldEvent->forceFill(['created_at' => '2023-01-01 00:00:00'])->save();
+        $recentEvent = DomainEvent::query()->create(['aggregate_type' => 'user', 'aggregate_id' => $user->id, 'event_type' => 'test.recent']);
+
+        $this->artisan('privacy:prune')->assertSuccessful();
+
+        $this->assertModelMissing($oldKey);
+        $this->assertModelExists($recentKey);
+        $this->assertModelMissing($oldEvent);
+        $this->assertModelExists($recentEvent);
+    }
+
+    // ── Comptes inactifs ──────────────────────────────────────────────────────
+
+    public function test_any_authenticated_request_records_activity_and_cancels_the_warning(): void
+    {
+        $user = $this->user('user.test@bus-communal.local');
+        $user->forceFill(['last_seen_at' => '2024-01-01 00:00:00', 'inactivity_warned_at' => '2026-10-01 00:00:00'])->save();
+        Sanctum::actingAs($user);
+
+        $this->getJson('/api/auth/me')->assertOk();
+
+        $user->refresh();
+        $this->assertTrue($user->last_seen_at->equalTo(now()));
+        $this->assertNull($user->inactivity_warned_at);
+    }
+
+    public function test_inactive_accounts_are_warned_then_anonymized_after_the_notice(): void
+    {
+        Notification::fake();
+        $soonInactive = $this->inactiveUser('bientot@example.test', lastSeen: '2023-10-30 10:00:00');
+        $deactivated = $this->inactiveUser('desactive@example.test', lastSeen: '2023-10-30 10:00:00', attributes: ['active' => false]);
+        $warnedLongAgo = $this->inactiveUser('ancien@example.test', lastSeen: '2023-01-01 10:00:00', attributes: ['inactivity_warned_at' => '2026-09-01 10:00:00']);
+        $warnedRecently = $this->inactiveUser('recent@example.test', lastSeen: '2023-01-01 10:00:00', attributes: ['inactivity_warned_at' => '2026-10-01 10:00:00']);
+        $active = $this->inactiveUser('actif@example.test', lastSeen: '2026-10-01 10:00:00');
+
+        $this->artisan('privacy:prune')->assertSuccessful();
+
+        Notification::assertSentTo($soonInactive, InactiveAccountWarning::class, function (InactiveAccountWarning $notification) use ($soonInactive): bool {
+            $html = (string) $notification->toMail($soonInactive)->render();
+
+            return str_contains($html, '11 novembre 2026') && str_contains($html, 'Me connecter');
+        });
+        Notification::assertNotSentTo([$deactivated, $active, $warnedLongAgo, $warnedRecently], InactiveAccountWarning::class);
+        $this->assertNotNull($soonInactive->refresh()->inactivity_warned_at);
+        $this->assertFalse($soonInactive->isAnonymized());
+        $this->assertNotNull($deactivated->refresh()->inactivity_warned_at);
+        $this->assertTrue($warnedLongAgo->refresh()->isAnonymized());
+        $this->assertFalse($warnedRecently->refresh()->isAnonymized());
+        $this->assertFalse($active->refresh()->isAnonymized());
+        $this->assertNull($active->inactivity_warned_at);
+        $this->assertDatabaseHas('domain_events', [
+            'aggregate_id' => $warnedLongAgo->id,
+            'event_type' => 'user.anonymized',
+            'actor_user_id' => null,
+        ]);
+    }
+
+    public function test_an_inactive_account_with_upcoming_reservations_is_skipped(): void
+    {
+        $requester = $this->user('user.test@bus-communal.local');
+        $requester->forceFill(['last_seen_at' => '2023-01-01 10:00:00', 'inactivity_warned_at' => '2026-09-01 10:00:00'])->save();
+        $this->reservation(['trip_date' => '2026-10-20', 'driver_id' => null, 'vehicle_id' => null]);
+
+        $this->artisan('privacy:prune')->assertSuccessful();
+
+        $this->assertFalse($requester->refresh()->isAnonymized());
+    }
+
     // ── Minimisation ──────────────────────────────────────────────────────────
 
     public function test_organization_members_see_the_driver_name_and_phone_but_not_the_licence_or_email(): void
@@ -312,6 +390,28 @@ class PersonalDataPrivacyTest extends TestCase
         }
 
         return $alert;
+    }
+
+    private function idempotencyKey(User $user, string $key, string $createdAt): ApiIdempotencyKey
+    {
+        $record = ApiIdempotencyKey::query()->create([
+            'user_id' => $user->id,
+            'idempotency_key' => $key,
+            'method' => 'POST',
+            'route_name' => 'api.reservations.store',
+            'request_hash' => str_repeat('a', 64),
+        ]);
+        $record->forceFill(['created_at' => $createdAt])->save();
+
+        return $record;
+    }
+
+    private function inactiveUser(string $email, string $lastSeen, array $attributes = []): User
+    {
+        $user = User::factory()->create(['email' => $email, ...array_intersect_key($attributes, ['active' => true])]);
+        $user->forceFill(['last_seen_at' => $lastSeen, 'created_at' => '2023-01-01 00:00:00', ...$attributes])->save();
+
+        return $user;
     }
 
     private function organization(): Organization

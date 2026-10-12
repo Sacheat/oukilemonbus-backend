@@ -26,6 +26,10 @@ Schedule::command('privacy:prune')
     ->timezone('Europe/Brussels')
     ->withoutOverlapping();
 
+Schedule::command('sanctum:prune-expired --hours=24')
+    ->dailyAt('02:50')
+    ->timezone('Europe/Brussels');
+
 Schedule::command('documents:prune-orphan-proofs --days=7')
     ->weeklyOn(0, '03:00')
     ->timezone('Europe/Brussels')
