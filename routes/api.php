@@ -21,6 +21,7 @@ use App\Http\Controllers\Api\PlanningController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\RecurrenceController;
 use App\Http\Controllers\Api\ReservationConflictController;
+use App\Http\Controllers\Api\TourController;
 use App\Http\Controllers\Api\TripProgressController;
 use App\Http\Controllers\Api\TripReportController;
 use App\Http\Controllers\Api\ReservationController;
@@ -77,6 +78,12 @@ Route::name('api.')->group(function (): void {
          * Authentication routes — accessibles sans vérification email
          */
         Route::get('/auth/me', [AuthController::class, 'me'])->name('auth.me');
+        Route::patch('/auth/me/tours/{tour}', [TourController::class, 'markSeen'])
+            ->middleware('throttle:action')
+            ->name('auth.tours.mark-seen');
+        Route::delete('/auth/me/tours/{tour}', [TourController::class, 'reset'])
+            ->middleware('throttle:action')
+            ->name('auth.tours.reset');
         Route::post('/auth/logout', [AuthController::class, 'logout'])
             ->middleware('throttle:verification')
             ->name('auth.logout');
