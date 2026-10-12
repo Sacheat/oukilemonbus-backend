@@ -162,15 +162,17 @@ class ReservationEditPreviewTest extends TestCase
         $this->assertSame('2026-04-30', $reservation->refresh()->trip_date->toDateString());
     }
 
-    public function test_creation_keeps_the_minimum_notice_for_everyone(): void
+    public function test_creation_keeps_the_minimum_notice_for_requesters_but_an_agent_may_waive_it(): void
     {
-        foreach (['responsable.test@bus-communal.local', 'agent.test@bus-communal.local'] as $email) {
-            Sanctum::actingAs(User::query()->where('email', $email)->firstOrFail());
+        Sanctum::actingAs(User::query()->where('email', 'responsable.test@bus-communal.local')->firstOrFail());
+        $this->postJson('/api/reservations', $this->previewPayload(['trip_date' => '2026-04-30']))
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.trip_date', ['La demande doit être introduite au moins 15 jours avant la date souhaitée.']);
 
-            $this->postJson('/api/reservations', $this->previewPayload(['trip_date' => '2026-04-30']))
-                ->assertUnprocessable()
-                ->assertJsonPath('errors.trip_date', ['La demande doit être introduite au moins 15 jours avant la date souhaitée.']);
-        }
+        // Décidé le 12/10 : un agent ou un admin encode une demande téléphonée sans le préavis (noté dans l'historique,
+        // AgentReservationCreationTest)
+        Sanctum::actingAs(User::query()->where('email', 'agent.test@bus-communal.local')->firstOrFail());
+        $this->postJson('/api/reservations', $this->previewPayload(['trip_date' => '2026-04-30']))->assertCreated();
     }
 
     public function test_user_who_cannot_update_the_reservation_gets_403(): void

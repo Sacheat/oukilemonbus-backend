@@ -156,7 +156,8 @@ class ReservationController extends Controller
         Gate::authorize('createForOrganization', [Reservation::class, $organization]);
 
         if (! isset($validated['reservation_id'])) {
-            return $validated;
+            // Création : un agent ou un admin peut déroger au préavis de 15 jours (même règle que ReservationService::create)
+            return [...$validated, 'skip_minimum_notice' => $user->hasAnyRole(['admin', 'agent_communal'])];
         }
 
         $reservation = Reservation::findOrFail($validated['reservation_id']);

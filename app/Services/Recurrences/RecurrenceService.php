@@ -69,7 +69,8 @@ class RecurrenceService
                 continue;
             }
 
-            if (CarbonImmutable::parse($date)->startOfDay()->lessThan($minimumDate)) {
+            // Préavis : pas pour une série créée par un agent ou un admin (skip_minimum_notice, mis par le contrôleur)
+            if (! ($data['skip_minimum_notice'] ?? false) && CarbonImmutable::parse($date)->startOfDay()->lessThan($minimumDate)) {
                 $skippedDates[] = [
                     'date' => $date,
                     'reason' => "Délai minimum de {$minNotice} jours non respecté.",
@@ -128,6 +129,8 @@ class RecurrenceService
      */
     public function createWithReport(array $data, User $actor): array
     {
+        // Un agent ou un admin peut déroger au préavis de 15 jours (demande téléphonée, urgence)
+        $data['skip_minimum_notice'] = $actor->hasAnyRole(['admin', 'agent_communal']);
         $preview = $this->preview($data);
 
         if ($preview['valid_dates'] === []) {

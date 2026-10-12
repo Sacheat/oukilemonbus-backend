@@ -595,3 +595,17 @@ Il relie les utilisateurs, organisations, lieux, chauffeurs, véhicules, conflit
 La logique métier principale est déjà en place : validation, statuts, conflits, affectations, occupation du bus et intégration avec le planning.
 
 Les prochaines étapes concernent surtout les notifications, la documentation, le front React et les optimisations avancées.
+
+## Réservation ou série encodée par un agent (décidé le 12/10/2026)
+
+Pour une demande reçue par téléphone ou par email, un agent ou un admin crée la réservation (`POST /reservations`) ou
+la série (`POST /recurrences`) pour **n'importe quelle organisation** (`ReservationPolicy::createForOrganization`) :
+
+- `requested_by_user_id` (facultatif) : le demandeur, qui doit être un **membre actif de l'organisation** (sinon 422 sur
+  `requested_by_user_id`) ; absent = l'agent lui-même. C'est lui qui reçoit les notifications et suit la demande.
+- **Pas de préavis de 15 jours** pour un agent ou un admin : `skip_minimum_notice` est mis par le contrôleur (preview,
+  check-trip, preview de série) et par `ReservationService::create` / `RecurrenceService::createWithReport`. Toutes
+  les autres règles restent (jours fermés, quota, distances, capacité, conflits, Collège).
+- Historique : « Création de la demande par un agent », avec « (préavis de 15 jours non appliqué) » quand le trajet
+  tombe dans les 15 jours (`ReservationPreviewService::isWithinMinimumNotice`).
+- Un demandeur (usager) garde le préavis.
