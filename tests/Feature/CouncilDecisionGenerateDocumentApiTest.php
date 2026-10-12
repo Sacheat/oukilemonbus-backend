@@ -58,8 +58,8 @@ class CouncilDecisionGenerateDocumentApiTest extends TestCase
 
         $response->assertCreated()
             ->assertJsonPath('data.document_type', DocumentType::DELIBERATION->value)
-            ->assertJsonPath('data.template_key', 'deliberations.external')
-            ->assertJsonPath('data.template_version', '1.0')
+            ->assertJsonPath('data.template_key', 'deliberations.subvention')
+            ->assertJsonPath('data.template_version', '2.0')
             ->assertJsonPath('data.is_official', true)
             ->assertJsonPath('data.is_available', true)
             ->assertJsonPath('data.version', 1);
@@ -71,8 +71,8 @@ class CouncilDecisionGenerateDocumentApiTest extends TestCase
         $this->assertSame($councilDecision->reservation_id, $document->reservation_id);
         $this->assertSame($agent->id, $document->user_id);
         $this->assertSame(DocumentType::DELIBERATION, $document->document_type);
-        $this->assertSame('deliberations.external', $document->template_key);
-        $this->assertSame('1.0', $document->template_version);
+        $this->assertSame('deliberations.subvention', $document->template_key);
+        $this->assertSame('2.0', $document->template_version);
         $this->assertTrue($document->is_official);
         $this->assertTrue($document->is_available);
         $this->assertSame(1, $document->version);

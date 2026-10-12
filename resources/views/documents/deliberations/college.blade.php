@@ -231,12 +231,22 @@
     </style>
 </head>
 
+
 <body>
 @php
+    /*
+     * Deux modèles (DeliberationContextBuilder, config/deliberations.php), comme les exemples de la commune :
+     *   subvention      : ASBL, externes, CPAS — considérants « circulaire du 30 mai 2013 » et « délégation du
+     *                     9 novembre 2020 », disponibilité « sous réserve d'immobilisation du car »
+     *   sans_subvention : écoles et personnel communaux — avis du service enseignement, copie à la direction des écoles
+     * Commune, présents et signataires : `college` (réglés par un admin dans Communes).
+     */
     $decision = $context['decision'] ?? [];
     $reservation = $context['reservation'] ?? [];
     $organization = $context['organization'] ?? [];
     $locations = $context['locations'] ?? [];
+    $college = $context['college'] ?? [];
+    $withSubsidy = ($context['model'] ?? null) === 'subvention';
 
     $dateShort = function ($value): string {
         if (empty($value)) {
@@ -256,51 +266,57 @@
         }
 
         try {
-            return \Illuminate\Support\Carbon::parse($value)
-                ->locale('fr')
-                ->translatedFormat('j F Y');
+            $date = \Illuminate\Support\Carbon::parse($value)->locale('fr');
+
+            // « jeudi 1er octobre 2026 », comme dans les délibérations de la commune
+            return $date->translatedFormat($date->day === 1 ? 'l j\e\r F Y' : 'l j F Y');
         } catch (\Throwable $exception) {
             return (string) $value;
         }
     };
 
+    // « 10:15 » → « 10h15 », comme dans les délibérations de la commune
+    $hour = fn ($value) => $value ? str_replace(':', 'h', substr((string) $value, 0, 5)) : null;
+
+    $municipalityName = data_get($college, 'municipality_name', 'Dinant');
     $organizationName = data_get($organization, 'name', 'Organisation non précisée');
     $organizationType = data_get($organization, 'type_label', data_get($organization, 'type', ''));
     $tripDateRaw = data_get($reservation, 'trip_date');
     $tripDateShort = $dateShort($tripDateRaw);
     $tripDateLong = $dateLong($tripDateRaw);
-
-    $decisionDateRaw = data_get($decision, 'date');
-    $decisionDateLong = $dateLong($decisionDateRaw);
-
+    $decisionDateLong = $dateLong(data_get($decision, 'date'));
     $decisionReference = data_get($decision, 'reference', 'référence non précisée');
-    $departureTime = data_get($reservation, 'departure_time');
-    $returnTime = data_get($reservation, 'return_time');
-    $tripPurpose = data_get($reservation, 'trip_purpose', 'motif non précisé');
 
-    $pickupAddress = data_get($locations, 'pickup.formatted_address', 'lieu de départ non précisé');
     $destinationAddress = data_get($locations, 'destination.formatted_address', 'destination non précisée');
+    $pickupPlace = data_get($locations, 'pickup.city') ?: data_get($locations, 'pickup.formatted_address', 'lieu de départ');
+    $destinationPlace = data_get($locations, 'destination.city') ?: $destinationAddress;
+    $departure = $hour(data_get($reservation, 'departure_time'));
+    $returnDeparture = $hour(data_get($reservation, 'return_time'));
+    // « / Départ de Dinant à 10h15 - Départ de Bambois à 15h15 »
+    $hours = collect([
+        $departure ? "Départ de {$pickupPlace} à {$departure}" : null,
+        $returnDeparture ? "Départ de {$destinationPlace} à {$returnDeparture}" : null,
+    ])->filter()->implode(' - ');
 
     $contactName = data_get($organization, 'name_contact');
-
     $titleContactPart = $contactName ? ' - '.$contactName : '';
-    $decisionStatus = data_get($decision, 'status');
-    $isRefused = $decisionStatus === 'refuse';
+    $isRefused = data_get($decision, 'status') === 'refuse';
     $decisionNotes = data_get($decision, 'notes');
+    $presentLines = data_get($college, 'present_lines', []);
+    $schoolsRecipient = data_get($college, 'schools_recipient');
 @endphp
 
 <div class="page first">
 
     <div class="header">
         <div class="header-left">
-            <div class="city-small">VILLE DE<br>DINANT</div>
-            <div class="city-logo">Dinant</div>
-            <div class="city-subtitle">LA VOIX CUIVRÉE</div>
+            <div class="city-small">VILLE DE<br>{{ mb_strtoupper($municipalityName) }}</div>
+            <div class="city-logo">{{ $municipalityName }}</div>
         </div>
 
         <div class="header-center">
             <div>Extrait du REGISTRE AUX DÉLIBÉRATIONS</div>
-            <div>DU COLLÈGE COMMUNAL DE DINANT</div>
+            <div>DU COLLÈGE COMMUNAL DE {{ mb_strtoupper($municipalityName) }}</div>
         </div>
 
         <div class="header-right">
@@ -320,10 +336,9 @@
     <div class="section-title">PRÉSENTS :</div>
 
     <div class="paragraph">
-        M. Richard FOURNAUX, Bourgmestre - Président ;<br>
-        Mesdames et Messieurs les Échevins ;<br>
-        M. Lionel NAOME, Président du CPAS ;<br>
-        Mme Valentine ROSIER, Directrice Générale ;
+        @foreach($presentLines as $line)
+            {{ $line }}@if(! $loop->last)<br>@endif
+        @endforeach
     </div>
 
     <div class="college-title">
@@ -333,6 +348,11 @@
     <div class="paragraph">
         Vu le Code de la Démocratie locale et de la Décentralisation ;
     </div>
+
+    @if($withSubsidy)
+        <div class="paragraph">{{ data_get($college, 'subsidy_circular') }}</div>
+        <div class="paragraph">{{ data_get($college, 'subsidy_delegation') }}</div>
+    @endif
 
     <div class="paragraph">
         Vu l'approbation par le Conseil communal, en date du 1er avril 2019,
@@ -351,25 +371,29 @@
         de bénéficier de la mise à disposition du car
         le <strong>{{ $tripDateLong }}</strong>
         pour se rendre à
-        <strong>{{ $destinationAddress }}</strong>
-        ;
+        <strong>{{ $destinationAddress }}</strong>@if($hours) / {{ $hours }}@endif ;
     </div>
 
     <div class="paragraph">
-        Considérant la disponibilité du véhicule et du chauffeur à cette date ;
-    </div>
-
-    <div class="paragraph">
-        @if($isRefused)
-            Considérant que la demande ne peut recevoir une suite favorable ;
+        @if($withSubsidy)
+            Considérant la disponibilité du chauffeur et du car à cette date, sous réserve d'immobilisation du car ;
         @else
-            Considérant l'avis positif rendu par le service enseignement ;
+            Considérant la disponibilité du véhicule et du chauffeur à cette date ;
         @endif
     </div>
 
-    @if($isRefused && $decisionNotes)
+    @if($isRefused)
         <div class="paragraph">
-            Considérant le motif suivant : {{ $decisionNotes }} ;
+            Considérant que la demande ne peut recevoir une suite favorable ;
+        </div>
+        @if($decisionNotes)
+            <div class="paragraph">
+                Considérant le motif suivant : {{ $decisionNotes }} ;
+            </div>
+        @endif
+    @elseif(! $withSubsidy)
+        <div class="paragraph">
+            Considérant l'avis positif rendu par le service enseignement ;
         </div>
     @endif
 
@@ -384,23 +408,16 @@
     <div class="paragraph">
         @if($isRefused)
             De refuser la mise à disposition du car communal à
-            <strong>{{ $organizationName }}</strong>
-            @if($contactName)
-                ({{ $contactName }})
-            @endif
-            le <strong>{{ $tripDateLong }}</strong>
-            pour se rendre à
-            <strong>{{ $destinationAddress }}</strong>.
         @else
             De marquer accord pour mettre le car à disposition de
-            <strong>{{ $organizationName }}</strong>
-            @if($contactName)
-                ({{ $contactName }})
-            @endif
-            le <strong>{{ $tripDateLong }}</strong>
-            pour se rendre à
-            <strong>{{ $destinationAddress }}</strong>.
         @endif
+        <strong>{{ $organizationName }}</strong>
+        @if($contactName)
+            ({{ $contactName }})
+        @endif
+        le <strong>{{ $tripDateLong }}</strong>
+        pour se rendre à
+        <strong>{{ $destinationAddress }}</strong>@if($hours) / {{ $hours }}@endif.
     </div>
 
     <div class="article-title">
@@ -423,11 +440,14 @@
 
     <div class="page-two-top">
         <div class="recipients">
-            <div>- Le demandeur ou l'organisation concernée.</div>
+            @if(! $withSubsidy && $schoolsRecipient)
+                <div>- {{ $schoolsRecipient }} ;</div>
+            @endif
+            <div>- {{ $organizationName }}.</div>
         </div>
 
         <div class="final-sentence">
-            Ainsi fait et délibéré à Dinant, date que dessus.
+            Ainsi fait et délibéré à {{ $municipalityName }}, date que dessus.
         </div>
 
         <div class="college-signature-title">
@@ -436,13 +456,13 @@
 
         <div class="signature-row">
             <div class="signature-cell left">
-                La Directrice Générale,<br>
-                Valentine ROSIER
+                {{ data_get($college, 'director.title') }},<br>
+                {{ data_get($college, 'director.name') }}
             </div>
 
             <div class="signature-cell right">
-                Le Président,<br>
-                Richard FOURNAUX
+                {{ data_get($college, 'president.title') }},<br>
+                {{ data_get($college, 'president.name') }}
             </div>
         </div>
 
@@ -458,13 +478,13 @@
 
         <div class="signature-row">
             <div class="signature-cell left">
-                La Directrice Générale,<br>
-                Valentine ROSIER
+                {{ data_get($college, 'director.title') }},<br>
+                {{ data_get($college, 'director.name') }}
             </div>
 
             <div class="signature-cell right">
-                Le Bourgmestre,<br>
-                Richard FOURNAUX
+                {{ data_get($college, 'mayor.title') }},<br>
+                {{ data_get($college, 'mayor.name') }}
             </div>
         </div>
     </div>

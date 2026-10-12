@@ -97,6 +97,7 @@ class DocumentStorageService
             'xlsx' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
             'xls' => 'application/vnd.ms-excel',
             'docx' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'csv' => 'text/csv',
             'png' => 'image/png',
             'jpg', 'jpeg' => 'image/jpeg',
             default => 'application/octet-stream',

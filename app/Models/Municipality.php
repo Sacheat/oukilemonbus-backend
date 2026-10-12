@@ -14,6 +14,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'on_call_name', 'on_call_email', 'on_call_phone',
     'navigation_engine', 'driver_departure_window_min',
     'weekly_planning_enabled', 'weekly_planning_send_day', 'weekly_planning_send_time', 'weekly_planning_owner_user_id',
+    'council_present_text', 'council_director_title', 'council_director_name', 'council_president_title',
+    'council_president_name', 'council_mayor_title', 'council_mayor_name', 'council_schools_recipient',
 ])]
 /**
  * Commune belge avec ses localités.
@@ -34,6 +36,12 @@ class Municipality extends Model
     public function localities(): HasMany
     {
         return $this->hasMany(MunicipalityLocality::class);
+    }
+
+    /** Fermetures et vacances scolaires de la commune (les jours fériés légaux sont calculés : ClosedDaysService) */
+    public function calendarPeriods(): HasMany
+    {
+        return $this->hasMany(MunicipalityCalendarPeriod::class);
     }
 
     public function activeLocalities(): HasMany

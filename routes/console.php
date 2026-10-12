@@ -20,6 +20,12 @@ Schedule::command('notifications:prune')
     ->timezone('Europe/Brussels')
     ->withoutOverlapping();
 
+// Listes des passagers : supprimées 3 ans après l'année du trajet (données nominatives, RGPD)
+Schedule::command('documents:purge-passenger-lists')
+    ->dailyAt('03:30')
+    ->timezone('Europe/Brussels')
+    ->withoutOverlapping();
+
 Schedule::command('documents:prune-orphan-proofs --days=7')
     ->weeklyOn(0, '03:00')
     ->timezone('Europe/Brussels')
