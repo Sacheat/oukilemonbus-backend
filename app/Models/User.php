@@ -34,6 +34,9 @@ class User extends Authenticatable implements MustVerifyEmail
     /** Rôles globaux. Être responsable d'une organisation dépend de l'appartenance, pas d'un rôle. */
     public const array GLOBAL_ROLES = ['admin', 'agent_communal', 'chauffeur', 'user'];
 
+    /** Tutoriels de première connexion, un par espace de la SPA (`tours_seen`). */
+    public const array TOURS = ['usager', 'agent', 'chauffeur'];
+
     // Spatie Permission doit utiliser le guard web même dans un contexte API Sanctum SPA.
     protected string $guard_name = 'web';
 
@@ -195,6 +198,7 @@ class User extends Authenticatable implements MustVerifyEmail
         return [
             'active' => 'boolean',
             'email_verified_at' => 'datetime',
+            'tours_seen' => 'array',
             'password' => 'hashed',
         ];
     }

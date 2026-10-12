@@ -63,6 +63,8 @@ return [
         'api.auth.register' => 'auth.register',
         'api.auth.login'    => 'auth.login',
         'api.auth.logout'   => 'auth.logout',
+        'api.auth.tours.mark-seen' => 'auth.tours.mark_seen',
+        'api.auth.tours.reset'     => 'auth.tours.reset',
 
         // Reservations
         'api.reservations.store'              => 'reservations.store',
@@ -2064,6 +2066,63 @@ return [
                 'Le fichier et l’enregistrement document sont supprimés.',
                 'La demande d’adhésion n’a plus de justificatif.',
                 'La note de confiance de la demande est recalculée et enregistrée.',
+            ],
+        ],
+
+        // _________________________________________________________________________________________TUTORIELS
+        'auth.tours.mark_seen' => [
+            'title' => 'Tutoriel de première connexion vu',
+            'category' => 'Authentification',
+            'goal' => 'Retenir que l’utilisateur a vu (ou passé) le tutoriel d’un espace, pour ne plus le proposer.',
+
+            'route' => [
+                'api' => 'PATCH /api/auth/me/tours/{tour}',
+            ],
+
+            'api_controller' => [
+                'class' => 'TourController',
+                'method' => 'markSeen',
+            ],
+
+            'request' => [
+                'tour (usager|agent|chauffeur, dans l’URL)',
+            ],
+
+            'tables' => [
+                'users',
+            ],
+
+            'effects' => [
+                'La date est ajoutée à users.tours_seen ; la première date est gardée si le tutoriel était déjà vu.',
+                '/auth/me renvoie tours_seen : la SPA ne propose plus ce tutoriel.',
+            ],
+        ],
+
+        'auth.tours.reset' => [
+            'title' => 'Revoir un tutoriel',
+            'category' => 'Authentification',
+            'goal' => 'Oublier qu’un tutoriel a été vu (« Revoir le tutoriel » dans /compte).',
+
+            'route' => [
+                'api' => 'DELETE /api/auth/me/tours/{tour}',
+            ],
+
+            'api_controller' => [
+                'class' => 'TourController',
+                'method' => 'reset',
+            ],
+
+            'request' => [
+                'tour (usager|agent|chauffeur, dans l’URL)',
+            ],
+
+            'tables' => [
+                'users',
+            ],
+
+            'effects' => [
+                'Le tutoriel est retiré de users.tours_seen (null s’il n’en reste aucun).',
+                'La SPA le propose à nouveau à la prochaine visite de l’espace.',
             ],
         ],
 

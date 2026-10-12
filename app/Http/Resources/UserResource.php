@@ -39,6 +39,11 @@ class UserResource extends JsonResource
                 $this->withEffectivePermissions,
                 fn () => $this->getAllPermissions()->pluck('name')->sort()->values()
             ),
+            // Propre compte seulement (même condition que `permissions`) : objet vide si aucun tutoriel vu.
+            'tours_seen' => $this->when(
+                $this->withEffectivePermissions,
+                fn () => (object) ($this->tours_seen ?? [])
+            ),
             'organizations' => $this->whenLoaded('organizations', fn () => $this->organizations->map(
                 fn ($organization): array => [
                     ...(new OrganizationResource($organization))->resolve($request),
