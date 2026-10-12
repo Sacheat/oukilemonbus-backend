@@ -72,6 +72,15 @@ class ReservationService
                 throw new AuthorizationException('Action non autorisée pour cette organisation.');
             }
 
+            // Réservation encodée par un agent ou un admin (demande téléphonée) : pour un membre actif de
+            // l'organisation, et sans le préavis de 15 jours (noté dans l'historique s'il n'était pas respecté)
+            $byAgent = $actor->hasAnyRole(['admin', 'agent_communal']);
+            if ($byAgent) {
+                $this->ensureRequesterIsMember((int) $requestedByUserId, $actor, $organization);
+                $data['skip_minimum_notice'] = true;
+            }
+            $shortNotice = $byAgent && $this->previewService->isWithinMinimumNotice($data['trip_date']);
+
             $preview = $this->previewService->preview($data);
 
             if (! ($preview['is_allowed'] ?? true)) {
@@ -106,7 +115,11 @@ class ReservationService
                 'validated_at' => $status === ReservationStatus::APPROUVE ? now() : null,
             ]);
 
-            $this->recordStatus($reservation, null, $status, $actor, 'Création de la demande');
+            $this->recordStatus($reservation, null, $status, $actor, match (true) {
+                $shortNotice => 'Création de la demande par un agent (préavis de 15 jours non appliqué)',
+                $byAgent => 'Création de la demande par un agent',
+                default => 'Création de la demande',
+            });
             $this->syncConflicts($reservation, $preview['conflicts']);
             $this->logger->reservationCreated($reservation, $actor, $preview);
             $this->eventLogger->log(
@@ -1108,5 +1121,20 @@ class ReservationService
             ->latest('generated_at')
             ->latest('id')
             ->first();
+    }
+
+    /** Demandeur choisi par un agent : lui-même, ou un membre actif de l'organisation (sinon 422) */
+    private function ensureRequesterIsMember(int $requestedByUserId, User $actor, Organization $organization): void
+    {
+        if ($requestedByUserId === $actor->id) {
+            return;
+        }
+
+        $requester = User::query()->find($requestedByUserId);
+        if ($requester === null || ! $requester->active || ! $requester->isMemberOf($organization->id)) {
+            throw ValidationException::withMessages([
+                'requested_by_user_id' => 'Le demandeur doit être un membre actif de l’organisation choisie.',
+            ]);
+        }
     }
 }

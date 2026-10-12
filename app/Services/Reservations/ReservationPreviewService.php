@@ -415,6 +415,14 @@ class ReservationPreviewService
         return mb_strtolower(mb_substr($text, 0, 1)).mb_substr($text, 1);
     }
 
+    /** Le trajet tombe-t-il dans le préavis (moins de 15 jours) ? Sert à le signaler quand un agent y déroge. */
+    public function isWithinMinimumNotice(string $tripDate): bool
+    {
+        $minimumDate = CarbonImmutable::parse(Reservation::localToday())->addDays((int) config('reservations.min_notice_days', 15));
+
+        return CarbonImmutable::parse($tripDate)->startOfDay()->lessThan($minimumDate);
+    }
+
     private function ensureMinimumNotice(string $tripDate): void
     {
         $minimumDate = CarbonImmutable::parse(Reservation::localToday())->addDays((int) config('reservations.min_notice_days', 15));
