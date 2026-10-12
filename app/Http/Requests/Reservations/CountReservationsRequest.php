@@ -48,7 +48,9 @@ class CountReservationsRequest extends FormRequest
                     }
                 },
             ],
-            'counts.*' => ['array'],
+            // Clés permises listées : sinon une clé inconnue (status au lieu de statuses[]) retirait le compteur des
+            // données validées sans erreur (500 quand il était seul, compteur absent de la réponse sinon).
+            'counts.*' => ['array:statuses,council,unassigned,passengers_to_confirm'],
             'counts.*.statuses' => ['sometimes', 'array', 'min:1'],
             'counts.*.statuses.*' => ['string', Rule::enum(ReservationStatus::class)],
             'counts.*.council' => ['sometimes', 'in:a_decider'],
@@ -62,6 +64,7 @@ class CountReservationsRequest extends FormRequest
         return [
             'counts.required' => 'Indiquez au moins un compteur (counts[nom]).',
             'counts.max' => 'Au plus '.self::MAX_COUNTS.' compteurs par appel.',
+            'counts.*.array' => 'Filtre de compteur inconnu : statuses, council, unassigned ou passengers_to_confirm.',
             'counts.*.statuses.*.enum' => 'Statut inconnu.',
             'counts.*.council.in' => 'Le filtre council n’accepte que la valeur a_decider.',
         ];

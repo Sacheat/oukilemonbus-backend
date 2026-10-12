@@ -114,6 +114,14 @@ class ReservationCountsApiTest extends TestCase
             ->assertUnprocessable()
             ->assertJsonValidationErrors('counts.x.council');
 
+        // Filtre inconnu (status au lieu de statuses[]) : refusé, plutôt qu'un compteur retiré sans prévenir
+        $this->getJson('/api/reservations/counts?counts[x][status]=confirme')
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('counts.x');
+        $this->getJson('/api/reservations/counts?counts[a][statuses][]=en_attente&counts[b][status]=confirme')
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('counts.b');
+
         $tooMany = collect(range(1, 13))->map(fn (int $index) => "counts[c{$index}][statuses][]=en_attente")->implode('&');
         $this->getJson('/api/reservations/counts?'.$tooMany)->assertUnprocessable()->assertJsonValidationErrors('counts');
     }
