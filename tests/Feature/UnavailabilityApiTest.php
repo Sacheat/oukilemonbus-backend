@@ -441,6 +441,103 @@ class UnavailabilityApiTest extends TestCase
         $this->assertNull($reservation->driver_id);
     }
 
+    public function test_period_tabs_are_filtered_sorted_paginated_and_counted_by_the_backend(): void
+    {
+        $agent = $this->seededUser('agent.test@bus-communal.local');
+        Sanctum::actingAs($agent);
+        Carbon::setTestNow('2026-06-10 12:00:00'); // 14:00 à Bruxelles
+
+        $driver = $this->createDriver();
+        $otherDriver = $this->createDriver();
+        $vehicle = $this->createVehicle();
+        $make = fn (array $attributes) => Unavailability::create([
+            'reason_type' => 'driver',
+            'driver_id' => $driver->id,
+            'created_by_user_id' => $agent->id,
+            ...$attributes,
+        ]);
+        $later = $make(['start_datetime' => '2026-06-20 08:00:00', 'end_datetime' => '2026-06-20 18:00:00']);
+        $ongoing = $make(['start_datetime' => '2026-06-10 08:00:00', 'end_datetime' => '2026-06-10 18:00:00']);
+        $vehicleSoon = $make(['reason_type' => 'vehicle', 'driver_id' => null, 'vehicle_id' => $vehicle->id, 'start_datetime' => '2026-06-15 08:00:00', 'end_datetime' => '2026-06-15 12:00:00']);
+        $pastOld = $make(['start_datetime' => '2026-05-01 08:00:00', 'end_datetime' => '2026-05-01 18:00:00']);
+        $pastRecent = $make(['driver_id' => $otherDriver->id, 'start_datetime' => '2026-06-10 08:00:00', 'end_datetime' => '2026-06-10 14:00:00']); // finie à 14:00 pile
+        $cancelled = $make(['start_datetime' => '2026-06-20 08:00:00', 'end_datetime' => '2026-06-20 18:00:00', 'is_active' => false]);
+
+        $ids = fn ($response) => collect($response->json('data'))->pluck('id')->all();
+
+        // En cours et à venir : la plus proche d'abord, avec les nombres des trois onglets
+        $upcoming = $this->getJson('/api/unavailabilities?period=a_venir')->assertOk()
+            ->assertJsonPath('meta.period_counts', ['a_venir' => 3, 'passees' => 2, 'annulees' => 1])
+            ->assertJsonPath('meta.total', 3)
+            ->assertJsonPath('data.0.driver.name', trim($driver->user->first_name.' '.$driver->user->last_name))
+            ->assertJsonPath('data.1.vehicle.licence_plate', $vehicle->licence_plate);
+        $this->assertSame([$ongoing->id, $vehicleSoon->id, $later->id], $ids($upcoming));
+
+        // Passées (la fin à 14:00 pile compte comme passée) et annulées : la plus récente d'abord
+        $this->assertSame([$pastRecent->id, $pastOld->id], $ids($this->getJson('/api/unavailabilities?period=passees')->assertOk()));
+        $this->assertSame([$cancelled->id], $ids($this->getJson('/api/unavailabilities?period=annulees')->assertOk()));
+
+        // Pages : 2 par page, la 2e contient la 3e
+        $this->getJson('/api/unavailabilities?period=a_venir&per_page=2&page=2')->assertOk()
+            ->assertJsonPath('meta.last_page', 2)
+            ->assertJsonPath('data.0.id', $later->id);
+
+        // Filtre chauffeur ou véhicule : liste et nombres
+        $this->getJson("/api/unavailabilities?period=passees&driver_id={$otherDriver->id}")->assertOk()
+            ->assertJsonPath('meta.period_counts', ['a_venir' => 0, 'passees' => 1, 'annulees' => 0])
+            ->assertJsonPath('data.0.id', $pastRecent->id);
+        $this->getJson("/api/unavailabilities?period=a_venir&vehicle_id={$vehicle->id}")->assertOk()
+            ->assertJsonPath('meta.total', 1);
+
+        // Onglet inconnu : 422 ; sans onglet : la liste d'avant (toutes, sans les nombres)
+        $this->getJson('/api/unavailabilities?period=demain')->assertUnprocessable()->assertJsonValidationErrors('period');
+        $this->getJson('/api/unavailabilities')->assertOk()->assertJsonPath('meta.total', 6)->assertJsonMissingPath('meta.period_counts');
+
+        Carbon::setTestNow();
+    }
+
+    public function test_a_driver_only_counts_and_pages_through_their_own_unavailabilities(): void
+    {
+        $chauffeur = $this->seededUser('chauffeur.test@bus-communal.local');
+        $ownDriver = $this->seededDriver($chauffeur->id);
+        $agent = $this->seededUser('agent.test@bus-communal.local');
+        $otherDriver = $this->createDriver();
+        Carbon::setTestNow('2026-06-10 12:00:00');
+
+        foreach ([$ownDriver, $ownDriver, $otherDriver] as $driver) {
+            Unavailability::create([
+                'reason_type' => 'driver', 'driver_id' => $driver->id, 'created_by_user_id' => $agent->id,
+                'start_datetime' => '2026-06-20 08:00:00', 'end_datetime' => '2026-06-20 18:00:00',
+            ]);
+        }
+
+        Sanctum::actingAs($chauffeur);
+        // Même s'il demande l'autre chauffeur, il ne voit que les siennes
+        $this->getJson("/api/unavailabilities?period=a_venir&driver_id={$otherDriver->id}")->assertOk()->assertJsonPath('meta.total', 0);
+        $this->getJson('/api/unavailabilities?period=a_venir')->assertOk()
+            ->assertJsonPath('meta.total', 2)
+            ->assertJsonPath('meta.period_counts.a_venir', 2);
+
+        Carbon::setTestNow();
+    }
+
+    public function test_choice_lists_can_ask_only_for_active_drivers_and_vehicles(): void
+    {
+        Sanctum::actingAs($this->seededUser('agent.test@bus-communal.local'));
+        $leftDriver = $this->createDriver();
+        $leftDriver->update(['is_active' => false]);
+        $retiredVehicle = $this->createVehicle();
+        $retiredVehicle->update(['is_active' => false]);
+
+        $driverIds = collect($this->getJson('/api/drivers?active=1&per_page=100')->assertOk()->json('data'))->pluck('id');
+        $vehicleIds = collect($this->getJson('/api/vehicles?active=1&per_page=100')->assertOk()->json('data'))->pluck('id');
+        $this->assertNotContains($leftDriver->id, $driverIds);
+        $this->assertNotContains($retiredVehicle->id, $vehicleIds);
+
+        // Sans le filtre : tous, comme avant (la page Flotte montre aussi les désactivés)
+        $this->assertGreaterThan($driverIds->count(), $this->getJson('/api/drivers')->json('meta.total'));
+    }
+
     private function seededUser(string $email): User
     {
         return User::query()->where('email', $email)->firstOrFail();

@@ -188,6 +188,23 @@ les siennes). `?current=1` ne garde que celles actives qui s'appliquent **mainte
 heure de Bruxelles sans fuseau, scope `Unavailability::currentlyActive`) : c'est l'état du jour affiché sur les pages
 Véhicules et Chauffeurs de la gestion.
 
+**Onglets de la page Indisponibilités** (filtrés, triés et paginés par le backend, pour tenir avec des années
+d'historique) : `?period=` (`ListUnavailabilitiesRequest`, scope `Unavailability::forPeriod`, heure de Bruxelles) :
+
+```
+annulée (is_active = false)            → annulees   la plus récente d'abord
+sinon, fin déjà passée (fin ≤ maintenant) → passees    la plus récente d'abord
+sinon (en cours ou à venir)            → a_venir    la plus proche d'abord
+```
+
+- filtres facultatifs `driver_id`, `vehicle_id` ; `per_page` de 1 à 100 (15 par défaut) ;
+- avec `period`, `meta.period_counts` donne le nombre de chaque onglet (`{a_venir, passees, annulees}`), avec les
+  mêmes filtres chauffeur / véhicule et la même visibilité (un chauffeur : les siennes) ;
+- chaque indisponibilité (liste, détail, création, modification, annulation) renvoie `driver {id, name, is_active}`
+  ou `vehicle {id, licence_plate, is_active}` : le front n'a plus besoin de charger toute la flotte pour afficher les
+  lignes ;
+- sans `period`, la liste reste celle d'avant (toutes, par date de début).
+
 14. Exemples d'indisponibilités
 
 Exemples pour un chauffeur :
