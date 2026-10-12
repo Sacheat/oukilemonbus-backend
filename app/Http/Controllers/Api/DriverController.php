@@ -27,6 +27,8 @@ class DriverController extends Controller
         return DriverResource::collection(
             Driver::query()
                 ->with('user')
+                // active=1 : seulement les chauffeurs actifs (listes de choix : la flotte garde les anciens pour l'historique)
+                ->when(request()->boolean('active'), fn ($query) => $query->where('is_active', true))
                 ->orderBy('licence_expiry_date')
                 ->paginate()
         );

@@ -26,6 +26,8 @@ class VehicleController extends Controller
     {
         return VehicleResource::collection(
             Vehicle::query()
+                // active=1 : seulement les véhicules actifs (listes de choix)
+                ->when(request()->boolean('active'), fn ($query) => $query->where('is_active', true))
                 ->orderBy('licence_plate')
                 ->paginate()
         );

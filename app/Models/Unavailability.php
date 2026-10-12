@@ -63,6 +63,27 @@ class Unavailability extends Model
      * (comme les réservations et le moteur de conflits). Utilisé par GET /unavailabilities?current=1 (état du jour des
      * pages Véhicules et Chauffeurs).
      */
+    /** Onglets de la page Indisponibilités (paramètre `period` de GET /unavailabilities) */
+    public const PERIODS = ['a_venir', 'passees', 'annulees'];
+
+    /**
+     * Un onglet, avec la même règle que le front avant la pagination (heure de Bruxelles sans fuseau, comme les
+     * réservations et le moteur de conflits) :
+     *   annulée (is_active = false)        → annulees
+     *   sinon, fin déjà passée (fin ≤ maintenant) → passees
+     *   sinon (en cours ou à venir)        → a_venir
+     */
+    public function scopeForPeriod(Builder $query, string $period): void
+    {
+        $now = CarbonImmutable::now(config('reservations.local_timezone', 'Europe/Brussels'))->format('Y-m-d H:i:s');
+
+        match ($period) {
+            'annulees' => $query->where('is_active', false),
+            'passees' => $query->where('is_active', true)->where('end_datetime', '<=', $now),
+            default => $query->where('is_active', true)->where('end_datetime', '>', $now),
+        };
+    }
+
     public function scopeCurrentlyActive(Builder $query): void
     {
         $now = CarbonImmutable::now(config('reservations.local_timezone', 'Europe/Brussels'))->format('Y-m-d H:i:s');
