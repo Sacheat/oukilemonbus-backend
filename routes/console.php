@@ -30,6 +30,13 @@ Schedule::command('sanctum:prune-expired --hours=24')
     ->dailyAt('02:50')
     ->timezone('Europe/Brussels');
 
+// Backup chiffré chaque nuit, après les purges RGPD (backups.retention_days : 14 jours par défaut).
+// La copie hors de la VM se fait par deploy/backup-offsite.sh (rclone), voir deploy/README.md.
+Schedule::command('backup:run')
+    ->dailyAt('03:30')
+    ->timezone('Europe/Brussels')
+    ->withoutOverlapping();
+
 Schedule::command('documents:prune-orphan-proofs --days=7')
     ->weeklyOn(0, '03:00')
     ->timezone('Europe/Brussels')

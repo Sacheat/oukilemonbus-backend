@@ -2,7 +2,6 @@
 
 namespace App\Http\Resources;
 
-use App\Http\Resources\UserResource;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -22,9 +21,9 @@ class DriverResource extends JsonResource
             && ($viewer->getKey() === $this->user_id || $viewer->hasAnyRole(self::FULL_VIEW_ROLES));
 
         return [
-            'id'                  => $this->id,
-            'user_id'             => $this->user_id,
-            'user'                => $this->whenLoaded('user', fn () => match (true) {
+            'id' => $this->id,
+            'user_id' => $this->user_id,
+            'user' => $this->whenLoaded('user', fn () => match (true) {
                 $this->user === null => null,
                 $fullView => new UserResource($this->user),
                 default => [
@@ -35,11 +34,11 @@ class DriverResource extends JsonResource
                     'phone' => $this->user->phone,
                 ],
             }),
-            'licence_number'      => $this->when($fullView, $this->licence_number),
+            'licence_number' => $this->when($fullView, $this->licence_number),
             'licence_expiry_date' => $this->when($fullView, fn () => $this->licence_expiry_date?->toDateString()),
-            'is_active'           => $this->is_active,
-            'created_at'          => $this->created_at?->toISOString(),
-            'updated_at'          => $this->updated_at?->toISOString(),
+            'is_active' => $this->is_active,
+            'created_at' => $this->created_at?->toISOString(),
+            'updated_at' => $this->updated_at?->toISOString(),
         ];
     }
 }

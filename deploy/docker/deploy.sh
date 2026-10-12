@@ -13,6 +13,8 @@ fail() { printf '\033[1;31mErreur : %s\033[0m\n' "$1" >&2; exit 1; }
 [[ -f .env ]] || fail ".env introuvable à la racine du dépôt. Copier deploy/.env.production.example en .env et le remplir."
 grep -q '^APP_KEY=base64:' .env || fail "APP_KEY vide dans .env. Voir « Première installation » dans deploy/README.md."
 grep -q '^APP_ENV=production' .env || fail "APP_ENV doit valoir production dans .env."
+grep -Eq '^BACKUP_ENCRYPTION_KEY=base64:' .env && grep -q '^BACKUP_ENCRYPTION_ENABLED=true' .env \
+    || printf '\033[1;33mAttention : backups non chiffrés (BACKUP_ENCRYPTION_ENABLED / BACKUP_ENCRYPTION_KEY) : le backup de la nuit sera refusé. Voir « Backups » dans deploy/README.md.\033[0m\n' >&2
 
 COMPOSE=(docker compose --env-file .env -f deploy/docker/docker-compose.prod.yml)
 # Profil HTTPS (Caddy) seulement si un domaine est configuré.
