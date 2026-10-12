@@ -20,6 +20,12 @@ Schedule::command('notifications:prune')
     ->timezone('Europe/Brussels')
     ->withoutOverlapping();
 
+// RGPD : durées de conservation des données personnelles (config/privacy.php)
+Schedule::command('privacy:prune')
+    ->dailyAt('02:45')
+    ->timezone('Europe/Brussels')
+    ->withoutOverlapping();
+
 Schedule::command('documents:prune-orphan-proofs --days=7')
     ->weeklyOn(0, '03:00')
     ->timezone('Europe/Brussels')
