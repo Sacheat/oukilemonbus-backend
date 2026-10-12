@@ -52,7 +52,9 @@ return [
             'connection' => env('DB_QUEUE_CONNECTION'),
             'table' => env('DB_QUEUE_TABLE', 'jobs'),
             'queue' => env('DB_QUEUE', 'default'),
-            'retry_after' => (int) env('DB_QUEUE_RETRY_AFTER', 90),
+            // Doit dépasser le plus long timeout des jobs (180 s : exports planning, feuilles de route) : sinon un job
+            // encore en cours est considéré comme perdu et repris par un autre worker (traitement en double).
+            'retry_after' => (int) env('DB_QUEUE_RETRY_AFTER', 240),
             'after_commit' => false,
         ],
 
