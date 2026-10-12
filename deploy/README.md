@@ -5,7 +5,7 @@ Deux options, selon ce que permet la VM :
 | Option | Quand | Dossier |
 |---|---|---|
 | **Docker** (recommandée) | Docker est installé ou installable sur la VM | [`deploy/docker/`](docker/) |
-| Sans Docker | Docker interdit : PHP, Nginx et MariaDB installés directement | `deploy/native/` (à venir) |
+| Sans Docker | Docker interdit : PHP, Nginx et MariaDB installés directement | [`deploy/native/`](native/) |
 
 Les deux utilisent le même modèle de configuration : [`deploy/.env.production.example`](.env.production.example).
 
@@ -73,7 +73,7 @@ doivent être en `OK`.
 La production ne crée aucun compte de test. Le premier admin se crée une fois, en remplaçant les valeurs :
 
 ```bash
-docker compose --env-file .env -f deploy/docker/docker-compose.prod.yml exec app php artisan tinker
+docker compose --env-file .env -f deploy/docker/docker-compose.prod.yml exec -u www-data -e HOME=/tmp app php artisan tinker
 ```
 ```php
 $u = App\Models\User::create(['first_name' => 'Prénom', 'last_name' => 'Nom', 'email' => 'admin@exemple.be',
@@ -138,10 +138,124 @@ alias dc='docker compose --env-file .env -f deploy/docker/docker-compose.prod.ym
 dc ps                                    # état des services
 dc logs -f queue                         # sortie du worker (jobs traités, FAIL)
 dc logs -f scheduler                     # tâches planifiées lancées
-dc exec app php artisan app:health       # santé complète
-dc exec app php artisan queue:failed     # jobs en échec
-dc exec app php artisan queue:retry all  # les relancer
+# artisan toujours en www-data (-u www-data) : un log créé par root bloquerait l'écriture des logs de l'API
+dc exec -u www-data app php artisan app:health       # santé complète
+dc exec -u www-data app php artisan queue:failed     # jobs en échec
+dc exec -u www-data app php artisan queue:retry all  # les relancer
 dc exec app sh -c 'tail -n 100 storage/logs/laravel-$(date +%F).log'
+```
+
+---
+
+## Option sans Docker
+
+Tout est installé directement sur la VM : Nginx, PHP 8.4 (php-fpm), MariaDB, Supervisor pour le worker de
+file et cron pour le scheduler. Les commandes ci-dessous visent **Debian 13**, qui fournit PHP 8.4 dans ses
+paquets officiels.
+
+| Fichier | Installé dans | Rôle |
+|---|---|---|
+| [`native/nginx-bus-communal.conf`](native/nginx-bus-communal.conf) | `/etc/nginx/sites-available/bus-communal` | Site de l'API |
+| [`php/production.ini`](php/production.ini) | `/etc/php/8.4/fpm/conf.d/99-bus-communal.ini` | Réglages PHP (communs avec Docker) |
+| [`native/supervisor-bus-communal-worker.conf`](native/supervisor-bus-communal-worker.conf) | `/etc/supervisor/conf.d/bus-communal-worker.conf` | Worker de file, relancé automatiquement |
+| [`native/cron-bus-communal`](native/cron-bus-communal) | `/etc/cron.d/bus-communal` | Scheduler (`schedule:run` chaque minute) |
+| [`native/deploy.sh`](native/deploy.sh) | — | Installation et mises à jour |
+
+**Utilisateurs :** le code appartient à l'utilisateur qui déploie (celui qui fait `git pull`, avec `sudo`).
+php-fpm, le worker, le cron et toutes les commandes `artisan` tournent en `www-data`, seul propriétaire de
+`storage/` et `bootstrap/cache/`. Lancer `php artisan` sans `sudo -u www-data` peut créer un fichier de log
+que l'application ne pourra plus écrire.
+
+### Prérequis sur la VM
+
+```bash
+sudo apt update
+sudo apt install -y nginx mariadb-server supervisor cron git unzip composer \
+    php8.4-fpm php8.4-cli php8.4-mysql php8.4-mbstring php8.4-xml php8.4-zip php8.4-gd \
+    php8.4-intl php8.4-bcmath php8.4-curl php8.4-opcache
+php -v   # doit afficher 8.4
+```
+
+- **Ubuntu 24.04** n'a que PHP 8.3 : ajouter d'abord le dépôt `ppa:ondrej/php`
+  (`sudo add-apt-repository ppa:ondrej/php && sudo apt update`), puis la même commande.
+- **MariaDB déjà présent sur la VM :** retirer `mariadb-server` de la liste et créer la base dans l'existant.
+- **Nginx déjà présent :** retirer `nginx`, on y ajoute simplement un site.
+
+### Première installation
+
+```bash
+# 1. Base de données (remplacer le mot de passe, à reporter dans DB_PASSWORD)
+sudo mariadb -e "CREATE DATABASE bus_communal CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+  CREATE USER 'bus_user'@'localhost' IDENTIFIED BY 'mot-de-passe-base';
+  GRANT ALL PRIVILEGES ON bus_communal.* TO 'bus_user'@'localhost';"
+
+# 2. Code
+sudo mkdir -p /opt/bus-communal && sudo chown "$USER": /opt/bus-communal
+git clone git@github.com:Sacheat/bus-communal-backend.git /opt/bus-communal
+cd /opt/bus-communal
+
+# 3. Configuration : DB_HOST=localhost, remplacer chaque <...> ; les lignes « Docker uniquement » sont ignorées
+cp deploy/.env.production.example .env
+nano .env
+php -r 'echo "base64:".base64_encode(random_bytes(32)).PHP_EOL;'   # à coller dans APP_KEY=
+sudo chgrp www-data .env && chmod 640 .env
+
+# 4. Droits : seul www-data écrit dans storage/ et bootstrap/cache/
+sudo chown -R www-data:www-data storage bootstrap/cache
+
+# 5. PHP et Nginx (remplacer api.exemple.be dans le fichier du site)
+sudo cp deploy/php/production.ini /etc/php/8.4/fpm/conf.d/99-bus-communal.ini
+sudo cp deploy/native/nginx-bus-communal.conf /etc/nginx/sites-available/bus-communal
+sudo nano /etc/nginx/sites-available/bus-communal
+sudo ln -s /etc/nginx/sites-available/bus-communal /etc/nginx/sites-enabled/bus-communal
+sudo rm -f /etc/nginx/sites-enabled/default   # seulement si la VM ne sert rien d'autre
+sudo nginx -t && sudo service nginx reload
+
+# 6. Déployer : dépendances, migrations, rôles et permissions, caches, vérification
+deploy/native/deploy.sh --no-pull
+
+# 7. Worker et scheduler, une fois la base prête
+sudo cp deploy/native/supervisor-bus-communal-worker.conf /etc/supervisor/conf.d/bus-communal-worker.conf
+sudo supervisorctl reread && sudo supervisorctl update
+sudo cp deploy/native/cron-bus-communal /etc/cron.d/bus-communal
+sudo supervisorctl status   # bus-communal-worker doit être RUNNING
+```
+
+Le premier administrateur se crée comme pour Docker (voir [Créer le premier administrateur](#créer-le-premier-administrateur)),
+avec `sudo -u www-data env HOME=/tmp php artisan tinker` (`HOME=/tmp` : tinker a besoin d'un dossier où écrire
+sa config, et `www-data` n'en a pas).
+
+**HTTPS :** `sudo apt install -y certbot python3-certbot-nginx && sudo certbot --nginx -d api.exemple.be`.
+Certbot ajoute le certificat au site et le renouvelle tout seul.
+
+### Mettre à jour
+
+```bash
+cd /opt/bus-communal
+deploy/native/deploy.sh
+```
+
+Le script met l'API en maintenance, fait `git pull --ff-only`, `composer install --no-dev`, les migrations et
+le seeder des rôles, remet les caches, recharge php-fpm (pour OPcache), demande au worker de redémarrer
+après son job en cours (`queue:restart`, Supervisor le relance), puis sort de maintenance. En cas d'erreur,
+l'API ne reste pas en maintenance.
+
+Après une modification du `.env` seul : `deploy/native/deploy.sh --no-pull`.
+
+Si la VM a un autre utilisateur web ou une autre version de php-fpm :
+`APP_USER=nginx PHP_FPM_SERVICE=php8.4-fpm deploy/native/deploy.sh`. Penser alors à adapter `user=` dans la
+config Supervisor et l'utilisateur de la ligne cron.
+
+### Commandes utiles
+
+```bash
+sudo supervisorctl status                              # worker
+sudo tail -f /var/log/supervisor/bus-communal-worker.log  # jobs traités, FAIL
+sudo -u www-data php artisan app:health                # santé complète
+sudo -u www-data php artisan schedule:list             # tâches planifiées
+sudo -u www-data php artisan queue:failed              # jobs en échec
+sudo -u www-data php artisan queue:retry all           # les relancer
+tail -n 100 storage/logs/laravel-$(date +%F).log
 ```
 
 ---
@@ -159,12 +273,13 @@ fait échouer son job : il apparaît dans `queue:failed` et dans les logs.
 
 ## Backups
 
-`php artisan backup:run` crée une archive (base + fichiers) dans le volume `storage`, donc **sur la même VM**.
+`php artisan backup:run` crée une archive (base + fichiers) dans `storage/app/private/backups` (le volume
+`storage` avec Docker), donc **sur la même VM**.
 Ça protège d'une erreur de manipulation, pas d'une perte de la VM : copier régulièrement les archives ailleurs.
 La planification automatique des backups n'est pas encore en place (voir [`docs/backups.md`](../docs/backups.md)).
 
 ```bash
-dc exec app php artisan backup:run
-dc exec app php artisan backup:list
+dc exec -u www-data app php artisan backup:run
+dc exec -u www-data app php artisan backup:list
 dc cp app:/var/www/html/storage/app/private/backups ./backups-copie
 ```
