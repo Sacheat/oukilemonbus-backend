@@ -54,6 +54,33 @@ class UserSearchApiTest extends TestCase
             ->assertJsonPath('links.first', fn (string $url) => str_contains($url, 'search=bus-communal'));
     }
 
+    public function test_role_counts_follow_search_and_status_but_not_the_role_filter(): void
+    {
+        $expected = fn (?string $role, ?bool $active = null) => User::query()
+            ->when($role, fn ($query) => $query->role($role))
+            ->when($active !== null, fn ($query) => $query->where('active', $active))
+            ->count();
+
+        $counts = $this->getJson('/api/users?role=chauffeur')->assertOk()->json('meta.role_counts');
+        $this->assertSame($expected(null), $counts['all']);
+        foreach (User::GLOBAL_ROLES as $role) {
+            $this->assertSame($expected($role), $counts[$role], $role);
+        }
+        // La liste reste filtrée par rôle, pas les compteurs
+        $this->getJson('/api/users?role=chauffeur')->assertJsonPath('meta.total', $expected('chauffeur'));
+
+        User::query()->where('email', 'driver.second@bus-communal.local')->update(['active' => false]);
+        $this->getJson('/api/users?active=0')
+            ->assertOk()
+            ->assertJsonPath('meta.role_counts.all', $expected(null, false))
+            ->assertJsonPath('meta.role_counts.chauffeur', $expected('chauffeur', false));
+
+        $this->getJson('/api/users?search=paul+sec')
+            ->assertOk()
+            ->assertJsonPath('meta.role_counts.all', 1)
+            ->assertJsonPath('meta.role_counts.admin', 0);
+    }
+
     public function test_search_is_validated(): void
     {
         $this->getJson('/api/users?search='.str_repeat('a', 101))
