@@ -53,6 +53,9 @@ class RecurrenceApiTest extends TestCase
             'services.openrouteservice.key'      => 'test-key',
             'services.openrouteservice.base_url' => 'https://ors.test',
             'reservations.closed_dates'          => [],
+            // Mécanique des séries seulement : le 25/05/2026 (lundi de Pentecôte) reste une date de série ici.
+            // Jours fériés et vacances scolaires : CalendarApiTest.
+            'reservations.public_holidays'       => false,
             'reservations.min_notice_days'       => 15,
         ]);
     }

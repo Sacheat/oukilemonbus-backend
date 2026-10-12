@@ -40,6 +40,12 @@ class MunicipalitySettingsService
         'weekly_planning_enabled', 'weekly_planning_send_day', 'weekly_planning_send_time', 'weekly_planning_owner_user_id',
     ];
 
+    /** Composition du Collège imprimée sur les délibérations (admins) */
+    public const COUNCIL_FIELDS = [
+        'council_present_text', 'council_director_title', 'council_director_name', 'council_president_title',
+        'council_president_name', 'council_mayor_title', 'council_mayor_name', 'council_schools_recipient',
+    ];
+
     public function __construct(
         private readonly GeoNamesMunicipalityProvider $municipalityProvider
     ) {}
@@ -92,6 +98,7 @@ class MunicipalitySettingsService
                 ...self::ON_CALL_FIELDS,
                 ...self::DRIVER_JOURNEY_FIELDS,
                 ...self::WEEKLY_PLANNING_FIELDS,
+                ...self::COUNCIL_FIELDS,
             ]));
 
             if (($data['is_active'] ?? false) === true) {

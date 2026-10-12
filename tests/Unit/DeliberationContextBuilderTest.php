@@ -124,8 +124,8 @@ class DeliberationContextBuilderTest extends TestCase
         $context = $builder->build($councilDecision);
 
         $this->assertSame('deliberation', $context['document']['type']);
-        $this->assertSame('deliberations.external', $context['document']['template_key']);
-        $this->assertSame('1.0', $context['document']['template_version']);
+        $this->assertSame('deliberations.subvention', $context['document']['template_key']);
+        $this->assertSame('2.0', $context['document']['template_version']);
 
         $this->assertSame(500, $context['decision']['id']);
         $this->assertSame('approuve', $context['decision']['status']);

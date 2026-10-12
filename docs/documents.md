@@ -511,3 +511,23 @@ Il permet de générer, stocker, lier et télécharger les documents administrat
 Il est utilisé par les réservations, les délibérations, les feuilles de route, le planning et les futures notifications.
 
 Les points essentiels sont la sécurité d'accès, le masquage des chemins internes, le versioning, la traçabilité et l'association correcte aux réservations.
+
+## Liste des passagers (carnet de bord)
+
+Demande du client : le chauffeur doit pouvoir montrer au SPF Mobilité « un listing de tous les passagers pour chaque
+voyage », joint à la réservation et mis à jour ensuite.
+
+- Type `liste_passagers`, un seul par réservation : `POST /api/reservations/{id}/passenger-list` (multipart, champ
+  `passenger_list`) remplace la précédente (fichier et ligne supprimés, `version` + 1), `DELETE` la retire,
+  `GET` renvoie `{ data: document | null, meta: { can_replace, closes_at, reason } }`. Téléchargement :
+  `GET /api/documents/{id}/download`.
+- Qui : le demandeur, un responsable de l'organisation, un agent ou un admin (`ReservationPolicy::managePassengerList`).
+  Le demandeur jusqu'à l'heure de départ ; un agent ou un admin à tout moment ; plus personne sur une réservation
+  refusée ou annulée. Lecture : règles habituelles des documents (agent, admin, demandeur, membres de l'organisation,
+  chauffeur affecté).
+- Formats : PDF, Excel (.xlsx), CSV, JPG et PNG, 5 Mo (`config/uploads.php` `passenger_lists`), avec le même pipeline
+  de sécurité que les justificatifs (`ProofDocumentService::validateAs`).
+- Conservation : jusqu'au 31 décembre de la 3e année qui suit l'année du trajet (arrêté royal du 22 mai 2014, art. 2
+  § 4, pour les feuilles de route ; `PASSENGER_LIST_RETENTION_YEARS`), puis suppression chaque nuit à 03:30 par
+  `documents:purge-passenger-lists`. Pour un transport « pour compte propre », l'art. 7 n'exige que des documents
+  appropriés à bord : la durée est un choix prudent, à confirmer par le juriste de la commune.
