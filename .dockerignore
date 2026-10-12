@@ -8,3 +8,12 @@ storage/framework/sessions
 storage/framework/testing
 storage/framework/views
 storage/logs
+# Fichiers de dev et données locales : jamais dans l'image de production (deploy/docker/Dockerfile.prod)
+.env.*
+!.env.example
+tests
+storage/app/private
+storage/app/public/*
+storage/framework/testing
+bus_communal
+.phpunit.cache

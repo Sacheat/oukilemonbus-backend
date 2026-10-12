@@ -356,14 +356,15 @@ docker compose exec app php artisan config:clear && php artisan route:clear && p
 
 ## Checklist production
 
+Guide complet (Docker ou installation directe, HTTPS, Brevo, premier admin) : [`deploy/README.md`](deploy/README.md).
+Le modèle [`deploy/.env.production.example`](deploy/.env.production.example) couvre déjà la plupart des points ci-dessous.
+
 - [ ] `APP_ENV=production`, `APP_DEBUG=false`
 - [ ] `SESSION_SECURE_COOKIE=true` (HTTPS uniquement)
 - [ ] `SANCTUM_STATEFUL_DOMAINS` limité aux frontends réels
 - [ ] `CORS_ALLOWED_ORIGINS` limité aux origines de confiance
-- [ ] Provider email réel configuré avec retry
-- [ ] Queue driver asynchrone (Redis recommandé)
-- [ ] Workers supervisés (Supervisor ou équivalent)
-- [ ] Scheduler configuré (`* * * * * php artisan schedule:run`)
+- [ ] Provider email réel configuré (Brevo) et domaine d'envoi authentifié (SPF, DKIM, DMARC)
+- [ ] Worker de file et scheduler lancés et relancés automatiquement (services `queue` et `scheduler` de la stack Docker)
 - [ ] Rotation des secrets et gestion sécurisée des variables d'environnement
 - [ ] Centralisation des logs et alertes sur erreurs critiques
 
@@ -391,6 +392,7 @@ docker compose exec app php artisan config:clear && php artisan route:clear && p
 | [`docs/testing.md`](docs/testing.md) | 470 tests, patterns, seeders |
 | [`docs/backups.md`](docs/backups.md) | Stratégie et commandes de backup |
 | [`docs/tooling.md`](docs/tooling.md) | Module Tooling : Backend Inspector, Dev Toolbox, API admin |
+| [`deploy/README.md`](deploy/README.md) | Déploiement en production : Docker (ou installation directe), HTTPS, Brevo, premier admin |
 | [`docs/policies-rights-matrix.md`](docs/policies-rights-matrix.md) | Matrice détaillée des policies Laravel |
 | [`oukilemonbus.dbml`](oukilemonbus.dbml) | Schéma complet de la base de données (DBML v7) |
 

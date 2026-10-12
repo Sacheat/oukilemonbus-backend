@@ -1,0 +1,6 @@
+# Proxy HTTPS (profil « https ») : certificat Let's Encrypt automatique pour CADDY_DOMAIN.
+# Le domaine doit déjà pointer vers la VM et les ports 80 et 443 doivent être libres et ouverts.
+{$CADDY_DOMAIN} {
+    encode gzip
+    reverse_proxy web:80
+}

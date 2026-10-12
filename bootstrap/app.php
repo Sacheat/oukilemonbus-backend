@@ -22,6 +22,12 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->statefulApi();
 
+        // En production, l'API est derrière un proxy HTTPS (Caddy ou nginx de la VM, puis nginx de la stack) : sans
+        // ça, Laravel verrait l'IP du proxy pour tout le monde (throttle de connexion partagé) et du http.
+        // Seuls les réseaux privés (Docker, proxy local) sont crus : un client Internet ne peut pas se faire passer
+        // pour un autre en envoyant X-Forwarded-For.
+        $middleware->trustProxies(at: ['127.0.0.1', '10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16']);
+
         // Pas de page de login côté backend : un invité sur /api/* reçoit un 401 JSON (ApiErrorMessage), jamais une redirection.
         $middleware->redirectGuestsTo(fn (Request $request): ?string => $request->is('api/*') ? null : '/');
 

@@ -1,0 +1,7 @@
+# Scheduler Laravel, installation sans Docker. À copier dans /etc/cron.d/bus-communal (voir deploy/README.md).
+# Lancé chaque minute en www-data, comme php-fpm et le worker ; c'est Laravel qui décide quelles tâches de
+# routes/console.php sont dues (feuilles de route, rappels, clôtures, purges, récapitulatifs…).
+SHELL=/bin/sh
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+* * * * * www-data cd /opt/bus-communal && php artisan schedule:run >> /dev/null 2>&1
