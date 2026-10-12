@@ -58,6 +58,7 @@ indisponibilités, trajets affectés) ou `null`.
 | Journal d'accès aux documents (IP, navigateur) | 1 an | `PRIVACY_RETENTION_DOCUMENT_ACCESS_LOGS_DAYS` | lignes supprimées |
 | Journal d'audit `domain_events` | 3 ans | `PRIVACY_RETENTION_DOMAIN_EVENTS_DAYS` | lignes supprimées |
 | Comptes inactifs | 3 ans | `PRIVACY_RETENTION_INACTIVE_ACCOUNTS_DAYS` | voir ci-dessous |
+| Listes des passagers (carnet de bord, noms des passagers) | jusqu'au 31/12 de la 3e année après l'année du trajet | `PASSENGER_LIST_RETENTION_YEARS` (années) | fichier et document supprimés par `documents:purge-passenger-lists` (03:15, avant le backup) ; durée prise sur l'arrêté royal du 22 mai 2014, art. 2 § 4 (feuilles de route), à confirmer pour un transport pour compte propre (`docs/documents.md`) |
 
 Une alerte purgée affiche « Position non disponible (Envoyée) » et sa carte retombe sur le dernier lieu connu.
 
