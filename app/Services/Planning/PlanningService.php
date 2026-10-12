@@ -52,8 +52,10 @@ class PlanningService
         // Les disponibilités détaillées sont ajoutées uniquement lorsque le contrôleur
         // les a autorisées. En pratique, elles sont réservées aux rôles internes.
         if ($includeAvailability && $user->hasAnyRole(['admin', 'agent_communal'])) {
-            $reservations->each(function (Reservation $reservation): void {
-                $reservation->setAttribute('planning_availability', $this->availabilityService->forReservation($reservation));
+            // Toutes les réservations en une fois : quelques requêtes pour le planning entier, pas par trajet
+            $availability = $this->availabilityService->forReservations($reservations);
+            $reservations->each(function (Reservation $reservation) use ($availability): void {
+                $reservation->setAttribute('planning_availability', $availability[$reservation->id]);
             });
         }
 

@@ -4,10 +4,13 @@ namespace App\Providers;
 
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Auth\Notifications\VerifyEmail;
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\Request;
 use Illuminate\Queue\Events\JobFailed;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
 
@@ -69,5 +72,27 @@ class AppServiceProvider extends ServiceProvider
                 .config('app.frontend_password_reset_path')
                 .'?'.http_build_query(['token' => $token, 'email' => $notifiable->getEmailForPasswordReset()]);
         });
+
+        $this->configureRateLimiting();
+    }
+
+    /**
+     * Limiteurs nommés (middleware throttle:consultation, throttle:action…), valeurs dans config/rate_limits.php.
+     *
+     * Un `throttle:60,1` sans nom compte un seul compteur par utilisateur pour TOUTES les routes limitées : après
+     * 20 consultations, un preview (limite 20) était refusé. Ici chaque famille a son compteur ; `consultation` est
+     * partagé par les lectures, les autres familles comptent en plus route par route.
+     */
+    private function configureRateLimiting(): void
+    {
+        $who = fn (Request $request): string => $request->user()?->getAuthIdentifier() ?? $request->ip();
+
+        RateLimiter::for('consultation', fn (Request $request) => Limit::perMinute(config('rate_limits.consultation'))
+            ->by($who($request)));
+
+        foreach (['action', 'verification', 'envoi', 'connexion', 'inscription', 'aide'] as $family) {
+            RateLimiter::for($family, fn (Request $request) => Limit::perMinute(config("rate_limits.{$family}"))
+                ->by(($request->route()?->getName() ?? $request->path()).'|'.$who($request)));
+        }
     }
 }

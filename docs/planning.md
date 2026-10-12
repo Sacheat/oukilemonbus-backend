@@ -252,6 +252,12 @@ Les rôles internes peuvent consulter l'ensemble du planning.
 Ils peuvent également demander les disponibilités détaillées avec :
 
 include_availability=1
+
+Les disponibilités de tout le planning sont calculées ensemble (`PlanningAvailabilityService::forReservations`) :
+chauffeurs, véhicules, indisponibilités de la période et réservations affectées des jours concernés sont lus une
+seule fois, puis comparés en mémoire pour chaque trajet. Le nombre de requêtes SQL ne dépend donc plus du nombre de
+trajets (avant : environ 6 par trajet). Quand plusieurs réservations bloquent un chauffeur ou un véhicule, le motif
+« Déjà affecté à la réservation #… » nomme celle qui part le plus tôt.
 Chauffeur
 
 Un chauffeur ne voit que les réservations qui le concernent.
