@@ -23,7 +23,7 @@ class LocationApiTest extends TestCase
 
         config([
             'services.openrouteservice.key' => 'testing-key',
-            'services.openrouteservice.base_url' => 'https://api.openrouteservice.org',
+            'services.openrouteservice.base_url' => 'https://api.heigit.org',
         ]);
 
         app(PermissionRegistrar::class)->forgetCachedPermissions();
@@ -62,7 +62,7 @@ class LocationApiTest extends TestCase
         Sanctum::actingAs($admin);
 
         Http::fake([
-            'api.openrouteservice.org/*' => Http::response([
+            'api.heigit.org/pelias/v1/*' => Http::response([
                 'features' => [
                     [
                         'geometry' => [
@@ -100,7 +100,7 @@ class LocationApiTest extends TestCase
         Sanctum::actingAs($admin);
 
         Http::fake([
-            'api.openrouteservice.org/*' => Http::response(['features' => []]),
+            'api.heigit.org/pelias/v1/*' => Http::response(['features' => []]),
         ]);
 
         $this->postJson('/api/locations', [
@@ -147,7 +147,7 @@ class LocationApiTest extends TestCase
         Sanctum::actingAs($admin);
 
         Http::fake([
-            'api.openrouteservice.org/*' => Http::response([
+            'api.heigit.org/pelias/v1/*' => Http::response([
                 'features' => [
                     [
                         'geometry' => [
