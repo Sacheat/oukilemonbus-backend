@@ -130,7 +130,7 @@ class LocationApiTest extends TestCase
             'city' => 'Dinant',
         ])
             ->assertUnprocessable()
-            ->assertJsonPath('message', 'Adresse trop imprécise : Rue Grande 1, Dinant. Indiquez le numéro et le code postal, ou choisissez une suggestion.');
+            ->assertJsonPath('message', 'Adresse introuvable : seule la commune est reconnue pour « Rue Grande 1, Dinant ». Vérifiez la rue et le numéro, ajoutez le code postal, ou choisissez une suggestion.');
 
         $this->assertDatabaseMissing('locations', ['place_id' => 'whosonfirst:locality:1']);
     }
@@ -151,7 +151,32 @@ class LocationApiTest extends TestCase
         $this->postJson('/api/locations', [
             'formatted_address' => 'Avenue Cadoux 8, Dinant',
             'city' => 'Dinant',
-        ])->assertUnprocessable();
+        ])
+            ->assertUnprocessable()
+            ->assertJsonPath('message', 'Numéro introuvable : seule la rue est connue pour « Avenue Cadoux 8, Dinant ». Choisissez la suggestion « position approximative » ou un numéro proposé.');
+    }
+
+    public function test_an_approximate_suggestion_is_saved_as_not_verified(): void
+    {
+        $admin = $this->seededUser('admin.test@bus-communal.local');
+
+        Sanctum::actingAs($admin);
+        Http::fake();
+
+        $this->postJson('/api/locations', [
+            'formatted_address' => 'Rue Adolphe Sax 99, Dinant',
+            'street' => 'Rue Adolphe Sax',
+            'street_number' => '99',
+            'city' => 'Dinant',
+            'latitude' => 50.2613,
+            'longitude' => 4.9119,
+            'place_id' => 'polyline:27317893#99',
+            'approximate' => true,
+        ])
+            ->assertCreated()
+            ->assertJsonPath('data.is_verified', false);
+
+        Http::assertNothingSent();
     }
 
     public function test_update_location_keeps_the_old_coordinates_when_the_new_address_is_imprecise(): void

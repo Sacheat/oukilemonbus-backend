@@ -24,6 +24,8 @@ class StoreLocationRequest extends FormRequest
             'latitude'          => ['nullable', 'numeric', 'between:-90,90'],
             'longitude'         => ['nullable', 'numeric', 'between:-180,180'],
             'place_id'          => ['nullable', 'string', 'max:500'],
+            // Suggestion « position approximative » (numéro inconnu, coordonnées de la rue) → is_verified = false
+            'approximate'       => ['sometimes', 'boolean'],
         ];
     }
 

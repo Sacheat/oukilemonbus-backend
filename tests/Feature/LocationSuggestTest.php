@@ -86,6 +86,61 @@ class LocationSuggestTest extends TestCase
         $this->assertSame('Rue Grande 1, Dinant', $suggestions[0]['label']);
     }
 
+    public function test_an_unknown_house_number_falls_back_to_the_street_with_the_typed_number(): void
+    {
+        // ORS ne renvoie rien quand le numéro est inconnu d'OpenStreetMap ; second appel sur les rues, sans le numéro
+        Http::fake(fn (Request $request) => str_contains($request->url(), 'layers=street')
+            ? Http::response(['features' => [$this->street('Rue Adolphe Sax', 'polyline:27317893')]])
+            : Http::response(['features' => [], 'geocoding' => ['query' => ['parsed_text' => ['street' => 'Rue Adolphe Sax', 'housenumber' => '99']]]]));
+
+        $suggestions = app(LocationService::class)->suggest('Rue Adolphe Sax 99, Dinant');
+
+        $this->assertCount(1, $suggestions);
+        $this->assertSame('Rue Adolphe Sax 99, Dinant (position approximative : milieu de la rue)', $suggestions[0]['label']);
+        $this->assertSame('Rue Adolphe Sax 99, Dinant', $suggestions[0]['formatted_address']);
+        $this->assertSame('99', $suggestions[0]['street_number']);
+        $this->assertSame('polyline:27317893#99', $suggestions[0]['place_id']);
+        $this->assertTrue($suggestions[0]['approximate']);
+        Http::assertSent(fn (Request $request): bool => str_contains($request->url(), 'layers=street')
+            && $request['text'] === 'Rue Adolphe Sax, Dinant');
+    }
+
+    public function test_the_house_number_is_found_when_ors_misreads_the_query(): void
+    {
+        // « Place Reine Astrid 1 » : ORS lit « Place » comme une localité, pas de housenumber ; le 1 n'est pas connu
+        Http::fake(fn (Request $request) => str_contains($request->url(), 'layers=street')
+            ? Http::response(['features' => [$this->street('Place Reine Astrid', 'polyline:30676222')]])
+            : Http::response(['features' => [
+                $this->feature(4.9123, 50.2605, ['name' => 'Place Reine Astrid 16', 'street' => 'Place Reine Astrid', 'housenumber' => '16', 'locality' => 'Dinant']),
+            ]]));
+
+        $labels = array_column(app(LocationService::class)->suggest('Place Reine Astrid 1'), 'label');
+
+        $this->assertSame([
+            'Place Reine Astrid 1, Dinant (position approximative : milieu de la rue)',
+            'Place Reine Astrid 16, Dinant',
+        ], $labels);
+    }
+
+    public function test_no_street_fallback_when_the_house_number_is_known(): void
+    {
+        $this->fakeFeatures([$this->feature(4.916214, 50.256283, ['locality' => 'Dinant'])]);
+
+        $suggestions = app(LocationService::class)->suggest('Rue Grande 1');
+
+        $this->assertCount(1, $suggestions);
+        $this->assertArrayNotHasKey('approximate', $suggestions[0]);
+        Http::assertSentCount(1);
+    }
+
+    private function street(string $name, string $id): array
+    {
+        return [
+            'geometry' => ['coordinates' => [4.9119, 50.2613]],
+            'properties' => ['id' => $id, 'layer' => 'street', 'name' => $name, 'street' => $name, 'locality' => 'Dinant', 'county' => 'Dinant'],
+        ];
+    }
+
     private function fakeFeatures(array $features): void
     {
         Http::fake(['api.heigit.org/pelias/v1/autocomplete*' => Http::response(['features' => $features])]);

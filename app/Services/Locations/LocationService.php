@@ -5,6 +5,7 @@ namespace App\Services\Locations;
 use App\Exceptions\GeocodingException;
 use App\Models\Location;
 use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Http;
 
 /**
@@ -17,6 +18,8 @@ use Illuminate\Support\Facades\Http;
  * `suggest()` : autocomplétion via ORS /pelias/v1/autocomplete (boundary BE, max 6 résultats,
  *   adresses avec numéro uniquement, classées par proximité du point de référence de la commune).
  *   Localité absente chez ORS → déduite du code postal (BelgianPostalCodes) ; sans les deux, la suggestion est écartée.
+ *   Numéro tapé inconnu d'OpenStreetMap (ORS ne renvoie alors rien) : second appel sur les rues, proposées avec
+ *   le numéro tapé et `approximate: true` (coordonnées du milieu de la rue, lieu enregistré avec is_verified = false).
  *   Retourne un tableau vide si ORS n'est pas configuré ou en cas d'erreur HTTP.
  *
  * `geocode()` : résolution ORS /pelias/v1/search → lat/lng/place_id.
@@ -72,10 +75,14 @@ class LocationService
                 }
             }
 
+            // Suggestion « position approximative » (rue sans le numéro) : à vérifier, d'où is_verified = false
+            $approximate = (bool) ($data['approximate'] ?? false);
+            unset($data['approximate']);
+
             return Location::create([
                 ...$data,
                 'provider' => $data['provider'] ?? 'openrouteservice',
-                'is_verified' => true,
+                'is_verified' => ! $approximate,
             ]);
         }
 
@@ -127,11 +134,94 @@ class LocationService
             return [];
         }
 
-        return collect($response->json('features', []))
+        $suggestions = collect($response->json('features', []))
             ->map(fn (array $f): ?array => $this->suggestion($f))
             ->filter()
+            ->values();
+
+        $houseNumber = $this->typedHouseNumber($query, $response->json('geocoding.query.parsed_text.housenumber'));
+
+        if ($houseNumber === null
+            || $suggestions->contains(fn (array $s): bool => strcasecmp((string) $s['street_number'], $houseNumber) === 0)) {
+            return $suggestions->all();
+        }
+
+        // Numéro inconnu : la rue avec ce numéro d'abord, puis les numéros connus de la rue
+        return $this->approximateSuggestions($query, $houseNumber)
+            ->concat($suggestions)
+            ->take(6)
             ->values()
             ->all();
+    }
+
+    /**
+     * Numéro de maison tapé : celui qu'a découpé ORS, sinon le dernier nombre de 1 à 3 chiffres (« Place Reine Astrid 1 »,
+     * qu'ORS lit comme une localité « Place »). Les codes postaux (4 chiffres) ne sont pas pris.
+     */
+    private function typedHouseNumber(string $query, ?string $parsed): ?string
+    {
+        if (filled($parsed)) {
+            return trim($parsed);
+        }
+
+        return preg_match_all('/(?<![\d\/])\d{1,3}[a-zA-Z]?(?![\d\/])/', $query, $matches)
+            ? end($matches[0])
+            : null;
+    }
+
+    /**
+     * Rues correspondant à la saisie sans le numéro, proposées avec le numéro tapé. Coordonnées : celles de la rue (ORS
+     * n'a pas le numéro), signalées dans le libellé et par `approximate`. place_id propre au numéro, pour que deux numéros
+     * de la même rue ne soient pas confondus par create().
+     */
+    private function approximateSuggestions(string $query, string $houseNumber): Collection
+    {
+        // Retire la dernière occurrence du numéro (celle que retient typedHouseNumber : « Rue du 11 Novembre 11 »)
+        preg_match_all('/(?<![\d\/])'.preg_quote($houseNumber, '/').'(?![\d\/])/i', $query, $matches, PREG_OFFSET_CAPTURE);
+        [$number, $offset] = end($matches[0]) ?: ['', 0];
+        $street = substr_replace($query, '', $offset, strlen($number));
+        $street = trim(preg_replace(['/\s+,/', '/\s{2,}/'], [',', ' '], $street), ' ,');
+
+        $response = Http::timeout(5)->withHeaders([
+            'Authorization' => $this->apiKey,
+        ])->get(self::endpoint('geocoding', '/autocomplete'), [
+            'text' => $street,
+            'boundary.country' => 'BE',
+            'size' => 3,
+            'layers' => 'street',
+            ...$this->focusPoint(),
+        ]);
+
+        if ($response->failed()) {
+            return collect();
+        }
+
+        return collect($response->json('features', []))
+            ->map(function (array $f) use ($houseNumber): ?array {
+                $streetName = $f['properties']['name'] ?? $f['properties']['street'] ?? null;
+                if (blank($streetName)) {
+                    return null;
+                }
+
+                $suggestion = $this->suggestion([
+                    ...$f,
+                    'properties' => [
+                        ...$f['properties'],
+                        'name' => "{$streetName} {$houseNumber}",
+                        'street' => $streetName,
+                        'housenumber' => $houseNumber,
+                    ],
+                ]);
+
+                return $suggestion ? [
+                    ...$suggestion,
+                    'label' => "{$suggestion['label']} (position approximative : milieu de la rue)",
+                    'place_id' => filled($suggestion['place_id']) ? "{$suggestion['place_id']}#{$houseNumber}" : null,
+                    'approximate' => true,
+                ] : null;
+            })
+            ->filter()
+            ->values();
     }
 
     /**
@@ -221,10 +311,17 @@ class LocationService
 
         // ORS se replie sur la rue ou la ville quand il ne trouve pas l'adresse (layer street/locality,
         // match_type fallback) : ces coordonnées peuvent être à des centaines de mètres, on refuse.
-        if (($feature['properties']['layer'] ?? null) !== 'address'
-            || ($feature['properties']['match_type'] ?? null) === 'fallback') {
+        $layer = $feature['properties']['layer'] ?? null;
+
+        if ($layer === 'street') {
             throw new GeocodingException(
-                "Adresse trop imprécise : {$address}. Indiquez le numéro et le code postal, ou choisissez une suggestion."
+                "Numéro introuvable : seule la rue est connue pour « {$address} ». Choisissez la suggestion « position approximative » ou un numéro proposé."
+            );
+        }
+
+        if ($layer !== 'address' || ($feature['properties']['match_type'] ?? null) === 'fallback') {
+            throw new GeocodingException(
+                "Adresse introuvable : seule la commune est reconnue pour « {$address} ». Vérifiez la rue et le numéro, ajoutez le code postal, ou choisissez une suggestion."
             );
         }
 
