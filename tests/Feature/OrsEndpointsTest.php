@@ -50,7 +50,7 @@ class OrsEndpointsTest extends TestCase
     public function test_geocode_calls_pelias_search_with_the_key_in_the_header(): void
     {
         Http::fake(['api.heigit.org/pelias/v1/search*' => Http::response([
-            'features' => [['geometry' => ['coordinates' => [4.91, 50.26]], 'properties' => ['id' => 'p1']]],
+            'features' => [['geometry' => ['coordinates' => [4.91, 50.26]], 'properties' => ['id' => 'p1', 'layer' => 'address', 'match_type' => 'exact']]],
         ])]);
 
         app(LocationService::class)->geocode('Rue Grande 1, Dinant');

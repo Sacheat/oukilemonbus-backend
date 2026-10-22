@@ -70,6 +70,8 @@ class LocationApiTest extends TestCase
                         ],
                         'properties' => [
                             'id' => 'ors-place-1',
+                            'layer' => 'address',
+                            'match_type' => 'exact',
                         ],
                     ],
                 ],
@@ -107,6 +109,71 @@ class LocationApiTest extends TestCase
             'formatted_address' => 'Adresse inconnue',
             'city' => 'Dinant',
         ])->assertUnprocessable();
+    }
+
+    public function test_create_location_rejects_a_geocoding_that_falls_back_to_the_city(): void
+    {
+        $admin = $this->seededUser('admin.test@bus-communal.local');
+
+        Sanctum::actingAs($admin);
+
+        // Réponse réelle d'ORS pour « Rue Grande 1, Dinant » : numéro mal découpé, repli sur le centre de Dinant
+        Http::fake([
+            'api.heigit.org/pelias/v1/*' => Http::response(['features' => [[
+                'geometry' => ['coordinates' => [4.920467, 50.249286]],
+                'properties' => ['id' => 'whosonfirst:locality:1', 'layer' => 'locality', 'match_type' => 'fallback'],
+            ]]]),
+        ]);
+
+        $this->postJson('/api/locations', [
+            'formatted_address' => 'Rue Grande 1, Dinant',
+            'city' => 'Dinant',
+        ])
+            ->assertUnprocessable()
+            ->assertJsonPath('message', 'Adresse trop imprécise : Rue Grande 1, Dinant. Indiquez le numéro et le code postal, ou choisissez une suggestion.');
+
+        $this->assertDatabaseMissing('locations', ['place_id' => 'whosonfirst:locality:1']);
+    }
+
+    public function test_create_location_rejects_a_geocoding_that_falls_back_to_the_street(): void
+    {
+        $admin = $this->seededUser('admin.test@bus-communal.local');
+
+        Sanctum::actingAs($admin);
+
+        Http::fake([
+            'api.heigit.org/pelias/v1/*' => Http::response(['features' => [[
+                'geometry' => ['coordinates' => [4.908842, 50.261541]],
+                'properties' => ['id' => 'polyline:1', 'layer' => 'street', 'match_type' => 'fallback'],
+            ]]]),
+        ]);
+
+        $this->postJson('/api/locations', [
+            'formatted_address' => 'Avenue Cadoux 8, Dinant',
+            'city' => 'Dinant',
+        ])->assertUnprocessable();
+    }
+
+    public function test_update_location_keeps_the_old_coordinates_when_the_new_address_is_imprecise(): void
+    {
+        $admin = $this->seededUser('admin.test@bus-communal.local');
+
+        Sanctum::actingAs($admin);
+
+        Http::fake([
+            'api.heigit.org/pelias/v1/*' => Http::response(['features' => [[
+                'geometry' => ['coordinates' => [4.920467, 50.249286]],
+                'properties' => ['id' => 'whosonfirst:locality:1', 'layer' => 'locality', 'match_type' => 'fallback'],
+            ]]]),
+        ]);
+
+        $location = $this->seededLocation('seed-dinant-centre');
+
+        $this->patchJson("/api/locations/{$location->id}", [
+            'formatted_address' => 'Rue Grande 1, Dinant',
+        ])->assertUnprocessable();
+
+        $this->assertSame((string) $location->latitude, (string) $location->fresh()->latitude);
     }
 
     public function test_authenticated_user_can_show_location(): void
@@ -155,6 +222,8 @@ class LocationApiTest extends TestCase
                         ],
                         'properties' => [
                             'id' => 'ors-place-2',
+                            'layer' => 'address',
+                            'match_type' => 'exact',
                         ],
                     ],
                 ],
