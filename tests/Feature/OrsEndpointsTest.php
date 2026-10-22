@@ -40,6 +40,13 @@ class OrsEndpointsTest extends TestCase
         );
     }
 
+    public function test_endpoint_rejects_an_unknown_service(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+
+        LocationService::endpoint('geocode', '/search');
+    }
+
     public function test_geocode_calls_pelias_search_with_the_key_in_the_header(): void
     {
         Http::fake(['api.heigit.org/pelias/v1/search*' => Http::response([
@@ -48,7 +55,7 @@ class OrsEndpointsTest extends TestCase
 
         app(LocationService::class)->geocode('Rue Grande 1, Dinant');
 
-        Http::assertSent(fn (Request $request): bool => $this->isOrsCall($request, 'GET', self::BASE_URL.'/pelias/v1/search?')
+        Http::assertSent(fn (Request $request): bool => $this->isOrsCall($request, 'GET', self::BASE_URL.'/pelias/v1/search')
             && $request['text'] === 'Rue Grande 1, Dinant');
     }
 
@@ -58,7 +65,7 @@ class OrsEndpointsTest extends TestCase
 
         app(LocationService::class)->suggest('Rue Grande');
 
-        Http::assertSent(fn (Request $request): bool => $this->isOrsCall($request, 'GET', self::BASE_URL.'/pelias/v1/autocomplete?'));
+        Http::assertSent(fn (Request $request): bool => $this->isOrsCall($request, 'GET', self::BASE_URL.'/pelias/v1/autocomplete'));
     }
 
     public function test_distance_calls_openrouteservice_directions(): void
@@ -71,7 +78,7 @@ class OrsEndpointsTest extends TestCase
 
         Http::assertSent(fn (Request $request): bool => $this->isOrsCall(
             $request, 'POST', self::BASE_URL.'/openrouteservice/v2/directions/driving-car'
-        ) && $request->url() === self::BASE_URL.'/openrouteservice/v2/directions/driving-car');
+        ));
     }
 
     public function test_route_calls_openrouteservice_directions_geojson(): void
@@ -104,7 +111,7 @@ class OrsEndpointsTest extends TestCase
 
         $this->assertSame('ok', $checks['ors_geocoding']['status']);
         $this->assertSame('ok', $checks['ors_routing']['status']);
-        Http::assertSent(fn (Request $request): bool => $this->isOrsCall($request, 'GET', self::BASE_URL.'/pelias/v1/search?'));
+        Http::assertSent(fn (Request $request): bool => $this->isOrsCall($request, 'GET', self::BASE_URL.'/pelias/v1/search'));
         Http::assertSent(fn (Request $request): bool => $this->isOrsCall($request, 'POST', self::BASE_URL.'/openrouteservice/v2/directions/driving-car'));
     }
 
@@ -126,10 +133,10 @@ class OrsEndpointsTest extends TestCase
         );
     }
 
-    private function isOrsCall(Request $request, string $method, string $urlPrefix): bool
+    private function isOrsCall(Request $request, string $method, string $url): bool
     {
         return $request->method() === $method
-            && str_starts_with($request->url(), $urlPrefix)
+            && strtok($request->url(), '?') === $url
             && $request->header('Authorization') === ['test-key']
             && ! str_contains($request->url(), 'api_key');
     }

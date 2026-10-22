@@ -31,23 +31,28 @@ class LocationService
 {
     private ?string $apiKey;
 
-    private ?string $baseUrl;
-
     public function __construct()
     {
         $this->apiKey = config('services.openrouteservice.key');
-        $this->baseUrl = config('services.openrouteservice.base_url');
     }
 
     /**
      * URL complète d'un appel ORS, ex. endpoint('geocoding', '/search')
      * → https://api.heigit.org/pelias/v1/search.
+     *
+     * @throws \InvalidArgumentException si le service n'a pas de préfixe dans services.openrouteservice.paths
      */
     public static function endpoint(string $service, string $path): string
     {
+        $prefix = config("services.openrouteservice.paths.{$service}");
+
+        if (blank($prefix)) {
+            throw new \InvalidArgumentException("Service ORS inconnu : {$service}");
+        }
+
         $baseUrl = rtrim((string) config('services.openrouteservice.base_url'), '/');
 
-        return $baseUrl.config("services.openrouteservice.paths.{$service}").$path;
+        return $baseUrl.$prefix.$path;
     }
 
     public function create(array $data): Location
@@ -99,7 +104,7 @@ class LocationService
      */
     public function suggest(string $query): array
     {
-        if (blank($this->apiKey) || blank($this->baseUrl)) {
+        if (blank($this->apiKey) || blank(config('services.openrouteservice.base_url'))) {
             return [];
         }
 
@@ -278,7 +283,7 @@ class LocationService
     /** @throws GeocodingException */
     private function ensureConfigured(): void
     {
-        if (blank($this->apiKey) || blank($this->baseUrl)) {
+        if (blank($this->apiKey) || blank(config('services.openrouteservice.base_url'))) {
             throw new GeocodingException('La configuration OpenRouteService est incomplete.');
         }
     }
