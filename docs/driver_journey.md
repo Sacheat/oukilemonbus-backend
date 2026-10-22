@@ -208,7 +208,7 @@ Après un pull : `php artisan migrate` (dev et `--env=testing`), `db:seed --clas
 ## 7. Tracé réel d'un trajet
 
 `GET /reservations/{id}/route` (chauffeur affecté, agents et admins ; sinon 403) : tracé de l'aller (lieu de départ →
-destination) calculé par ORS (`/v2/directions/driving-car/geojson`, instructions en français) **à la première ouverture**,
+destination) calculé par ORS (`/openrouteservice/v2/directions/driving-car/geojson`, instructions en français) **à la première ouverture**,
 puis gardé dans `trip_routes` (une ligne par réservation).
 
 ```

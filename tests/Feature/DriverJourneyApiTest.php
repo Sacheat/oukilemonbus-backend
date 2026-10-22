@@ -36,7 +36,7 @@ class DriverJourneyApiTest extends TestCase
 {
     use DatabaseTransactions;
 
-    private const ORS_URL = 'https://ors.test/v2/directions/driving-car/geojson';
+    private const ORS_URL = 'https://ors.test/openrouteservice/v2/directions/driving-car/geojson';
 
     protected function setUp(): void
     {

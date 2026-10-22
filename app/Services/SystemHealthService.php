@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Services\Locations\LocationService;
 use App\Services\Notifications\NotificationHealthService;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -22,8 +23,8 @@ use Symfony\Component\Mailer\Transport\Smtp\Stream\SocketStream;
  *   - cache         : écriture/lecture/suppression d'une clé temporaire
  *   - queue         : jobs failed, bloqués > 5 min, queues orphelines (non écoutées par le worker)
  *   - storage       : écriture/lecture sur le disque 'local'
- *   - ors_geocoding : appel /geocode/search ORS avec "Dinant"
- *   - ors_routing   : appel /v2/directions ORS Dinant → Namur
+ *   - ors_geocoding : appel /pelias/v1/search ORS avec "Dinant" (URL appelée affichée en cas d'erreur)
+ *   - ors_routing   : appel /openrouteservice/v2/directions ORS Dinant → Namur (idem)
  *   - geonames      : appel searchJSON GeoNames avec "Dinant"
  *   - notifications : métriques NotificationHealthService (pending, failed, late)
  *   - mail          : connexion au serveur SMTP du mailer par défaut (EHLO + authentification, sans envoi) ;
@@ -179,7 +180,7 @@ class SystemHealthService
     private function checkOrsGeocoding(): array
     {
         $apiKey = config('services.openrouteservice.key');
-        $baseUrl = config('services.openrouteservice.base_url');
+        $url = LocationService::endpoint('geocoding', '/search');
 
         if (blank($apiKey)) {
             return ['status' => 'error', 'details' => 'ORS_API_KEY absente', 'duration_ms' => null];
@@ -188,8 +189,9 @@ class SystemHealthService
         $start = microtime(true);
 
         try {
-            $response = Http::timeout(5)->get("{$baseUrl}/geocode/search", [
-                'api_key'          => $apiKey,
+            $response = Http::timeout(5)->withHeaders([
+                'Authorization' => $apiKey,
+            ])->get($url, [
                 'text'             => 'Dinant, Belgique',
                 'boundary.country' => 'BE',
                 'size'             => 1,
@@ -198,7 +200,7 @@ class SystemHealthService
             $ms = $this->ms($start);
 
             if ($response->failed()) {
-                return ['status' => 'error', 'details' => "HTTP {$response->status()}", 'duration_ms' => $ms];
+                return ['status' => 'error', 'details' => "HTTP {$response->status()} — {$url}", 'duration_ms' => $ms];
             }
 
             $count = count($response->json('features', []));
@@ -209,14 +211,14 @@ class SystemHealthService
                 'duration_ms' => $ms,
             ];
         } catch (\Throwable $e) {
-            return ['status' => 'error', 'details' => $e->getMessage(), 'duration_ms' => $this->ms($start)];
+            return ['status' => 'error', 'details' => "{$e->getMessage()} — {$url}", 'duration_ms' => $this->ms($start)];
         }
     }
 
     private function checkOrsRouting(): array
     {
         $apiKey = config('services.openrouteservice.key');
-        $baseUrl = config('services.openrouteservice.base_url');
+        $url = LocationService::endpoint('directions', '/driving-car');
 
         if (blank($apiKey)) {
             return ['status' => 'error', 'details' => 'ORS_API_KEY absente', 'duration_ms' => null];
@@ -228,14 +230,14 @@ class SystemHealthService
             $response = Http::timeout(5)->withHeaders([
                 'Authorization' => $apiKey,
                 'Content-Type'  => 'application/json',
-            ])->post("{$baseUrl}/v2/directions/driving-car", [
+            ])->post($url, [
                 'coordinates' => [[4.9122, 50.2607], [4.8531, 50.4674]], // Dinant → Namur
             ]);
 
             $ms = $this->ms($start);
 
             if ($response->failed()) {
-                return ['status' => 'error', 'details' => "HTTP {$response->status()}", 'duration_ms' => $ms];
+                return ['status' => 'error', 'details' => "HTTP {$response->status()} — {$url}", 'duration_ms' => $ms];
             }
 
             $distanceKm = round($response->json('routes.0.summary.distance', 0) / 1000, 1);
@@ -246,7 +248,7 @@ class SystemHealthService
                 'duration_ms' => $ms,
             ];
         } catch (\Throwable $e) {
-            return ['status' => 'error', 'details' => $e->getMessage(), 'duration_ms' => $this->ms($start)];
+            return ['status' => 'error', 'details' => "{$e->getMessage()} — {$url}", 'duration_ms' => $this->ms($start)];
         }
     }
 

@@ -37,7 +37,12 @@ return [
 
     'openrouteservice' => [
         'key' => env('ORS_API_KEY'),
-        'base_url' => env('ORS_BASE_URL', 'https://api.openrouteservice.org'),
+        'base_url' => env('ORS_BASE_URL', 'https://api.heigit.org'),
+        // Préfixe de chaque service sous base_url (api.heigit.org/<service>/<version>).
+        'paths' => [
+            'directions' => '/openrouteservice/v2/directions',
+            'geocoding' => '/pelias/v1',
+        ],
     ],
 
     'geonames' => [

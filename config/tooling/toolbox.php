@@ -91,10 +91,10 @@ return [
             [
                 'name'            => 'OpenRouteService — Géocodage',
                 'env_key'         => 'ORS_API_KEY',
-                'url'             => 'https://api.openrouteservice.org/geocode/search',
+                'url'             => 'https://api.heigit.org/pelias/v1/search',
                 'used_for'        => "Convertir une adresse texte en coordonnées GPS (longitude, latitude)",
                 'request'         => [
-                    'api_key'          => '(ORS_API_KEY)',
+                    'Authorization'    => '(ORS_API_KEY)',
                     'text'             => '"Rue de la Station 12, Dinant"',
                     'boundary.country' => '"BE"',
                     'size'             => 1,
@@ -108,7 +108,7 @@ return [
             [
                 'name'            => 'OpenRouteService — Calcul d\'itinéraire',
                 'env_key'         => 'ORS_API_KEY',
-                'url'             => 'https://api.openrouteservice.org/v2/directions/driving-car',
+                'url'             => 'https://api.heigit.org/openrouteservice/v2/directions/driving-car',
                 'used_for'        => 'Calculer la distance et durée réelles par la route entre deux points GPS',
                 'request'         => [
                     'Authorization' => '(ORS_API_KEY)',

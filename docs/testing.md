@@ -94,6 +94,10 @@ Sanctum::actingAs($agent);
 
 ### Faking ORS
 
+Les tests de réservation configurent `base_url` à `https://ors.test` et simulent tous les chemins. Les URLs réelles
+(`api.heigit.org/pelias/v1/…` pour le géocodage, `api.heigit.org/openrouteservice/v2/directions/…` pour les
+itinéraires, clé dans l'en-tête `Authorization`) sont vérifiées par `OrsEndpointsTest`.
+
 ```php
 Http::fake([
     'https://ors.test/*' => Http::response([

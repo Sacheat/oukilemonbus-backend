@@ -14,26 +14,45 @@ use Illuminate\Support\Facades\Http;
  *   un emplacement existant avec le même place_id pour éviter les doublons.
  *   Sinon, géocode l'adresse via ORS.
  *
- * `suggest()` : autocomplétion via ORS /geocode/autocomplete (boundary BE, max 6 résultats).
+ * `suggest()` : autocomplétion via ORS /pelias/v1/autocomplete (boundary BE, max 6 résultats).
  *   Retourne un tableau vide si ORS n'est pas configuré ou en cas d'erreur HTTP.
  *
- * `geocode()` : résolution ORS /geocode/search → lat/lng/place_id.
+ * `geocode()` : résolution ORS /pelias/v1/search → lat/lng/place_id.
  *   Lève GeocodingException si ORS est inaccessible ou ne retourne aucun résultat.
  *
- * `calculateDistance()` : ORS /v2/directions/driving-car → distance_km + estimated_duration_min.
+ * `calculateDistance()` : ORS /openrouteservice/v2/directions/driving-car → distance_km + estimated_duration_min.
  *   Lève GeocodingException si l'itinéraire est introuvable.
  *   Le PreviewService possède un fallback haversine × 1.25 si cette méthode échoue.
+ *
+ * Les URLs sont construites par `endpoint()` : ORS_BASE_URL + préfixe du service
+ * (config services.openrouteservice.paths). La clé part toujours dans l'en-tête Authorization.
  */
 class LocationService
 {
     private ?string $apiKey;
 
-    private ?string $baseUrl;
-
     public function __construct()
     {
         $this->apiKey = config('services.openrouteservice.key');
-        $this->baseUrl = config('services.openrouteservice.base_url');
+    }
+
+    /**
+     * URL complète d'un appel ORS, ex. endpoint('geocoding', '/search')
+     * → https://api.heigit.org/pelias/v1/search.
+     *
+     * @throws \InvalidArgumentException si le service n'a pas de préfixe dans services.openrouteservice.paths
+     */
+    public static function endpoint(string $service, string $path): string
+    {
+        $prefix = config("services.openrouteservice.paths.{$service}");
+
+        if (blank($prefix)) {
+            throw new \InvalidArgumentException("Service ORS inconnu : {$service}");
+        }
+
+        $baseUrl = rtrim((string) config('services.openrouteservice.base_url'), '/');
+
+        return $baseUrl.$prefix.$path;
     }
 
     public function create(array $data): Location
@@ -78,19 +97,20 @@ class LocationService
     }
 
     /**
-     * Retourne des suggestions d'adresses via ORS /geocode/autocomplete.
+     * Retourne des suggestions d'adresses via ORS /pelias/v1/autocomplete.
      * Retourne un tableau vide si ORS n'est pas configuré ou en cas d'erreur.
      *
      * @return array<int, array{label: string, formatted_address: string, street: ?string, street_number: ?string, postal_code: ?string, city: ?string, country: string, latitude: float, longitude: float, place_id: ?string}>
      */
     public function suggest(string $query): array
     {
-        if (blank($this->apiKey) || blank($this->baseUrl)) {
+        if (blank($this->apiKey) || blank(config('services.openrouteservice.base_url'))) {
             return [];
         }
 
-        $response = Http::timeout(5)->get("{$this->baseUrl}/geocode/autocomplete", [
-            'api_key' => $this->apiKey,
+        $response = Http::timeout(5)->withHeaders([
+            'Authorization' => $this->apiKey,
+        ])->get(self::endpoint('geocoding', '/autocomplete'), [
             'text' => $query,
             'boundary.country' => 'BE',
             'size' => 6,
@@ -128,8 +148,9 @@ class LocationService
     {
         $this->ensureConfigured();
 
-        $response = Http::timeout(10)->get("{$this->baseUrl}/geocode/search", [
-            'api_key' => $this->apiKey,
+        $response = Http::timeout(10)->withHeaders([
+            'Authorization' => $this->apiKey,
+        ])->get(self::endpoint('geocoding', '/search'), [
             'text' => $address,
             'boundary.country' => 'BE',
             'size' => 1,
@@ -174,7 +195,7 @@ class LocationService
             $response = Http::timeout(10)->withHeaders([
                 'Authorization' => $this->apiKey,
                 'Content-Type' => 'application/json',
-            ])->post("{$this->baseUrl}/v2/directions/driving-car", [
+            ])->post(self::endpoint('directions', '/driving-car'), [
                 'coordinates' => [
                     [$fromLng, $fromLat],
                     [$toLng,   $toLat],
@@ -222,7 +243,7 @@ class LocationService
             $response = Http::timeout(15)->withHeaders([
                 'Authorization' => $this->apiKey,
                 'Content-Type' => 'application/json',
-            ])->post("{$this->baseUrl}/v2/directions/driving-car/geojson", [
+            ])->post(self::endpoint('directions', '/driving-car/geojson'), [
                 'coordinates' => [[$fromLng, $fromLat], [$toLng, $toLat]],
                 'instructions' => true,
                 'language' => 'fr',
@@ -262,7 +283,7 @@ class LocationService
     /** @throws GeocodingException */
     private function ensureConfigured(): void
     {
-        if (blank($this->apiKey) || blank($this->baseUrl)) {
+        if (blank($this->apiKey) || blank(config('services.openrouteservice.base_url'))) {
             throw new GeocodingException('La configuration OpenRouteService est incomplete.');
         }
     }
