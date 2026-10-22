@@ -55,7 +55,8 @@ docker compose exec app php artisan test --testdox
 | Fichier | Ce qu'il teste |
 |---|---|
 | `AuthUserApiTest` | Inscription, connexion, déconnexion, profil, rate limiting |
-| `LocationApiTest` | Création avec géocodage ORS, mise à jour, suggestion |
+| `LocationApiTest` | Création avec géocodage ORS, refus des géocodages imprécis (rue ou ville), mise à jour |
+| `LocationSuggestTest` | Suggestions : focus sur la commune, libellé avec code postal, localité depuis le code postal, suggestions sans localité écartées, repli « position approximative » sur la rue quand le numéro est inconnu |
 | `VehicleApiTest` | CRUD, plaque dupliquée, activation/désactivation |
 | `DriverApiTest` | CRUD, user dupliqué, activation/désactivation |
 | `OrganizationApiTest` | CRUD, types, protection compteur quota |

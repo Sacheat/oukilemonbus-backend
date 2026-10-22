@@ -10,6 +10,7 @@ use Exception;
  * Cas couverts :
  * - Coordonnées manquantes sur le lieu de départ ou la destination.
  * - L'API OpenRouteService est indisponible ou renvoie une erreur.
+ * - Adresse trop imprécise : ORS ne trouve que la rue ou la ville (LocationService::geocode()).
  * - La configuration ORS est incomplète (ORS_API_KEY absent).
  *
  * Attrapée par ReservationPreviewService pour produire un conflit DISTANCE_NOT_CALCULATED

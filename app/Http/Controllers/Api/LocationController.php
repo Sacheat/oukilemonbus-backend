@@ -15,7 +15,7 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 /**
  * Gestion des lieux (géocodage et autocomplétion).
- * `store` appelle LocationService qui déclenche le géocodage ORS — peut lever GeocodingException → 422.
+ * `store` et `update` (si l'adresse change) appellent LocationService qui déclenche le géocodage ORS — GeocodingException → 422.
  * `suggest` requiert au minimum 3 caractères avant d'interroger l'API pour éviter les appels inutiles.
  */
 class LocationController extends Controller
@@ -74,9 +74,15 @@ class LocationController extends Controller
         return new LocationResource($location);
     }
 
-    public function update(UpdateLocationRequest $request, Location $location): LocationResource
+    public function update(UpdateLocationRequest $request, Location $location): LocationResource|JsonResponse
     {
-        $location = $this->locationService->update($location, $request->validated());
+        try {
+            $location = $this->locationService->update($location, $request->validated());
+        } catch (GeocodingException $exception) {
+            return response()->json([
+                'message' => $exception->getMessage(),
+            ], 422);
+        }
 
         return new LocationResource($location);
     }

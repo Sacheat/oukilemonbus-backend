@@ -20,9 +20,13 @@ Ce document liste l'ensemble des modules du backend, leur périmètre fonctionne
 - Filtres par rôle, statut, organisation
 
 ### Lieux (Locations)
-- Géocodage via OpenRouteService à la création
-- Suggestion d'adresses (`GET /api/locations/suggest`)
-- Re-géocodage optionnel à la mise à jour si l'adresse change
+- Géocodage via OpenRouteService à la création, refusé (422) si ORS ne trouve que la rue ou la ville
+- Suggestion d'adresses (`GET /api/locations/suggest`) : adresses avec numéro uniquement, classées autour du dépôt
+  ou du centre de la commune ; localité déduite du code postal quand ORS ne la donne pas
+  (`database/data/be_postal_codes.csv`, GeoNames, CC BY 4.0), suggestion écartée sans localité ni code postal
+- Numéro inconnu d'OpenStreetMap : la rue est proposée avec le numéro tapé, « (position approximative : milieu de la rue) »,
+  et le lieu est enregistré avec `is_verified = false`
+- Re-géocodage optionnel à la mise à jour si l'adresse change (même contrôle de précision)
 - Fallback Haversine si ORS indisponible (coordonnées existantes)
 
 ### Communes (Municipalities)
