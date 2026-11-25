@@ -400,4 +400,6 @@ Le modèle [`deploy/.env.production.example`](deploy/.env.production.example) co
 
 ## Licence
 
-Projet distribué sous licence MIT.
+© 2026 Sacha Libion et Stéphane Ponzo — **tous droits réservés**.
+
+Le code est public uniquement pour être consulté (évaluation, recrutement). Toute copie, modification ou réutilisation, même partielle, est interdite sans l'accord écrit des auteurs. Voir [`LICENSE`](LICENSE).
