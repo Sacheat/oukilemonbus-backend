@@ -4,7 +4,7 @@
     "type": "project",
     "description": "Backend Laravel pour l'application de gestion des réservations du bus communal.",
     "keywords": ["laravel", "bus", "reservation", "commune", "backend"],
-    "license": "MIT",
+    "license": "proprietary",
     "require": {
         "php": "^8.4",
         "barryvdh/laravel-dompdf": "^3.1",
